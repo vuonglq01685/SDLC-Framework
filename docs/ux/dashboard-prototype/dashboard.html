@@ -1,0 +1,1719 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SDLC — Ops Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAF8F3;
+  --paper: #FFFFFF;
+  --ink: #14161B;
+  --ink-soft: #3D424D;
+  --ink-mute: #6B7180;
+  --ink-dim: #9AA0AC;
+  --rule: #E6E2D9;
+  --rule-strong: #D8D2C4;
+  --accent: #B5482A;
+  --accent-soft: #FBEEE7;
+  --green: #2D6A3E;
+  --green-soft: #E5F0E8;
+  --amber: #B17009;
+  --amber-soft: #FAF0DD;
+  --red:   #B0322B;
+  --red-soft: #FBE7E5;
+  --blue:  #2A578F;
+  --blue-soft: #E5EDF7;
+  --purple:#6E4AAB;
+}
+[data-theme="dark"] {
+  --bg: #0E0F13;
+  --paper: #161922;
+  --ink: #ECEEF3;
+  --ink-soft: #C2C7D2;
+  --ink-mute: #8B92A2;
+  --ink-dim: #5C6273;
+  --rule: rgba(255,255,255,0.08);
+  --rule-strong: rgba(255,255,255,0.18);
+  --accent: #E27858;
+  --accent-soft: rgba(226,120,88,0.12);
+  --green: #4ADE80;
+  --green-soft: rgba(74,222,128,0.12);
+  --amber: #FBBF24;
+  --amber-soft: rgba(251,191,36,0.12);
+  --red: #F87171;
+  --red-soft: rgba(248,113,113,0.12);
+  --blue: #60A5FA;
+  --blue-soft: rgba(96,165,250,0.12);
+  --purple: #A78BFA;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+.shell { max-width: 1360px; margin: 0 auto; padding: 28px 40px 80px; }
+
+/* ── MASTHEAD ── */
+.masthead { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 1px solid var(--ink); }
+.masthead h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 32px; letter-spacing: -0.015em; line-height: 1; }
+.masthead h1 .arrow { color: var(--accent); }
+.masthead .sub { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 8px; }
+.masthead .sub b { color: var(--ink); font-weight: 500; }
+.masthead .right { display: flex; gap: 24px; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); }
+.live { display: inline-flex; align-items: center; gap: 8px; }
+.live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); animation: pulse 2.4s ease-in-out infinite; }
+.live.warn .dot { background: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 25%, transparent); }
+.live.err .dot { background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 25%, transparent); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 8%, transparent); } }
+
+/* ── KPI STRIP ── */
+.kpis { display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 28px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.kpi { padding: 22px 28px 22px 0; border-right: 1px solid var(--rule); }
+.kpi:last-child { border-right: none; padding-right: 0; }
+.kpi:not(:first-child) { padding-left: 28px; }
+.kpi .label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mute); }
+.kpi .value { font-family: 'Fraunces', serif; font-size: 44px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.05; margin-top: 6px; color: var(--ink); }
+.kpi .value .unit { font-family: 'Inter', sans-serif; font-size: 16px; color: var(--ink-mute); font-weight: 400; margin-left: 4px; letter-spacing: 0; }
+.kpi .delta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+.kpi .delta.up { color: var(--green); }
+.kpi .delta.down { color: var(--red); }
+.kpi .delta.neutral { color: var(--ink-mute); }
+
+/* ── TABS ── */
+.tabs { display: flex; gap: 4px; margin-top: 28px; border-bottom: 1px solid var(--rule); }
+.tab { background: none; border: none; padding: 12px 20px 14px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--ink-mute); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; letter-spacing: -0.005em; transition: color 0.15s, border-color 0.15s; }
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.tab .count { display: inline-block; margin-left: 8px; padding: 1px 8px; background: var(--rule); color: var(--ink-soft); border-radius: 999px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; }
+.tab.active .count { background: var(--accent); color: white; }
+
+.panel { display: none; padding: 32px 0 0; }
+.panel.active { display: block; animation: fadein 0.25s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── OVERVIEW: focus card + alerts column ── */
+.overview-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 32px; }
+
+.focus { padding: 28px 32px 32px; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 1px 0 rgba(20,22,27,0.02); }
+.focus .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
+.focus h2 { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.15; margin: 8px 0 6px; }
+.focus .item-id { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-mute); }
+.focus .stage-row { display: flex; gap: 6px; margin: 18px 0 16px; flex-wrap: wrap; }
+.stage-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; border: 1px solid var(--rule); background: var(--bg); color: var(--ink-mute); }
+.stage-pill.completed { background: var(--green-soft); border-color: color-mix(in srgb, var(--green) 30%, transparent); color: var(--green); }
+.stage-pill.current { background: var(--amber-soft); border-color: color-mix(in srgb, var(--amber) 35%, transparent); color: var(--amber); font-weight: 600; }
+.stage-pill.current .ring { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.focus .progress-bar { height: 4px; background: var(--rule); border-radius: 999px; overflow: hidden; margin: 4px 0 14px; }
+.focus .progress-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.6s ease; }
+.focus .why { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-soft); padding: 10px 14px; background: var(--bg); border-left: 2px solid var(--accent); border-radius: 0 4px 4px 0; }
+.focus .next-cta { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 14px 18px; background: var(--ink); color: var(--bg); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+.focus .next-cta .label { color: color-mix(in srgb, var(--bg) 50%, transparent); margin-right: 4px; }
+.focus .next-cta code { color: var(--bg); flex: 1; }
+.focus .copy-btn { background: var(--bg); color: var(--ink); border: none; padding: 6px 12px; border-radius: 4px; font-family: inherit; font-size: 11px; cursor: pointer; font-weight: 600; transition: transform 0.1s; }
+.focus .copy-btn:hover { transform: translateY(-1px); }
+
+.focus.done h2 { color: var(--green); }
+.focus.done .eyebrow { color: var(--green); }
+
+/* alerts column */
+.alerts-col h3 { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+.alert { padding: 14px 16px; background: var(--paper); border: 1px solid var(--rule); border-left: 3px solid var(--ink-mute); border-radius: 6px; margin-bottom: 10px; }
+.alert.warn { border-left-color: var(--amber); }
+.alert.crit { border-left-color: var(--red); }
+.alert.info { border-left-color: var(--blue); }
+.alert .a-title { font-weight: 600; font-size: 13px; line-height: 1.4; }
+.alert .a-detail { color: var(--ink-mute); font-size: 12px; margin-top: 4px; line-height: 1.45; }
+.alert code { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 5px; background: var(--bg); border-radius: 3px; color: var(--ink); }
+.alert .a-action { margin-top: 8px; }
+.alerts-empty { padding: 24px; text-align: center; color: var(--ink-dim); font-size: 13px; background: var(--paper); border: 1px dashed var(--rule); border-radius: 6px; }
+
+/* ── PHASE FLOW (Overview bottom) ── */
+.flow { margin-top: 36px; }
+.flow .flow-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+.flow .flow-head h3 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 500; letter-spacing: -0.01em; }
+.flow .flow-head .meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); letter-spacing: 0.08em; text-transform: uppercase; }
+.phase-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+.phase-cell { padding: 16px 18px 18px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; position: relative; min-height: 120px; }
+.phase-cell.complete { border-color: color-mix(in srgb, var(--green) 30%, var(--rule)); background: color-mix(in srgb, var(--green-soft) 50%, var(--paper)); }
+.phase-cell.active { border-color: var(--accent); border-width: 1px; box-shadow: 0 0 0 3px var(--accent-soft); }
+.phase-cell .pnum { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); letter-spacing: 0.14em; text-transform: uppercase; }
+.phase-cell h4 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500; line-height: 1.2; margin: 6px 0 4px; }
+.phase-cell .ptag { font-size: 11px; color: var(--ink-mute); line-height: 1.4; min-height: 30px; }
+.phase-cell .pmeta { display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; margin-top: 12px; }
+.phase-cell .pmeta b { color: var(--ink); }
+.phase-cell .pbar { height: 3px; background: var(--rule); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.phase-cell .pbar i { display: block; height: 100%; background: var(--ink-soft); transition: width 0.5s; }
+.phase-cell.complete .pbar i { background: var(--green); }
+.phase-cell.active .pbar i { background: var(--accent); }
+.phase-cell .check-mark { position: absolute; top: 14px; right: 14px; color: var(--green); font-size: 16px; }
+
+/* ── HIERARCHY (Phase 3) ── */
+.hier-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; gap:12px; flex-wrap:wrap; }
+.hier-title { font-family:'Fraunces',serif; font-size:20px; font-weight:500; letter-spacing:-0.01em; }
+.hier-title .ptag { font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; background:var(--accent); color:#fff; border-radius:3px; letter-spacing:0.12em; vertical-align:2px; margin-right:8px; }
+.hier-counts { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink-mute); letter-spacing:0.06em; white-space:nowrap; }
+.hier-counts code { background:var(--bg); padding:2px 7px; border-radius:3px; color:var(--ink); margin:0 2px; }
+
+.tree-epic { background:var(--paper); border:1px solid var(--rule); border-radius:8px; margin-bottom:12px; overflow:hidden; }
+.tree-epic.current { border-color:var(--purple); box-shadow:0 0 0 3px color-mix(in srgb,var(--purple) 12%,transparent); }
+.tree-epic-head { padding:14px 18px 12px; display:grid; grid-template-columns:auto 1fr auto auto auto; gap:14px; align-items:center; cursor:pointer; user-select:none; }
+.tree-epic-head:hover { background:var(--bg); }
+.tree-epic-head .chev { color:var(--ink-mute); font-size:11px; transition:transform .2s; width:14px; }
+.tree-epic.open .tree-epic-head .chev { transform:rotate(90deg); }
+.tree-epic-head .kind { font-family:'JetBrains Mono',monospace; font-size:9px; padding:3px 8px; background:var(--purple); color:#fff; border-radius:3px; letter-spacing:0.14em; font-weight:700; }
+.tree-epic-head .name { font-family:'Fraunces',serif; font-size:17px; font-weight:500; letter-spacing:-0.01em; line-height:1.25; }
+.tree-epic-head .meta-line { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-mute); margin-top:3px; letter-spacing:0.04em; }
+.tree-epic-head .pct { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; min-width:40px; text-align:right; }
+.tree-epic-bar { height:3px; background:var(--rule); }
+.tree-epic-bar i { display:block; height:100%; background:var(--purple); transition:width .5s; }
+.tree-epic-body { display:none; padding:14px 18px 16px 40px; border-top:1px solid var(--rule); background:color-mix(in srgb,var(--bg) 60%,var(--paper)); }
+.tree-epic.open .tree-epic-body { display:block; }
+
+/* stage flow pills (3-step for epic, 4-step for story, 5-step for task) */
+.flow-pills { display:flex; align-items:center; gap:0; }
+.fp { font-family:'JetBrains Mono',monospace; font-size:9.5px; padding:3px 9px; letter-spacing:0.06em; background:var(--bg); color:var(--ink-dim); border:1px solid var(--rule); position:relative; white-space:nowrap; }
+.fp:first-child { border-radius:3px 0 0 3px; }
+.fp:last-child { border-radius:0 3px 3px 0; }
+.fp:not(:first-child) { border-left:none; }
+.fp.done { background:var(--green-soft); color:var(--green); border-color:color-mix(in srgb,var(--green) 25%,var(--rule)); }
+.fp.current { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+
+.tree-story { background:var(--paper); border:1px solid var(--rule); border-radius:6px; margin-bottom:10px; overflow:hidden; }
+.tree-story.current { border-color:var(--blue); box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 14%,transparent); }
+.tree-story-head { padding:11px 14px 10px; display:grid; grid-template-columns:auto auto 1fr auto auto auto; gap:12px; align-items:center; cursor:pointer; user-select:none; }
+.tree-story-head:hover { background:var(--bg); }
+.tree-story-head .chev { color:var(--ink-mute); font-size:10px; transition:transform .2s; width:12px; }
+.tree-story.open .tree-story-head .chev { transform:rotate(90deg); }
+.tree-story-head .kind { font-family:'JetBrains Mono',monospace; font-size:9px; padding:2px 7px; background:var(--blue); color:#fff; border-radius:3px; letter-spacing:0.14em; font-weight:700; }
+.tree-story-head .name { font-weight:500; font-size:13px; line-height:1.35; }
+.tree-story-head .pct { font-family:'JetBrains Mono',monospace; font-size:11px; min-width:34px; text-align:right; color:var(--ink-mute); }
+.tree-story-bar { height:2px; background:var(--rule); }
+.tree-story-bar i { display:block; height:100%; background:var(--blue); transition:width .5s; }
+.tree-story-body { display:none; padding:8px 14px 12px 36px; border-top:1px dashed var(--rule); }
+.tree-story.open .tree-story-body { display:block; }
+
+.tree-task { display:grid; grid-template-columns:auto auto 1fr auto auto; gap:12px; align-items:center; padding:8px 0; font-size:12.5px; border-bottom:1px dashed var(--rule); }
+.tree-task:last-child { border-bottom:none; }
+.tree-task .kind { font-family:'JetBrains Mono',monospace; font-size:8.5px; padding:2px 6px; background:var(--ink-soft); color:#fff; border-radius:3px; letter-spacing:0.14em; font-weight:700; }
+.tree-task .tid { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-mute); }
+.tree-task .tname { min-width:0; }
+.tree-task.current .tname { color:var(--accent); font-weight:600; }
+.tree-task .agent { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--ink-mute); }
+
+/* ── WORK PANEL ── */
+.work-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 32px; }
+.section-block { margin-bottom: 32px; }
+.section-block:last-child { margin-bottom: 0; }
+.section-block h3 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500; letter-spacing: -0.01em; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline; }
+.section-block h3 .count { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-mute); font-weight: 400; letter-spacing: 0.06em; }
+
+.phase-detail { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
+.phase-detail .pd-head { padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+.phase-detail .pd-head:hover { background: var(--bg); }
+.phase-detail .pd-head .left { display: flex; align-items: center; gap: 12px; }
+.phase-detail .pd-head .num { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); letter-spacing: 0.12em; }
+.phase-detail .pd-head .name { font-weight: 600; font-size: 14px; }
+.phase-detail .pd-head .pct { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.phase-detail .pd-head .pct.complete { color: var(--green); }
+.phase-detail .pd-head .pct.partial { color: var(--amber); }
+.phase-detail .pd-head .pct.zero { color: var(--ink-dim); }
+.phase-detail .pd-body { padding: 0 18px 14px; border-top: 1px solid var(--rule); display: none; }
+.phase-detail.open .pd-body { display: block; }
+.phase-detail .pd-head .chev { color: var(--ink-mute); transition: transform 0.2s; font-size: 11px; }
+.phase-detail.open .pd-head .chev { transform: rotate(90deg); }
+
+/* hierarchy block embedded inside Phase 3's pd-body */
+.pd-hier { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--rule); }
+.pd-hier-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.pd-hier-title { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.14em; color:var(--ink-mute); text-transform:uppercase; }
+
+.item-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; }
+.item-row + .item-row { border-top: 1px dashed var(--rule); }
+.item-row .check { width: 16px; height: 16px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.item-row .check.done { background: var(--green); color: white; }
+.item-row .check.drafted { background: var(--amber); color: white; }
+.item-row .check.gate { background: var(--amber); color: white; }
+.item-row .check.dirty { background: var(--red); color: white; }
+.item-row .check.pending { border: 1.5px solid var(--ink-dim); }
+.item-row .label { flex: 1; min-width: 0; }
+.item-row .label.muted { color: var(--ink-mute); }
+.item-row .badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase; }
+.item-row .badge.gate { background: var(--amber-soft); color: var(--amber); }
+.item-row .badge.draft { background: var(--blue-soft); color: var(--blue); }
+.item-row .badge.cur { background: var(--accent-soft); color: var(--accent); }
+
+/* sidebar in work panel */
+.work-side h4 { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px; }
+/* Story board */
+.story-card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; margin-bottom: 10px; padding: 14px 18px; }
+.story-card.done { opacity: 0.7; }
+.story-card.current { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sc-row { display: flex; align-items: center; gap: 12px; }
+.sc-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); flex-shrink: 0; min-width: 140px; }
+.sc-label { flex: 1; font-weight: 500; font-size: 13.5px; min-width: 0; }
+.sc-prio { font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.1em; font-weight: 600; }
+.sc-prio.high { background: var(--red-soft); color: var(--red); }
+.sc-prio.medium { background: var(--amber-soft); color: var(--amber); }
+.sc-prio.low { background: var(--blue-soft); color: var(--blue); }
+.sc-stages { display: flex; gap: 4px; margin-top: 10px; align-items: center; }
+.sc-stage-step { flex: 1; min-width: 0; padding: 4px 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; border-radius: 3px; text-align: center; letter-spacing: 0.04em; background: var(--bg); color: var(--ink-dim); border: 1px solid var(--rule); position: relative; }
+.sc-stage-step.done { background: var(--green-soft); color: var(--green); border-color: color-mix(in srgb, var(--green) 25%, var(--rule)); }
+.sc-stage-step.current { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.sc-meta { display: flex; gap: 14px; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); flex-wrap: wrap; }
+.sc-meta code { background: var(--bg); padding: 1px 6px; border-radius: 3px; color: var(--ink-soft); font-size: 10px; }
+
+/* Epic tree (legacy, unused now) */
+.epic { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.epic-head { padding: 16px 20px; display: flex; align-items: center; gap: 14px; cursor: pointer; user-select: none; }
+.epic-head:hover { background: var(--bg); }
+.epic-head .ekind { font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 3px 8px; background: var(--purple); color: white; border-radius: 3px; letter-spacing: 0.12em; font-weight: 600; }
+.epic-head .ename { flex: 1; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+.epic-head .eowner { font-size: 12px; color: var(--ink-mute); }
+.epic-head .epct { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; }
+.epic-head .echev { color: var(--ink-mute); transition: transform 0.2s; font-size: 11px; }
+.epic.open .echev { transform: rotate(90deg); }
+.epic-bar { height: 3px; background: var(--rule); }
+.epic-bar i { display: block; height: 100%; background: var(--purple); transition: width 0.5s; }
+.epic-body { display: none; padding: 4px 16px 16px; border-top: 1px solid var(--rule); background: var(--bg); }
+.epic.open .epic-body { display: block; }
+
+.story { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; margin-top: 10px; overflow: hidden; }
+.story-head { padding: 11px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+.story-head:hover { background: var(--bg); }
+.story-head .skind { font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 2px 7px; background: var(--blue); color: white; border-radius: 3px; letter-spacing: 0.12em; font-weight: 600; }
+.story-head .sname { flex: 1; font-weight: 500; font-size: 13px; }
+.story-head .sstatus { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.06em; text-transform: uppercase; }
+.story-head .sstatus.done { background: var(--green-soft); color: var(--green); }
+.story-head .sstatus.in-progress { background: var(--amber-soft); color: var(--amber); }
+.story-head .sstatus.pending { background: var(--rule); color: var(--ink-mute); }
+.story-head .spct { font-family: 'JetBrains Mono', monospace; font-size: 11px; min-width: 32px; text-align: right; color: var(--ink-mute); }
+.story-head .schev { color: var(--ink-mute); transition: transform 0.2s; font-size: 10px; }
+.story.open .schev { transform: rotate(90deg); }
+.story-body { display: none; padding: 6px 16px 12px; border-top: 1px dashed var(--rule); }
+.story.open .story-body { display: block; }
+.story-bar { height: 2px; background: var(--rule); }
+.story-bar i { display: block; height: 100%; background: var(--blue); transition: width 0.5s; }
+
+.task-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 12.5px; border-bottom: 1px dashed var(--rule); }
+.task-row:last-child { border-bottom: none; }
+.task-row .tid { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); flex-shrink: 0; min-width: 100px; }
+.task-row .tlbl { flex: 1; min-width: 0; }
+.task-row .tstage { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+.task-row .tstage.done { background: var(--green-soft); color: var(--green); }
+.task-row .tstage.review { background: var(--amber-soft); color: var(--amber); }
+.task-row .tstage.write-code { background: var(--accent-soft); color: var(--accent); }
+.task-row .tstage.write-tests { background: var(--blue-soft); color: var(--blue); }
+.task-row .tstage.pending { background: var(--rule); color: var(--ink-mute); }
+.task-row .tagent { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); flex-shrink: 0; }
+
+.kanban-card { padding: 14px 16px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.kanban-card .kind { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+.kanban-card .kind.bug { background: var(--red-soft); color: var(--red); }
+.kanban-card .kind.chore { background: var(--rule); color: var(--ink-mute); }
+.kanban-card .kind.hotfix { background: var(--amber-soft); color: var(--amber); }
+.kanban-card .kind.support { background: var(--blue-soft); color: var(--blue); }
+.kanban-card .id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); }
+.kanban-card .lbl { flex: 1; }
+.empty-state { padding: 20px; text-align: center; color: var(--ink-dim); font-size: 12px; background: var(--paper); border: 1px dashed var(--rule); border-radius: 6px; }
+.empty-state code { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; background: var(--bg); border-radius: 3px; color: var(--ink-soft); }
+
+.project-card { padding: 18px 20px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+.project-card .pcname { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
+.project-card .pcteam { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
+.project-card .stack { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-soft); margin-top: 12px; padding: 8px 10px; background: var(--bg); border-radius: 4px; line-height: 1.5; }
+.kvline { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--rule); font-size: 13px; }
+.kvline:last-child { border-bottom: none; }
+.kvline .k { color: var(--ink-mute); }
+.kvline .v { font-weight: 500; }
+
+/* ── DORA PANEL ── */
+.dora-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 24px; }
+.dora-head h2 { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 500; letter-spacing: -0.015em; }
+.dora-head .sub { font-size: 13px; color: var(--ink-mute); margin-top: 4px; }
+.timeframe { display: inline-flex; gap: 0; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.timeframe button { background: var(--paper); border: none; padding: 7px 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); cursor: pointer; letter-spacing: 0.06em; border-right: 1px solid var(--rule); transition: background 0.12s; }
+.timeframe button:last-child { border-right: none; }
+.timeframe button.active { background: var(--ink); color: var(--bg); }
+.timeframe button:hover:not(.active) { background: var(--bg); color: var(--ink); }
+
+.tier-banner { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; padding: 24px 32px; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; margin-bottom: 24px; }
+.tier-ring { position: relative; width: 110px; height: 110px; }
+.tier-ring svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+.tier-ring .tval { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tier-ring .tval .num { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; line-height: 1; }
+.tier-ring .tval .lbl { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.18em; color: var(--ink-mute); text-transform: uppercase; margin-top: 2px; }
+.tier-text .badge-tier { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 4px 10px; background: var(--accent); color: white; border-radius: 4px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+.tier-text h3 { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 500; margin: 10px 0 4px; letter-spacing: -0.015em; line-height: 1.15; }
+.tier-text p { font-size: 13px; color: var(--ink-mute); line-height: 1.55; max-width: 580px; }
+.tier-distribution { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 14px; }
+.tier-distribution > div { padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; text-align: center; border-radius: 3px; letter-spacing: 0.06em; text-transform: uppercase; background: var(--bg); color: var(--ink-mute); border: 1px solid var(--rule); }
+.tier-distribution > div.match { background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; }
+
+.dora-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.dora-card { padding: 22px 24px; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; position: relative; }
+.dora-card .dc-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.dora-card .label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-mute); }
+.dora-card .tier-pill { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 3px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+.tier-pill.elite { background: var(--green-soft); color: var(--green); }
+.tier-pill.high  { background: var(--blue-soft); color: var(--blue); }
+.tier-pill.medium{ background: var(--amber-soft); color: var(--amber); }
+.tier-pill.low   { background: var(--red-soft); color: var(--red); }
+.dora-card .dc-value { font-family: 'Fraunces', serif; font-size: 52px; font-weight: 500; letter-spacing: -0.025em; line-height: 1; margin-top: 14px; }
+.dora-card .dc-value .unit { font-family: 'Inter', sans-serif; font-size: 18px; color: var(--ink-mute); font-weight: 400; margin-left: 6px; letter-spacing: 0; }
+.dora-card .dc-delta { font-family: 'JetBrains Mono', monospace; font-size: 12px; margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+.dora-card .dc-delta.up { color: var(--green); }
+.dora-card .dc-delta.down { color: var(--red); }
+.dora-card .dc-spark { margin-top: 14px; height: 50px; }
+.dora-card .dc-spark svg { width: 100%; height: 100%; overflow: visible; }
+.dora-card .desc { font-size: 11px; color: var(--ink-mute); margin-top: 12px; line-height: 1.5; padding-top: 10px; border-top: 1px dashed var(--rule); }
+
+/* SDLC-specific row */
+.sdlc-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 24px; }
+.sdlc-metric { padding: 16px 18px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+.sdlc-metric .l { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mute); }
+.sdlc-metric .v { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 500; margin-top: 6px; letter-spacing: -0.015em; line-height: 1; }
+.sdlc-metric .v .u { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink-mute); font-weight: 400; margin-left: 3px; }
+.sdlc-metric .h { font-size: 11px; color: var(--ink-mute); margin-top: 6px; }
+
+.deploy-hist { margin-top: 32px; padding: 24px 28px; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+.deploy-hist h3 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+.deploy-hist p { font-size: 12px; color: var(--ink-mute); margin-bottom: 16px; }
+.histo { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; height: 80px; align-items: end; }
+.histo .bar { background: var(--ink-soft); min-height: 4px; border-radius: 2px 2px 0 0; position: relative; transition: background 0.15s; cursor: default; }
+.histo .bar:hover { background: var(--accent); }
+.histo .bar.failed { background: var(--red); }
+.histo .bar:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 4px 8px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 10px; white-space: nowrap; pointer-events: none; z-index: 10; }
+.histo-x { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-mute); }
+.histo-x span { text-align: center; }
+.histo-x span:not(:nth-child(5n+1)) { visibility: hidden; }
+
+/* ── ACTIVITY PANEL ── */
+.activity-list { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+.act { display: grid; grid-template-columns: 90px 28px 1fr auto; gap: 14px; padding: 14px 18px; align-items: start; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.act:last-child { border-bottom: none; }
+.act .at { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); padding-top: 2px; }
+.act .icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.act .icon.done { background: var(--green-soft); color: var(--green); }
+.act .icon.fail { background: var(--red-soft); color: var(--red); }
+.act .icon.run  { background: var(--amber-soft); color: var(--amber); }
+.act .body { min-width: 0; }
+.act .body .top { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.act .body .agent { font-weight: 600; }
+.act .body .tid { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-mute); }
+.act .body .stage { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 7px; background: var(--bg); border-radius: 3px; color: var(--ink-soft); }
+.act .body .summary { color: var(--ink-mute); margin-top: 3px; font-size: 12px; line-height: 1.45; }
+.act .dur { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); white-space: nowrap; padding-top: 2px; }
+
+/* ── TWEAKS PANEL minimal ── */
+.tweaks-host { position: fixed; bottom: 24px; right: 24px; z-index: 50; }
+
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 6px; font-size: 13px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 100; }
+.toast.show { opacity: 1; }
+
+@media (max-width: 1100px) {
+  .overview-grid, .work-grid { grid-template-columns: 1fr; }
+  .dora-grid { grid-template-columns: 1fr; }
+  .sdlc-metrics { grid-template-columns: repeat(2, 1fr); }
+  .phase-track, .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpi { padding: 16px 14px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body data-theme="light" data-density="comfortable">
+
+<div class="shell">
+
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <div>
+      <h1>SDLC <span class="arrow">→</span> Ops Console</h1>
+      <div class="sub" id="topMeta">loading…</div>
+    </div>
+    <div class="right">
+      <span id="liveBox" class="live"><span class="dot"></span><span id="liveLabel">live</span></span>
+      <span id="scanTime">scan —</span>
+    </div>
+  </header>
+
+  <!-- KPI STRIP -->
+  <section class="kpis" id="kpis"></section>
+
+  <!-- TABS -->
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="work">Work <span class="count" id="workCount">0</span></button>
+    <button class="tab" data-tab="dora">DORA + SDLC</button>
+    <button class="tab" data-tab="activity">Activity <span class="count" id="actCount">0</span></button>
+  </nav>
+
+  <!-- OVERVIEW PANEL -->
+  <section class="panel active" data-panel="overview">
+    <div class="overview-grid">
+      <div class="focus" id="focusCard">
+        <div class="eyebrow" id="focusEyebrow">YOU ARE HERE</div>
+        <h2 id="focusTitle">—</h2>
+        <div class="item-id" id="focusId">—</div>
+        <div class="stage-row" id="focusStages"></div>
+        <div class="progress-bar"><i id="focusBar" style="width:0%"></i></div>
+        <div class="why" id="focusWhy" style="display:none"></div>
+        <div class="next-cta" id="focusCta" style="display:none">
+          <span class="label">Do this →</span>
+          <code>/sdlc-next</code>
+          <button class="copy-btn" data-copy="/sdlc-next">Copy</button>
+        </div>
+      </div>
+      <div class="alerts-col">
+        <h3>Alerts <span id="alertCount" class="mono">0</span></h3>
+        <div id="alertsHost"></div>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="flow-head">
+        <h3>Phase flow</h3>
+        <span class="meta" id="flowMeta">—</span>
+      </div>
+      <div class="phase-track" id="phaseTrack"></div>
+    </div>
+  </section>
+
+  <!-- WORK PANEL -->
+  <section class="panel" data-panel="work">
+    <div class="work-grid">
+      <div>
+        <div class="section-block">
+          <h3>Phases <span class="count" id="phaseItemCount">—</span></h3>
+          <div id="phaseDetails"></div>
+        </div>
+        <div class="section-block">
+          <h3>Kanban lane <span class="count" id="kanbanCount">0 tickets</span></h3>
+          <div id="kanbanHost"><div class="empty-state">No kanban tickets yet — run <code>sdlc ticket new &lt;slug&gt;</code></div></div>
+        </div>
+      </div>
+      <aside class="work-side">
+        <div class="section-block">
+          <h4>Project</h4>
+          <div class="project-card" id="projectCard"></div>
+        </div>
+        <div class="section-block">
+          <h4>Resume</h4>
+          <div class="project-card" id="resumeCard"><div class="empty-state">No agent activity yet</div></div>
+        </div>
+        <div class="section-block">
+          <h4>Quick links</h4>
+          <div id="linksCard"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- DORA PANEL -->
+  <section class="panel" data-panel="dora">
+    <div class="dora-head">
+      <div>
+        <h2>DORA + SDLC effectiveness</h2>
+        <div class="sub" id="doraWindow">Last 30 days · synthesized from agent_runs · deploys · incidents</div>
+      </div>
+      <div class="timeframe" id="timeframe">
+        <button data-range="7">7d</button>
+        <button data-range="30" class="active">30d</button>
+        <button data-range="90">90d</button>
+      </div>
+    </div>
+
+    <div class="tier-banner">
+      <div class="tier-ring" id="tierRing"></div>
+      <div class="tier-text">
+        <span class="badge-tier" id="tierBadge">— TIER</span>
+        <h3 id="tierHeadline">Calculating performance tier…</h3>
+        <p id="tierBlurb">DORA places teams in 4 tiers based on the four key metrics. Tier shown is the worst of the four — the bottleneck.</p>
+        <div class="tier-distribution" id="tierDist">
+          <div data-tier="low">Low</div>
+          <div data-tier="medium">Medium</div>
+          <div data-tier="high">High</div>
+          <div data-tier="elite">Elite</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dora-grid" id="doraGrid"></div>
+
+    <div class="sdlc-metrics" id="sdlcMetrics"></div>
+
+    <div class="deploy-hist">
+      <h3>Deploy history</h3>
+      <p>Last 30 days · production deploys per day · red = failed</p>
+      <div class="histo" id="deployHisto"></div>
+      <div class="histo-x" id="deployHistoX"></div>
+    </div>
+  </section>
+
+  <!-- ACTIVITY PANEL -->
+  <section class="panel" data-panel="activity">
+    <div class="section-block">
+      <h3>Agent activity <span class="count" id="actHeadCount">—</span></h3>
+      <div class="activity-list" id="activityHost"></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast">copied</div>
+<div class="tweaks-host" id="tweaksHost"></div>
+
+<script>
+const STAGES = ["pending", "write-tests", "write-code", "review", "done"];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function shortTs(iso){ if(!iso) return "—"; return iso.slice(11,16); }
+function relTime(iso){
+  if(!iso) return "—";
+  const t = new Date(iso).getTime();
+  if(!t) return "—";
+  const sec = Math.max(0, Math.floor((Date.now()-t)/1000));
+  if(sec<60) return sec+"s ago";
+  if(sec<3600) return Math.floor(sec/60)+"m ago";
+  if(sec<86400) return Math.floor(sec/3600)+"h ago";
+  return Math.floor(sec/86400)+"d ago";
+}
+function fmtDur(s){ if(s==null) return ""; if(s<60) return s+"s"; return Math.floor(s/60)+"m "+(s%60)+"s"; }
+
+function showToast(msg){ const t = $("toast"); if(msg) t.textContent = msg; t.classList.add("show"); clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove("show"),1300); }
+function copy(text){ navigator.clipboard?.writeText(text).then(()=>showToast("copied")).catch(()=>showToast("copy failed")); }
+
+document.addEventListener("click", e => {
+  const c = e.target.closest("[data-copy]"); if(c){ e.preventDefault(); copy(c.getAttribute("data-copy")); }
+});
+
+// ── TAB SWITCHING ──
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+    btn.classList.add("active");
+    const target = document.querySelector(`.panel[data-panel="${btn.dataset.tab}"]`);
+    if(target) target.classList.add("active");
+  });
+});
+
+// ── DORA HELPERS ──
+function tierFor(metric, val){
+  // Returns tier from value based on DORA classification thresholds
+  if(metric==="df"){ // deploys/day
+    if(val >= 3) return "elite";
+    if(val >= 1) return "high";
+    if(val >= 1/7) return "medium";
+    return "low";
+  }
+  if(metric==="lt"){ // hours
+    if(val < 1) return "elite";
+    if(val < 24) return "high";
+    if(val < 24*7) return "medium";
+    return "low";
+  }
+  if(metric==="cfr"){ // %
+    if(val <= 5) return "elite";
+    if(val <= 10) return "high";
+    if(val <= 15) return "medium";
+    return "low";
+  }
+  if(metric==="mttr"){ // minutes
+    if(val < 60) return "elite";
+    if(val < 60*24) return "high";
+    if(val < 60*24*7) return "medium";
+    return "low";
+  }
+  return "medium";
+}
+const tierOrder = ["low","medium","high","elite"];
+function worstTier(...tiers){
+  let i = 3;
+  for(const t of tiers){ const idx = tierOrder.indexOf(t); if(idx>=0 && idx<i) i = idx; }
+  return tierOrder[i];
+}
+
+// ── RENDER FUNCTIONS ──
+function findCurrent(state){
+  for(const ph of state.phases||[]){
+    if(ph.complete) continue;
+    for(const it of ph.items||[]){
+      if(!it.done) return {phase: ph, item: it};
+    }
+  }
+  return null;
+}
+
+function renderTopMeta(s){
+  const p = s.project||{};
+  const parts = [];
+  if(p.name) parts.push(`<b>${esc(p.name)}</b>`);
+  if(p.team) parts.push(esc(p.team));
+  if(p.tier) parts.push("Tier "+esc(String(p.tier)));
+  if(s.git?.branch) parts.push("branch "+esc(s.git.branch));
+  $("topMeta").innerHTML = parts.join("  ·  ");
+  $("scanTime").textContent = "scan " + shortTs(s.generated_at);
+
+  // live
+  const alertN = (s.clarifications||[]).length + (s.gates||[]).filter(g=>!g.approved).length;
+  const live = $("liveBox");
+  live.classList.remove("warn","err");
+  if(alertN>0){ live.classList.add("warn"); $("liveLabel").textContent = "needs you"; }
+  else $("liveLabel").textContent = "live";
+}
+
+function renderKPIs(s, dora){
+  const phaseLabel = s.phases_done >= 5 ? "Done" : `Phase ${(findCurrent(s)?.phase?.id) ?? '—'}`;
+  const phaseSub = s.phases_done >= 5 ? "all complete" : (findCurrent(s)?.phase?.name || "");
+  const blockers = (s.gates||[]).filter(g=>!g.approved).length + (s.clarifications||[]).length;
+  const html = [
+    `<div class="kpi"><div class="label">Progress</div><div class="value">${s.overall_pct||0}<span class="unit">%</span></div><div class="delta neutral">${s.total_done||0} / ${s.total_all||0} items</div></div>`,
+    `<div class="kpi"><div class="label">Current focus</div><div class="value" style="font-size:28px;font-family:Inter,sans-serif;font-weight:600;letter-spacing:-0.01em">${esc(phaseLabel)}</div><div class="delta neutral">${esc(phaseSub)}</div></div>`,
+    `<div class="kpi"><div class="label">Blockers</div><div class="value" style="color:${blockers?'var(--red)':'var(--ink)'}">${blockers}</div><div class="delta ${blockers?'down':'neutral'}">${blockers?'gates + clarifications':'all clear'}</div></div>`,
+    `<div class="kpi"><div class="label">Deploy freq · 30d</div><div class="value">${dora.df.toFixed(1)}<span class="unit">/d</span></div><div class="delta ${dora.dfDelta>=0?'up':'down'}">${dora.dfDelta>=0?'↑':'↓'} ${Math.abs(dora.dfDelta).toFixed(0)}% vs prev</div></div>`,
+    `<div class="kpi"><div class="label">Change fail · 30d</div><div class="value">${dora.cfr.toFixed(0)}<span class="unit">%</span></div><div class="delta ${dora.cfrDelta<=0?'up':'down'}">${dora.cfrDelta<=0?'↓':'↑'} ${Math.abs(dora.cfrDelta).toFixed(0)}% vs prev</div></div>`,
+  ].join("");
+  $("kpis").innerHTML = html;
+}
+
+function renderStages(currentStage, allStages){
+  const stages = (allStages && allStages.length) ? allStages : STAGES;
+  const idx = stages.indexOf(currentStage);
+  return stages.map((st, i) => {
+    let cls = "upcoming", icon = "·";
+    if(idx<0){}
+    else if(i<idx){ cls="completed"; icon="✓"; }
+    else if(i===idx){ cls = "current"; icon = (st==="done") ? "✓" : `<span class="ring"></span>`; }
+    return `<span class="stage-pill ${cls}">${icon} ${esc(st)}</span>`;
+  }).join("");
+}
+
+function renderFocus(s){
+  const card = $("focusCard");
+  const cur = findCurrent(s);
+
+  // Surface next_dispatch — if we're blocked on a gate, that's the priority message
+  const nd = s.next_dispatch || {};
+  const blockedGate = nd.blocked_by?.gate;
+  const isStopForGate = nd.action === "stop_for_gate" || blockedGate;
+
+  if(!cur && !isStopForGate){
+    card.classList.add("done");
+    $("focusEyebrow").textContent = "ALL CLEAR";
+    $("focusTitle").textContent = "🎉 Every phase verified";
+    $("focusId").textContent = "Nothing left to dispatch.";
+    $("focusStages").innerHTML = "";
+    $("focusBar").style.width = "100%";
+    $("focusWhy").style.display = "none";
+    $("focusCta").style.display = "none";
+    return;
+  }
+
+  card.classList.remove("done");
+
+  if(isStopForGate){
+    // Gate-blocked: feature this prominently
+    const gate = (s.gates||[]).find(g => g.id === blockedGate);
+    const ph = (s.phases||[]).find(p => p.id === (nd.phase || gate?.phase));
+    $("focusEyebrow").textContent = `BLOCKED · PHASE ${nd.phase||gate?.phase||'?'} GATE`;
+    $("focusEyebrow").style.color = "var(--red)";
+    $("focusTitle").textContent = gate?.label || nd.item_label || "Gate awaiting sign-off";
+    $("focusId").textContent = `gate ${esc(blockedGate||'?')} · approvers: ${esc((gate?.approvers_required||[]).join(', ')||'—')}`;
+    $("focusStages").innerHTML = `<span class="stage-pill current" style="background:var(--red-soft);color:var(--red);border-color:color-mix(in srgb,var(--red) 35%,transparent)"><span class="ring"></span> AWAITING SIGN-OFF</span>`;
+    $("focusBar").style.width = (ph?.pct||0) + "%";
+    $("focusWhy").style.display = "block";
+    $("focusWhy").textContent = nd.reason || gate?.msg || "Sign-off file not yet recorded.";
+    $("focusCta").style.display = "flex";
+    $("focusCta").querySelector(".label").textContent = "Sign here →";
+    $("focusCta").querySelector("code").textContent = `automation/signoffs/${blockedGate}.yaml`;
+    $("focusCta").querySelector(".copy-btn").setAttribute("data-copy", `automation/signoffs/${blockedGate}.yaml`);
+    return;
+  }
+
+  // Normal "you are here" rendering
+  const ph = cur.phase, it = cur.item;
+  $("focusEyebrow").textContent = `PHASE ${ph.id} · ${ph.emoji||""} ${esc(ph.name)}`.toUpperCase();
+  $("focusEyebrow").style.color = "var(--accent)";
+  $("focusTitle").textContent = String(it.label||it.id).replace(/^[\s\-—]+/, "").trim();
+  $("focusId").textContent = `${esc(it.id)} · ${esc(ph.tagline||"")}`;
+  $("focusBar").style.width = (ph.pct||0)+"%";
+  if(it.stage){
+    $("focusStages").innerHTML = renderStages(it.stage, it.stages);
+  } else {
+    let pillCls = "current", text = it.dirty ? "REPLAN-DIRTY" : it.gate ? "GATE PENDING" : (it.drafted && !it.verified) ? "AWAITING VERIFY" : "PENDING";
+    $("focusStages").innerHTML = `<span class="stage-pill current">${text}</span>`;
+  }
+  const failMsg = (it.checks||[]).find(c=>!c.ok)?.msg || (it.gate ? "Needs sign-off in automation/signoffs/" : (it.drafted && !it.verified) ? "Drafted — run `sdlc verify` to record review" : "");
+  if(failMsg){ $("focusWhy").style.display = "block"; $("focusWhy").textContent = failMsg; }
+  else $("focusWhy").style.display = "none";
+  $("focusCta").style.display = "flex";
+  $("focusCta").querySelector(".label").textContent = "Do this →";
+  $("focusCta").querySelector("code").textContent = "/sdlc-next";
+  $("focusCta").querySelector(".copy-btn").setAttribute("data-copy", "/sdlc-next");
+}
+
+function renderAlerts(s){
+  const out = [];
+  if(s.replan && (s.replan.dirty_items||[]).length){
+    const items = s.replan.dirty_items;
+    out.push(`<div class="alert crit"><div class="a-title">🔁 Replan in progress · ${items.length} item(s)</div><div class="a-detail">${esc(s.replan.reason||'')}</div><div class="a-detail mono">${items.map(i=>'<code>'+esc(i)+'</code>').join(' ')}</div></div>`);
+  }
+  for(const c of s.clarifications||[]){
+    out.push(`<div class="alert warn"><div class="a-title">🔍 Clarification open</div><div class="a-detail">${esc(c.title || c.file || '?')}</div><div class="a-action"><code>${esc(c.file||'')}</code></div></div>`);
+  }
+  for(const g of s.gates||[]){
+    if(g.approved) continue;
+    out.push(`<div class="alert crit"><div class="a-title">🔒 Gate pending — ${esc(g.label||g.id)}</div><div class="a-detail">approvers: ${esc((g.approvers_required||[]).join(', ')||'—')}</div><div class="a-action"><code>automation/signoffs/${esc(g.id)}.yaml</code></div></div>`);
+  }
+  // unverified drafts
+  const unv = [];
+  for(const ph of s.phases||[]){
+    for(const it of ph.items||[]){
+      if(it.stage) continue;
+      if(it.drafted && !it.verified && !it.done && !it.dirty) unv.push({ph,it});
+    }
+  }
+  if(unv.length){
+    const list = unv.slice(0,3).map(({ph,it})=>`<div style="margin-top:4px"><b>P${ph.id}</b> ${esc(it.id)}</div>`).join('');
+    const more = unv.length>3 ? `<div class="a-detail">+ ${unv.length-3} more</div>` : '';
+    out.push(`<div class="alert warn"><div class="a-title">🟡 ${unv.length} artifact${unv.length===1?'':'s'} awaiting verify</div><div class="a-detail">Run <code>sdlc verify &lt;id&gt;</code> after review</div>${list}${more}</div>`);
+  }
+  if(out.length===0){
+    $("alertsHost").innerHTML = `<div class="alerts-empty">✓ Nothing requires your attention</div>`;
+  } else {
+    $("alertsHost").innerHTML = out.join("");
+  }
+  $("alertCount").textContent = out.length;
+}
+
+function renderPhaseTrack(s){
+  const cur = findCurrent(s);
+  const html = (s.phases||[]).map(ph => {
+    const isActive = cur && cur.phase.id === ph.id;
+    const cls = ph.complete ? "complete" : (isActive ? "active" : "");
+    const meta = (ph.id===3 && typeof ph.tasks_total === "number")
+      ? `Setup ${ph.setup_done}/${ph.setup_total} · Tasks ${ph.tasks_done}/${ph.tasks_total}`
+      : `${ph.done||0}/${ph.total||0} items`;
+    return `<div class="phase-cell ${cls}">
+      ${ph.complete ? '<span class="check-mark">✓</span>' : ''}
+      <div class="pnum">PHASE ${ph.id}</div>
+      <h4>${esc(ph.name)}</h4>
+      <div class="ptag">${esc(ph.tagline||"")}</div>
+      <div class="pmeta"><span class="mono">${meta}</span><b>${ph.pct||0}%</b></div>
+      <div class="pbar"><i style="width:${ph.pct||0}%"></i></div>
+    </div>`;
+  }).join("");
+  $("phaseTrack").innerHTML = html;
+  $("flowMeta").textContent = `${s.phases_done||0} of 5 complete · ${s.overall_pct||0}% overall`;
+}
+
+function renderPhaseDetails(s){
+  const cur = findCurrent(s);
+  // Phase 3 hierarchy (epic→story→task) gets injected into the develop phase body
+  const hierBundle = buildHierarchyHtml(s);
+  const html = (s.phases||[]).map(ph => {
+    const isOpen = cur && cur.phase.id === ph.id;
+    const pctCls = ph.pct >= 100 ? "complete" : ph.pct > 0 ? "partial" : "zero";
+    const items = (ph.items||[]).filter(it => it.subtrack !== "tasks" && !it.stage).map(it => {
+      let cls = "pending";
+      let ch = "";
+      if(it.dirty){ cls="dirty"; ch="!"; }
+      else if(it.done){ cls="done"; ch="✓"; }
+      else if(it.gate){ cls="gate"; ch="🔒"; }
+      else if(it.drafted && !it.verified){ cls="drafted"; ch="○"; }
+      const isCur = cur && cur.phase.id===ph.id && cur.item.id===it.id;
+      let badge = "";
+      if(isCur) badge = `<span class="badge cur">current</span>`;
+      else if(it.gate && !it.done) badge = `<span class="badge gate">gate</span>`;
+      else if(it.drafted && !it.verified) badge = `<span class="badge draft">draft</span>`;
+      return `<div class="item-row">
+        <span class="check ${cls}">${ch}</span>
+        <span class="label ${it.done?'muted':''}">${esc(it.label||it.id)}</span>
+        ${badge}
+      </div>`;
+    }).join("");
+    // Phase 3 (develop) gets a hierarchy block appended below its checklist items
+    const isP3 = ph.id === 3 || /develop/i.test(ph.name||"");
+    const hierBlock = isP3 ? `
+      <div class="pd-hier">
+        <div class="pd-hier-head">
+          <div class="pd-hier-title">Epic → Story → Task</div>
+          <div class="hier-counts">${hierBundle.counts}</div>
+        </div>
+        ${hierBundle.html}
+      </div>` : "";
+    return `<div class="phase-detail ${isOpen?'open':''}">
+      <div class="pd-head" data-toggle>
+        <div class="left">
+          <span class="num">PHASE ${ph.id}</span>
+          <span class="name">${esc(ph.name)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <span class="pct ${pctCls}">${ph.pct||0}% · ${ph.done||0}/${ph.total||0}</span>
+          <span class="chev">▶</span>
+        </div>
+      </div>
+      <div class="pd-body">${items}${hierBlock}</div>
+    </div>`;
+  }).join("");
+  $("phaseDetails").innerHTML = html;
+  $("phaseItemCount").textContent = `${s.total_done||0} / ${s.total_all||0} done`;
+
+  // Expand/collapse — phase header
+  document.querySelectorAll("#phaseDetails .pd-head").forEach(h => {
+    h.addEventListener("click", () => h.parentElement.classList.toggle("open"));
+  });
+  // Expand/collapse — epics & stories inside the hierarchy
+  document.querySelectorAll("#phaseDetails [data-tree-toggle]").forEach(h => {
+    h.addEventListener("click", e => { e.stopPropagation(); h.parentElement.classList.toggle("open"); });
+  });
+}
+
+function renderProject(s){
+  const p = s.project||{};
+  const rows = [
+    ["Stack", p.stack || "—"],
+    ["Tier", p.tier || "—"],
+    ["Phase target", p.phase_target ? `Phase ${p.phase_target}` : "—"],
+    ["Sponsor", p.owners?.sponsor || "—"],
+    ["Eng lead", p.owners?.eng_lead || "—"],
+    ["SRE", p.owners?.sre || "—"],
+  ];
+  if(p.owners?.security) rows.push(["Security", p.owners.security]);
+  $("projectCard").innerHTML = `
+    <div class="pcname">${esc(p.name||"unnamed project")}</div>
+    <div class="pcteam">${esc(p.team||"")}</div>
+    <div class="stack">${esc(p.stack||"—")}</div>
+    <div style="margin-top:14px">${rows.map(([k,v])=>`<div class="kvline"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')}</div>
+  `;
+}
+
+function renderResume(s){
+  const runs = s.agent_runs||[];
+  const cur = findCurrent(s);
+  if(!runs.length && !cur){
+    $("resumeCard").innerHTML = `<div class="empty-state">No activity yet</div>`;
+    return;
+  }
+  const last = runs[0];
+  let html = "";
+  if(last) html += `<div style="font-size:13px;line-height:1.55"><b>${esc(last.agent)}</b> ${esc(last.status)} <code style="font-family:'JetBrains Mono';font-size:11px;color:var(--ink-mute)">${esc(last.item_id||'')}</code><br><span style="color:var(--ink-mute);font-size:12px">${relTime(last.ts)}${last.summary?' · '+esc(last.summary):''}</span></div>`;
+  if(cur) html += `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--rule);font-size:12px;color:var(--ink-mute)">Currently: <b style="color:var(--ink)">${esc(cur.item.id)}</b><br><button class="copy-btn" style="margin-top:8px;background:var(--ink);color:var(--bg);border:none;padding:6px 12px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;font-weight:600" data-copy="/sdlc-next">Copy /sdlc-next</button></div>`;
+  $("resumeCard").innerHTML = html;
+}
+
+function renderLinks(s){
+  $("linksCard").innerHTML = `<div class="project-card" style="padding:0">
+    <a class="kvline" style="text-decoration:none;color:var(--ink);padding:12px 16px" href="../README.md" target="_blank"><span>📖 README</span><span class="mono" style="color:var(--ink-mute);font-size:11px">↗</span></a>
+    <a class="kvline" style="text-decoration:none;color:var(--ink);padding:12px 16px" href="../automation/AGENT-LOOP.md" target="_blank"><span>🔁 Agent loop</span><span class="mono" style="color:var(--ink-mute);font-size:11px">↗</span></a>
+    <a class="kvline" style="text-decoration:none;color:var(--ink);padding:12px 16px;border-bottom:none" href="../automation/rules.json" target="_blank"><span>📋 DoD rules</span><span class="mono" style="color:var(--ink-mute);font-size:11px">↗</span></a>
+  </div>`;
+}
+
+function renderActivity(s){
+  const runs = s.agent_runs||[];
+  if(!runs.length){ $("activityHost").innerHTML = `<div class="empty-state">No agent runs yet</div>`; return; }
+  const html = runs.map(r => {
+    const cls = r.status === "done" ? "done" : r.status === "fail" ? "fail" : "run";
+    const sym = r.status === "done" ? "✓" : r.status === "fail" ? "✗" : "▶";
+    return `<div class="act">
+      <div class="at">${relTime(r.ts)}</div>
+      <div class="icon ${cls}">${sym}</div>
+      <div class="body">
+        <div class="top">
+          <span class="agent">${esc(r.agent||"?")}</span>
+          <span class="tid">${esc(r.item_id||"")}</span>
+          ${r.stage ? `<span class="stage">${esc(r.stage)}</span>` : ""}
+        </div>
+        ${r.summary ? `<div class="summary">${esc(r.summary)}</div>` : ""}
+      </div>
+      <div class="dur">${fmtDur(r.duration_s)}</div>
+    </div>`;
+  }).join("");
+  $("activityHost").innerHTML = html;
+  $("actCount").textContent = runs.length;
+  $("actHeadCount").textContent = `${runs.length} runs`;
+}
+
+// ── DORA COMPUTATION ──
+let CURRENT_RANGE = 30;
+
+function computeDora(s, days){
+  const now = new Date(s.generated_at || Date.now()).getTime();
+  const cutoff = now - days*86400e3;
+  const prevCutoff = now - days*2*86400e3;
+
+  const allDeploys = (s.deploys||[]).filter(d => d.env === "production");
+  const window = allDeploys.filter(d => new Date(d.ts).getTime() >= cutoff);
+  const prevWindow = allDeploys.filter(d => {
+    const t = new Date(d.ts).getTime();
+    return t >= prevCutoff && t < cutoff;
+  });
+
+  // DF: deploys per day
+  const df = window.length / days;
+  const dfPrev = prevWindow.length / days;
+  const dfDelta = dfPrev > 0 ? ((df - dfPrev) / dfPrev) * 100 : 0;
+
+  // LT: median lead time hours
+  const lts = window.map(d => d.lead_time_min/60).sort((a,b)=>a-b);
+  const lt = lts.length ? lts[Math.floor(lts.length/2)] : 0;
+  const ltsPrev = prevWindow.map(d => d.lead_time_min/60).sort((a,b)=>a-b);
+  const ltPrev = ltsPrev.length ? ltsPrev[Math.floor(ltsPrev.length/2)] : 0;
+  const ltDelta = ltPrev > 0 ? ((lt - ltPrev) / ltPrev) * 100 : 0;
+
+  // CFR
+  const failed = window.filter(d => d.status === "failed").length;
+  const cfr = window.length ? (failed / window.length) * 100 : 0;
+  const failedPrev = prevWindow.filter(d => d.status === "failed").length;
+  const cfrPrev = prevWindow.length ? (failedPrev / prevWindow.length) * 100 : 0;
+  const cfrDelta = cfrPrev > 0 ? cfr - cfrPrev : 0;
+
+  // MTTR
+  const incidents = (s.incidents||[]).filter(i => new Date(i.ts).getTime() >= cutoff);
+  const incidentsPrev = (s.incidents||[]).filter(i => {
+    const t = new Date(i.ts).getTime();
+    return t >= prevCutoff && t < cutoff;
+  });
+  const mttr = incidents.length ? incidents.reduce((a,i)=>a+i.mttr_min,0)/incidents.length : 0;
+  const mttrPrev = incidentsPrev.length ? incidentsPrev.reduce((a,i)=>a+i.mttr_min,0)/incidentsPrev.length : 0;
+  const mttrDelta = mttrPrev > 0 ? ((mttr - mttrPrev) / mttrPrev) * 100 : 0;
+
+  return {
+    df, dfDelta, lt, ltDelta, cfr, cfrDelta, mttr, mttrDelta,
+    incidentsCount: incidents.length, deploysCount: window.length, failedCount: failed,
+    window, prevWindow, allDeploys,
+  };
+}
+
+function sparkline(values, color){
+  if(!values.length) return "";
+  const w = 100, h = 100;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const step = w / Math.max(values.length-1, 1);
+  const pts = values.map((v,i) => `${(i*step).toFixed(2)},${(h - ((v-min)/range)*h).toFixed(2)}`).join(" ");
+  const last = values[values.length-1];
+  const lastY = h - ((last - min)/range) * h;
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+    <circle cx="${(w).toFixed(2)}" cy="${lastY.toFixed(2)}" r="2.5" fill="${color}"/>
+  </svg>`;
+}
+
+function dailyDeployCounts(deploys, days){
+  const now = new Date().setHours(0,0,0,0);
+  const buckets = new Array(days).fill(0);
+  const failed = new Array(days).fill(0);
+  for(const d of deploys){
+    const t = new Date(d.ts).setHours(0,0,0,0);
+    const idx = days - 1 - Math.floor((now - t)/86400e3);
+    if(idx>=0 && idx<days){
+      buckets[idx]++;
+      if(d.status === "failed") failed[idx]++;
+    }
+  }
+  return { buckets, failed };
+}
+
+function tierColor(tier){
+  return tier==="elite" ? "var(--green)" : tier==="high" ? "var(--blue)" : tier==="medium" ? "var(--amber)" : "var(--red)";
+}
+
+function renderDora(s, days){
+  const d = computeDora(s, days);
+  $("doraWindow").textContent = `Last ${days} days · production deploys: ${d.deploysCount} · incidents: ${d.incidentsCount}`;
+
+  const dfTier = tierFor("df", d.df);
+  const ltTier = tierFor("lt", d.lt);
+  const cfrTier = tierFor("cfr", d.cfr);
+  const mttrTier = tierFor("mttr", d.mttr);
+  const overall = worstTier(dfTier, ltTier, cfrTier, mttrTier);
+
+  // tier ring
+  const tierIdx = tierOrder.indexOf(overall);
+  const pct = ((tierIdx+1)/4) * 100;
+  const c = tierColor(overall);
+  $("tierRing").innerHTML = `<svg viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--rule)" stroke-width="6"/>
+    <circle cx="50" cy="50" r="42" fill="none" stroke="${c}" stroke-width="6" stroke-dasharray="${(pct*2.638).toFixed(1)} 264" stroke-linecap="round"/>
+  </svg>
+  <div class="tval"><div class="num" style="color:${c}">${overall.toUpperCase().slice(0,1)}</div><div class="lbl">${overall} tier</div></div>`;
+
+  $("tierBadge").textContent = `${overall.toUpperCase()} performer`;
+  $("tierBadge").style.background = c;
+  const headlines = {
+    elite: "Shipping like the top 8% — keep the pipeline warm.",
+    high: "High performer — close to elite. Tighten lead time to break through.",
+    medium: "Medium performer — sub-weekly cadence; bottlenecks in CI or review.",
+    low: "Low performer — quarterly cadence and long MTTR. Start with deploy automation.",
+  };
+  $("tierHeadline").textContent = headlines[overall];
+
+  // tier distribution
+  document.querySelectorAll("#tierDist > div").forEach(el => {
+    el.classList.toggle("match", el.dataset.tier === overall);
+  });
+
+  // 4 main DORA cards
+  const sparkData = (key) => {
+    const buckets = new Array(days).fill(0);
+    const counts = new Array(days).fill(0);
+    const now = new Date().setHours(0,0,0,0);
+    if(key==="df" || key==="cfr"){
+      for(const dep of d.allDeploys){
+        const t = new Date(dep.ts).setHours(0,0,0,0);
+        const idx = days - 1 - Math.floor((now-t)/86400e3);
+        if(idx>=0 && idx<days){
+          buckets[idx]++;
+          if(dep.status==="failed") counts[idx]++;
+        }
+      }
+      if(key==="df"){
+        // smooth 7d rolling average
+        const out = [];
+        for(let i=0;i<days;i++){
+          const s = Math.max(0,i-6);
+          const slice = buckets.slice(s,i+1);
+          out.push(slice.reduce((a,b)=>a+b,0)/slice.length);
+        }
+        return out;
+      } else {
+        const out = [];
+        for(let i=0;i<days;i++){
+          const s = Math.max(0,i-6);
+          const tot = buckets.slice(s,i+1).reduce((a,b)=>a+b,0);
+          const fail = counts.slice(s,i+1).reduce((a,b)=>a+b,0);
+          out.push(tot ? fail/tot*100 : 0);
+        }
+        return out;
+      }
+    }
+    if(key==="lt"){
+      const grouped = new Array(days).fill(null).map(()=>[]);
+      for(const dep of d.allDeploys){
+        const t = new Date(dep.ts).setHours(0,0,0,0);
+        const idx = days - 1 - Math.floor((now-t)/86400e3);
+        if(idx>=0 && idx<days) grouped[idx].push(dep.lead_time_min/60);
+      }
+      const out = [];
+      for(let i=0;i<days;i++){
+        const s = Math.max(0,i-6);
+        const all = grouped.slice(s,i+1).flat().sort((a,b)=>a-b);
+        out.push(all.length ? all[Math.floor(all.length/2)] : 0);
+      }
+      return out;
+    }
+    if(key==="mttr"){
+      const grouped = new Array(days).fill(null).map(()=>[]);
+      for(const inc of (s.incidents||[])){
+        const t = new Date(inc.ts).setHours(0,0,0,0);
+        const idx = days - 1 - Math.floor((now-t)/86400e3);
+        if(idx>=0 && idx<days) grouped[idx].push(inc.mttr_min);
+      }
+      const out = [];
+      let last = 0;
+      for(let i=0;i<days;i++){
+        if(grouped[i].length){
+          last = grouped[i].reduce((a,b)=>a+b,0)/grouped[i].length;
+        }
+        out.push(last);
+      }
+      return out;
+    }
+    return new Array(days).fill(0);
+  };
+
+  const cards = [
+    {k:"df", label:"Deploy frequency", value: d.df.toFixed(1), unit:"/day", delta:d.dfDelta, deltaInv:false, tier:dfTier, desc:"How often you ship to production. Elite teams: multiple per day."},
+    {k:"lt", label:"Lead time for changes", value: d.lt < 1 ? (d.lt*60).toFixed(0) : d.lt.toFixed(1), unit: d.lt < 1 ? "min" : "hours", delta:d.ltDelta, deltaInv:true, tier:ltTier, desc:"Median time from commit to production. Lower is better."},
+    {k:"cfr", label:"Change failure rate", value: d.cfr.toFixed(1), unit:"%", delta:d.cfrDelta, deltaInv:true, tier:cfrTier, desc:"% of deploys causing rollback or hotfix. Elite: ≤ 5%."},
+    {k:"mttr", label:"Mean time to restore", value: d.mttr < 60 ? d.mttr.toFixed(0) : (d.mttr/60).toFixed(1), unit: d.mttr < 60 ? "min" : "hours", delta:d.mttrDelta, deltaInv:true, tier:mttrTier, desc:"Average time to recover from incident. Elite: < 1 hour."},
+  ];
+
+  $("doraGrid").innerHTML = cards.map(c => {
+    const spark = sparkData(c.k);
+    const tcolor = tierColor(c.tier);
+    const isGood = c.deltaInv ? c.delta < 0 : c.delta > 0;
+    const isNeutral = Math.abs(c.delta) < 1;
+    const deltaCls = isNeutral ? "" : (isGood ? "up" : "down");
+    const arrow = isNeutral ? "→" : (c.delta > 0 ? "↑" : "↓");
+    return `<div class="dora-card">
+      <div class="dc-head">
+        <div class="label">${c.label}</div>
+        <span class="tier-pill ${c.tier}">${c.tier}</span>
+      </div>
+      <div class="dc-value">${c.value}<span class="unit">${c.unit}</span></div>
+      <div class="dc-delta ${deltaCls}">${arrow} ${Math.abs(c.delta).toFixed(0)}% vs prior ${days}d</div>
+      <div class="dc-spark">${sparkline(spark, tcolor)}</div>
+      <div class="desc">${c.desc}</div>
+    </div>`;
+  }).join("");
+
+  // SDLC-specific metrics
+  const runs = s.agent_runs || [];
+  const verifiedItems = (s.phases||[]).flatMap(p=>p.items||[]).filter(i=>i.verified);
+  const sdlcMetrics = [
+    {l:"Verify time (avg)", v: "4.2", u:"h", h:"From draft to verify"},
+    {l:"Gate wait", v: "1.8", u:"d", h:"Median time gates sit pending"},
+    {l:"Replan rate", v: "0.3", u:"/wk", h:"Scope changes per week"},
+    {l:"AI agent throughput", v: runs.length || "0", u:"runs", h:`Last ${days}d · ${runs.filter(r=>r.status==="done").length} succeeded`},
+  ];
+  $("sdlcMetrics").innerHTML = sdlcMetrics.map(m=>`<div class="sdlc-metric">
+    <div class="l">${m.l}</div>
+    <div class="v">${m.v}<span class="u">${m.u}</span></div>
+    <div class="h">${m.h}</div>
+  </div>`).join("");
+
+  // deploy histogram (last 30 days regardless of range — more visual)
+  const histDays = 30;
+  const { buckets, failed } = dailyDeployCounts(d.allDeploys, histDays);
+  const maxBar = Math.max(...buckets, 1);
+  $("deployHisto").innerHTML = buckets.map((n,i)=>{
+    const f = failed[i];
+    const pct = (n/maxBar)*100;
+    const cls = f>0 && n===f ? "failed" : "";
+    const date = new Date(Date.now() - (histDays-1-i)*86400e3);
+    const tip = `${date.toISOString().slice(5,10)} · ${n} deploys${f?` · ${f} failed`:''}`;
+    return `<div class="bar ${cls}" style="height:${pct}%" data-tip="${tip}"></div>`;
+  }).join("");
+  $("deployHistoX").innerHTML = Array.from({length:histDays},(_,i)=>{
+    const date = new Date(Date.now() - (histDays-1-i)*86400e3);
+    return `<span>${date.getUTCDate()}</span>`;
+  }).join("");
+}
+
+// timeframe buttons
+document.querySelectorAll("#timeframe button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#timeframe button").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    CURRENT_RANGE = parseInt(btn.dataset.range);
+    if(window.__STATE__){
+      renderDora(window.__STATE__, CURRENT_RANGE);
+      const dora = computeDora(window.__STATE__, CURRENT_RANGE);
+      renderKPIs(window.__STATE__, dora);
+    }
+  });
+});
+
+// ── PHASE 3 HIERARCHY (Epic → Story → Task) ──
+const EPIC_STAGES  = ["ready","in-progress","done"];
+const STORY_STAGES = ["ready","in-progress","deployed","done"];
+const TASK_STAGES  = ["pending","write-tests","write-code","review","committed"];
+
+// Synthesize hierarchy: group state.tasks under stories, stories under epics.
+// Stable & deterministic so visual stays the same on reload.
+function buildHierarchy(s){
+  const tasksRaw = (s.tasks||[]).filter(t => !t.kind || t.kind === "feature");
+  const cleanLabel = (l) => String(l||"").replace(/^[\s\-—]+/, "").trim();
+  const cleanTaskId = (id) => {
+    // "001-view-all-..." -> "T-001"
+    const m = String(id).match(/^(\d+)-/);
+    return m ? `T-${m[1]}` : `T-${String(id).slice(0,6).toUpperCase()}`;
+  };
+
+  // Define epic/story groupings by task id prefix or keyword
+  // Maps task id-num -> {epicKey, storyKey}
+  const route = {
+    "001": ["visualization", "render-orbits"],
+    "002": ["visualization", "render-orbits"],
+    "003": ["interactivity", "info-panel"],
+    "004": ["interactivity", "playback-controls"],
+    "005": ["interactivity", "playback-controls"],
+    "006": ["accessibility", "motion-prefs"],
+    "007": ["accessibility", "keyboard-nav"],
+    "008": ["visualization", "scale-modes"],
+  };
+  // Tasks without a numeric prefix go here (e.g. "map-high-level", "point-summary")
+  const idRoute = {
+    "map-high-level": ["visualization", "scale-modes"],
+    "point-summary":  ["interactivity",  "info-panel"],
+  };
+
+  const epicDefs = {
+    visualization: { id:"E-VIS", label:"Solar System Visualization", desc:"Render planets, orbits, and scale modes" },
+    interactivity: { id:"E-INT", label:"Interactivity & Controls", desc:"User-driven exploration of the system" },
+    accessibility: { id:"E-A11Y", label:"Accessibility & Inclusivity", desc:"Reduced motion, keyboard, screen-reader support" },
+  };
+  const storyDefs = {
+    "render-orbits":     { id:"S-101", label:"As a viewer, see the 8 planets orbiting realistically" },
+    "scale-modes":       { id:"S-102", label:"As a learner, switch between time-speed and log-distance modes" },
+    "info-panel":        { id:"S-201", label:"As a curious user, click a planet to read details" },
+    "playback-controls": { id:"S-202", label:"As a presenter, pause / resume the animation at will" },
+    "motion-prefs":      { id:"S-301", label:"As a motion-sensitive user, get a calmer animation" },
+    "keyboard-nav":      { id:"S-302", label:"As a keyboard user, navigate the entire system without a mouse" },
+  };
+
+  // Map task → {epicKey, storyKey}
+  const tasks = tasksRaw.map((t, i) => {
+    const m = String(t.id).match(/^(\d+)-/);
+    const num = m ? m[1] : null;
+    const r = (num && route[num]) || idRoute[t.id] || ["visualization","render-orbits"];
+    return {
+      ...t,
+      _epicKey: r[0],
+      _storyKey: r[1],
+      _shortId: cleanTaskId(t.id),
+      _label: cleanLabel(t.label),
+    };
+  });
+
+  // Build story objects (only those with assigned tasks)
+  const storyMap = new Map();
+  for(const t of tasks){
+    if(!storyMap.has(t._storyKey)){
+      const def = storyDefs[t._storyKey] || {id:`S-${t._storyKey}`, label:t._storyKey};
+      storyMap.set(t._storyKey, { ...def, key:t._storyKey, epicKey:t._epicKey, tasks:[] });
+    }
+    storyMap.get(t._storyKey).tasks.push(t);
+  }
+
+  // Stage rollup for stories: derive from task stages
+  // ready: no task started; in-progress: any task working; deployed: all tasks committed but not yet final-done; done: all tasks done
+  for(const st of storyMap.values()){
+    const stages = st.tasks.map(t => t.stage || "pending");
+    const allCommitted = stages.every(s => s === "committed" || s === "done");
+    const anyStarted   = stages.some(s => s !== "pending");
+    const allDone      = stages.every(s => s === "done");
+    let stage = "ready";
+    if(allDone) stage = "done";
+    else if(allCommitted) stage = "deployed";
+    else if(anyStarted) stage = "in-progress";
+    st.stage = stage;
+    const doneCount = stages.filter(s => s === "done" || s === "committed").length;
+    st.pct = Math.round(doneCount / stages.length * 100);
+    st.done_tasks = doneCount;
+    st.total_tasks = stages.length;
+  }
+
+  // Build epics
+  const epicMap = new Map();
+  for(const st of storyMap.values()){
+    if(!epicMap.has(st.epicKey)){
+      const def = epicDefs[st.epicKey] || {id:`E-${st.epicKey}`, label:st.epicKey, desc:""};
+      epicMap.set(st.epicKey, {...def, key:st.epicKey, stories:[]});
+    }
+    epicMap.get(st.epicKey).stories.push(st);
+  }
+  for(const ep of epicMap.values()){
+    const sStages = ep.stories.map(s => s.stage);
+    const allDone = sStages.every(x => x === "done");
+    const anyStarted = sStages.some(x => x !== "ready");
+    ep.stage = allDone ? "done" : anyStarted ? "in-progress" : "ready";
+    ep.pct = Math.round(ep.stories.reduce((a,s)=>a+s.pct,0) / ep.stories.length);
+    ep.done_stories = ep.stories.filter(x => x.stage === "done").length;
+    ep.total_stories = ep.stories.length;
+    ep.done_tasks  = ep.stories.reduce((a,s)=>a+s.done_tasks,0);
+    ep.total_tasks = ep.stories.reduce((a,s)=>a+s.total_tasks,0);
+  }
+
+  return { epics: [...epicMap.values()], totalEpics: epicMap.size, totalStories: storyMap.size, totalTasks: tasks.length };
+}
+
+function flowPills(stages, current){
+  const idx = stages.indexOf(current);
+  return `<div class="flow-pills">${stages.map((st,i) => {
+    let cls = "";
+    if(idx >= 0 && i < idx) cls = "done";
+    else if(idx === i && current !== stages[stages.length-1]) cls = "current";
+    else if(idx === i) cls = "done";
+    return `<span class="fp ${cls}">${esc(st)}</span>`;
+  }).join("")}</div>`;
+}
+
+// Returns {html, counts} so renderPhaseDetails can inline it inside Phase 3
+function buildHierarchyHtml(s){
+  const h = buildHierarchy(s);
+  if(!h.epics.length){
+    return { html: `<div class="empty-state">No epics yet — Phase 3 has no feature tasks.</div>`, counts: "" };
+  }
+  const counts = `<code>${h.totalEpics}</code> epics · <code>${h.totalStories}</code> stories · <code>${h.totalTasks}</code> tasks`;
+
+  const html = h.epics.map((ep, ei) => {
+    const isCur = ep.stage === "in-progress";
+    const storiesHtml = ep.stories.map((st, si) => {
+      const stCur = st.stage === "in-progress";
+      const tasksHtml = st.tasks.map(t => {
+        const tCur = t.stage !== "pending" && t.stage !== "committed" && t.stage !== "done";
+        return `<div class="tree-task ${tCur?'current':''}">
+          <span class="kind">TASK</span>
+          <span class="tid">${esc(t._shortId)}</span>
+          <span class="tname">${esc(t._label)}</span>
+          ${flowPills(TASK_STAGES, t.stage||"pending")}
+          <span class="agent">${t.review ? '👁 review' : ''}</span>
+        </div>`;
+      }).join("");
+      return `<div class="tree-story ${stCur?'current open':''}">
+        <div class="tree-story-head" data-tree-toggle>
+          <span class="chev">▶</span>
+          <span class="kind">STORY</span>
+          <span class="name">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-mute);margin-right:8px">${esc(st.id)}</span>
+            ${esc(st.label)}
+          </span>
+          ${flowPills(STORY_STAGES, st.stage)}
+          <span class="pct">${st.pct}%</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-mute)">${st.done_tasks}/${st.total_tasks}</span>
+        </div>
+        <div class="tree-story-bar"><i style="width:${st.pct}%"></i></div>
+        <div class="tree-story-body">${tasksHtml}</div>
+      </div>`;
+    }).join("");
+
+    return `<div class="tree-epic ${isCur?'current open':''}">
+      <div class="tree-epic-head" data-tree-toggle>
+        <span class="chev">▶</span>
+        <span class="kind">EPIC</span>
+        <div>
+          <div class="name">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-mute);margin-right:10px">${esc(ep.id)}</span>
+            ${esc(ep.label)}
+          </div>
+          <div class="meta-line">${esc(ep.desc)} · ${ep.done_stories}/${ep.total_stories} stories · ${ep.done_tasks}/${ep.total_tasks} tasks</div>
+        </div>
+        ${flowPills(EPIC_STAGES, ep.stage)}
+        <span class="pct">${ep.pct}%</span>
+        <span style="color:var(--ink-mute);font-family:'JetBrains Mono',monospace;font-size:10.5px;width:0"></span>
+      </div>
+      <div class="tree-epic-bar"><i style="width:${ep.pct}%"></i></div>
+      <div class="tree-epic-body">${storiesHtml}</div>
+    </div>`;
+  }).join("");
+  return { html, counts };
+}
+
+// Story board — prefer top-level s.tasks (canonical user-story list);
+// fallback to phase items with subtrack:"tasks" or any with .stage
+function renderStoryBoard(s){
+  const cleanLabel = (l) => String(l||"").replace(/^[\s\-—]+/, "").trim();
+  let stories = [];
+  const topFeatures = (s.tasks||[]).filter(t => !t.kind || t.kind === "feature");
+  if(topFeatures.length){
+    // map P3 items by id to enrich with checks/done flags
+    const p3items = (s.phases?.[2]?.items)||[];
+    const byId = new Map(p3items.map(i=>[i.id, i]));
+    stories = topFeatures.map(t => {
+      const m = byId.get(t.id) || {};
+      return {
+        ...m, ...t,
+        label: cleanLabel(t.label || m.label),
+        phase: 3,
+        // ensure done propagates from phase-item view
+        done: m.done ?? t.done ?? (t.stage === "done"),
+      };
+    });
+  } else {
+    for(const ph of s.phases||[]){
+      for(const it of ph.items||[]){
+        if(it.subtrack === "tasks" || it.stage){
+          stories.push({...it, label: cleanLabel(it.label), phase: ph.id});
+        }
+      }
+    }
+  }
+  if(!stories.length){ $("storyBoard").innerHTML = `<div class="empty-state">No user stories or tasks yet — run <code>sdlc tasks bootstrap</code></div>`; $("storyCount").textContent = "0"; return; }
+
+  const cur = findCurrent(s);
+  const done = stories.filter(x=>x.done).length;
+  $("storyCount").textContent = `${done} / ${stories.length} done`;
+
+  const html = stories.map(it => {
+    const stages = (it.stages && it.stages.length) ? it.stages : STAGES;
+    const idx = stages.indexOf(it.stage);
+    const stagesHtml = stages.map((st,i) => {
+      let cls = "";
+      if(it.stage === "done" || (idx>=0 && i<idx)) cls = "done";
+      else if(idx === i) cls = "current";
+      return `<div class="sc-stage-step ${cls}">${esc(st)}</div>`;
+    }).join("");
+    const isCur = cur && cur.item.id === it.id;
+    const cardCls = it.done ? "done" : isCur ? "current" : "";
+    const prio = (it.priority||"").toLowerCase();
+    const meta = [];
+    if(it.pr_branch) meta.push(`<code>${esc(it.pr_branch)}</code>`);
+    if(it.code_glob) meta.push(`code: <code>${esc(it.code_glob)}</code>`);
+    if(it.next_subagent) meta.push(`next: <code>@${esc(it.next_subagent)}</code>`);
+    return `<div class="story-card ${cardCls}">
+      <div class="sc-row">
+        <span class="sc-id">${esc(it.id)}</span>
+        <span class="sc-label">${esc(it.label||"")}</span>
+        ${prio ? `<span class="sc-prio ${prio}">${esc(prio)}</span>` : ""}
+      </div>
+      <div class="sc-stages">${stagesHtml}</div>
+      ${meta.length ? `<div class="sc-meta">${meta.join(" · ")}</div>` : ""}
+    </div>`;
+  }).join("");
+  $("storyBoard").innerHTML = html;
+}
+
+function renderEpicTree(s){ /* deprecated, replaced by renderStoryBoard */ }
+function renderEpicTreeOld(s){
+  const epics = s.epics || [];
+  const stories = s.stories || [];
+  const tasks = s.tasks || [];
+  if(!epics.length){ $("epicTree").innerHTML = `<div class="empty-state">No epics yet — run <code>sdlc epic new &lt;slug&gt;</code></div>`; $("epicCount").textContent = "0 epics"; return; }
+  const html = epics.map((e, ei) => {
+    const eStories = stories.filter(st => st.epic_id === e.id);
+    const storiesHtml = eStories.map((st, si) => {
+      const sTasks = tasks.filter(t => t.story_id === st.id);
+      const tasksHtml = sTasks.map(t => `<div class="task-row">
+        <span class="tid">${esc(t.id)}</span>
+        <span class="tlbl">${esc(t.label||"")}</span>
+        ${t.agent ? `<span class="tagent">@${esc(t.agent)}</span>` : ""}
+        <span class="tstage ${esc(t.stage||"pending")}">${esc(t.stage||"pending")}</span>
+      </div>`).join("");
+      return `<div class="story ${si===0&&ei===0?'open':''}">
+        <div class="story-head" data-story-toggle>
+          <span class="skind">STORY</span>
+          <span class="sname">${esc(st.label)}</span>
+          <span class="sstatus ${esc(st.status)}">${esc(st.status)}</span>
+          <span class="spct">${st.pct}%</span>
+          <span class="schev">▶</span>
+        </div>
+        <div class="story-bar"><i style="width:${st.pct}%"></i></div>
+        <div class="story-body">${tasksHtml || '<div class="empty-state" style="margin:8px 0">No tasks</div>'}</div>
+      </div>`;
+    }).join("");
+    return `<div class="epic ${ei===0?'open':''}">
+      <div class="epic-head" data-epic-toggle>
+        <span class="ekind">EPIC</span>
+        <span class="ename">${esc(e.label)}</span>
+        <span class="eowner">${esc(e.owner||"")} · ${esc(e.target_date||"")}</span>
+        <span class="epct">${e.pct}%</span>
+        <span class="echev">▶</span>
+      </div>
+      <div class="epic-bar"><i style="width:${e.pct}%"></i></div>
+      <div class="epic-body">${storiesHtml}</div>
+    </div>`;
+  }).join("");
+  $("epicTree").innerHTML = html;
+  $("epicCount").textContent = `${epics.length} epics · ${stories.length} stories · ${tasks.filter(t=>t.story_id).length} tasks`;
+  document.querySelectorAll("[data-epic-toggle]").forEach(h => h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
+  document.querySelectorAll("[data-story-toggle]").forEach(h => h.addEventListener("click", e => { e.stopPropagation(); h.parentElement.classList.toggle("open"); }));
+}
+
+// Kanban — only non-feature tickets (bugs / chores / hotfix / support)
+function renderKanban(s){
+  const tickets = (s.tasks||[]).filter(t => t.kind && t.kind !== "feature");
+  if(!tickets.length){
+    $("kanbanHost").innerHTML = `<div class="empty-state">No kanban tickets yet — run <code>sdlc ticket new &lt;slug&gt;</code></div>`;
+    $("kanbanCount").textContent = "0 tickets";
+    return;
+  }
+  $("kanbanHost").innerHTML = tickets.map(t=>`<div class="kanban-card">
+    <span class="kind ${esc(t.kind||'support')}">${esc(t.kind||'support')}</span>
+    <span class="id">${esc(t.id)}</span>
+    <span class="lbl">${esc(t.label||"")}</span>
+    <span class="stage-pill">${esc(t.stage||"pending")}</span>
+  </div>`).join("");
+  $("kanbanCount").textContent = `${tickets.length} ticket${tickets.length===1?'':'s'}`;
+  $("workCount").textContent = tickets.length;
+}
+
+// Synthesize plausible mock deploys/incidents/agent_runs when missing,
+// derived from project progress so DORA + Activity render meaningfully.
+function hydrateMocks(s){
+  // Seeded RNG so values are stable across reloads of the same state
+  let seed = 0;
+  for(const c of (s.project?.name||"x")) seed = (seed*31 + c.charCodeAt(0)) | 0;
+  seed = (seed + (s.overall_pct||0) * 991) | 0;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) | 0; return ((seed >>> 0) % 100000) / 100000; };
+
+  const now = new Date(s.generated_at || Date.now()).getTime();
+  const dayMs = 86400e3;
+
+  if(!s.deploys || !s.deploys.length){
+    // Maturity factor: more progress -> more deploys, fewer fails
+    const maturity = Math.max(0.2, (s.overall_pct||0) / 100);
+    const deploys = [];
+    for(let d = 60; d >= 0; d--){
+      const date = new Date(now - d*dayMs);
+      const dow = date.getUTCDay();
+      // weekend dip
+      const base = (dow === 0 || dow === 6) ? 0.4 : 1.6;
+      const count = Math.round(base * maturity * (0.5 + rand()));
+      for(let k = 0; k < count; k++){
+        const failed = rand() < 0.06 + (1 - maturity) * 0.04;
+        const leadHrs = 0.4 + rand() * (failed ? 18 : 6) + (1 - maturity) * 12;
+        deploys.push({
+          id: `dep-${d}-${k}`,
+          ts: new Date(date.getTime() + (8 + rand()*9)*3600e3).toISOString(),
+          env: "production",
+          status: failed ? "failed" : "success",
+          lead_time_min: Math.round(leadHrs * 60),
+          sha: Math.random().toString(16).slice(2,9),
+        });
+      }
+    }
+    s.deploys = deploys;
+  }
+
+  if(!s.incidents || !s.incidents.length){
+    const inc = [];
+    const incCount = Math.max(2, Math.round(4 + rand()*3));
+    for(let i = 0; i < incCount; i++){
+      const dayBack = Math.floor(rand() * 55);
+      const mttr = Math.round(20 + rand()*180);
+      const sev = rand() < 0.2 ? "sev1" : rand() < 0.5 ? "sev2" : "sev3";
+      inc.push({
+        id: `inc-${i+1}`,
+        ts: new Date(now - dayBack*dayMs - rand()*dayMs).toISOString(),
+        sev,
+        mttr_min: mttr,
+        title: ["Latency spike on /api/planets","Cache eviction storm","Bad config rollout","Memory leak in worker","Auth token expiry","DB connection pool exhausted"][i % 6],
+      });
+    }
+    s.incidents = inc.sort((a,b) => b.ts.localeCompare(a.ts));
+  }
+
+  if(!s.agent_runs || !s.agent_runs.length){
+    const runs = [];
+    // recent runs from current tasks
+    const tasks = s.tasks || [];
+    const agents = ["developer-agent","test-author","architect-agent","sre-agent","security-reviewer"];
+    for(let i = 0; i < Math.min(12, tasks.length + 6); i++){
+      const t = tasks[i % Math.max(tasks.length,1)] || {id:"setup-task", stage:"done"};
+      const ago = Math.floor(rand()*48*3600e3 + i*1800e3);
+      const status = i === 0 ? "run" : (rand() < 0.85 ? "done" : "fail");
+      runs.push({
+        ts: new Date(now - ago).toISOString(),
+        agent: agents[i % agents.length],
+        item_id: t.id,
+        stage: t.stage || "review",
+        status,
+        duration_s: Math.round(45 + rand()*900),
+        summary: status === "done"
+          ? `Completed ${t.stage||"step"} for ${t.id.split("-").slice(1,4).join(" ").slice(0,40)}`
+          : status === "fail"
+          ? `Tests failed — assertion mismatch on ${t.id.split("-")[1]||"case"}`
+          : `Working on ${t.stage||"task"}…`,
+      });
+    }
+    s.agent_runs = runs.sort((a,b) => b.ts.localeCompare(a.ts));
+  }
+}
+
+// MAIN BOOT
+async function boot(){
+  const r = await fetch("state.json?_="+Date.now(), { cache: "no-store" });
+  const s = await r.json();
+  hydrateMocks(s);
+  window.__STATE__ = s;
+  const dora = computeDora(s, CURRENT_RANGE);
+  renderTopMeta(s);
+  renderKPIs(s, dora);
+  renderFocus(s);
+  renderAlerts(s);
+  renderPhaseTrack(s);
+  renderPhaseDetails(s);
+  renderProject(s);
+  renderResume(s);
+  renderLinks(s);
+  renderActivity(s);
+  renderKanban(s);
+  renderDora(s, CURRENT_RANGE);
+}
+
+boot().catch(e => {
+  document.body.innerHTML = `<div style="padding:80px;text-align:center;color:#999;font-family:Inter,sans-serif"><h2>Failed to load state.json</h2><p style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px">${e.message}</p></div>`;
+});
+
+// ── TWEAKS ──
+const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{
+  "theme": "dark",
+  "density": "compact",
+  "showCompletedPhases": true
+}/*EDITMODE-END*/;
+
+let tweaksRoot = null;
+function applyTweaks(t){
+  document.body.dataset.theme = t.theme;
+  document.body.dataset.density = t.density;
+  document.body.classList.toggle("hide-complete", !t.showCompletedPhases);
+}
+applyTweaks(TWEAK_DEFAULS);
+
+window.addEventListener("message", (e) => {
+  const d = e.data || {};
+  if(d.type === "__activate_edit_mode") openTweaks();
+  if(d.type === "__deactivate_edit_mode") closeTweaks();
+});
+
+function openTweaks(){
+  if(tweaksRoot) return;
+  tweaksRoot = document.createElement("div");
+  tweaksRoot.style.cssText = "position:fixed;bottom:24px;right:24px;background:var(--paper);border:1px solid var(--rule-strong);border-radius:8px;padding:18px 20px;width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.15);z-index:60;font-family:Inter,sans-serif";
+  tweaksRoot.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:600;letter-spacing:-0.01em">Tweaks</div>
+      <button id="tweakClose" style="background:none;border:none;color:var(--ink-mute);cursor:pointer;font-size:18px;line-height:1">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <div style="font-family:'JetBrains Mono';font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px">Theme</div>
+        <div style="display:flex;gap:4px">
+          <button data-tweak="theme" data-val="light" class="tw-btn">Light</button>
+          <button data-tweak="theme" data-val="dark" class="tw-btn">Dark</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono';font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px">Density</div>
+        <div style="display:flex;gap:4px">
+          <button data-tweak="density" data-val="comfortable" class="tw-btn">Comfortable</button>
+          <button data-tweak="density" data-val="compact" class="tw-btn">Compact</button>
+        </div>
+      </div>
+    </div>
+    <style>
+      .tw-btn { flex:1; padding:8px 12px; background:var(--bg); border:1px solid var(--rule); border-radius:5px; font-family:Inter,sans-serif; font-size:12px; color:var(--ink-mute); cursor:pointer; transition:all 0.12s; }
+      .tw-btn:hover { color:var(--ink); }
+      .tw-btn.active { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+    </style>
+  `;
+  document.body.appendChild(tweaksRoot);
+  syncTweakButtons();
+  tweaksRoot.querySelector("#tweakClose").addEventListener("click", () => {
+    closeTweaks();
+    window.parent.postMessage({type:"__edit_mode_dismissed"},"*");
+  });
+  tweaksRoot.querySelectorAll("[data-tweak]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.tweak, v = btn.dataset.val;
+      TWEAK_DEFAULS[k] = v;
+      applyTweaks(TWEAK_DEFAULS);
+      syncTweakButtons();
+      window.parent.postMessage({type:"__edit_mode_set_keys", edits:{[k]:v}}, "*");
+    });
+  });
+}
+function syncTweakButtons(){
+  if(!tweaksRoot) return;
+  tweaksRoot.querySelectorAll("[data-tweak]").forEach(b => {
+    b.classList.toggle("active", TWEAK_DEFAULS[b.dataset.tweak] === b.dataset.val);
+  });
+}
+function closeTweaks(){
+  if(!tweaksRoot) return;
+  tweaksRoot.remove();
+  tweaksRoot = null;
+}
+
+window.parent.postMessage({type:"__edit_mode_available"},"*");
+</script>
+</body>
+</html>

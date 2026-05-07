@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Virtual environments
+.venv
+
+# Tooling caches (ruff/mypy/pytest land in Story 1.2; preempt cache leaks now)
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Editor / IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# BMAD planning + Claude Code local config (not part of v1 distributable)
+_bmad/
+_bmad-output/
+.claude/
+
+# Override user-global *.md exclusion (re-include Markdown docs for this project;
+# files inside _bmad/, _bmad-output/, .claude/ remain excluded via parent-dir rules)
+!*.md
+!**/*.md
