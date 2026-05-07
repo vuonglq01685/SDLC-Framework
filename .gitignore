@@ -14,8 +14,9 @@ wheels/
 .mypy_cache/
 .ruff_cache/
 .tox/
-.coverage
+.coverage*
 htmlcov/
+coverage.xml
 
 # Editor / IDE
 .idea/
