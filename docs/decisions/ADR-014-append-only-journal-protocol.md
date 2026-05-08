@@ -38,11 +38,10 @@ atomic protocol from the state-write protocol (Story 1.10).
 6. `os.fsync(fd)` — durability of appended bytes.
 7. `os.close(fd)`. Release flock (automatic on `__aexit__`).
 
-**No parent-dir fsync** — `O_APPEND` extends an existing inode in place; the directory
-entry is not changed on subsequent appends. Only the first-ever `O_CREAT` creates a new
-directory entry (v1 accepted gap: a kill between `O_CREAT` and `fsync(fd)` could lose
-the very first append under OS crash; `sdlc rebuild-state` Story 1.20 recovers from an
-empty journal).
+**Parent-directory fsync on first-ever `O_CREAT`** matches `state/atomic.py:119-134`;
+no power-loss window for the very first journal entry. Subsequent appends do NOT
+re-fsync the directory because `O_APPEND` extends an existing inode in place; the
+directory entry is not modified after the file already exists.
 
 ### Dual Sync/Async API
 
@@ -88,13 +87,25 @@ with a documentation comment requiring both copies to stay in lockstep.
 **Accepted:**
 
 - Writer is POSIX-only (Linux/macOS); reader is cross-platform (pure file read). Windows
-  users get `NotImplementedError` from `append`/`append_sync` but can still read journals.
+  users get `JournalError(step="windows_unsupported")` from `append`/`append_sync` (review
+  fix Edge M6 — symmetric with POSIX so cross-platform `except JournalError` callers work
+  on every OS) but can still read journals.
 - Permissive reader (skip malformed lines) trades a potential silent-skip for
   rebuild-state recoverability. Mitigated by `reader_invariant` seq-regression detection.
-- `_normalize_strings` duplicated from `state/atomic.py` — must stay in lockstep.
+- `_normalize_strings` duplicated from `state/atomic.py` into `sdlc.journal._canonical` —
+  must stay in lockstep, enforced by `tests/unit/journal/test_canonical_lockstep.py`.
   Factoring it up the dependency graph requires restructuring `MODULE_DEPS` (out of v1 scope).
-- First-ever `O_CREAT` creates a directory entry without parent-dir fsync — accepted gap
-  for v1. Recovery: `sdlc rebuild-state` (Story 1.20) recreates an empty journal.
+- **NFC normalization on hash-suffix string fields:** `_normalize_strings` recurses into
+  `before_hash`/`after_hash`. The `JournalEntry` contract (Story 1.7) regex
+  `^sha256:[0-9a-f]{64}$` ensures these fields are pure hex, making the NFC pass a no-op
+  at the contract boundary. **If the contract is ever loosened**, `_normalize_strings`
+  must add a sentinel-skip set to avoid silently rewriting hash bytes; tracked in
+  `_bmad-output/implementation-artifacts/deferred-work.md`.
+- **Local-disk-only assumption:** the framework runs on the user's local filesystem per
+  the architecture threat model. NFS / fuse / virtio-9p multi-process file-cache
+  visibility (where the highest-seq scan can read a stale view despite holding flock) is
+  out of v1 scope; tracked as a future "remote-filesystem hardening" story in
+  `deferred-work.md`.
 - Multi-writer concurrency property test deferred — single-writer-sequential is sufficient
   for v1 (the lock already serializes; the property test validates the lock-protected
   invariant).

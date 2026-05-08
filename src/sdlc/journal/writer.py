@@ -1,7 +1,11 @@
 """POSIX append-only JSONL journal writer (FR31, Architecture §493 + §849-§851, NFR-REL-2).
 
-O_APPEND-based atomic line semantics; flock serializes monotonic_seq validation.
-Full hash-verified projection-from-journal deferred to Story 1.12.
+O_APPEND-based atomic line semantics; flock serializes monotonic_seq validation. Helpers
+split out (ADR-014 D1) into ``_canonical.py`` (canonicalization) and ``_seq.py`` (highest
+seq scan) to keep this file ≤200 LOC.
+
+``append_sync`` event-loop guard is bypassable from a worker thread spawned via
+``loop.run_in_executor`` — same drift exists in ``state.atomic`` (deferred-work.md).
 """
 
 from __future__ import annotations
@@ -10,138 +14,110 @@ import sys
 
 if sys.platform == "win32":
     raise ImportError(
-        "sdlc.journal.writer is POSIX-only — fcntl + O_APPEND semantics are required"
+        "sdlc.journal.writer is POSIX-only — fcntl + O_APPEND semantics required"
         " (Architecture §573, §493)"
     )
 
 import asyncio
-import json
+import contextlib
+import logging
 import os
-import unicodedata
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
-from sdlc.concurrency import file_lock
+from sdlc.concurrency import file_lock  # type: ignore[attr-defined]
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import JournalError
+from sdlc.journal._canonical import _canonicalize_entry, _normalize_strings  # noqa: F401
+from sdlc.journal._seq import _read_highest_seq
+
+_logger = logging.getLogger(__name__)
 
 JOURNAL_LOCK_SUFFIX: Final[str] = ".lock"
 
-# Canonical write API names — intentional drift detector: if writer.py renames either
-# function, this constant breaks check_no_journal_mutation.py.
+# Drift detector: linter main() runtime-asserts hasattr(append/append_sync).
 _CANONICAL_WRITE_API: Final[frozenset[str]] = frozenset(
     {"sdlc.journal.writer.append", "sdlc.journal.writer.append_sync"}
 )
 
-_MIN_ARGS_FOR_OPEN = 2
+
+def _je(msg: str, **details: object) -> JournalError:
+    """Build a JournalError; keeps raise sites compact."""
+    return JournalError(msg, details=details)
 
 
-def _normalize_strings(obj: Any) -> Any:
-    """Recursively NFC-normalize all string values (Architecture §513).
-
-    Duplicated from state/atomic.py:_normalize_strings to respect
-    MODULE_DEPS["journal"].depends_on which excludes "state". Both copies must stay
-    in lockstep — DO NOT factor up the dependency graph (out of v1 scope).
-    """
-    if isinstance(obj, str):
-        return unicodedata.normalize("NFC", obj)
-    if isinstance(obj, dict):
-        return {k: _normalize_strings(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_normalize_strings(item) for item in obj]
-    return obj
-
-
-def _canonicalize_entry(entry: JournalEntry) -> bytes:
-    """Return canonical JSONL bytes for a journal entry (Architecture §501-§508, §513).
-
-    Terminating \\n is REQUIRED for JSONL — distinct from hash-canonicalization which omits it.
-    """
-    payload = _normalize_strings(entry.model_dump(mode="json"))
-    return (
-        json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode(
-            "utf-8"
+def _lock_path_for(journal_path: Path) -> Path:
+    if not journal_path.name:
+        raise _je(
+            "journal_path has empty name component — cannot derive lock path",
+            path=str(journal_path),
+            errno=None,
+            step="validate_path",
         )
-        + b"\n"
-    )
-
-
-def _read_highest_seq(journal_path: Path) -> int:
-    """Return the maximum monotonic_seq across all parseable entries, or -1 if empty/missing.
-
-    Caller must hold the write lock. Malformed lines are skipped with a stderr warning —
-    the writer's validate_seq check is best-effort robustness; the property test asserts
-    all written entries are well-formed.
-    """
-    if not journal_path.exists():
-        return -1
-    highest = -1
-    try:
-        with journal_path.open("r", encoding="utf-8") as fh:
-            for lineno, line in enumerate(fh, start=1):
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                try:
-                    entry = JournalEntry.model_validate_json(stripped)
-                    highest = max(highest, entry.monotonic_seq)
-                except (ValueError, TypeError) as e:
-                    print(
-                        f"warning: malformed journal line at {journal_path}:{lineno}: {e}"
-                        " — skipping",
-                        file=sys.stderr,
-                    )
-    except OSError as e:
-        print(
-            f"warning: could not read {journal_path} for seq check: {e} — treating as empty",
-            file=sys.stderr,
+    if journal_path.suffix == JOURNAL_LOCK_SUFFIX:
+        raise _je(
+            "journal_path already ends in .lock — refusing to derive nested lock path",
+            path=str(journal_path),
+            errno=None,
+            step="validate_path",
         )
-    return highest
+    return Path(str(journal_path) + JOURNAL_LOCK_SUFFIX)
 
 
-def _open_journal_for_append(journal_path: Path) -> int:
-    """Open journal file with O_WRONLY | O_CREAT | O_APPEND (atomic-to-EOF, kernel-enforced)."""
+def _fsync_parent_dir(parent_dir: Path) -> None:
+    """Mirrors ``state.atomic._fsync_parent_dir`` (lines 119-134); ADR-014 D2."""
+    dir_fd: int | None = None
     try:
-        # O_APPEND: POSIX guarantees each write(2) call is atomic to EOF.
-        # NOT os.O_WRONLY + manual lseek — race-prone. NOT builtin open("a") — bypasses test-side
-        # monkeypatching visibility and obscures the flags (mirrors state/atomic.py:69-71).
-        return os.open(str(journal_path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        dir_fd = os.open(str(parent_dir), os.O_RDONLY)
+        os.fsync(dir_fd)
     except OSError as e:
-        raise JournalError(
-            f"journal append failed at open: {e}",
-            details={
-                "path": str(journal_path),
-                "errno": e.errno,
-                "step": "open_journal",
-            },
+        raise _je(
+            f"journal append failed at fsync parent dir: {e}",
+            path=str(parent_dir),
+            errno=e.errno,
+            step="fsync_parent_dir",
         ) from e
+    finally:
+        if dir_fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(dir_fd)
+
+
+def _open_journal_for_append(journal_path: Path) -> tuple[int, bool]:
+    existed_before_open = journal_path.exists()
+    try:
+        fd = os.open(str(journal_path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    except OSError as e:
+        raise _je(
+            f"journal append failed at open: {e}",
+            path=str(journal_path),
+            errno=e.errno,
+            step="open_journal",
+        ) from e
+    return fd, existed_before_open
 
 
 def _write_bytes_to_journal(fd: int, buf: bytes, journal_path: Path, seq: int) -> None:
-    """Drain canonical bytes via short-write loop (mirrors state/atomic.py:_write_bytes)."""
     offset = 0
     while offset < len(buf):
         try:
             written = os.write(fd, buf[offset:])
         except OSError as e:
-            raise JournalError(
+            raise _je(
                 f"journal append failed at write: {e}",
-                details={
-                    "path": str(journal_path),
-                    "errno": e.errno,
-                    "step": "write_journal",
-                    "monotonic_seq": seq,
-                },
+                path=str(journal_path),
+                errno=e.errno,
+                step="write_journal",
+                monotonic_seq=seq,
             ) from e
-        if written == 0:
-            raise JournalError(
-                "journal append failed: os.write returned 0 bytes",
-                details={
-                    "path": str(journal_path),
-                    "errno": 0,
-                    "step": "write_journal",
-                    "monotonic_seq": seq,
-                },
+        if written <= 0:
+            raise _je(
+                "journal append failed: os.write returned non-positive byte count",
+                path=str(journal_path),
+                errno=None,
+                step="write_invariant",
+                monotonic_seq=seq,
+                returned=written,
             )
         offset += written
 
@@ -150,50 +126,57 @@ def _fsync_journal(fd: int, journal_path: Path, seq: int) -> None:
     try:
         os.fsync(fd)
     except OSError as e:
-        raise JournalError(
+        raise _je(
             f"journal append failed at fsync: {e}",
-            details={
-                "path": str(journal_path),
-                "errno": e.errno,
-                "step": "fsync_journal",
-                "monotonic_seq": seq,
-            },
+            path=str(journal_path),
+            errno=e.errno,
+            step="fsync_journal",
+            monotonic_seq=seq,
         ) from e
 
 
-def _append_protocol_body(entry: JournalEntry, journal_path: Path) -> None:
-    """Synchronous protocol body — single source of truth for the append protocol.
-
-    Steps (Architecture §581 step 8):
-    1. [lock held by caller] Read highest existing monotonic_seq.
-    2. Validate entry.monotonic_seq > highest (lock serializes concurrent appenders).
-    3. Canonicalize entry to bytes.
-    4. open(O_WRONLY | O_CREAT | O_APPEND) — kernel-enforced atomic-to-EOF.
-    5. Drain bytes via short-write loop.
-    6. fsync for durability.
-    7. close fd.
-    Note: no parent-dir fsync — O_APPEND extends an existing inode in place; only the
-    first-ever O_CREAT creates a new directory entry (v1 accepted gap; see ADR-014).
-    """
-    seq = entry.monotonic_seq
-
-    # Step 2.5: monotonicity precondition (inside lock → serializes concurrent appenders)
-    highest = _read_highest_seq(journal_path)
-    if seq <= highest:
-        raise JournalError(
-            f"journal monotonic_seq regression: supplied {seq} <= highest {highest}",
-            details={
-                "path": str(journal_path),
-                "step": "validate_seq",
-                "supplied": seq,
-                "expected_min": highest + 1,
-                "monotonic_seq": seq,
-            },
+def _verify_terminator(journal_path: Path) -> None:
+    """Refuse to append when an existing non-empty file does not end in ``\\n``."""
+    if not journal_path.exists():
+        return
+    size = journal_path.stat().st_size
+    if size == 0:
+        return
+    fd = os.open(str(journal_path), os.O_RDONLY)
+    try:
+        os.lseek(fd, size - 1, os.SEEK_SET)
+        last = os.read(fd, 1)
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(fd)
+    if last != b"\n":
+        raise _je(
+            "journal terminator missing — last byte is not '\\n'; refusing to append",
+            path=str(journal_path),
+            errno=None,
+            step="terminator_missing",
+            size=size,
+            last_byte_repr=repr(last),
         )
 
-    canonical_bytes = _canonicalize_entry(entry)
 
-    fd = _open_journal_for_append(journal_path)
+def _append_protocol_body(entry: JournalEntry, journal_path: Path) -> None:
+    """Caller holds flock; runs the protocol (Architecture §581 step 8)."""
+    seq = entry.monotonic_seq
+    highest = _read_highest_seq(journal_path)
+    if seq <= highest:
+        raise _je(
+            f"journal monotonic_seq regression: supplied {seq} <= highest {highest}",
+            path=str(journal_path),
+            errno=None,
+            step="validate_seq",
+            supplied=seq,
+            expected_min=highest + 1,
+            monotonic_seq=seq,
+        )
+    _verify_terminator(journal_path)
+    canonical_bytes = _canonicalize_entry(entry)
+    fd, existed_before_open = _open_journal_for_append(journal_path)
     body_exc: BaseException | None = None
     try:
         _write_bytes_to_journal(fd, canonical_bytes, journal_path, seq)
@@ -204,63 +187,50 @@ def _append_protocol_body(entry: JournalEntry, journal_path: Path) -> None:
     finally:
         try:
             os.close(fd)
-        except OSError:
+        except OSError as close_exc:
             if body_exc is None:
                 raise
+            _logger.warning(
+                "journal append: suppressed close OSError (errno=%s); preserving body"
+                " exception (%s)",
+                close_exc.errno,
+                type(body_exc).__name__,
+            )
+    if not existed_before_open:
+        _fsync_parent_dir(journal_path.parent)
+
+
+def _validate_absolute(journal_path: Path, entry: JournalEntry, fn_name: str) -> None:
+    if not journal_path.is_absolute():
+        raise _je(
+            f"journal.{fn_name} requires an absolute journal_path",
+            path=str(journal_path),
+            errno=None,
+            step="validate_path",
+            monotonic_seq=entry.monotonic_seq,
+        )
 
 
 async def append(entry: JournalEntry, journal_path: Path) -> None:
-    """Append a JournalEntry to the journal using the POSIX O_APPEND protocol (FR31).
-
-    Production async API. Uses file_lock for flock serialization and asyncio.to_thread
-    to avoid blocking the event loop on fsync + linear seq scan (Architecture §727).
-    """
-    if not journal_path.is_absolute():
-        raise JournalError(
-            "journal.append requires an absolute journal_path",
-            details={
-                "path": str(journal_path),
-                "errno": 0,
-                "step": "validate_path",
-                "monotonic_seq": entry.monotonic_seq,
-            },
-        )
-    lock_path = journal_path.with_suffix(journal_path.suffix + JOURNAL_LOCK_SUFFIX)
-    async with file_lock(lock_path):
+    """Async production API; offloads via ``asyncio.to_thread``."""
+    _validate_absolute(journal_path, entry, "append")
+    async with file_lock(_lock_path_for(journal_path)):
         await asyncio.to_thread(_append_protocol_body, entry, journal_path)
 
 
 def append_sync(entry: JournalEntry, journal_path: Path) -> None:
-    """Sync entrypoint for property tests / chaos tests running in subprocess-killed children.
-
-    Do NOT call from production code paths — use the async append.
-    Raises JournalError if called from inside a running event loop (footgun guard mirroring
-    state.atomic.write_state_atomic_sync).
-    """
+    """Sync entrypoint for property/chaos tests with no event loop."""
     try:
         asyncio.get_running_loop()
-        raise JournalError(
+        raise _je(
             "append_sync called from inside an event loop — use the async append instead",
-            details={
-                "path": str(journal_path),
-                "errno": 0,
-                "step": "loop_check",
-                "monotonic_seq": entry.monotonic_seq,
-            },
+            path=str(journal_path),
+            errno=None,
+            step="loop_check",
+            monotonic_seq=entry.monotonic_seq,
         )
     except RuntimeError:
-        pass  # No running loop — safe to proceed
-
-    if not journal_path.is_absolute():
-        raise JournalError(
-            "journal.append_sync requires an absolute journal_path",
-            details={
-                "path": str(journal_path),
-                "errno": 0,
-                "step": "validate_path",
-                "monotonic_seq": entry.monotonic_seq,
-            },
-        )
-    lock_path = journal_path.with_suffix(journal_path.suffix + JOURNAL_LOCK_SUFFIX)
-    with file_lock(lock_path):
+        pass
+    _validate_absolute(journal_path, entry, "append_sync")
+    with file_lock(_lock_path_for(journal_path)):
         _append_protocol_body(entry, journal_path)

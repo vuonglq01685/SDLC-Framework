@@ -74,18 +74,23 @@ def test_iter_entries_raises_on_seq_regression(tmp_path: Path) -> None:
 
 
 def test_iter_entries_skips_malformed_lines_with_warning(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """Malformed lines: skipped + WARNING log emitted (review fix Blind L5)."""
+    import logging
+
     from sdlc.journal.reader import iter_entries
 
     journal = tmp_path / "journal.log"
     _write_lines(journal, [_make_entry_json(0), "not json", _make_entry_json(2)])
-    entries = list(iter_entries(journal))
+    with caplog.at_level(logging.WARNING, logger="sdlc.journal.reader"):
+        entries = list(iter_entries(journal))
     assert len(entries) == 2
     assert entries[0].monotonic_seq == 0
     assert entries[1].monotonic_seq == 2
-    captured = capsys.readouterr()
-    assert "warning: malformed journal line" in captured.err
+    assert any("malformed journal line" in rec.message for rec in caplog.records), (
+        f"Expected WARNING log on malformed line; got: {[r.message for r in caplog.records]}"
+    )
 
 
 def test_iter_after_filters_strictly_greater(tmp_path: Path) -> None:
@@ -115,6 +120,18 @@ def test_iter_after_threshold_below_all(tmp_path: Path) -> None:
     _write_lines(journal, [_make_entry_json(5), _make_entry_json(10)])
     result = list(iter_after(journal, threshold=-1))
     assert len(result) == 2
+
+
+def test_iter_after_rejects_non_int_threshold(tmp_path: Path) -> None:
+    """``iter_after`` validates the threshold type up-front (review fix Edge M5)."""
+    from sdlc.errors import JournalError
+    from sdlc.journal.reader import iter_after
+
+    journal = tmp_path / "journal.log"
+    _write_lines(journal, [_make_entry_json(0)])
+    with pytest.raises(JournalError) as exc:
+        list(iter_after(journal, threshold="5"))  # type: ignore[arg-type]
+    assert exc.value.details.get("step") == "validate_threshold"
 
 
 def test_iter_entries_works_on_windows(tmp_path: Path) -> None:

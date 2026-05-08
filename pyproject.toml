@@ -145,10 +145,14 @@ disable_error_code = ["unreachable", "attr-defined", "no-any-return"]
 
 # sdlc.journal.writer is POSIX-only and raises ImportError on Windows; mypy on
 # Windows still parses the module body and flags POSIX-only attributes from
-# fcntl/os as missing. Narrow suppression mirrors sdlc.state.atomic pattern (ADR-014).
+# fcntl/os as missing. Per Story 1.11 review (Blind MEDIUM): narrow the override
+# to only the platform-guard "unreachable" diagnostic. Specific attr-defined
+# false-positives (e.g. file_lock import) carry per-line ``# type: ignore`` so
+# real attr typos still surface. Same drift exists in state/atomic — back-port
+# in a follow-up story.
 [[tool.mypy.overrides]]
 module = "sdlc.journal.writer"
-disable_error_code = ["unreachable", "attr-defined", "no-any-return"]
+warn_unreachable = false
 
 # sdlc.journal.__init__ uses conditional imports for the POSIX-only writer.
 [[tool.mypy.overrides]]
@@ -200,6 +204,9 @@ omit = [
     "src/sdlc/journal/writer.py",
     # Platform-conditional import hub for journal: mirrors state/__init__.py omit.
     "src/sdlc/journal/__init__.py",
+    # POSIX-only siblings of writer.py (imported only by writer); Linux CI provides cov.
+    "src/sdlc/journal/_canonical.py",
+    "src/sdlc/journal/_seq.py",
 ]
 branch = true
 # parallel = true intentionally omitted: single-process pytest does not need it.

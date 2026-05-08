@@ -1,10 +1,10 @@
 # generated: 2026-05-07
-# last_updated: 2026-05-08 (create-story: 1-12 backlog → ready-for-dev)
+# last_updated: 2026-05-08 (create-story: 1-15 backlog → ready-for-dev)
 # project: SDLC-Framework
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: {project-root}/_bmad-output/implementation-artifacts
-# last_action: "create-story 1-12-state-projection-from-journal-replay-property-test (status: backlog → ready-for-dev)"
+# last_action: "create-story 1-15-engine-scanner-skeleton (status: backlog → ready-for-dev)"
 
 # STATUS DEFINITIONS:
 # ==================
@@ -36,9 +36,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-08 (dev-story: 1-11 in-progress → review)"
+last_updated: "2026-05-08 (code-review: 1-11 review → done; 5 decisions resolved + 41 patches applied)"
 project: SDLC-Framework
-last_action: "dev-story 1-11-append-only-journal-property-test (status: in-progress → review)"
+last_action: "code-review 1-11-append-only-journal-property-test (status: review → done)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -58,11 +58,11 @@ development_status:
   1-8-foundation-config-module: done
   1-9-foundation-concurrency-module: done
   1-10-atomic-write-protocol-chaos-tests: done
-  1-11-append-only-journal-property-test: review
+  1-11-append-only-journal-property-test: done
   1-12-state-projection-from-journal-replay-property-test: ready-for-dev
-  1-13-airuntime-abc-mock-airuntime: backlog
-  1-14-behavioral-conformance-abstraction-adequacy-ci-test: backlog
-  1-15-engine-scanner-skeleton: backlog
+  1-13-airuntime-abc-mock-airuntime: ready-for-dev
+  1-14-behavioral-conformance-abstraction-adequacy-ci-test: ready-for-dev
+  1-15-engine-scanner-skeleton: ready-for-dev
   1-16-cli-sdlc-init-greenfield: backlog
   1-17-cli-sdlc-scan-status-accessibility-flags: backlog
   1-18-cli-sdlc-trace-replay-logs: backlog

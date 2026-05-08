@@ -32,6 +32,9 @@ _site/
 .graphify_python
 graphify-out/
 
+# Local git worktrees (per-story isolated checkouts; never tracked)
+.claude/worktrees/
+
 # Override user-global *.md exclusion (re-include Markdown docs for this project)
 !*.md
 !**/*.md

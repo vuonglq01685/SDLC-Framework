@@ -6,7 +6,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -101,24 +101,33 @@ def test_append_fsyncs_after_write(tmp_path: Path) -> None:
 
 @_POSIX
 def test_append_holds_flock_during_protocol(tmp_path: Path) -> None:
-    """lock_registry() should contain the lock path while protocol body runs."""
+    """lock_registry() should contain the lock path while protocol body runs.
+
+    Snapshots the registry before the call and verifies exactly one new key (matching the
+    journal's lock path) appears mid-call — protects against false positives if a prior
+    test leaked a lock entry (review patch Edge M8).
+    """
     from sdlc.concurrency.locks import lock_registry
     from sdlc.journal import append_sync
     from sdlc.journal.writer import JOURNAL_LOCK_SUFFIX, _append_protocol_body
 
     journal = tmp_path / "journal.log"
-    lock_path = str(journal.with_suffix(journal.suffix + JOURNAL_LOCK_SUFFIX).resolve())
-    lock_held_during: list[bool] = []
+    lock_path = str(Path(str(journal) + JOURNAL_LOCK_SUFFIX).resolve())
+    snapshot_before = set(lock_registry().keys())
+    new_keys_during: list[set[str]] = []
     original_body = _append_protocol_body
 
     def spy_body(entry: object, path: Path) -> None:
-        lock_held_during.append(lock_path in lock_registry())
+        new_keys_during.append(set(lock_registry().keys()) - snapshot_before)
         original_body(entry, path)  # type: ignore[arg-type]
 
     with patch("sdlc.journal.writer._append_protocol_body", side_effect=spy_body):
         append_sync(_make_entry(1), journal)
 
-    assert lock_held_during == [True], "Lock should be held during protocol body"
+    assert len(new_keys_during) == 1, "spy_body should have run exactly once"
+    assert new_keys_during[0] == {lock_path}, (
+        f"Expected exactly one new lock at {lock_path}; got {new_keys_during[0]}"
+    )
     assert lock_path not in lock_registry(), "Lock should be released after protocol"
 
 
@@ -131,7 +140,7 @@ def test_append_releases_flock_on_failure(tmp_path: Path) -> None:
     from sdlc.journal.writer import JOURNAL_LOCK_SUFFIX
 
     journal = tmp_path / "journal.log"
-    lock_path = str(journal.with_suffix(journal.suffix + JOURNAL_LOCK_SUFFIX).resolve())
+    lock_path = str(Path(str(journal) + JOURNAL_LOCK_SUFFIX).resolve())
 
     with (
         patch("sdlc.journal.writer._canonicalize_entry", side_effect=ValueError("boom")),
@@ -161,8 +170,11 @@ def test_append_rejects_seq_regression(tmp_path: Path) -> None:
     append_sync(_make_entry(5), journal)
     with pytest.raises(JournalError) as exc:
         append_sync(_make_entry(5), journal)
-    assert exc.value.details.get("step") == "validate_seq"
-    assert exc.value.details.get("expected_min") == 6
+    details = exc.value.details
+    assert details.get("step") == "validate_seq"
+    assert details.get("supplied") == 5
+    assert details.get("expected_min") == 6
+    assert details.get("errno") is None  # validate_seq is non-syscall — errno=None
 
 
 @_POSIX
@@ -229,6 +241,8 @@ def test_append_short_write_loop(tmp_path: Path) -> None:
 
 @_POSIX
 def test_append_zero_byte_write_raises(tmp_path: Path) -> None:
+    """Zero-byte write returns ``write_invariant`` step (review patch — POSIX errno=0
+    was misleading 'success'; rename distinguishes from genuine ``write_journal`` OSError)."""
     from sdlc.errors import JournalError
     from sdlc.journal import append_sync
 
@@ -239,7 +253,9 @@ def test_append_zero_byte_write_raises(tmp_path: Path) -> None:
         pytest.raises(JournalError) as exc,
     ):
         append_sync(_make_entry(1), journal)
-    assert exc.value.details.get("step") == "write_journal"
+    assert exc.value.details.get("step") == "write_invariant"
+    # errno is None (not 0) — 0 conventionally means success
+    assert exc.value.details.get("errno") is None
 
 
 @_POSIX
@@ -275,9 +291,30 @@ def test_append_body_exception_preserved_over_close_oserror(tmp_path: Path) -> N
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows stub test only")
 def test_append_cross_platform_stub_on_windows() -> None:
-    """On Windows, sdlc.journal.append exists at import time but raises NotImplementedError."""
+    """On Windows, sdlc.journal.append exists at import time and raises JournalError.
+
+    Symmetry with POSIX: cross-platform ``except JournalError`` callers must catch the
+    Windows path the same way they catch POSIX failures (review fix Edge M6).
+    """
     import sdlc.journal as jmod
+    from sdlc.errors import JournalError
 
     assert hasattr(jmod, "append")
-    with pytest.raises(NotImplementedError):
-        asyncio.run(jmod.append(MagicMock(), Path("/some/path")))  # type: ignore[arg-type]
+    entry = _make_entry(1)
+    with pytest.raises(JournalError) as exc:
+        asyncio.run(jmod.append(entry, Path("C:/some/path")))  # type: ignore[arg-type]
+    assert exc.value.details.get("step") == "windows_unsupported"
+    assert exc.value.details.get("monotonic_seq") == 1
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows stub test only")
+def test_append_sync_cross_platform_stub_on_windows() -> None:
+    """``append_sync`` Windows stub also raises ``JournalError(step='windows_unsupported')``."""
+    import sdlc.journal as jmod
+    from sdlc.errors import JournalError
+
+    assert hasattr(jmod, "append_sync")
+    entry = _make_entry(1)
+    with pytest.raises(JournalError) as exc:
+        jmod.append_sync(entry, Path("C:/some/path"))  # type: ignore[arg-type]
+    assert exc.value.details.get("step") == "windows_unsupported"
