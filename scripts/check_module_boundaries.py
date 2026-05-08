@@ -48,7 +48,8 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         forbidden_from=frozenset({"engine", "state", "journal"}),
     ),
     "state": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "concurrency", "config"}),
+        # state depends on journal: state.json is a projection of the journal (Decision B5, ADR-015 / Story 1.12)
+        depends_on=frozenset({"errors", "contracts", "concurrency", "config", "journal"}),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
     ),
     "journal": ModuleSpec(
