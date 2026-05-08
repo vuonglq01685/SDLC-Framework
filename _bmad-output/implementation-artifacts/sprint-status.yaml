@@ -59,7 +59,7 @@ development_status:
   1-9-foundation-concurrency-module: done
   1-10-atomic-write-protocol-chaos-tests: done
   1-11-append-only-journal-property-test: done
-  1-12-state-projection-from-journal-replay-property-test: ready-for-dev
+  1-12-state-projection-from-journal-replay-property-test: review
   1-13-airuntime-abc-mock-airuntime: ready-for-dev
   1-14-behavioral-conformance-abstraction-adequacy-ci-test: ready-for-dev
   1-15-engine-scanner-skeleton: ready-for-dev

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 
 from sdlc.state.model import State
+from sdlc.state.projection import project_from_journal
 
 # atomic.py is POSIX-only; import is conditional on platform
 if sys.platform != "win32":
@@ -19,10 +20,11 @@ else:
         raise NotImplementedError("read_state is POSIX-only — see Architecture §573")
 
 
-# Semantic order: model → write (async) → write (sync) → read; do NOT alphabetize.
+# Semantic order: model → write (async) → write (sync) → read → projection; do NOT alphabetize.
 __all__ = (  # noqa: RUF022
     "State",
     "write_state_atomic",
     "write_state_atomic_sync",
     "read_state",
+    "project_from_journal",
 )

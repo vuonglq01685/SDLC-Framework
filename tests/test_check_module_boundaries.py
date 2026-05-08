@@ -252,7 +252,7 @@ def test_unknown_module_returns_no_violations() -> None:
 @pytest.mark.parametrize(
     "src_module,target,must_fail",
     [
-        ("state", "journal", True),  # §1103-#3: state/journal siblings
+        ("state", "journal", False),  # Story 1.12/ADR-015: state depends on journal (Decision B5)
         ("journal", "state", True),
         ("dashboard", "engine", True),  # §1103-#4: dashboard read-only
         ("dashboard", "dispatcher", True),
