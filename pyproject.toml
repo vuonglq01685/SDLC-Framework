@@ -8,7 +8,9 @@ authors = [
     { name = "Vuonglq01685" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pydantic>=2,<3",   # cap: pydantic 2→3 will introduce schema breaks (v3 is on the roadmap)
+]
 
 # [project.scripts]
 # sdlc = "sdlc.cli.main:app"
