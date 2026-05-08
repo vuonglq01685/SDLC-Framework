@@ -54,6 +54,17 @@ repos:
         files: ^(src/sdlc/|tests/|scripts/).*\.py$
         pass_filenames: true
 
+  # ----- secret-hardcode validator (Story 1.8 / NFR-SEC-1) -----
+  - repo: local
+    hooks:
+      - id: secret-hardcode-validator
+        name: scan src/ for hardcoded secret literals (NFR-SEC-1)
+        entry: uv run python scripts/check_no_hardcoded_secrets.py
+        language: system
+        types: [python]
+        files: ^src/sdlc/.*\.py$
+        pass_filenames: true
+
   # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
   - repo: local
     hooks:
