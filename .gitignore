@@ -25,6 +25,9 @@ coverage.xml
 # OS
 .DS_Store
 
+# MkDocs build artifact — never commit; CI builds it at _site/ per ADR-009 + ADR-011
+_site/
+
 # Override user-global *.md exclusion (re-include Markdown docs for this project)
 !*.md
 !**/*.md

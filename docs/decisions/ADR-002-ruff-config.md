@@ -57,7 +57,7 @@ AST.
 ### File-LOC Cap (≤ 400 LOC/file)
 
 Ruff (current locked version `0.15.x`) has no native file-LOC rule. This cap is enforced
-by Story 1.4's `boundary-validator` pre-commit hook (AST walk on every changed file).
+by Story 1.4's [`boundary-validator` pre-commit hook](ADR-010-pre-commit-config.md) (AST walk on every changed file).
 Until Story 1.4 lands, the `max-statements = 50` function-level proxy is the operational
 enforcement; per-file LOC is checked at PR review time.
 
@@ -86,7 +86,7 @@ the project-wide cap.
 - Every commit is gated on cap compliance.
 - Minor false-positives expected on `PLR2004` magic-number warnings in tests (already silenced).
 - File-LOC cap (≤ 400 LOC/file) is **not** enforced by ruff — Story 1.4's
-  `boundary-validator` pre-commit hook owns that enforcement.
+  [`boundary-validator` pre-commit hook](ADR-010-pre-commit-config.md) owns that enforcement.
 
 ## Revisit-by
 

@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+from typing import ClassVar
+
+
+class SdlcError(Exception):
+    """Root exception for the SDLC framework (Architecture §529)."""
+
+    code: ClassVar[str] = "ERR_SDLC"
+    EXIT_CODE_MAP: ClassVar[dict[str, int]] = {
+        "ERR_CONFIG": 1,
+        "ERR_IDS": 1,
+        "ERR_STATE": 2,
+        "ERR_JOURNAL": 2,
+        "ERR_DISPATCH": 2,
+        "ERR_SCHEMA": 2,
+        "ERR_SIGNOFF": 2,
+        "ERR_HOOK": 2,
+        "ERR_ADOPT": 2,
+    }
+
+    def __init__(self, message: str, *, details: dict[str, object] | None = None) -> None:
+        super().__init__(message)
+        self.message: str = message
+        self.details: dict[str, object] = dict(details) if details else {}
+
+    @property
+    def exit_code(self) -> int:
+        return self.EXIT_CODE_MAP.get(self.code, 2)
+
+    def to_envelope(self) -> dict[str, object]:
+        inner: dict[str, object] = {
+            "code": self.code,
+            "message": self.message,
+            "details": dict(self.details),
+            "exit_code": self.exit_code,
+        }
+        return {"error": inner}
+
+
+class StateError(SdlcError):
+    code: ClassVar[str] = "ERR_STATE"
+
+
+class JournalError(SdlcError):
+    code: ClassVar[str] = "ERR_JOURNAL"
+
+
+class DispatchError(SdlcError):
+    code: ClassVar[str] = "ERR_DISPATCH"
+
+
+class HookError(SdlcError):
+    code: ClassVar[str] = "ERR_HOOK"
+
+
+class SchemaError(SdlcError):
+    code: ClassVar[str] = "ERR_SCHEMA"
+
+
+class SignoffError(SdlcError):
+    code: ClassVar[str] = "ERR_SIGNOFF"
+
+
+class AdoptError(SdlcError):
+    code: ClassVar[str] = "ERR_ADOPT"
+
+
+class ConfigError(SdlcError):
+    code: ClassVar[str] = "ERR_CONFIG"
+
+
+class IdsError(SdlcError):
+    code: ClassVar[str] = "ERR_IDS"

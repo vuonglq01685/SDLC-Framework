@@ -4,7 +4,7 @@
 
 ## Context
 
-PRD §580 specifies "`docs.yml` build mkdocs to GitHub Pages on push to main". Architecture §1219 + AR-DOCS mandate the docs workflow. Story 1.3's AC4 literally requires the workflow file to be **configured** in this story. However, `mkdocs.yml` and the `mkdocs` dev dependency ship in Story 1.5 (ADR-011) — not this story.
+PRD §580 specifies "`docs.yml` build mkdocs to GitHub Pages on push to main". Architecture §1219 + AR-DOCS mandate the docs workflow. Story 1.3's AC4 literally requires the workflow file to be **configured** in this story. However, `mkdocs.yml` and the `mkdocs` dev dependency ship in Story 1.5 ([ADR-011](ADR-011-mkdocs-setup.md)) — not this story.
 
 Without a guard, `docs.yml` would fail on every main push from now until Story 1.5 lands, producing chronic red noise in the Actions UI. A probe-and-skip pattern resolves this: the workflow is configured and correct, but gracefully no-ops when `mkdocs.yml` is absent.
 
@@ -48,4 +48,11 @@ Repo Settings → Pages → Source: "GitHub Actions". The first successful `docs
 
 ## Revisit-by
 
-When the first non-ADR doc surface (runbooks, threat-model.md, prompt-library) ships and demands plugin support beyond stock mkdocs (e.g. `mkdocs-material`, `mkdocs-mermaid2`). At that point, the `[dependency-groups] dev` entry in `pyproject.toml` gains plugin deps, and this workflow activates them via `uv sync --frozen`.
+2027-05-01 OR when the first non-ADR doc surface (runbooks, threat-model.md, prompt-library)
+ships and demands plugin support beyond stock mkdocs (canonical plugin set: `mkdocs-material`,
+`mkdocs-mermaid2`, `mkdocs-include-markdown-plugin` — see [ADR-011](ADR-011-mkdocs-setup.md)
+Revisit-by for the authoritative list), whichever first. The hybrid date-OR-event form
+satisfies AC5 of Story 1.5: the 2027-05-01 floor is the hard ceiling per the 12-month-from-
+authoring rule (ADR-009 authored 2026-05-08, Story 1.3); the event clause fires earlier if
+the doc-surface trigger lands first. At that point, the `[dependency-groups] dev` entry in
+`pyproject.toml` gains plugin deps, and this workflow activates them via `uv sync --frozen`.

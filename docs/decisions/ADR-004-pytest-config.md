@@ -85,5 +85,5 @@ custom CI step. ADR-004 records this migration path.
 
 ## Revisit-by
 
-When first non-engine module (dashboard, Story 5.1) lands and the 90% global threshold
-is too aggressive for that module.
+2027-05-01 — or when the first non-engine module (dashboard, Story 5.1) lands and the
+90% global threshold is too aggressive for that module, whichever first.

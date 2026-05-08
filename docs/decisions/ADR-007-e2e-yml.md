@@ -33,4 +33,5 @@ PRD §531 specifies "framework's CI `e2e.yml` workflow runs the fixtures nightly
 
 ## Revisit-by
 
-When Epic 2B-1 (`ClaudeAIRuntime`) lands — the cron frequency, runner choice, and skip strategy are re-evaluated at that milestone.
+2027-05-01 — or when Epic 2B-1 (`ClaudeAIRuntime`) lands and the cron frequency, runner
+choice, and skip strategy are re-evaluated, whichever first.

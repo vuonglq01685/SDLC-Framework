@@ -21,13 +21,13 @@ Additional settings:
 - `concurrency.group: ${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: ${{ github.event_name == 'pull_request' }}` — superseded PR runs are dropped, but pushes to `main` never cancel each other (canceling a merged commit's CI would leave branch protection's "passing CI" record stale).
 - `fail-fast: false` — reveals cross-version failure patterns instead of stopping on the first cell failure
 - Coverage XML uploaded as artifact (`retention-days: 14`, `if-no-files-found: ignore`)
-- Action SHA comments document long-form SHAs for future supply-chain hardening (e.g. `actions/checkout@v5 # pin: 11bd71901bbe5b1630ceea73d27597364c9af683`). The single literal-SHA pin in the substrate is `pypa/gh-action-pypi-publish` in `release.yml` — see ADR-008 for the deliberate exception.
+- Action SHA comments document long-form SHAs for future supply-chain hardening (e.g. `actions/checkout@v5 # pin: 11bd71901bbe5b1630ceea73d27597364c9af683`). The single literal-SHA pin in the substrate is `pypa/gh-action-pypi-publish` in `release.yml` — see [ADR-008](ADR-008-release-yml.md) for the deliberate exception.
 
 **Operator setup (one-time, not enforceable by this story):** Repo Settings → Branches → Add protection rule for `main` → "Require status checks to pass before merging" → select all 8 `quality-gates` matrix cells.
 
 ## Alternatives Considered
 
-- **pip + venv instead of uv**: Rejected — slower cache invalidation, no native lockfile reproducibility, diverges from Story 1.1's uv substrate decision (ADR-001).
+- **pip + venv instead of uv**: Rejected — slower cache invalidation, no native lockfile reproducibility, diverges from Story 1.1's uv substrate decision ([ADR-001](ADR-001-pyproject-metadata.md)).
 - **`actions/setup-python@v5` standalone + manual uv install**: Rejected — `astral-sh/setup-uv@v8` integrates Python provisioning, binary caching, and dependency-glob cache invalidation in one action.
 - **Single-OS PR gate + cross-OS nightly**: Rejected — filesystem case-sensitivity bugs (Architecture §222) are PR-time blockers. A macOS-only or Ubuntu-only gate would miss them until nightly, too late in the review cycle.
 - **`fail-fast: true` (default)**: Rejected — when py3.13 fails on macOS, the pattern across other versions is diagnostic. A cancelled matrix hides whether it's a version-specific or a universal failure.

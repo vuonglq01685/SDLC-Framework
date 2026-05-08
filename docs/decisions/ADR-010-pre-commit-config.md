@@ -14,8 +14,8 @@ Architecture §1073-§1112 defines the 16-module dependency DAG with 8 specific 
 that the entire 25-30 module substrate rests on.
 Architecture Concern #15 (§1043) declares `scripts/validate_specialists.py` as the specialist
 cross-reference pipeline — not yet implemented in v0.2.
-ADR-002 (Story 1.2) explicitly delegated: the per-file LOC cap (ADR-002 §"Hand-offs") and
-module-boundary AST enforcement (ADR-002 §"Scope boundary") to this story.
+[ADR-002](ADR-002-ruff-config.md) (Story 1.2) explicitly delegated: the per-file LOC cap ([ADR-002](ADR-002-ruff-config.md) §"Hand-offs") and
+module-boundary AST enforcement ([ADR-002](ADR-002-ruff-config.md) §"Scope boundary") to this story.
 epics.md Story 1.4 BDD criteria are the authoritative acceptance criteria.
 
 Without commit-time boundary enforcement, the Architecture §1300-§1310 "panel-review" leaks
@@ -70,7 +70,7 @@ The text below is reproduced verbatim from `_bmad-output/planning-artifacts/arch
 4. **Module-boundary table is a Python literal `MODULE_DEPS`** inside
    `scripts/check_module_boundaries.py`, not parsed from architecture markdown at runtime.
    Architecture markdown is human-prose; the script needs deterministic, type-safe data.
-   Drift is caught by the manual review discipline of ADR-012 (Story 1.5).
+   Drift is caught by the manual review discipline of [ADR-012](ADR-012-module-layout.md) (Story 1.5).
 
 5. **File-LOC cap (≤ 400 raw lines per .py file)** is enforced by the same boundary-validator
    script. `tests/fixtures/` is exempt to allow long property-test seed files (Stories 1.10+).
@@ -96,7 +96,7 @@ The text below is reproduced verbatim from `_bmad-output/planning-artifacts/arch
 
 `MODULE_DEPS: dict[str, ModuleSpec]` inside `scripts/check_module_boundaries.py` is a
 **second source of truth** alongside the architecture markdown table. PR review discipline
-of ADR-012 (Story 1.5) is the drift mitigation.
+of [ADR-012](ADR-012-module-layout.md) (Story 1.5) is the drift mitigation.
 
 ### Specialist-validator placeholder shape
 
@@ -135,7 +135,7 @@ uv run pre-commit install
 
 - **Scraping the architecture markdown** for the dependency table at hook startup — rejected:
   brittle (any markdown formatting change breaks the parser); the architecture document is
-  human-prose, not machine-readable. Drift discipline lives at PR review per ADR-012.
+  human-prose, not machine-readable. Drift discipline lives at PR review per [ADR-012](ADR-012-module-layout.md).
 
 - **Running boundary-validator only on `src/sdlc/`** (skipping `tests/` LOC cap) — rejected:
   NFR-MAINT-3 applies to the whole codebase; tests can also balloon. The `tests/fixtures/`
@@ -153,7 +153,7 @@ uv run pre-commit install
 - CI's existing `uv sync --frozen --group dev` step provisions `pre-commit` automatically.
   CI does NOT add an explicit `pre-commit run` step in v0.2 — that wiring is a deliberate
   future hardening (see Deferred section below).
-- `MODULE_DEPS` literal is a parallel source of truth; drift mitigation is PR review (ADR-012).
+- `MODULE_DEPS` literal is a parallel source of truth; drift mitigation is PR review ([ADR-012](ADR-012-module-layout.md)).
 - `astral-sh/ruff-pre-commit@v0.15.12` rev pin must move in lockstep with `uv.lock`'s ruff
   version. A comment in `.pre-commit-config.yaml` warns about this.
 - First-time clones must run `uv run pre-commit install` once.
@@ -186,6 +186,6 @@ whichever first. At that point:
 - Architecture §1052-§1112 (Module Specifications + Architectural Boundaries + 8 specific rules)
 - Architecture §1043 (`scripts/validate_specialists.py` declaration)
 - PRD §876-§878 (NFR-MAINT-1, NFR-MAINT-2, NFR-MAINT-3)
-- ADR-002 (file-LOC + boundary-validator hand-off)
-- ADR-006 (CI yml — parallel choice for `uv run mypy --strict src/`)
+- [ADR-002](ADR-002-ruff-config.md) (file-LOC + boundary-validator hand-off)
+- [ADR-006](ADR-006-ci-yml.md) (CI yml — parallel choice for `uv run mypy --strict src/`)
 - epics.md Story 1.4 (acceptance criteria)

@@ -1,0 +1,54 @@
+# mkdocs.yml — SDLC-Framework documentation site (ADR-011, Story 1.5).
+# Built locally:  uv run mkdocs build --strict --site-dir _site
+# Served locally: uv run mkdocs serve
+# Auto-deploys via .github/workflows/docs.yml (ADR-009) on push to main.
+
+site_name: SDLC-Framework
+site_description: Deterministic, auditable, multi-agent SDLC orchestration framework on top of Claude Code.
+site_url: https://example.invalid/sdlc-framework/   # placeholder; rewritten when GitHub Pages domain is finalised
+repo_url: https://github.com/vuonglq01685/SDLC-Framework  # mirrors `git remote -v` origin; readthedocs theme renders this as the per-page "View on GitHub" link.
+repo_name: SDLC-Framework
+
+docs_dir: docs
+site_dir: _site
+
+# Exclude prototype directories that are not part of the published site.
+# ux/dashboard-prototype/ is a working artifact (Stories 5.x), not a published doc surface.
+exclude_docs: |
+  ux/
+
+# --strict in CI maps to this top-level flag; keeping them in sync removes the "works
+# locally, fails CI" trap. ADR-011 records the parity choice.
+strict: true
+
+# MkDocs 1.6+ recommended strict-validation defaults. With strict: true above, every
+# warn becomes a hard error.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: readthedocs
+  # NO mkdocs-material per ADR-009 revisit-by — plugin upgrade is deferred to "first
+  # non-ADR doc surface (runbooks, threat-model.md, prompt-library) ships".
+
+nav:
+  - Home: index.md
+  - Architecture Overview: architecture-overview.md
+  - Decisions:
+      - decisions/index.md
+      - "ADR-001 — pyproject metadata": decisions/ADR-001-pyproject-metadata.md
+      - "ADR-002 — ruff config": decisions/ADR-002-ruff-config.md
+      - "ADR-003 — mypy strict": decisions/ADR-003-mypy-strict.md
+      - "ADR-004 — pytest config": decisions/ADR-004-pytest-config.md
+      - "ADR-005 — package_data layout": decisions/ADR-005-package-data-layout.md
+      - "ADR-006 — ci.yml": decisions/ADR-006-ci-yml.md
+      - "ADR-007 — e2e.yml": decisions/ADR-007-e2e-yml.md
+      - "ADR-008 — release.yml": decisions/ADR-008-release-yml.md
+      - "ADR-009 — docs.yml": decisions/ADR-009-docs-yml.md
+      - "ADR-010 — pre-commit-config": decisions/ADR-010-pre-commit-config.md
+      - "ADR-011 — mkdocs setup": decisions/ADR-011-mkdocs-setup.md
+      - "ADR-012 — module layout": decisions/ADR-012-module-layout.md
+      - "ADR template": decisions/adr-template.md

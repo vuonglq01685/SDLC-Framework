@@ -28,9 +28,9 @@ Three-job pipeline: `qa` → `build` → `publish`. Each job uses `astral-sh/set
 
 **Trigger:** `push.tags: v*.*.*` only. No PR trigger, no manual trigger (add `workflow_dispatch` later if re-running a failed publish is needed).
 
-### Supply-chain pin exception (vs ADR-006 doc-only convention)
+### Supply-chain pin exception (vs [ADR-006](ADR-006-ci-yml.md) doc-only convention)
 
-ADR-006 documents long-form SHAs in `# pin:` comments next to floating-tag `uses:` directives — a deliberate doc-only convention so the repo can find-and-replace to literal SHAs in a future hardening sweep. `release.yml` makes one exception: `pypa/gh-action-pypi-publish` is pinned to a literal SHA (`@<sha> # release/v1`), not just commented. Rationale: this single action holds the OIDC keys to the PyPI project; a compromise of the moving `release/v1` branch would let arbitrary code publish wheels to `sdlc-framework` under our trusted-publisher binding. The asymmetric value justifies the asymmetric pin.
+[ADR-006](ADR-006-ci-yml.md) documents long-form SHAs in `# pin:` comments next to floating-tag `uses:` directives — a deliberate doc-only convention so the repo can find-and-replace to literal SHAs in a future hardening sweep. `release.yml` makes one exception: `pypa/gh-action-pypi-publish` is pinned to a literal SHA (`@<sha> # release/v1`), not just commented. Rationale: this single action holds the OIDC keys to the PyPI project; a compromise of the moving `release/v1` branch would let arbitrary code publish wheels to `sdlc-framework` under our trusted-publisher binding. The asymmetric value justifies the asymmetric pin.
 
 ### Operator Setup (one-time, must occur before first `v*.*.*` tag)
 
@@ -72,8 +72,8 @@ This recipe lives here (the ADR) instead of as a commented-out block in `release
 - The version-tag assertion prevents `v1.0.0` tag + `0.0.0` pyproject.toml drift.
 - The tag-on-main check makes branch protection on `main` the authoritative gate for what can be released; tags pointing to commits not on `main` are rejected before any wheel is built.
 - The PyPI version-exists pre-flight makes accidental retags fail fast with a clear signal instead of an opaque PyPI 400 in the publish step.
-- The single-cell `qa` job depends on the assumption that `main` is always green by virtue of branch protection (configured per ADR-006 "Operator setup"). If branch protection is mis-configured to allow non-green merges to `main`, release-time gates are weaker than PR-time gates.
-- The literal SHA pin on `pypa/gh-action-pypi-publish` is the one place in the substrate where ADR-006's doc-only pin convention is broken. When the action ships a security update, the maintainer must manually look up the new SHA and bump both `release.yml` and the `# release/v1` comment.
+- The single-cell `qa` job depends on the assumption that `main` is always green by virtue of branch protection (configured per [ADR-006](ADR-006-ci-yml.md) "Operator setup"). If branch protection is mis-configured to allow non-green merges to `main`, release-time gates are weaker than PR-time gates.
+- The literal SHA pin on `pypa/gh-action-pypi-publish` is the one place in the substrate where [ADR-006](ADR-006-ci-yml.md)'s doc-only pin convention is broken. When the action ships a security update, the maintainer must manually look up the new SHA and bump both `release.yml` and the `# release/v1` comment.
 - The one-time PyPI Trusted Publisher registration is external and cannot be automated by this story's code; a failed first publish is the expected signal if the maintainer skips it.
 
 ## Revisit-by
