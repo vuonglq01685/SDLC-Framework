@@ -1,0 +1,81 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write       # required for actions/deploy-pages
+  id-token: write    # required for actions/deploy-pages OIDC
+
+concurrency:
+  group: pages
+  cancel-in-progress: false  # never interrupt an in-flight Pages deploy
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.probe.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Check whether mkdocs.yml exists yet
+        id: probe
+        run: |
+          if [ -f mkdocs.yml ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::mkdocs.yml absent (Story 1.5 territory); docs build skipped this run."
+          fi
+
+      - name: Install uv (only if mkdocs.yml exists)
+        if: steps.probe.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        if: steps.probe.outputs.ready == 'true'
+        run: uv sync --frozen --group dev
+
+      - name: Build site (mkdocs --strict)
+        if: steps.probe.outputs.ready == 'true'
+        run: uv run mkdocs build --strict --site-dir _site
+
+      - name: Configure GitHub Pages
+        if: steps.probe.outputs.ready == 'true'
+        uses: actions/configure-pages@v5  # pin: 983d7736d9b0ae728b81ab479565c72886d7745b
+
+      - name: Upload Pages artifact
+        if: steps.probe.outputs.ready == 'true'
+        uses: actions/upload-pages-artifact@v3  # pin: 56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: _site
+
+  deploy:
+    # Gate on the probe output, not just `success`. When mkdocs.yml is absent, every step
+    # in the build job is `if`-skipped → the job result is still 'success' → an unguarded
+    # deploy would call actions/deploy-pages with no uploaded Pages artifact and fail with
+    # "Artifact not found", contradicting ADR-009's stays-green-until-Story-1.5 promise.
+    if: needs.build.result == 'success' && needs.build.outputs.ready == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4  # pin: d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

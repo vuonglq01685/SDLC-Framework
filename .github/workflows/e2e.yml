@@ -1,0 +1,83 @@
+name: e2e
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # 06:00 UTC = 13:00 ICT (Vietnam); align with maintainer's morning review
+  workflow_dispatch: {}   # manual trigger for ad-hoc verification
+
+permissions:
+  contents: read
+
+concurrency:
+  # Single-flight: cron + manual dispatch shouldn't race; v4 upload-artifact rejects duplicate names.
+  group: e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: nightly e2e (real claude when available)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"  # single cell; e2e correctness is not Python-version-sensitive
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Detect e2e readiness (claude binary + fixtures dir)
+        id: detect
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            echo "claude=true" >> "$GITHUB_OUTPUT"
+            echo "Claude CLI detected: $(claude --version 2>&1 || true)"
+          else
+            echo "claude=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Claude CLI not present in runner; e2e suite will be skipped (Epic 2B will provision)."
+          fi
+          if [ -d tests/e2e ]; then
+            echo "fixtures=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fixtures=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::tests/e2e/ directory absent (Story 1.20 will land); e2e suite skipped."
+          fi
+
+      - name: Run e2e suite (claude + fixtures available)
+        if: steps.detect.outputs.claude == 'true' && steps.detect.outputs.fixtures == 'true'
+        # --no-cov: project-wide --cov-fail-under=90 from pyproject.toml addopts is a unit-test
+        # gate; e2e tests subprocess-launch the CLI without importing src/sdlc, so coverage
+        # would always report ~0% and fail. --log-file populates the artifact path below.
+        run: uv run pytest tests/e2e -m e2e -v --no-cov --log-file=pytest-e2e.log
+
+      - name: Run e2e scaffold check (fixtures present, claude absent)
+        if: steps.detect.outputs.claude == 'false' && steps.detect.outputs.fixtures == 'true'
+        run: |
+          set +e
+          uv run pytest tests/e2e --collect-only -q --no-cov --log-file=pytest-e2e.log
+          ec=$?
+          set -e
+          # exit 0 = tests collected; exit 5 = no tests collected (expected pre-Story-1.20).
+          # Anything else (broken conftest, plugin error, import bug) is a real failure that
+          # an unconditional `|| echo` would mask — surface it explicitly.
+          if [ "$ec" -ne 0 ] && [ "$ec" -ne 5 ]; then
+            echo "::error::pytest collection failed unexpectedly (exit=$ec)"
+            exit "$ec"
+          fi
+          echo "::notice::e2e collection OK (exit=$ec; 5=no tests collected, expected pre-Story-1.20)"
+
+      - name: Upload e2e artifacts
+        if: always()
+        uses: actions/upload-artifact@v4  # pin: ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: e2e-artifacts
+          path: |
+            tests/e2e/_artifacts/
+            pytest-e2e.log
+          retention-days: 14
+          if-no-files-found: ignore

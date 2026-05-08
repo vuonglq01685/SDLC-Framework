@@ -1,0 +1,64 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Only cancel superseded PR runs. For pushes to main, github.ref is refs/heads/main and
+  # all pushes share the same concurrency group — cancel-in-progress would cancel CI for
+  # an already-merged commit, leaving branch protection's "passing CI" record stale.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gates:
+    name: py${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Lint (ruff check)
+        run: uv run ruff check src/ tests/
+
+      - name: Format check (ruff format)
+        # ruff format handles .py/.pyi only; passing pyproject.toml was a silent no-op.
+        run: uv run ruff format --check src/ tests/
+
+      - name: Type check (mypy --strict)
+        run: uv run mypy --strict src/
+
+      - name: Unit + integration tests (pytest with coverage gate)
+        run: uv run pytest
+
+      - name: Upload coverage XML (for downstream tooling)
+        if: always()  # upload even if pytest failed, so reviewers can inspect
+        uses: actions/upload-artifact@v4  # pin: ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: coverage.xml
+          retention-days: 14
+          if-no-files-found: ignore  # coverage.xml may not exist on early failure
