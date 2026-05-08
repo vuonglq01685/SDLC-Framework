@@ -20,8 +20,12 @@ from sdlc.journal import iter_entries
 from sdlc.state.model import State
 
 # Only state_mutation entries with target_id matching this pattern affect state.epics in v1.
+# Anchored with \A...\Z (not ^...$) to reject trailing-newline target_ids — the default $ matches
+# before a final \n, which would corrupt epic keys (e.g., "epic-1\n" would silently match).
+# Uses [0-9]+ instead of \d+ to reject Unicode digits (Arabic-Indic U+0660-U+0669, Devanagari,
+# etc.) — epic IDs are ASCII per the Story 1.6 IdsError contract; \d is Unicode-aware by default.
 # Other patterns (story-, task-) are reserved for later stories.
-_EPIC_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^epic-\d+$")
+_EPIC_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"\Aepic-[0-9]+\Z")
 
 # Documents the v1 kind surface; NOT used to reject unknown kinds (forward-compat — kind drift
 # within a schema version is permissive by design; schema_version drift is the strict detector).
@@ -37,6 +41,17 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
 )
 
 # The only schema_version this v1 projection recognizes.
+#
+# Dual-defence model (AC3): JournalEntry.schema_version is declared `Literal[1]` in the pydantic
+# contract (src/sdlc/contracts/journal_entry.py:29), so a journal line with schema_version=2 fails
+# pydantic validation in JournalEntry.model_validate_json BEFORE reaching the check in
+# _project_entries — Literal[1] rejects 2 at parse time, surfacing as a SchemaError from the
+# reader. The check below is the SECOND line of defence: it catches the case where a future build
+# broadens the contract (e.g., to `schema_version: int = Field(...)`) and the parser admits 2,
+# but the projection still recognizes only v1. Removing either layer breaks the
+# fail-loud-on-schema-drift contract (Decision F3 — per-contract versioning with explicit
+# migration). The migration command name `sdlc migrate-vN` is reserved by the error message
+# (forward-contract; cli/migrate.py is not yet implemented but the wording locks the command).
 _SCHEMA_VERSION: Final[int] = 1
 
 
@@ -51,6 +66,9 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
     epics: dict[str, Any] = {}
     for entry in entries:
         if entry.schema_version != _SCHEMA_VERSION:
+            # Second line of defence — see _SCHEMA_VERSION docstring above for the dual-defence
+            # rationale. `path` is intentionally absent here; project_from_journal's wrapping
+            # try/except injects it (AC3 envelope contract).
             raise JournalError(
                 f"unknown schema_version={entry.schema_version} for kind={entry.kind};"
                 f" run sdlc migrate-v{entry.schema_version}",
@@ -59,9 +77,9 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
                     "schema_version": entry.schema_version,
                     "kind": entry.kind,
                     "monotonic_seq": entry.monotonic_seq,
-                    # lineno is not available here; iter_entries doesn't surface it.
+                    # iter_entries doesn't surface line numbers; populated by a future
+                    # reader-instrumentation story.
                     "lineno": None,
-                    # path not available at this layer; project_from_journal adds it.
                 },
             )
         # All known + unknown kinds advance the counter (forward-compat).
@@ -88,5 +106,15 @@ def project_from_journal(journal_path: Path) -> State:
     (yields nothing → returns State() defaults). The writer's path validation already
     covers production paths; adding it here would be redundant and asymmetric with the
     read-only nature of projection.
+
+    Path injection: any JournalError raised by _project_entries (schema-drift) gets
+    `details["path"]` populated here so callers see the originating journal path. Reader-
+    invariant errors from iter_entries already include `path`, so the conditional add avoids
+    overwriting (AC3 — error envelope contract).
     """
-    return _project_entries(iter_entries(journal_path))
+    try:
+        return _project_entries(iter_entries(journal_path))
+    except JournalError as err:
+        if "path" not in err.details:
+            err.details["path"] = str(journal_path)
+        raise

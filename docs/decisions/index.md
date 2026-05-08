@@ -24,6 +24,7 @@ alternatives, consequences, and a revisit-by date).
 | [012](ADR-012-module-layout.md) | 16-module layout | 1.4 (back-filled in 1.5) | Accepted |
 | [013](ADR-013-atomic-state-write-protocol.md) | atomic state write protocol | 1.10 | Accepted |
 | [014](ADR-014-append-only-journal-protocol.md) | append-only journal protocol | 1.11 | Accepted |
+| [015](ADR-015-state-projection-from-journal.md) | state projection from journal | 1.12 | Accepted |
 
 Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
 until then.

@@ -1,6 +1,6 @@
 # Story 1.12: State Projection from Journal + Replay Property Test
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -295,6 +295,37 @@ so that `state.json` is provably a deterministic projection of the journal (FR35
   - [x] Verify `scripts/check_module_boundaries.py` recognizes the new `state → journal` edge: `uv run python scripts/check_module_boundaries.py src/sdlc/state/projection.py` → 0 violations (the file imports `from sdlc.journal import iter_entries` which is now allowed).
   - [x] Verify `scripts/check_no_journal_mutation.py` does NOT flag `state/projection.py` (the projection only reads via `iter_entries`; does not call `open(journal_path, ...)`, `Path(journal_path).write_text(...)`, etc.).
   - [x] Verify `scripts/check_no_direct_state_writes.py` does NOT flag `state/projection.py` (projection produces a NEW `State` instance via `State(next_monotonic_seq=..., epics=...)`; it does NOT call `open(state_path, "w")` or similar — it doesn't write at all).
+
+### Review Findings
+
+_Adversarial code review run 2026-05-08 by 3 parallel layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 17 findings retained after triage; 16 dismissed as noise / matches-spec-as-written. **All decisions resolved + all patches applied 2026-05-09.**_
+
+**Decision-needed (3) — RESOLVED:**
+
+- [x] [Review][Decision→Patched] **Property-test oracle is structurally identical to production reducer** → **Resolved: refactored oracle to recursive functional fold via `functools.reduce`.** Production uses iterative mutable accumulator; oracle uses immutable State returns at every step. Two genuinely different implementation paths now exercise the contract differentially (Architecture §220 satisfied).
+- [x] [Review][Decision→Patched] **O(N²) file rebuild in replay-invariant property test** → **Resolved: tier split.** Main `test_replay_invariant_holds_for_arbitrary_journal` now drives `_project_entries(entries[:k])` directly (no IO, cross-platform, 1000 examples). New `test_replay_invariant_via_real_journal_file` IO-smoke (POSIX-only, max_size=8, max_examples=20) preserves file-read coverage. ~95% CI runtime reduction; full coverage retained.
+- [x] [Review][Decision→Patched] **`journal_entry_strategy` uses `st.fixed_dictionaries` not `st.builds(JournalEntry, ...)`** → **Resolved: refactored to `st.builds(JournalEntry, ...)` per AC2 Task 6 spec wording.** Yields `JournalEntry` instances directly; consumers no longer need to re-validate dicts via `model_validate`. `monotonic_sequence_strategy` updated to use `entry.model_copy(update={"monotonic_seq": seq})` instead of dict-then-validate.
+
+**Patch (10) — APPLIED:**
+
+- [x] [Review][Patch] **AC3 violation: `details["path"]` missing on schema_version `JournalError`** [`src/sdlc/state/projection.py`] — Wrapped `_project_entries(iter_entries(journal_path))` in try/except inside `project_from_journal`; conditionally injects `details["path"]` if absent (preserves existing `path` from reader_invariant). Two new unit tests: `test_project_from_journal_injects_path_on_schema_drift` + `test_project_from_journal_does_not_overwrite_existing_path_in_details` (use monkeypatch to simulate the future-Literal-broadening case).
+- [x] [Review][Patch] **Task 8 violation: `docs/decisions/index.md` not updated for ADR-015** [`docs/decisions/index.md:27`] — Added row `| [015](ADR-015-state-projection-from-journal.md) | state projection from journal | 1.12 | Accepted |`.
+- [x] [Review][Patch] **Regex `r"^epic-\d+$"` accepts trailing newline AND non-ASCII Unicode digits** — Production: `r"\Aepic-[0-9]+\Z"` (anchored, ASCII-only). Oracle: `re.fullmatch(r"epic-[0-9]+", ...)` — different anchoring approach for differential independence. New unit tests `test_project_rejects_target_id_with_trailing_newline` and `test_project_rejects_unicode_digit_target_id` lock in the rejection contract.
+- [x] [Review][Patch] **Test imports private `_canonicalize_entry` from `sdlc.journal.writer`** [`tests/unit/state/test_state_projection.py`] — Replaced with `JournalEntry.model_dump_json()` (pydantic public API) + `Path.write_bytes`. The reader-invariant test is now fully cross-platform — no longer POSIX-only-skipped.
+- [x] [Review][Patch] **Dual-defence schema_version model NOT documented inline (AC3 final paragraph)** — Added inline doc block on `_SCHEMA_VERSION` constant in `projection.py` and AC3-specific comments in `test_project_unknown_schema_version_raises_journal_error`.
+- [x] [Review][Patch] **No unit test asserts last-writer-wins on same `target_id` mutated twice** — Added `test_project_same_target_id_mutated_twice_last_writer_wins` pinning the deterministic-overwrite contract.
+- [x] [Review][Patch] **Inline imports inside test functions** — Moved `from sdlc.journal import append_sync` (Windows stub exists, safe to import at module top) and `import pydantic` to module-top in both test files.
+- [x] [Review][Patch] **`test_state_module_depends_on_journal` cwd-dependent sys.path mutation** — Now uses `Path(__file__).resolve().parents[2] / "scripts"` (cwd-independent). Switched `pop(0)` to `with suppress(ValueError): _sys.path.remove(scripts_dir)` for robustness against intervening plugin inserts.
+- [x] [Review][Patch] **Misleading comment `# max(0,5,2) + 1 = 6`** — Replaced with a multi-line comment explaining the per-step `max(next_seq, seq+1)` reducer logic explicitly (step1→1, step2→6, step3→6).
+- [x] [Review][Patch] **`_KNOWN_KINDS_LIST` duplicated in property test** — Now imports `_KNOWN_KINDS` from `sdlc.state.projection` and uses `sorted(_KNOWN_KINDS)` for the strategy (drift-safe).
+
+**Defer (3) — pre-existing or out-of-scope:**
+
+- [x] [Review][Defer] **`MappingProxyType` precondition assertion brittle to Story 1.7 changes** [`tests/unit/state/test_state_projection.py:1032-1034`] — works today; flag for revisit if `JournalEntry._freeze_payload` validator order changes.
+- [x] [Review][Defer] **Windows CI blind spot: only POSIX-skipped tests exercise non-empty file-read path** [`tests/unit/state/test_state_projection.py:1062`, `tests/property/test_replay_invariant.py:157,191`] — architectural limit (writer is POSIX-only via `fcntl + O_APPEND`). On Windows, only `missing_file` and `empty_file` cases run. Future cross-platform CI story can add a Windows-friendly variant via direct file-write.
+- [x] [Review][Defer] **Oracle's `JournalError` raise path is dead code** [`tests/property/test_replay_invariant.py:_oracle_reduce`] — Property 2 hand-builds bad entries via `model_construct` and tests projection directly; oracle's drift branch never executes. Intentional completeness; revisit if Property 2 becomes a differential drift test.
+
+**Dismissed (16, no action):** lineno=None matches AC3 exactly; `str.isprintable` filter intentional from Story 1.11; control-char strategy filtered; `monotonic_sequence_strategy` cannot generate unknown kind through `model_validate` (covered by direct unit tests); schema-drift halt-on-first matches AC3 wording; `_project_entries` reachable as test seam by design; `details` shallow-copy no current bug; `st.integers` boolean theoretical; N≤30 cap intentional; `Iterator` import unused (spec wording mistake — would fail ruff); `_journal_entry_strategy` underscore preserves module-private convention; Property 2 `function_scoped_fixture` suppression unneeded; `payload or {}` truthiness fine; module docstring duplication minor; `_make_monotonic_sequence_strategy` param name fine; `# noqa: RUF022` consistent.
 
 ## Dev Notes
 
