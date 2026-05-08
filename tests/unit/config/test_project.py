@@ -125,3 +125,46 @@ class TestProjectConfig:
     def test_watchdog_timeout_ge1_constraint(self) -> None:
         with pytest.raises(ValidationError):
             ProjectConfig(watchdog_timeout_minutes=0)
+
+    def test_max_parallel_agents_strict_rejects_float(self) -> None:
+        # strict=True must reject float values (no silent rounding 4.5 → 4).
+        with pytest.raises(ValidationError):
+            ProjectConfig(max_parallel_agents=4.5)  # type: ignore[arg-type]
+
+    def test_max_parallel_agents_strict_rejects_string(self) -> None:
+        with pytest.raises(ValidationError):
+            ProjectConfig(max_parallel_agents="4")  # type: ignore[arg-type]
+
+    def test_max_parallel_agents_strict_rejects_yaml_quoted_int(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text('max_parallel_agents: "4"\n')
+        with pytest.raises(ConfigError) as exc_info:
+            load_project_config(yaml_file)
+        assert "wrong type" in exc_info.value.message
+
+    def test_wrong_type_message_uses_wrong_type_phrasing(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text("max_parallel_agents: four\n")
+        with pytest.raises(ConfigError) as exc_info:
+            load_project_config(yaml_file)
+        assert "wrong type" in exc_info.value.message
+        # details["key"] (not "field") for consistency with extra_forbidden branch.
+        assert exc_info.value.details.get("key") == "max_parallel_agents"
+
+    def test_wrong_type_errors_are_safe_subset(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text("max_parallel_agents: four\n")
+        with pytest.raises(ConfigError) as exc_info:
+            load_project_config(yaml_file)
+        errors = exc_info.value.details.get("errors")
+        assert isinstance(errors, list)
+        for entry in errors:
+            assert isinstance(entry, dict)
+            # Only safe keys; no `input`/`url` leak from pydantic.
+            assert set(entry.keys()) == {"type", "loc", "msg"}

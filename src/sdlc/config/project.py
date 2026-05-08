@@ -6,6 +6,7 @@ from typing import ClassVar, Final
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from sdlc.config.secrets import sanitize
 from sdlc.errors import ConfigError
 
 DEFAULT_PROJECT_YAML: Final[str] = "project.yaml"
@@ -23,7 +24,7 @@ class ProjectConfig(BaseModel):
         str_strip_whitespace=False,
     )
 
-    max_parallel_agents: int = Field(default=4, ge=1)
+    max_parallel_agents: int = Field(default=4, ge=1, strict=True)
     auto_brainstorm: bool = True
     legacy_code_globs: tuple[str, ...] = Field(default_factory=tuple)
     watchdog_timeout_minutes: int = Field(default=30, ge=1)
@@ -66,7 +67,8 @@ def load_project_config(path: Path | None = None) -> ProjectConfig:
 
 
 def _wrap_validation_error(exc: ValidationError, target: Path) -> ConfigError:
-    first = exc.errors()[0]
+    errors = exc.errors()
+    first = errors[0]
     loc = first.get("loc", ())
     key = loc[0] if loc else "<unknown>"
     if first.get("type") == "extra_forbidden":
@@ -74,7 +76,16 @@ def _wrap_validation_error(exc: ValidationError, target: Path) -> ConfigError:
             f"project.yaml unknown key {key!r}",
             details={"path": str(target), "key": str(key)},
         )
+    msg = sanitize(str(first.get("msg", "validation failed")))
+    safe_errors: list[dict[str, object]] = [
+        {
+            "type": err.get("type"),
+            "loc": list(err.get("loc", ())),
+            "msg": sanitize(str(err.get("msg", ""))),
+        }
+        for err in errors
+    ]
     return ConfigError(
-        f"project.yaml field {key!r} invalid: {first.get('msg', 'validation failed')}",
-        details={"path": str(target), "field": str(key), "errors": exc.errors()},
+        f"project.yaml field {key!r} has wrong type: {msg}",
+        details={"path": str(target), "key": str(key), "errors": safe_errors},
     )

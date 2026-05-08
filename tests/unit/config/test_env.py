@@ -70,3 +70,16 @@ class TestReadEnv:
             read_env("FORBIDDEN_VAR")
         err = exc_info.value
         assert err.details.get("name") == "FORBIDDEN_VAR"
+
+    def test_bare_prefix_rejected(self) -> None:
+        # Bare prefix `SDLC_` (empty suffix) must NOT be treated as allowed.
+        with pytest.raises(ConfigError):
+            read_env("SDLC_")
+
+    def test_bare_claude_prefix_rejected(self) -> None:
+        with pytest.raises(ConfigError):
+            read_env("CLAUDE_")
+
+    def test_whitespace_only_name_rejected(self) -> None:
+        with pytest.raises(ConfigError):
+            read_env("   ")

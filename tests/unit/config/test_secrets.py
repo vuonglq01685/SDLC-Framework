@@ -152,3 +152,62 @@ class TestSanitizeMapping:
         result = sanitize_mapping(obj)
         for value in result.values():
             assert value == REDACTED, f"Expected REDACTED, got {value!r}"
+
+    def test_tuple_values_recurse(self) -> None:
+        obj = {"creds": (SK_KEY, "ok")}
+        result = sanitize_mapping(obj)
+        creds = result["creds"]
+        assert isinstance(creds, tuple)
+        assert creds == (REDACTED, "ok")
+
+    def test_set_values_recurse(self) -> None:
+        obj: dict[str, object] = {"tokens": {SK_KEY, "ok"}}
+        result = sanitize_mapping(obj)
+        tokens = result["tokens"]
+        assert isinstance(tokens, set)
+        assert tokens == {REDACTED, "ok"}
+
+    def test_frozenset_values_recurse(self) -> None:
+        obj: dict[str, object] = {"tokens": frozenset({SK_KEY, "ok"})}
+        result = sanitize_mapping(obj)
+        tokens = result["tokens"]
+        assert isinstance(tokens, frozenset)
+        assert tokens == frozenset({REDACTED, "ok"})
+
+    def test_non_string_top_level_key_raises(self) -> None:
+        obj: dict[object, object] = {123: "value"}
+        with pytest.raises(TypeError, match="requires str keys"):
+            sanitize_mapping(obj)  # type: ignore[arg-type]
+
+    def test_non_string_nested_key_raises(self) -> None:
+        obj: dict[str, object] = {"outer": {123: "value"}}
+        with pytest.raises(TypeError, match="requires str keys"):
+            sanitize_mapping(obj)
+
+    def test_circular_dict_replaced_with_placeholder(self) -> None:
+        obj: dict[str, object] = {"x": "ok"}
+        obj["self"] = obj
+        result = sanitize_mapping(obj)
+        assert result["x"] == "ok"
+        assert result["self"] == "<circular>"
+
+    def test_circular_list_replaced_with_placeholder(self) -> None:
+        inner: list[object] = ["ok"]
+        inner.append(inner)
+        obj: dict[str, object] = {"items": inner}
+        result = sanitize_mapping(obj)
+        items = result["items"]
+        assert isinstance(items, list)
+        assert items[0] == "ok"
+        assert items[1] == "<circular>"
+
+    def test_aws_key_word_boundary(self) -> None:
+        # AKIA inside a longer alphanumeric run should NOT match (word-bounded).
+        text = "PREFIXAKIAIOSFODNN7EXAMPLEXTRA"
+        assert sanitize(text) == text  # bounded pattern leaves substring intact
+
+    def test_aws_key_at_word_boundary_redacted(self) -> None:
+        text = f"AWS_ACCESS_KEY_ID={AWS_KEY} done"
+        result = sanitize(text)
+        assert AWS_KEY not in result
+        assert REDACTED in result

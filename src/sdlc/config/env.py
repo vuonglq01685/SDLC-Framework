@@ -28,6 +28,11 @@ def read_env(name: str) -> str | None:
 
 
 def _is_allowed(name: str) -> bool:
+    if not name or not name.strip():
+        return False
     if name in ENV_EXACT_ALLOWLIST:
         return True
-    return any(name.startswith(prefix) for prefix in ENV_PREFIX_ALLOWLIST)
+    return any(
+        name.startswith(prefix) and len(name) > len(prefix)
+        for prefix in ENV_PREFIX_ALLOWLIST
+    )

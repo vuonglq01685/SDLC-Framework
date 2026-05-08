@@ -1,6 +1,6 @@
 # Story 1.8: Foundation — `config/` Module (project.yaml + Env Allow-List + Secret Sanitizer)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -601,7 +601,41 @@ dependencies = [
   - [x] 10.4 At merge: `1-8-foundation-config-module: done`. Same discipline. Epic 1's `epic-1: in-progress` stays untouched (13 stories — 1.9 through 1.21 — still backlog after Story 1.8 lands).
   - [x] 10.5 Preserve ALL comments + STATUS DEFINITIONS block in the YAML (Story 1.5/1.6/1.7 convention).
 
-## Dev Notes
+### Review Findings
+
+_Code review 2026-05-08 — adversarial 3-layer (Blind Hunter + Edge Case Hunter + Acceptance Auditor). 60 raw findings → 20 after dedup (1 dismissed)._
+
+**Decision-needed:** _(resolved 2026-05-08 — both became Patch)_
+
+- [x] [Review][Decision→Patch] Pydantic strict mode for `max_parallel_agents` — Resolved: add `strict=True` to align with story 1.8's strict pattern (`extra=forbid`, `frozen=True`).
+- [x] [Review][Decision→Patch] Audit policy for `# noqa: secret` — Resolved: require `# noqa: secret — <reason ≥ 10 chars>` format.
+
+**Patch:**
+
+- [ ] [Review][Patch] Add `strict=True` to `max_parallel_agents` field [src/sdlc/config/project.py:18] — Pydantic v2 coerces float `4.5 → 4` silently. Aligns with story 1.8's strict-config pattern.
+- [ ] [Review][Patch] Require justification for `# noqa: secret` [scripts/check_no_hardcoded_secrets.py] — Enforce format `# noqa: secret — <reason ≥ 10 chars>`. Plain `# noqa: secret` becomes an error. Add unit test for both shapes.
+
+- [ ] [Review][Patch] Inconsistent error details key (`field` vs `key`) in `_wrap_validation_error` [src/sdlc/config/project.py:79] — `extra_forbidden` branch uses `details={"key": ...}` but the wrong-type branch uses `details={"field": ...}`. Standardize to `"key"`.
+- [ ] [Review][Patch] Raw `exc.errors()` leaks pydantic internals (and potentially raw secrets from invalid YAML) into ConfigError details [src/sdlc/config/project.py:75-86] — Apply `sanitize_mapping`/`sanitize` to error payloads before embedding, or strip to `{type, msg}` only.
+- [ ] [Review][Patch] Wrong-type validation message says "invalid" but Dev Notes mandate "wrong type" wording [src/sdlc/config/project.py:84] — Update message template to match the spec's exact wording.
+- [ ] [Review][Patch] `sanitize_mapping` does not recurse into `tuple`, `set`, `frozenset` [src/sdlc/config/secrets.py:_sanitize_value] — Containers other than `dict`/`list` pass through unredacted. Extend `_sanitize_value` to handle `tuple` (return tuple), `set`/`frozenset` (return same type), and `bytes` (decode + sanitize or skip safely).
+- [ ] [Review][Patch] Mapping with non-str keys not validated despite `Mapping[str, object]` signature [src/sdlc/config/secrets.py] — Either coerce keys via `str()` or raise on non-string keys. Current behavior is inconsistent with the type annotation.
+- [ ] [Review][Patch] Circular-reference RecursionError in `_sanitize_value` [src/sdlc/config/secrets.py] — Self-referential dicts/lists trigger uncaught `RecursionError`. Track seen `id()` set and substitute `<circular>` placeholder.
+- [ ] [Review][Patch] `AKIA` regex lacks word boundaries [src/sdlc/config/secrets.py:SECRET_PATTERNS] — `re.compile(r"AKIA[A-Z0-9]{16}")` matches inside larger uppercase strings. Wrap with `\b` to reduce false positives without weakening true-positive coverage.
+- [ ] [Review][Patch] `argv` directory paths are not expanded [scripts/check_no_hardcoded_secrets.py:main] — When user passes a directory on CLI, only the directory itself is checked (no rglob). Detect dir vs file and apply `rglob("*.py")` consistently.
+- [ ] [Review][Patch] `_is_exempt` over-broad path component check [scripts/check_no_hardcoded_secrets.py:_is_exempt] — `any(exempt in path.parts for exempt in _EXEMPT_DIRS)` exempts any path containing a component named e.g. `scripts` (so `src/sdlc/scripts/foo.py` is wrongly exempt). Anchor to top-level repo root segments only.
+- [ ] [Review][Patch] `sys.path.insert(0, ...)` shadows installed `sdlc` package [scripts/check_no_hardcoded_secrets.py] — Hook reaches into local `src/` and may collide with editable install. Use absolute import path or remove the insert.
+- [ ] [Review][Patch] Empty/bare prefix env names pass allowlist [src/sdlc/config/env.py:_is_allowed] — `"SDLC_"` (empty suffix) and `""` are accepted because `startswith` returns `True` for the prefix itself. Add suffix-non-empty check and reject empty/whitespace names.
+
+**Deferred (pre-existing or out-of-scope):**
+
+- [x] [Review][Defer] Broader secret patterns (Slack `xoxb-`, Google `AIza...`, AWS Secret 40-char) [src/sdlc/config/secrets.py] — deferred, scope expansion beyond Story 1.8 ACs.
+- [x] [Review][Defer] CI coverage gate enforcement (90% global / ≥95% per-package) — deferred, owned by Story 1.3 (CI/CD).
+- [x] [Review][Defer] YAML size cap / DoS hardening for `load_project_config` [src/sdlc/config/project.py] — deferred, not in Story 1.8 spec.
+- [x] [Review][Defer] Pre-commit hook scope expansion to `tests/` for secret hardcode validator — deferred, current scope `^src/sdlc/.*\.py$` is intentional per spec.
+- [x] [Review][Defer] README/migration docs for env allow-list semantics — deferred, separate doc ticket.
+
+
 
 ### File set this story creates / modifies
 
