@@ -1,0 +1,30 @@
+# Fixture for test_journal_mutation_validator.py — NOT a real .py file.
+# Contains patterns that the journal-append-only-validator should flag.
+
+# 1. open(journal.log, "w") — direct write mode
+f1 = open("path/to/journal.log", "w")
+
+# 2. open(journal.jsonl, "a") — append mode also banned outside writer.py
+f2 = open("journal.jsonl", "a")
+
+# 3. open(journal.log, "r+") — read-write mode enables seek+write
+f3 = open("journal.log", "r+")
+
+# 4. Path("journal.log").write_text("data")
+from pathlib import Path
+Path("journal.log").write_text("some data")
+
+# 5. os.replace(tmp, "journal.log")
+import os
+os.replace("/tmp/some.tmp", "journal.log")
+
+# 6. seek+write anti-pattern
+def bad_seek_write():
+    f = open("/tmp/foo", "rb+")
+    f.seek(0)
+    f.write(b"overwrite")
+
+# 7. os.lseek + os.write anti-pattern
+def bad_lseek_write(fd):
+    os.lseek(fd, 0, 0)
+    os.write(fd, b"overwrite")

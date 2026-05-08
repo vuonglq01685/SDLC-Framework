@@ -143,6 +143,18 @@ warn_unreachable = false
 module = "sdlc.state.atomic"
 disable_error_code = ["unreachable", "attr-defined", "no-any-return"]
 
+# sdlc.journal.writer is POSIX-only and raises ImportError on Windows; mypy on
+# Windows still parses the module body and flags POSIX-only attributes from
+# fcntl/os as missing. Narrow suppression mirrors sdlc.state.atomic pattern (ADR-014).
+[[tool.mypy.overrides]]
+module = "sdlc.journal.writer"
+disable_error_code = ["unreachable", "attr-defined", "no-any-return"]
+
+# sdlc.journal.__init__ uses conditional imports for the POSIX-only writer.
+[[tool.mypy.overrides]]
+module = "sdlc.journal"
+warn_unreachable = false
+
 # =============================================================================
 # Pytest + Coverage (ADR-004)
 # =============================================================================
@@ -184,6 +196,10 @@ omit = [
     # Platform-conditional import hub: the "if sys.platform != 'win32'" branch
     # is unreachable on Windows. Covered by Linux CI.
     "src/sdlc/state/__init__.py",
+    # POSIX-only; O_APPEND + flock require Linux/macOS. Not importable on Windows.
+    "src/sdlc/journal/writer.py",
+    # Platform-conditional import hub for journal: mirrors state/__init__.py omit.
+    "src/sdlc/journal/__init__.py",
 ]
 branch = true
 # parallel = true intentionally omitted: single-process pytest does not need it.

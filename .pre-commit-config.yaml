@@ -65,6 +65,17 @@ repos:
         files: ^src/sdlc/.*\.py$
         pass_filenames: true
 
+  # ----- journal append-only validator (Story 1.11 / AC3 / FR31 / Architecture §493) -----
+  - repo: local
+    hooks:
+      - id: journal-append-only-validator
+        name: journal append-only protocol validator (FR31 + Architecture §493)
+        entry: uv run python scripts/check_no_journal_mutation.py
+        language: system
+        types: [python]
+        files: ^src/sdlc/.*\.py$
+        pass_filenames: true
+
   # ----- secret-hardcode validator (Story 1.8 / NFR-SEC-1) -----
   - repo: local
     hooks:

@@ -36,7 +36,7 @@ index 4b70c24..f926e64 100644
 @@ -54,6 +54,17 @@ repos:
          files: ^(src/sdlc/|tests/|scripts/).*\.py$
          pass_filenames: true
- 
+
 +  # ----- state-write protocol validator (Story 1.10 / AC3 / Architecture §493) -----
 +  - repo: local
 +    hooks:
@@ -147,11 +147,11 @@ index 82f213c..61ff2de 100644
  | [011](ADR-011-mkdocs-setup.md) | mkdocs setup | 1.5 | Accepted |
  | [012](ADR-012-module-layout.md) | 16-module layout | 1.4 (back-filled in 1.5) | Accepted |
 +| [013](ADR-013-atomic-state-write-protocol.md) | atomic state write protocol | 1.10 | Accepted |
- 
+
 -Note: ADR-013 (wire-format v1 lock) is owned by Story 1.21 and is intentionally absent
 +Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
  until then.
- 
+
  ## Authoring a new ADR
 diff --git a/pyproject.toml b/pyproject.toml
 index c2359d2..b29c1c7 100644
@@ -168,12 +168,12 @@ index c2359d2..b29c1c7 100644
 +    "C901",     # _sanitize_value complexity — pre-existing (Story 1.8); acceptable for recursive sanitizer
 +    "PLR0911",  # too many returns — pre-existing (Story 1.8); acceptable for recursive sanitizer
  ]
- 
+
  [tool.ruff.format]
 @@ -114,14 +120,27 @@ module = "tests.*"
  disallow_untyped_defs = false
  disallow_untyped_decorators = false
- 
+
 -# sdlc.concurrency is POSIX-only. sys.platform guards make code after the
 -# ImportError raise (locks.py) and inside "if sys.platform != 'win32':" blocks
 -# (__init__.py) appear "unreachable" when mypy runs on Windows.
@@ -191,7 +191,7 @@ index c2359d2..b29c1c7 100644
 +    "sdlc.state",
 +]
  warn_unreachable = false
- 
+
 +# sdlc.state.atomic imports fcntl-only symbols from sdlc.concurrency; mypy
 +# running on Windows cannot resolve file_lock (POSIX-only attribute) even with
 +# warn_unreachable disabled. Entire module is POSIX-only — correctness verified
