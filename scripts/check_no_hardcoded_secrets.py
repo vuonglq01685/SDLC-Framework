@@ -67,12 +67,14 @@ def _scan_file(path: Path) -> list[tuple[int, int, str]]:
         noqa_match = _NOQA_PATTERN.search(line)
         if noqa_match:
             if noqa_match.group(1) is None:
-                violations.append((
-                    lineno,
-                    noqa_match.start() + 1,
-                    "# noqa: secret missing justification "
-                    "(required: '# noqa: secret -- <reason ≥ 10 chars>')",
-                ))
+                violations.append(
+                    (
+                        lineno,
+                        noqa_match.start() + 1,
+                        "# noqa: secret missing justification "
+                        "(required: '# noqa: secret -- <reason ≥ 10 chars>')",
+                    )
+                )
             continue
         for pattern in SECRET_PATTERNS:
             match = pattern.search(line)

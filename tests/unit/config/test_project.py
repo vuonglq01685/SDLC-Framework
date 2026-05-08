@@ -155,9 +155,7 @@ class TestProjectConfig:
         # details["key"] (not "field") for consistency with extra_forbidden branch.
         assert exc_info.value.details.get("key") == "max_parallel_agents"
 
-    def test_wrong_type_errors_are_safe_subset(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    def test_wrong_type_errors_are_safe_subset(self, tmp_path: pytest.TempPathFactory) -> None:
         yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
         yaml_file.write_text("max_parallel_agents: four\n")
         with pytest.raises(ConfigError) as exc_info:

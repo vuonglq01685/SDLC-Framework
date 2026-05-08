@@ -1,0 +1,760 @@
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index e72d9de..4b70c24 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -54,6 +54,17 @@ repos:
+         files: ^(src/sdlc/|tests/|scripts/).*\.py$
+         pass_filenames: true
+ 
++  # ----- secret-hardcode validator (Story 1.8 / NFR-SEC-1) -----
++  - repo: local
++    hooks:
++      - id: secret-hardcode-validator
++        name: scan src/ for hardcoded secret literals (NFR-SEC-1)
++        entry: uv run python scripts/check_no_hardcoded_secrets.py
++        language: system
++        types: [python]
++        files: ^src/sdlc/.*\.py$
++        pass_filenames: true
++
+   # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
+   - repo: local
+     hooks:
+diff --git a/pyproject.toml b/pyproject.toml
+index 2e4bad0..07e1a2a 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -10,6 +10,7 @@ authors = [
+ requires-python = ">=3.10"
+ dependencies = [
+     "pydantic>=2,<3",   # cap: pydantic 2→3 will introduce schema breaks (v3 is on the roadmap)
++    "pyyaml>=6,<7",     # cap: pyyaml 6→7 has not been released; defensive guard against future major
+ ]
+ 
+ # [project.scripts]
+@@ -26,6 +27,7 @@ dev = [
+     "pre-commit>=4.0.0,<5",
+     "mkdocs>=1.6.0,<2",
+     "hypothesis>=6.100,<7",
++    "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
+ ]
+ 
+ [build-system]
+diff --git a/scripts/check_no_hardcoded_secrets.py b/scripts/check_no_hardcoded_secrets.py
+new file mode 100644
+index 0000000..f90ba34
+--- /dev/null
++++ b/scripts/check_no_hardcoded_secrets.py
+@@ -0,0 +1,60 @@
++#!/usr/bin/env python3
++"""Scan src/sdlc/ for hardcoded secret literals (NFR-SEC-1).
++
++Usage: uv run python scripts/check_no_hardcoded_secrets.py [file ...]
++No args: scans src/sdlc/ recursively. Exit 0 = clean; exit 1 = violations.
++Escape hatch: add `# noqa: secret` on a line to suppress it.
++Exempt dirs (never scanned): tests/, scripts/, _bmad/, _bmad-output/, .claude/, _site/, docs/
++"""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++_REPO_ROOT = Path(__file__).parent.parent
++sys.path.insert(0, str(_REPO_ROOT / "src"))
++
++from sdlc.config.secrets import SECRET_PATTERNS  # noqa: E402
++
++_EXEMPT_DIRS = frozenset({"tests", "scripts", "_bmad", "_bmad-output", ".claude", "_site", "docs"})
++_SELF = Path(__file__).resolve()
++
++
++def _is_exempt(path: Path) -> bool:
++    if path.resolve() == _SELF:
++        return True
++    return any(exempt in path.parts for exempt in _EXEMPT_DIRS)
++
++
++def _scan_file(path: Path) -> list[tuple[int, int, str]]:
++    violations: list[tuple[int, int, str]] = []
++    try:
++        lines = path.read_text(encoding="utf-8").splitlines()
++    except (OSError, UnicodeDecodeError):
++        return violations
++    for lineno, line in enumerate(lines, start=1):
++        if "# noqa: secret" in line:
++            continue
++        for pattern in SECRET_PATTERNS:
++            match = pattern.search(line)
++            if match:
++                violations.append((lineno, match.start() + 1, pattern.pattern))
++                break
++    return violations
++
++
++def main(argv: list[str]) -> int:
++    targets = [Path(p) for p in argv] if argv else list((_REPO_ROOT / "src" / "sdlc").rglob("*.py"))
++    found_any = False
++    for path in sorted(targets):
++        if _is_exempt(path):
++            continue
++        for lineno, col, pat in _scan_file(path):
++            print(f"{path}:{lineno}:{col}: hardcoded secret literal matches pattern {pat!r}")
++            found_any = True
++    return 1 if found_any else 0
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv[1:]))
+diff --git a/src/sdlc/config/__init__.py b/src/sdlc/config/__init__.py
+new file mode 100644
+index 0000000..12116ff
+--- /dev/null
++++ b/src/sdlc/config/__init__.py
+@@ -0,0 +1,28 @@
++from __future__ import annotations
++
++from sdlc.config.env import (
++    ENV_EXACT_ALLOWLIST,
++    ENV_PREFIX_ALLOWLIST,
++    read_env,
++)
++from sdlc.config.project import ProjectConfig, load_project_config
++from sdlc.config.secrets import (
++    REDACTION_MARKER,
++    SECRET_PATTERNS,
++    sanitize,
++    sanitize_mapping,
++)
++
++# Semantic order: project (loader + model) → env (allow-list reader + constants)
++# → secrets (sanitizer + constants). Non-alphabetical per Story 1.6/1.7 convention.
++__all__ = (  # noqa: RUF022
++    "ProjectConfig",
++    "load_project_config",
++    "ENV_PREFIX_ALLOWLIST",
++    "ENV_EXACT_ALLOWLIST",
++    "read_env",
++    "REDACTION_MARKER",
++    "SECRET_PATTERNS",
++    "sanitize",
++    "sanitize_mapping",
++)
+diff --git a/src/sdlc/config/env.py b/src/sdlc/config/env.py
+new file mode 100644
+index 0000000..06ca8f0
+--- /dev/null
++++ b/src/sdlc/config/env.py
+@@ -0,0 +1,33 @@
++from __future__ import annotations
++
++import os
++from typing import Final
++
++from sdlc.errors import ConfigError
++
++ENV_PREFIX_ALLOWLIST: Final[tuple[str, ...]] = ("SDLC_", "CLAUDE_")
++ENV_EXACT_ALLOWLIST: Final[frozenset[str]] = frozenset({"GH_TOKEN"})
++
++
++def read_env(name: str) -> str | None:
++    """Return the env-var value if ``name`` matches the allow-list, else raise ConfigError.
++
++    Allow-list per Architecture §671 + NFR-SEC-2 (prd.md:798):
++    - prefix matches: SDLC_*, CLAUDE_*
++    - exact matches: GH_TOKEN (consumed only by the pr-author specialist)
++
++    Returns None for allowed-but-unset env vars (legitimate "not configured" signal).
++    Raises ConfigError for forbidden reads.
++    """
++    if not _is_allowed(name):
++        raise ConfigError(
++            f"env var {name!r} not in allow-list (SDLC_*, CLAUDE_*, GH_TOKEN)",
++            details={"name": name},
++        )
++    return os.environ.get(name)
++
++
++def _is_allowed(name: str) -> bool:
++    if name in ENV_EXACT_ALLOWLIST:
++        return True
++    return any(name.startswith(prefix) for prefix in ENV_PREFIX_ALLOWLIST)
+diff --git a/src/sdlc/config/project.py b/src/sdlc/config/project.py
+new file mode 100644
+index 0000000..f23a276
+--- /dev/null
++++ b/src/sdlc/config/project.py
+@@ -0,0 +1,80 @@
++from __future__ import annotations
++
++from pathlib import Path
++from typing import ClassVar, Final
++
++import yaml
++from pydantic import BaseModel, ConfigDict, Field, ValidationError
++
++from sdlc.errors import ConfigError
++
++DEFAULT_PROJECT_YAML: Final[str] = "project.yaml"
++
++
++class ProjectConfig(BaseModel):
++    """Typed wrapper for project.yaml (FR51).
++
++    Schema sources: epics.md:610-613, prd.md:797, architecture.md:337/466/652/752.
++    """
++
++    model_config: ClassVar[ConfigDict] = ConfigDict(
++        extra="forbid",
++        frozen=True,
++        str_strip_whitespace=False,
++    )
++
++    max_parallel_agents: int = Field(default=4, ge=1)
++    auto_brainstorm: bool = True
++    legacy_code_globs: tuple[str, ...] = Field(default_factory=tuple)
++    watchdog_timeout_minutes: int = Field(default=30, ge=1)
++
++
++def load_project_config(path: Path | None = None) -> ProjectConfig:
++    """Load ``project.yaml`` from ``path`` (default: <cwd>/project.yaml).
++
++    Behaviour:
++    - Missing file → return ProjectConfig() defaults.
++    - Empty/whitespace-only file → return ProjectConfig() defaults.
++    - Malformed YAML → ConfigError.
++    - Unknown key → ConfigError naming the key.
++    - Wrong type → ConfigError wrapping pydantic ValidationError.
++    """
++    target = Path(path) if path is not None else Path.cwd() / DEFAULT_PROJECT_YAML
++    if not target.exists():
++        return ProjectConfig()
++    raw = target.read_text(encoding="utf-8")
++    if not raw.strip():
++        return ProjectConfig()
++    try:
++        data = yaml.safe_load(raw)
++    except yaml.YAMLError as exc:
++        raise ConfigError(
++            f"project.yaml malformed: {exc}",
++            details={"path": str(target)},
++        ) from exc
++    if data is None:
++        return ProjectConfig()
++    if not isinstance(data, dict):
++        raise ConfigError(
++            "project.yaml must be a mapping at top level",
++            details={"path": str(target), "got_type": type(data).__name__},
++        )
++    try:
++        return ProjectConfig(**data)
++    except ValidationError as exc:
++        raise _wrap_validation_error(exc, target) from exc
++
++
++def _wrap_validation_error(exc: ValidationError, target: Path) -> ConfigError:
++    first = exc.errors()[0]
++    loc = first.get("loc", ())
++    key = loc[0] if loc else "<unknown>"
++    if first.get("type") == "extra_forbidden":
++        return ConfigError(
++            f"project.yaml unknown key {key!r}",
++            details={"path": str(target), "key": str(key)},
++        )
++    return ConfigError(
++        f"project.yaml field {key!r} invalid: {first.get('msg', 'validation failed')}",
++        details={"path": str(target), "field": str(key), "errors": exc.errors()},
++    )
+diff --git a/src/sdlc/config/secrets.py b/src/sdlc/config/secrets.py
+new file mode 100644
+index 0000000..971ad95
+--- /dev/null
++++ b/src/sdlc/config/secrets.py
+@@ -0,0 +1,45 @@
++from __future__ import annotations
++
++import re
++from collections.abc import Mapping
++from typing import Final
++
++REDACTION_MARKER: Final[str] = "<REDACTED:secret>"
++
++# Patterns compiled once at module load for performance.
++# Sources: epics.md:621, architecture.md:566 + NFR-SEC-1 (prd.md:832).
++SECRET_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
++    re.compile(r"sk-[A-Za-z0-9_-]{20,}"),  # OpenAI/Anthropic-shaped key
++    re.compile(r"pk_(?:live|test)_[A-Za-z0-9]{20,}"),  # Stripe public key
++    re.compile(r"ghp_[A-Za-z0-9]{30,}"),  # GitHub PAT (36 chars typical)
++    re.compile(r"AKIA[A-Z0-9]{16}"),  # AWS Access Key ID (20 chars)
++    re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),  # JWT three-segment
++)
++
++
++def sanitize(text: str) -> str:
++    """Redact known secret patterns in text. Idempotent; non-matching strings pass through."""
++    for pattern in SECRET_PATTERNS:
++        text = pattern.sub(REDACTION_MARKER, text)
++    return text
++
++
++def sanitize_mapping(obj: Mapping[str, object]) -> dict[str, object]:
++    """Recursively redact secret-shaped strings in a mapping.
++
++    Returns a NEW dict (input is not mutated).
++    """
++    result: dict[str, object] = {}
++    for key, value in obj.items():
++        result[key] = _sanitize_value(value)
++    return result
++
++
++def _sanitize_value(value: object) -> object:
++    if isinstance(value, str):
++        return sanitize(value)
++    if isinstance(value, Mapping):
++        return sanitize_mapping(value)
++    if isinstance(value, list):
++        return [_sanitize_value(v) for v in value]
++    return value
+diff --git a/tests/integration/__init__.py b/tests/integration/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/tests/integration/test_secret_hygiene.py b/tests/integration/test_secret_hygiene.py
+new file mode 100644
+index 0000000..281d0ec
+--- /dev/null
++++ b/tests/integration/test_secret_hygiene.py
+@@ -0,0 +1,59 @@
++from __future__ import annotations
++
++import pytest
++
++from sdlc.config import sanitize_mapping
++from sdlc.errors import SdlcError
++
++
++@pytest.mark.integration
++class TestSecretHygiene:
++    def test_envelope_details_redacted(self) -> None:
++        error = SdlcError(
++            "test",
++            details={"api_key": "sk-abc123def456ghi789jkl012mno345pq"},
++        )
++        envelope = error.to_envelope()
++        details = envelope["error"]["details"]
++        assert isinstance(details, dict)
++        sanitized = sanitize_mapping(details)
++        assert sanitized["api_key"] == "<REDACTED:secret>"
++
++    def test_multi_pattern_envelope(self) -> None:
++        error = SdlcError(
++            "multi",
++            details={
++                "openai_key": "sk-abc123def456ghi789jkl012mno345pq",
++                "github_pat": "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
++                "aws_access": "AKIAIOSFODNN7EXAMPLE",
++                "jwt": (
++                    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
++                    ".eyJzdWIiOiIxMjM0NTY3ODkwIn0"
++                    ".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
++                ),
++                "stripe": "pk_live_abc123def456ghi789jkl0",
++            },
++        )
++        details = error.to_envelope()["error"]["details"]
++        assert isinstance(details, dict)
++        sanitized = sanitize_mapping(details)
++        assert all(v == "<REDACTED:secret>" for v in sanitized.values())
++
++    def test_nested_envelope(self) -> None:
++        error = SdlcError(
++            "nested",
++            details={
++                "caller": {
++                    "name": "agent",
++                    "credentials": {"api_key": "sk-abc123def456ghi789jkl012mno345pq"},
++                },
++            },
++        )
++        details = error.to_envelope()["error"]["details"]
++        assert isinstance(details, dict)
++        sanitized = sanitize_mapping(details)
++        caller = sanitized["caller"]
++        assert isinstance(caller, dict)
++        credentials = caller["credentials"]
++        assert isinstance(credentials, dict)
++        assert credentials["api_key"] == "<REDACTED:secret>"
+diff --git a/tests/unit/config/__init__.py b/tests/unit/config/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/tests/unit/config/test_env.py b/tests/unit/config/test_env.py
+new file mode 100644
+index 0000000..d81aebd
+--- /dev/null
++++ b/tests/unit/config/test_env.py
+@@ -0,0 +1,72 @@
++from __future__ import annotations
++
++import pytest
++
++from sdlc.config import ENV_EXACT_ALLOWLIST, ENV_PREFIX_ALLOWLIST, read_env
++from sdlc.errors import ConfigError
++
++
++@pytest.mark.unit
++class TestReadEnv:
++    def test_sdlc_prefix_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        monkeypatch.setenv("SDLC_DEBUG", "1")
++        assert read_env("SDLC_DEBUG") == "1"
++
++    def test_claude_prefix_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        monkeypatch.setenv("CLAUDE_API_KEY", "sk-abc")
++        assert read_env("CLAUDE_API_KEY") == "sk-abc"
++
++    def test_gh_token_exact_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        monkeypatch.setenv("GH_TOKEN", "ghp_xyz")
++        assert read_env("GH_TOKEN") == "ghp_xyz"
++
++    def test_home_rejected(self) -> None:
++        with pytest.raises(ConfigError) as exc_info:
++            read_env("HOME")
++        err = exc_info.value
++        assert err.code == "ERR_CONFIG"
++        assert "HOME" in err.message
++        assert "allow-list" in err.message
++
++    def test_path_rejected(self) -> None:
++        with pytest.raises(ConfigError):
++            read_env("PATH")
++
++    def test_openai_api_key_rejected(self) -> None:
++        with pytest.raises(ConfigError) as exc_info:
++            read_env("OPENAI_API_KEY")
++        err = exc_info.value
++        assert "OPENAI_API_KEY" in err.message
++
++    def test_empty_name_rejected(self) -> None:
++        with pytest.raises(ConfigError):
++            read_env("")
++
++    def test_lowercase_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        monkeypatch.setenv("sdlc_debug", "1")
++        with pytest.raises(ConfigError):
++            read_env("sdlc_debug")
++
++    def test_allowed_but_unset_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        monkeypatch.delenv("SDLC_NONEXISTENT", raising=False)
++        result = read_env("SDLC_NONEXISTENT")
++        assert result is None
++
++    def test_env_prefix_allowlist_constant(self) -> None:
++        assert ENV_PREFIX_ALLOWLIST == ("SDLC_", "CLAUDE_")
++
++    def test_env_exact_allowlist_constant(self) -> None:
++        assert frozenset({"GH_TOKEN"}) == ENV_EXACT_ALLOWLIST
++
++    def test_claude_prefix_allowed_but_unset_returns_none(
++        self, monkeypatch: pytest.MonkeyPatch
++    ) -> None:
++        monkeypatch.delenv("CLAUDE_UNSET_VAR", raising=False)
++        result = read_env("CLAUDE_UNSET_VAR")
++        assert result is None
++
++    def test_details_include_name(self) -> None:
++        with pytest.raises(ConfigError) as exc_info:
++            read_env("FORBIDDEN_VAR")
++        err = exc_info.value
++        assert err.details.get("name") == "FORBIDDEN_VAR"
+diff --git a/tests/unit/config/test_project.py b/tests/unit/config/test_project.py
+new file mode 100644
+index 0000000..6244873
+--- /dev/null
++++ b/tests/unit/config/test_project.py
+@@ -0,0 +1,127 @@
++from __future__ import annotations
++
++import pytest
++from pydantic import ValidationError
++
++from sdlc.config import ProjectConfig, load_project_config
++from sdlc.errors import ConfigError
++
++
++@pytest.mark.unit
++class TestProjectConfig:
++    def test_happy_path_all_fields(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        content = (
++            "max_parallel_agents: 8\nauto_brainstorm: false\n"
++            "legacy_code_globs:\n  - src/legacy/**\nwatchdog_timeout_minutes: 60\n"
++        )
++        yaml_file.write_text(content)
++        cfg = load_project_config(yaml_file)
++        assert cfg.max_parallel_agents == 8
++        assert cfg.auto_brainstorm is False
++        assert cfg.legacy_code_globs == ("src/legacy/**",)
++        assert cfg.watchdog_timeout_minutes == 60
++
++    def test_empty_yaml_returns_defaults(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("")
++        cfg = load_project_config(yaml_file)
++        assert cfg == ProjectConfig()
++
++    def test_whitespace_only_yaml_returns_defaults(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("   \n  \n")
++        cfg = load_project_config(yaml_file)
++        assert cfg == ProjectConfig()
++
++    def test_path_none_missing_file_returns_defaults(
++        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
++    ) -> None:
++        monkeypatch.chdir(tmp_path)  # type: ignore[arg-type]
++        cfg = load_project_config(None)
++        assert cfg == ProjectConfig()
++
++    def test_path_none_existing_file_loads_values(
++        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
++    ) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("max_parallel_agents: 2\n")
++        monkeypatch.chdir(tmp_path)  # type: ignore[arg-type]
++        cfg = load_project_config(None)
++        assert cfg.max_parallel_agents == 2
++
++    def test_unknown_key_raises_config_error(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("unknown_key: x\nmax_parallel_agents: 4\n")
++        with pytest.raises(ConfigError) as exc_info:
++            load_project_config(yaml_file)
++        err = exc_info.value
++        assert err.code == "ERR_CONFIG"
++        assert "unknown_key" in err.message
++        assert err.details.get("key") == "unknown_key"
++
++    def test_wrong_type_raises_config_error(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("max_parallel_agents: four\n")
++        with pytest.raises(ConfigError) as exc_info:
++            load_project_config(yaml_file)
++        err = exc_info.value
++        assert err.code == "ERR_CONFIG"
++
++    def test_malformed_yaml_raises_config_error(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("{[invalid: yaml\n")
++        with pytest.raises(ConfigError) as exc_info:
++            load_project_config(yaml_file)
++        err = exc_info.value
++        assert "malformed" in err.message
++
++    def test_frozen_mutation_raises_validation_error(self) -> None:
++        cfg = ProjectConfig()
++        with pytest.raises(ValidationError):
++            cfg.max_parallel_agents = 8  # type: ignore[misc]
++
++    def test_equality(self) -> None:
++        assert ProjectConfig() == ProjectConfig()
++
++    def test_hashability(self) -> None:
++        cfg = ProjectConfig()
++        result = hash(cfg)
++        assert isinstance(result, int)
++
++    def test_extra_forbid_config(self) -> None:
++        assert ProjectConfig.model_config.get("extra") == "forbid"
++
++    def test_list_to_tuple_coercion(self) -> None:
++        cfg = ProjectConfig(legacy_code_globs=["a", "b"])  # type: ignore[arg-type]
++        assert cfg.legacy_code_globs == ("a", "b")
++        assert isinstance(cfg.legacy_code_globs, tuple)
++
++    def test_top_level_not_dict_raises_config_error(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("- item1\n- item2\n")
++        with pytest.raises(ConfigError) as exc_info:
++            load_project_config(yaml_file)
++        err = exc_info.value
++        assert "mapping" in err.message
++
++    def test_yaml_comment_only_returns_defaults(self, tmp_path: pytest.TempPathFactory) -> None:
++        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
++        yaml_file.write_text("# just a comment\n")
++        cfg = load_project_config(yaml_file)
++        assert cfg == ProjectConfig()
++
++    def test_defaults_values(self) -> None:
++        cfg = ProjectConfig()
++        assert cfg.max_parallel_agents == 4
++        assert cfg.auto_brainstorm is True
++        assert cfg.legacy_code_globs == ()
++        assert cfg.watchdog_timeout_minutes == 30
++
++    def test_max_parallel_agents_ge1_constraint(self) -> None:
++        with pytest.raises(ValidationError):
++            ProjectConfig(max_parallel_agents=0)
++
++    def test_watchdog_timeout_ge1_constraint(self) -> None:
++        with pytest.raises(ValidationError):
++            ProjectConfig(watchdog_timeout_minutes=0)
+diff --git a/tests/unit/config/test_secrets.py b/tests/unit/config/test_secrets.py
+new file mode 100644
+index 0000000..f39584e
+--- /dev/null
++++ b/tests/unit/config/test_secrets.py
+@@ -0,0 +1,154 @@
++from __future__ import annotations
++
++import re
++
++import pytest
++
++from sdlc.config import REDACTION_MARKER, SECRET_PATTERNS, sanitize, sanitize_mapping
++
++REDACTED = "<REDACTED:secret>"
++
++# Representative secret literals for testing
++SK_KEY = "sk-abc123def456ghi789jkl012mno345pq"
++GHP_PAT = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
++AWS_KEY = "AKIAIOSFODNN7EXAMPLE"
++# JWT: three-segment base64url per RFC 7519
++JWT_TOKEN = (
++    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
++    ".eyJzdWIiOiIxMjM0NTY3ODkwIn0"
++    ".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
++)
++STRIPE_LIVE = "pk_live_abc123def456ghi789jkl0"
++STRIPE_TEST = "pk_test_abc123def456ghi789jkl0"
++
++
++@pytest.mark.unit
++class TestSanitize:
++    def test_sk_key_redacted(self) -> None:
++        result = sanitize(SK_KEY)
++        assert result == REDACTED
++
++    def test_sk_key_embedded(self) -> None:
++        result = sanitize(f"Authorization: Bearer {SK_KEY}")
++        assert REDACTED in result
++        assert SK_KEY not in result
++
++    def test_sk_key_prefix_position(self) -> None:
++        result = sanitize(f"{SK_KEY} is the key")
++        assert REDACTED in result
++
++    def test_sk_key_suffix_position(self) -> None:
++        result = sanitize(f"key is {SK_KEY}")
++        assert REDACTED in result
++
++    def test_ghp_pat_redacted(self) -> None:
++        result = sanitize(GHP_PAT)
++        assert result == REDACTED
++
++    def test_stripe_live_redacted(self) -> None:
++        result = sanitize(STRIPE_LIVE)
++        assert result == REDACTED
++
++    def test_stripe_test_redacted(self) -> None:
++        result = sanitize(STRIPE_TEST)
++        assert result == REDACTED
++
++    def test_aws_access_key_redacted(self) -> None:
++        result = sanitize(AWS_KEY)
++        assert result == REDACTED
++
++    def test_jwt_redacted(self) -> None:
++        result = sanitize(JWT_TOKEN)
++        assert result == REDACTED
++
++    def test_multi_secret_string(self) -> None:
++        text = f"token1={SK_KEY}; token2={GHP_PAT}"
++        result = sanitize(text)
++        assert SK_KEY not in result
++        assert GHP_PAT not in result
++        assert result.count(REDACTED) == 2
++
++    def test_no_secret_passthrough(self) -> None:
++        text = "just a normal string"
++        assert sanitize(text) == text
++
++    def test_empty_string_passthrough(self) -> None:
++        assert sanitize("") == ""
++
++    def test_idempotency(self) -> None:
++        once = sanitize(SK_KEY)
++        twice = sanitize(once)
++        assert once == twice
++
++    def test_idempotency_no_secret(self) -> None:
++        text = "hello world"
++        assert sanitize(sanitize(text)) == sanitize(text)
++
++
++@pytest.mark.unit
++class TestSanitizeMapping:
++    def test_happy_path_nested(self) -> None:
++        obj = {
++            "path": "/tmp/x",
++            "api_key": SK_KEY,
++            "nested": {"token": GHP_PAT},
++        }
++        result = sanitize_mapping(obj)
++        assert result["path"] == "/tmp/x"
++        assert result["api_key"] == REDACTED
++        assert result["nested"]["token"] == REDACTED  # type: ignore[index]
++
++    def test_non_string_leaves_passthrough(self) -> None:
++        obj = {
++            "int_field": 42,
++            "bool_field": True,
++            "none_field": None,
++            "float_field": 3.14,
++            "str_field": SK_KEY,
++        }
++        result = sanitize_mapping(obj)
++        assert result["int_field"] == 42
++        assert result["bool_field"] is True
++        assert result["none_field"] is None
++        assert result["float_field"] == 3.14
++        assert result["str_field"] == REDACTED
++
++    def test_list_values_redacted(self) -> None:
++        obj = {"tokens": [SK_KEY, "no-secret"]}
++        result = sanitize_mapping(obj)
++        tokens = result["tokens"]
++        assert isinstance(tokens, list)
++        assert tokens[0] == REDACTED
++        assert tokens[1] == "no-secret"
++
++    def test_immutability(self) -> None:
++        original_key = SK_KEY
++        obj = {"api_key": original_key}
++        result = sanitize_mapping(obj)
++        assert obj["api_key"] == original_key
++        assert result["api_key"] == REDACTED
++        assert result is not obj
++
++    def test_secret_patterns_length(self) -> None:
++        assert len(SECRET_PATTERNS) == 5
++        for pattern in SECRET_PATTERNS:
++            assert isinstance(pattern, re.Pattern)
++
++    def test_redaction_marker_constant(self) -> None:
++        assert REDACTION_MARKER == "<REDACTED:secret>"
++
++    def test_empty_mapping(self) -> None:
++        result = sanitize_mapping({})
++        assert result == {}
++
++    def test_all_five_patterns_in_single_mapping(self) -> None:
++        obj = {
++            "openai": SK_KEY,
++            "github": GHP_PAT,
++            "aws": AWS_KEY,
++            "jwt": JWT_TOKEN,
++            "stripe": STRIPE_LIVE,
++        }
++        result = sanitize_mapping(obj)
++        for value in result.values():
++            assert value == REDACTED, f"Expected REDACTED, got {value!r}"

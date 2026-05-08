@@ -1,0 +1,994 @@
+{
+  "nodes": [
+    {
+      "id": "adr001_pyproject_metadata",
+      "label": "ADR-001: pyproject Metadata",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-001-pyproject-metadata.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr002_ruff_config",
+      "label": "ADR-002: Ruff Linting + Formatting Configuration",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-002-ruff-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr003_mypy_strict",
+      "label": "ADR-003: Mypy Strict Type Checking Configuration",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-003-mypy-strict.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr004_pytest_config",
+      "label": "ADR-004: Pytest and Coverage Configuration",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-004-pytest-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr005_package_data_layout",
+      "label": "ADR-005: package_data Layout",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-005-package-data-layout.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr006_ci_yml",
+      "label": "ADR-006: CI Workflow (ci.yml) — Python x OS Matrix Quality Gates",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-006-ci-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr007_e2e_yml",
+      "label": "ADR-007: E2E Workflow (e2e.yml) — Nightly Real-Claude Suite",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-007-e2e-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr008_release_yml",
+      "label": "ADR-008: Release Workflow (release.yml) — Wheel-Only PyPI Trusted Publishing",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-008-release-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr009_docs_yml",
+      "label": "ADR-009: Docs Workflow (docs.yml) — MkDocs to GitHub Pages",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-009-docs-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr010_pre_commit_config",
+      "label": "ADR-010: Pre-commit Configuration + Module Boundary Enforcement Hook",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr011_mkdocs_setup",
+      "label": "ADR-011: MkDocs Setup",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-011-mkdocs-setup.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr012_module_layout",
+      "label": "ADR-012: 16-Module Dependency Layout",
+      "file_type": "document",
+      "source_file": "docs/decisions/ADR-012-module-layout.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "adr_template",
+      "label": "ADR Authoring Template",
+      "file_type": "document",
+      "source_file": "docs/decisions/adr-template.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "decisions_index",
+      "label": "ADR Log Index",
+      "file_type": "document",
+      "source_file": "docs/decisions/index.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prototype_readme",
+      "label": "Dashboard Prototype README",
+      "file_type": "document",
+      "source_file": "docs/ux/dashboard-prototype/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prototype_html",
+      "label": "Dashboard Prototype HTML (Editorial Ops Console)",
+      "file_type": "document",
+      "source_file": "docs/ux/dashboard-prototype/dashboard.html",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "bmad_bmb_config",
+      "label": "BMAD BMB Module Configuration",
+      "file_type": "document",
+      "source_file": "_bmad/bmb/config.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "bmad_bmm_config",
+      "label": "BMAD BMM Module Configuration",
+      "file_type": "document",
+      "source_file": "_bmad/bmm/config.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "bmad_cis_config",
+      "label": "BMAD CIS Module Configuration",
+      "file_type": "document",
+      "source_file": "_bmad/cis/config.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "bmad_core_config",
+      "label": "BMAD Core Module Configuration",
+      "file_type": "document",
+      "source_file": "_bmad/core/config.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": "Vuonglq01685",
+      "contributor": null
+    },
+    {
+      "id": "rationale_pep621_pyproject",
+      "label": "PEP 621 pyproject.toml as Single Metadata Source of Truth",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-001-pyproject-metadata.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_ruff_over_black_flake8",
+      "label": "Ruff Replaces black + flake8 + isort for Speed and Single-Tool Simplicity",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-002-ruff-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_mypy_strict_discipline",
+      "label": "mypy --strict Full Type Discipline on All Internal Modules",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-003-mypy-strict.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_branch_coverage_90pct",
+      "label": "Branch Coverage >= 90% as Global Fail-Under Threshold",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-004-pytest-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_deferred_package_data",
+      "label": "Defer package_data Until Content Trees Exist (Story 1.16+)",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-005-package-data-layout.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_ci_8cell_matrix",
+      "label": "8-Cell CI Matrix (Python 3.10-3.13 x Ubuntu + macOS) for Cross-Version Coverage",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-006-ci-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_e2e_graceful_skip",
+      "label": "Graceful Skip Pattern for E2E Until claude Binary Present",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-007-e2e-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_oidc_trusted_publishing",
+      "label": "PyPI OIDC Trusted Publishing — Zero Stored Secrets for Release",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-008-release-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_mkdocs_probe_skip",
+      "label": "Probe-and-Skip Pattern for docs.yml Until mkdocs.yml Exists",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-009-docs-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_boundary_validator_hook",
+      "label": "Pre-commit Module Boundary Enforcement via AST Walk (MODULE_DEPS Python Literal)",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_readthedocs_theme_deferred_material",
+      "label": "Stock readthedocs Theme — mkdocs-material Deferred Until First Non-ADR Doc Surface",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-011-mkdocs-setup.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_16module_dag",
+      "label": "16-Module Dependency DAG — Statically Enforced at Commit Time",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-012-module-layout.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-09",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_honest_signal_principle",
+      "label": "Honest Signal Principle — Never Emit Chronic Red Noise in CI",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-007-e2e-yml.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_nfr_maint5_adr_requirement",
+      "label": "NFR-MAINT-5: Every Load-Bearing Decision Recorded as ADR",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/index.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_uv_single_lockfile",
+      "label": "uv + uv.lock as Single Dependency Source of Truth",
+      "file_type": "rationale",
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-08",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_dashboard_editorial_design",
+      "label": "Dark Editorial Register Design System for Ops Console Dashboard",
+      "file_type": "rationale",
+      "source_file": "docs/ux/dashboard-prototype/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "rationale_bmad_v660_framework",
+      "label": "BMAD Version 6.6.0 Framework as Planning and Agent Generation System",
+      "file_type": "rationale",
+      "source_file": "_bmad/core/config.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-07",
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "adr001_pyproject_metadata",
+      "target": "rationale_pep621_pyproject",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-001-pyproject-metadata.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr001_pyproject_metadata",
+      "target": "adr008_release_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-001-pyproject-metadata.md",
+      "source_location": "line 50",
+      "weight": 1.0
+    },
+    {
+      "source": "adr002_ruff_config",
+      "target": "rationale_ruff_over_black_flake8",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-002-ruff-config.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr002_ruff_config",
+      "target": "adr010_pre_commit_config",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-002-ruff-config.md",
+      "source_location": "line 61",
+      "weight": 1.0
+    },
+    {
+      "source": "adr003_mypy_strict",
+      "target": "rationale_mypy_strict_discipline",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-003-mypy-strict.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr004_pytest_config",
+      "target": "rationale_branch_coverage_90pct",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-004-pytest-config.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr005_package_data_layout",
+      "target": "rationale_deferred_package_data",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-005-package-data-layout.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr006_ci_yml",
+      "target": "rationale_ci_8cell_matrix",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-006-ci-yml.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr006_ci_yml",
+      "target": "adr001_pyproject_metadata",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-006-ci-yml.md",
+      "source_location": "line 31",
+      "weight": 1.0
+    },
+    {
+      "source": "adr006_ci_yml",
+      "target": "adr008_release_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-006-ci-yml.md",
+      "source_location": "line 24",
+      "weight": 1.0
+    },
+    {
+      "source": "adr007_e2e_yml",
+      "target": "rationale_e2e_graceful_skip",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-007-e2e-yml.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr007_e2e_yml",
+      "target": "rationale_honest_signal_principle",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-007-e2e-yml.md",
+      "source_location": "line 7",
+      "weight": 1.0
+    },
+    {
+      "source": "adr008_release_yml",
+      "target": "rationale_oidc_trusted_publishing",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-008-release-yml.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr008_release_yml",
+      "target": "adr006_ci_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-008-release-yml.md",
+      "source_location": "line 32",
+      "weight": 1.0
+    },
+    {
+      "source": "adr009_docs_yml",
+      "target": "rationale_mkdocs_probe_skip",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-009-docs-yml.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr009_docs_yml",
+      "target": "adr011_mkdocs_setup",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-009-docs-yml.md",
+      "source_location": "line 53",
+      "weight": 1.0
+    },
+    {
+      "source": "adr010_pre_commit_config",
+      "target": "rationale_boundary_validator_hook",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr010_pre_commit_config",
+      "target": "rationale_uv_single_lockfile",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr010_pre_commit_config",
+      "target": "adr002_ruff_config",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": "line 17",
+      "weight": 1.0
+    },
+    {
+      "source": "adr010_pre_commit_config",
+      "target": "adr012_module_layout",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": "line 73",
+      "weight": 1.0
+    },
+    {
+      "source": "adr010_pre_commit_config",
+      "target": "adr006_ci_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": "line 190",
+      "weight": 1.0
+    },
+    {
+      "source": "adr011_mkdocs_setup",
+      "target": "rationale_readthedocs_theme_deferred_material",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-011-mkdocs-setup.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr011_mkdocs_setup",
+      "target": "adr009_docs_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-011-mkdocs-setup.md",
+      "source_location": "line 10",
+      "weight": 1.0
+    },
+    {
+      "source": "adr011_mkdocs_setup",
+      "target": "adr_template",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-011-mkdocs-setup.md",
+      "source_location": "line 67",
+      "weight": 1.0
+    },
+    {
+      "source": "adr012_module_layout",
+      "target": "rationale_16module_dag",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-012-module-layout.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "adr012_module_layout",
+      "target": "adr010_pre_commit_config",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-012-module-layout.md",
+      "source_location": "line 7",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr001_pyproject_metadata",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 13",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr002_ruff_config",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 14",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr003_mypy_strict",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 15",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr004_pytest_config",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 16",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr005_package_data_layout",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 17",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr006_ci_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 18",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr007_e2e_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 19",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr008_release_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 20",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr009_docs_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 21",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr010_pre_commit_config",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 22",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr011_mkdocs_setup",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 23",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr012_module_layout",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 24",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "adr_template",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 32",
+      "weight": 1.0
+    },
+    {
+      "source": "decisions_index",
+      "target": "rationale_nfr_maint5_adr_requirement",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/index.md",
+      "source_location": "line 3",
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prototype_readme",
+      "target": "dashboard_prototype_html",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ux/dashboard-prototype/README.md",
+      "source_location": "line 7",
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prototype_readme",
+      "target": "rationale_dashboard_editorial_design",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ux/dashboard-prototype/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "bmad_bmb_config",
+      "target": "rationale_bmad_v660_framework",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "_bmad/bmb/config.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "bmad_bmm_config",
+      "target": "rationale_bmad_v660_framework",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "_bmad/bmm/config.yaml",
+      "source_location": null,
+      "weight": 0.9
+    },
+    {
+      "source": "bmad_cis_config",
+      "target": "rationale_bmad_v660_framework",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "_bmad/cis/config.yaml",
+      "source_location": null,
+      "weight": 0.9
+    },
+    {
+      "source": "bmad_core_config",
+      "target": "rationale_bmad_v660_framework",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "_bmad/core/config.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "rationale_honest_signal_principle",
+      "target": "rationale_mkdocs_probe_skip",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/decisions/ADR-009-docs-yml.md",
+      "source_location": "line 11",
+      "weight": 0.85
+    },
+    {
+      "source": "rationale_honest_signal_principle",
+      "target": "rationale_e2e_graceful_skip",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/decisions/ADR-007-e2e-yml.md",
+      "source_location": "line 7",
+      "weight": 0.95
+    },
+    {
+      "source": "rationale_uv_single_lockfile",
+      "target": "rationale_pep621_pyproject",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md",
+      "source_location": null,
+      "weight": 0.75
+    },
+    {
+      "source": "adr011_mkdocs_setup",
+      "target": "adr001_pyproject_metadata",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "docs/decisions/ADR-011-mkdocs-setup.md",
+      "source_location": null,
+      "weight": 0.75
+    },
+    {
+      "source": "adr012_module_layout",
+      "target": "rationale_boundary_validator_hook",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-012-module-layout.md",
+      "source_location": "line 7",
+      "weight": 1.0
+    },
+    {
+      "source": "bmad_bmm_config",
+      "target": "bmad_bmb_config",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "_bmad/bmm/config.yaml",
+      "source_location": null,
+      "weight": 0.85
+    },
+    {
+      "source": "bmad_core_config",
+      "target": "bmad_bmb_config",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "_bmad/core/config.yaml",
+      "source_location": null,
+      "weight": 0.85
+    },
+    {
+      "source": "bmad_core_config",
+      "target": "bmad_cis_config",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "_bmad/core/config.yaml",
+      "source_location": null,
+      "weight": 0.85
+    },
+    {
+      "source": "rationale_nfr_maint5_adr_requirement",
+      "target": "adr_template",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/decisions/index.md",
+      "source_location": null,
+      "weight": 0.95
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "ci_quality_gate_pipeline",
+      "label": "CI Quality Gate Pipeline: ruff + mypy + pytest enforced across all ADRs",
+      "nodes": ["adr002_ruff_config", "adr003_mypy_strict", "adr004_pytest_config", "adr006_ci_yml"],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-006-ci-yml.md"
+    },
+    {
+      "id": "pre_commit_hook_chain",
+      "label": "Pre-commit Hook Chain: ruff + mypy + boundary-validator + specialist-validator",
+      "nodes": ["adr010_pre_commit_config", "adr002_ruff_config", "adr012_module_layout"],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/decisions/ADR-010-pre-commit-config.md"
+    },
+    {
+      "id": "graceful_skip_pattern_ci",
+      "label": "Graceful Skip / Honest Signal Pattern Applied Across E2E and Docs Workflows",
+      "nodes": ["rationale_honest_signal_principle", "adr007_e2e_yml", "adr009_docs_yml"],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/decisions/ADR-009-docs-yml.md"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -33,6 +33,5 @@ def _is_allowed(name: str) -> bool:
     if name in ENV_EXACT_ALLOWLIST:
         return True
     return any(
-        name.startswith(prefix) and len(name) > len(prefix)
-        for prefix in ENV_PREFIX_ALLOWLIST
+        name.startswith(prefix) and len(name) > len(prefix) for prefix in ENV_PREFIX_ALLOWLIST
     )

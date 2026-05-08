@@ -37,9 +37,7 @@ def sanitize_mapping(obj: Mapping[str, object]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in obj.items():
         if not isinstance(key, str):
-            raise TypeError(
-                f"sanitize_mapping requires str keys; got {type(key).__name__}"
-            )
+            raise TypeError(f"sanitize_mapping requires str keys; got {type(key).__name__}")
         result[key] = _sanitize_value(value, seen)
     return result
 
@@ -55,9 +53,7 @@ def _sanitize_value(value: object, seen: set[int]) -> object:
         nested: dict[str, object] = {}
         for key, val in value.items():
             if not isinstance(key, str):
-                raise TypeError(
-                    f"sanitize_mapping requires str keys; got {type(key).__name__}"
-                )
+                raise TypeError(f"sanitize_mapping requires str keys; got {type(key).__name__}")
             nested[key] = _sanitize_value(val, new_seen)
         return nested
     if isinstance(value, list):

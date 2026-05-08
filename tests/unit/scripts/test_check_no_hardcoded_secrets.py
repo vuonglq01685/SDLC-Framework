@@ -34,9 +34,7 @@ class TestScanFile:
 
     def test_noqa_with_em_dash_justification_suppresses(self, tmp_path: Path) -> None:
         target = tmp_path / "ok.py"
-        target.write_text(
-            f'TOKEN = "{SK_KEY}"  # noqa: secret — legacy fixture for replay\n'
-        )
+        target.write_text(f'TOKEN = "{SK_KEY}"  # noqa: secret — legacy fixture for replay\n')
         assert guard._scan_file(target) == []
 
     def test_noqa_without_justification_flagged(self, tmp_path: Path) -> None:
@@ -108,13 +106,17 @@ class TestExpandTargets:
 
 @pytest.mark.unit
 class TestMain:
-    def test_clean_target_returns_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_clean_target_returns_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         target = tmp_path / "clean.py"
         target.write_text('x = "ok"\n')
         assert guard.main([str(target)]) == 0
         assert capsys.readouterr().out == ""
 
-    def test_secret_target_returns_one(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_secret_target_returns_one(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         target = tmp_path / "leak.py"
         target.write_text(f'TOKEN = "{SK_KEY}"\n')
         assert guard.main([str(target)]) == 1
