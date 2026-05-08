@@ -87,6 +87,12 @@ required-imports = ["from __future__ import annotations"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
     "PLR2004",  # magic numbers in tests are fine
+    "PLC0415",  # deferred imports inside functions needed for POSIX-only modules skipped on Windows
+    "PLW1510",  # subprocess.run check=False is intentional in test helpers
+]
+"src/sdlc/config/secrets.py" = [
+    "C901",     # _sanitize_value complexity — pre-existing (Story 1.8); acceptable for recursive sanitizer
+    "PLR0911",  # too many returns — pre-existing (Story 1.8); acceptable for recursive sanitizer
 ]
 
 [tool.ruff.format]
@@ -114,13 +120,28 @@ module = "tests.*"
 disallow_untyped_defs = false
 disallow_untyped_decorators = false
 
-# sdlc.concurrency is POSIX-only. sys.platform guards make code after the
-# ImportError raise (locks.py) and inside "if sys.platform != 'win32':" blocks
-# (__init__.py) appear "unreachable" when mypy runs on Windows.
-# warn_unreachable is disabled only for these two files; all strict checks hold.
+# sdlc.concurrency and sdlc.state.atomic are POSIX-only. sys.platform guards
+# make code after the ImportError raise (locks.py, atomic.py) and inside
+# "if sys.platform != 'win32':" blocks (__init__.py) appear "unreachable" when
+# mypy runs on Windows. warn_unreachable is disabled only for these files;
+# all strict checks hold.
 [[tool.mypy.overrides]]
-module = ["sdlc.concurrency", "sdlc.concurrency.locks"]
+module = [
+    "sdlc.concurrency",
+    "sdlc.concurrency.locks",
+    "sdlc.state",
+]
 warn_unreachable = false
+
+# sdlc.state.atomic is POSIX-only and raises ImportError on Windows; mypy on
+# Windows still parses the module body and flags POSIX-only attributes from
+# fcntl as missing. Narrow the suppression to the specific error codes that
+# fire from POSIX-only paths instead of disabling type-checking wholesale.
+# All strict checks (disallow_untyped_defs, disallow_any_generics, etc.) still
+# hold; only platform-conditional resolution is suppressed.
+[[tool.mypy.overrides]]
+module = "sdlc.state.atomic"
+disable_error_code = ["unreachable", "attr-defined", "no-any-return"]
 
 # =============================================================================
 # Pytest + Coverage (ADR-004)
@@ -144,6 +165,7 @@ markers = [
     "unit: fast, isolated unit tests",
     "integration: multi-module or boundary-crossing tests",
     "property: hypothesis-driven property and invariant tests",
+    "chaos: POSIX-only kill-point chaos tests (Story 1.10)",
     "benchmark: performance and timing benchmarks (pytest-benchmark)",
     "e2e: full end-to-end scenarios spanning the CLI + filesystem",
 ]
@@ -156,6 +178,12 @@ omit = [
     # the test suite on Linux CI (ubuntu-latest, Story 1.3). Coverage is not
     # measured here because the module cannot be imported on the Windows dev host.
     "src/sdlc/concurrency/locks.py",
+    # POSIX-only; fcntl + parent-dir fsync require Linux/macOS. Chaos tests run
+    # on ubuntu-latest CI. Not importable on the Windows dev host.
+    "src/sdlc/state/atomic.py",
+    # Platform-conditional import hub: the "if sys.platform != 'win32'" branch
+    # is unreachable on Windows. Covered by Linux CI.
+    "src/sdlc/state/__init__.py",
 ]
 branch = true
 # parallel = true intentionally omitted: single-process pytest does not need it.

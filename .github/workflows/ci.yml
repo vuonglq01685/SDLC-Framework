@@ -62,3 +62,27 @@ jobs:
           path: coverage.xml
           retention-days: 14
           if-no-files-found: ignore  # coverage.xml may not exist on early failure
+
+  chaos-tests:
+    name: Chaos tests (kill points) — ubuntu-latest only
+    needs: quality-gates  # don't burn 15min runner time if lint/type/unit gate fails
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Chaos tests (10 kill points × 100 seeds)
+        run: uv run pytest -m chaos --no-cov -q

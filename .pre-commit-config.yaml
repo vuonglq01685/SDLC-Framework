@@ -54,6 +54,17 @@ repos:
         files: ^(src/sdlc/|tests/|scripts/).*\.py$
         pass_filenames: true
 
+  # ----- state-write protocol validator (Story 1.10 / AC3 / Architecture §493) -----
+  - repo: local
+    hooks:
+      - id: state-write-protocol-validator
+        name: state write protocol validator (Architecture §493 + Pattern §6)
+        entry: uv run python scripts/check_no_direct_state_writes.py
+        language: system
+        types: [python]
+        files: ^src/sdlc/.*\.py$
+        pass_filenames: true
+
   # ----- secret-hardcode validator (Story 1.8 / NFR-SEC-1) -----
   - repo: local
     hooks:

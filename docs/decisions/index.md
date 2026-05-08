@@ -22,8 +22,9 @@ alternatives, consequences, and a revisit-by date).
 | [010](ADR-010-pre-commit-config.md) | pre-commit config | 1.4 | Accepted |
 | [011](ADR-011-mkdocs-setup.md) | mkdocs setup | 1.5 | Accepted |
 | [012](ADR-012-module-layout.md) | 16-module layout | 1.4 (back-filled in 1.5) | Accepted |
+| [013](ADR-013-atomic-state-write-protocol.md) | atomic state write protocol | 1.10 | Accepted |
 
-Note: ADR-013 (wire-format v1 lock) is owned by Story 1.21 and is intentionally absent
+Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
 until then.
 
 ## Authoring a new ADR

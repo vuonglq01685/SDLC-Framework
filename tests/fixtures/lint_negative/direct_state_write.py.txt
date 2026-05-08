@@ -1,0 +1,18 @@
+# Fixture file for test_state_write_validator.py — NOT a .py file (outside linter scope)
+# This file contains patterns that MUST be flagged by check_no_direct_state_writes.py.
+
+import os
+from pathlib import Path
+
+# Pattern 1: open with write mode on state.json path
+f = open("path/to/state.json", "w")
+
+# Pattern 2: Path.write_text on state.json
+Path("state.json").write_text("content")
+
+# Pattern 3: os.replace with state.json destination
+tmp = "state.json.tmp"
+os.replace(tmp, "state.json")
+
+# Pattern 4: open with wb mode
+g = open("state_path", "wb")

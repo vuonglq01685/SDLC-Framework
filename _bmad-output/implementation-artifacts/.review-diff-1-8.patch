@@ -5,7 +5,7 @@ index e72d9de..4b70c24 100644
 @@ -54,6 +54,17 @@ repos:
          files: ^(src/sdlc/|tests/|scripts/).*\.py$
          pass_filenames: true
- 
+
 +  # ----- secret-hardcode validator (Story 1.8 / NFR-SEC-1) -----
 +  - repo: local
 +    hooks:
@@ -30,7 +30,7 @@ index 2e4bad0..07e1a2a 100644
      "pydantic>=2,<3",   # cap: pydantic 2→3 will introduce schema breaks (v3 is on the roadmap)
 +    "pyyaml>=6,<7",     # cap: pyyaml 6→7 has not been released; defensive guard against future major
  ]
- 
+
  # [project.scripts]
 @@ -26,6 +27,7 @@ dev = [
      "pre-commit>=4.0.0,<5",
@@ -38,7 +38,7 @@ index 2e4bad0..07e1a2a 100644
      "hypothesis>=6.100,<7",
 +    "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
  ]
- 
+
  [build-system]
 diff --git a/scripts/check_no_hardcoded_secrets.py b/scripts/check_no_hardcoded_secrets.py
 new file mode 100644
