@@ -146,9 +146,7 @@ def count_files(path: Path) -> int:
     return count
 
 
-def cleanup_directories(
-    bmad_dir: str, dirs_to_remove: list, verbose: bool = False
-) -> tuple:
+def cleanup_directories(bmad_dir: str, dirs_to_remove: list, verbose: bool = False) -> tuple:
     """Remove specified directories under bmad_dir.
 
     Returns:
@@ -230,9 +228,7 @@ def main():
         )
 
     # Remove directories
-    removed, not_found, total_files = cleanup_directories(
-        bmad_dir, dirs_to_remove, args.verbose
-    )
+    removed, not_found, total_files = cleanup_directories(bmad_dir, dirs_to_remove, args.verbose)
 
     # Build result
     result = {

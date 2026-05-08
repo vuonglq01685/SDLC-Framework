@@ -143,9 +143,7 @@ def scan_skills(
             # both. Emit one entry per surface so the caller can group cleanly.
             surfaces_found = [k for k in SURFACE_KEYS if k in data]
             if not surfaces_found:
-                errors.append(
-                    f"no [agent] or [workflow] block in {customize_toml}"
-                )
+                errors.append(f"no [agent] or [workflow] block in {customize_toml}")
                 continue
             for surface in surfaces_found:
                 entry = dict(entry_base)
@@ -211,9 +209,7 @@ def main(argv: list[str]) -> int:
         return 2
 
     primary = (
-        Path(args.skills_root).expanduser().resolve()
-        if args.skills_root
-        else default_skills_root()
+        Path(args.skills_root).expanduser().resolve() if args.skills_root else default_skills_root()
     )
     extras = [Path(p).expanduser().resolve() for p in args.extra_root]
     # Deduplicate in order of appearance.

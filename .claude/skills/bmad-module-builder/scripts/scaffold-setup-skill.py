@@ -17,9 +17,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Scaffold a BMad module setup skill from template"
-    )
+    parser = argparse.ArgumentParser(description="Scaffold a BMad module setup skill from template")
     parser.add_argument(
         "--target-dir",
         required=True,
@@ -45,9 +43,7 @@ def main() -> int:
         required=True,
         help="Path to the generated module-help.csv content file",
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Print progress to stderr"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
     args = parser.parse_args()
 
     template_dir = Path(__file__).resolve().parent.parent / "assets" / "setup-skill-template"
@@ -105,9 +101,7 @@ def main() -> int:
     (target / "assets" / "module-help.csv").write_text(csv_content, encoding="utf-8")
 
     # Collect file list
-    files_created = sorted(
-        str(p.relative_to(target)) for p in target.rglob("*") if p.is_file()
-    )
+    files_created = sorted(str(p.relative_to(target)) for p in target.rglob("*") if p.is_file())
 
     result = {
         "status": "success",

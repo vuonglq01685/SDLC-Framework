@@ -17,7 +17,9 @@ def make_skill_dir(tmp: Path, name: str = "my-skill") -> Path:
     """Create a minimal skill directory with SKILL.md and assets/module.yaml."""
     skill_dir = tmp / name
     skill_dir.mkdir(parents=True, exist_ok=True)
-    (skill_dir / "SKILL.md").write_text("---\nname: my-skill\ndescription: A test skill\n---\n# My Skill\n")
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: A test skill\n---\n# My Skill\n"
+    )
     assets = skill_dir / "assets"
     assets.mkdir(exist_ok=True)
     (assets / "module.yaml").write_text(
@@ -35,9 +37,12 @@ def run_scaffold(skill_dir: Path, **kwargs) -> tuple[int, dict]:
     cmd = [
         sys.executable,
         str(SCRIPT),
-        "--skill-dir", str(skill_dir),
-        "--module-code", kwargs.get("module_code", "tst"),
-        "--module-name", kwargs.get("module_name", "Test Module"),
+        "--skill-dir",
+        str(skill_dir),
+        "--module-code",
+        kwargs.get("module_code", "tst"),
+        "--module-name",
+        kwargs.get("module_name", "Test Module"),
     ]
     if "marketplace_dir" in kwargs:
         cmd.extend(["--marketplace-dir", str(kwargs["marketplace_dir"])])
@@ -78,14 +83,10 @@ def test_marketplace_json_content():
         tmp = Path(tmp)
         skill_dir = make_skill_dir(tmp, name="bmad-exc-tools")
 
-        code, data = run_scaffold(
-            skill_dir, module_code="exc", module_name="Excalidraw Tools"
-        )
+        code, data = run_scaffold(skill_dir, module_code="exc", module_name="Excalidraw Tools")
         assert code == 0
 
-        marketplace = json.loads(
-            (tmp / ".claude-plugin" / "marketplace.json").read_text()
-        )
+        marketplace = json.loads((tmp / ".claude-plugin" / "marketplace.json").read_text())
         assert marketplace["name"] == "bmad-exc"
         plugin = marketplace["plugins"][0]
         assert plugin["name"] == "bmad-exc"
@@ -166,10 +167,14 @@ def test_missing_skill_dir():
         nonexistent = tmp / "nonexistent-skill"
 
         cmd = [
-            sys.executable, str(SCRIPT),
-            "--skill-dir", str(nonexistent),
-            "--module-code", "tst",
-            "--module-name", "Test",
+            sys.executable,
+            str(SCRIPT),
+            "--skill-dir",
+            str(nonexistent),
+            "--module-code",
+            "tst",
+            "--module-name",
+            "Test",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         assert result.returncode == 2
@@ -187,10 +192,14 @@ def test_missing_skill_md():
         (skill_dir / "assets" / "module.yaml").write_text("code: tst\n")
 
         cmd = [
-            sys.executable, str(SCRIPT),
-            "--skill-dir", str(skill_dir),
-            "--module-code", "tst",
-            "--module-name", "Test",
+            sys.executable,
+            str(SCRIPT),
+            "--skill-dir",
+            str(skill_dir),
+            "--module-code",
+            "tst",
+            "--module-name",
+            "Test",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         assert result.returncode == 2
@@ -208,10 +217,14 @@ def test_missing_module_yaml():
         (skill_dir / "SKILL.md").write_text("---\nname: test\n---\n")
 
         cmd = [
-            sys.executable, str(SCRIPT),
-            "--skill-dir", str(skill_dir),
-            "--module-code", "tst",
-            "--module-name", "Test",
+            sys.executable,
+            str(SCRIPT),
+            "--skill-dir",
+            str(skill_dir),
+            "--module-code",
+            "tst",
+            "--module-name",
+            "Test",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         assert result.returncode == 2
@@ -234,7 +247,9 @@ def test_custom_marketplace_dir():
         # Should be at custom location, not default parent
         assert (custom_dir / ".claude-plugin" / "marketplace.json").is_file()
         assert not (tmp / ".claude-plugin" / "marketplace.json").exists()
-        assert data["marketplace_json"] == str((custom_dir / ".claude-plugin" / "marketplace.json").resolve())
+        assert data["marketplace_json"] == str(
+            (custom_dir / ".claude-plugin" / "marketplace.json").resolve()
+        )
 
 
 if __name__ == "__main__":

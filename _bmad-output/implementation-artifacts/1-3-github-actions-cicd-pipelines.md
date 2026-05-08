@@ -699,4 +699,3 @@ _Acceptance: all AC1–AC4 PASS (no spec deviations). Findings below are quality
 ### Dismissed (8) — false positives or design choices
 
 Includes: "uv.lock supply-chain hash verification missing" (uv.lock IS hash-pinned and `--frozen` verifies); Python patch-version pinning (over-specification); cron DST drift (Vietnam/ICT no DST); `if-no-files-found: ignore` on `coverage.xml` (intentional design); top-level vs job-level permissions defensive duplication in docs.yml (harmless); positive INFO confirmations (YAML hygiene clean, no shell injection, all AC PASS).
-

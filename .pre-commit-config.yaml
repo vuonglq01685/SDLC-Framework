@@ -1,0 +1,82 @@
+# Pre-commit configuration for sdlc-framework (Story 1.4 / ADR-010).
+# Run locally:  uv run pre-commit run --all-files
+# Install hook: uv run pre-commit install (one-time per clone)
+#
+# Hook chain order (mirrored from CI's ci.yml lint -> format -> type ->
+# custom validators sequence): ruff-check -> ruff-format -> mypy ->
+# boundary-validator -> specialist-validator -> hygiene hooks.
+#
+# IMPORTANT: rev: v0.15.12 on ruff-pre-commit MUST stay in sync with
+# the ruff version locked in uv.lock (resolved from ruff>=0.6.0 in Story
+# 1.2). If uv.lock advances ruff, bump this rev in lockstep (ADR-010
+# Consequences).
+
+minimum_pre_commit_version: '4.0.0'
+
+default_language_version:
+  python: python3.12   # matches CI's release/docs/e2e single-cell choice
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+repos:
+  # ----- ruff (lint + format) -----
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12   # MUST match the ruff version locked by uv.lock (Story 1.2)
+    hooks:
+      - id: ruff-check
+        args: [--exit-non-zero-on-fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ----- mypy --strict (local hook to share uv.lock-pinned mypy) -----
+  # Rationale for language: system + uv run: avoids a separate pre-commit-managed
+  # venv that would diverge from uv.lock's pinned mypy version (ADR-010 Decision 3).
+  - repo: local
+    hooks:
+      - id: mypy-strict
+        name: mypy --strict (src/)
+        entry: uv run mypy --strict src/
+        language: system
+        types: [python]
+        pass_filenames: false   # mypy walks src/ from its project root
+        require_serial: true    # mypy is not safe to run multi-process per-file
+
+  # ----- module-boundary validator + LOC cap (this story's main artifact) -----
+  - repo: local
+    hooks:
+      - id: boundary-validator
+        name: module boundaries + LOC cap (Architecture §1052-§1112, NFR-MAINT-3)
+        entry: uv run python scripts/check_module_boundaries.py
+        language: system
+        types: [python]
+        files: ^(src/sdlc/|tests/|scripts/).*\.py$
+        pass_filenames: true
+
+  # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
+  - repo: local
+    hooks:
+      - id: specialist-validator
+        name: specialist frontmatter cross-ref (placeholder, see ADR-010)
+        entry: uv run python scripts/validate_specialists.py
+        language: system
+        pass_filenames: false
+        always_run: true        # placeholder: run on every commit even if no agents/ files changed
+        verbose: false
+
+  # ----- standard hygiene -----
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: ^(_bmad/|_bmad-output/|\.claude/)
+      - id: check-toml
+        exclude: ^(_bmad/|_bmad-output/|\.claude/)
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]   # 500KB cap; revisit if golden-corpus fixtures push past
+      - id: mixed-line-ending
+        args: [--fix=lf]

@@ -40,16 +40,10 @@ def main() -> int:
         default=None,
         help="Directory to create .claude-plugin/ in (defaults to skill-dir parent)",
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Print progress to stderr"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
     args = parser.parse_args()
 
-    template_dir = (
-        Path(__file__).resolve().parent.parent
-        / "assets"
-        / "standalone-module-template"
-    )
+    template_dir = Path(__file__).resolve().parent.parent / "assets" / "standalone-module-template"
     skill_dir = Path(args.skill_dir).resolve()
     marketplace_dir = (
         Path(args.marketplace_dir).resolve() if args.marketplace_dir else skill_dir.parent
@@ -80,10 +74,12 @@ def main() -> int:
 
     if not (skill_dir / "assets" / "module.yaml").is_file():
         print(
-            json.dumps({
-                "status": "error",
-                "message": f"assets/module.yaml not found in {skill_dir} — the LLM must write it before running this script",
-            }),
+            json.dumps(
+                {
+                    "status": "error",
+                    "message": f"assets/module.yaml not found in {skill_dir} — the LLM must write it before running this script",
+                }
+            ),
             file=sys.stdout,
         )
         return 2
@@ -166,9 +162,7 @@ def main() -> int:
 
     if args.verbose:
         print(f"Writing marketplace.json to {marketplace_json}", file=sys.stderr)
-    marketplace_json.write_text(
-        json.dumps(marketplace_data, indent=2) + "\n", encoding="utf-8"
-    )
+    marketplace_json.write_text(json.dumps(marketplace_data, indent=2) + "\n", encoding="utf-8")
     files_created.append(".claude-plugin/marketplace.json")
 
     # --- Result ---
