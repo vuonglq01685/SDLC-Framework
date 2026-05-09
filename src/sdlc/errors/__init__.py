@@ -11,6 +11,7 @@ from sdlc.errors.base import (
     HookError,
     IdsError,
     JournalError,
+    MockMissError,
     SchemaError,
     SdlcError,
     SignoffError,
@@ -20,7 +21,7 @@ from sdlc.errors.base import (
 EXIT_CODE_MAP: Final[Mapping[str, int]] = MappingProxyType(SdlcError.EXIT_CODE_MAP)
 
 # Explicit semantic order per Story 1.6 AC6 (root → architecture-canonical 8 →
-# story-1.6 IdsError addition → EXIT_CODE_MAP); do NOT alphabetize.
+# story-1.6 IdsError addition → MockMissError → EXIT_CODE_MAP); do NOT alphabetize.
 __all__ = (  # noqa: RUF022
     "SdlcError",
     "StateError",
@@ -32,5 +33,6 @@ __all__ = (  # noqa: RUF022
     "AdoptError",
     "ConfigError",
     "IdsError",
+    "MockMissError",
     "EXIT_CODE_MAP",
 )

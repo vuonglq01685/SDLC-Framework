@@ -72,3 +72,13 @@ class ConfigError(SdlcError):
 
 class IdsError(SdlcError):
     code: ClassVar[str] = "ERR_IDS"
+
+
+class MockMissError(DispatchError):
+    """MockAIRuntime missing-fixture or malformed-fixture error.
+
+    Raised at construction time (fixtures_dir doesn't exist, malformed YAML)
+    and at dispatch time (no fixture matches (workflow_step, prompt_hash)).
+    Inherits ERR_DISPATCH code so abstraction-adequacy tests propagate it
+    identically to a real Claude dispatch failure.
+    """

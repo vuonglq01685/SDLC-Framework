@@ -1,10 +1,10 @@
 # generated: 2026-05-07
-# last_updated: 2026-05-09 (create-story: 1-18 backlog → ready-for-dev)
+# last_updated: 2026-05-09 (create-story: 1-21 backlog → ready-for-dev)
 # project: SDLC-Framework
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: {project-root}/_bmad-output/implementation-artifacts
-# last_action: "create-story 1-18-cli-sdlc-trace-replay-logs (status: backlog → ready-for-dev)"
+# last_action: "create-story 1-21-gate-wire-format-v1-lock-ceremony (status: backlog → ready-for-dev)"
 
 # STATUS DEFINITIONS:
 # ==================
@@ -36,9 +36,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-09 (create-story: 1-18 backlog → ready-for-dev)"
+last_updated: "2026-05-09 (code-review: 1-13 review → done)"
 project: SDLC-Framework
-last_action: "create-story 1-18-cli-sdlc-trace-replay-logs (status: backlog → ready-for-dev)"
+last_action: "code-review 1-13-airuntime-abc-mock-airuntime (status: review → done; 18 patches applied)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -60,15 +60,15 @@ development_status:
   1-10-atomic-write-protocol-chaos-tests: done
   1-11-append-only-journal-property-test: done
   1-12-state-projection-from-journal-replay-property-test: done
-  1-13-airuntime-abc-mock-airuntime: ready-for-dev
+  1-13-airuntime-abc-mock-airuntime: done
   1-14-behavioral-conformance-abstraction-adequacy-ci-test: ready-for-dev
   1-15-engine-scanner-skeleton: ready-for-dev
   1-16-cli-sdlc-init-greenfield: ready-for-dev
   1-17-cli-sdlc-scan-status-accessibility-flags: ready-for-dev
   1-18-cli-sdlc-trace-replay-logs: ready-for-dev
-  1-19-migration-framework-major-version-refusal: backlog
-  1-20-recovery-sdlc-rebuild-state: backlog
-  1-21-gate-wire-format-v1-lock-ceremony: backlog
+  1-19-migration-framework-major-version-refusal: ready-for-dev
+  1-20-recovery-sdlc-rebuild-state: ready-for-dev
+  1-21-gate-wire-format-v1-lock-ceremony: ready-for-dev
   epic-1-retrospective: optional
 
   # ============================================================

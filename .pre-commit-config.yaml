@@ -76,6 +76,20 @@ repos:
         files: ^src/sdlc/.*\.py$
         pass_filenames: true
 
+  # ----- runtime ABC-only import validator (Story 1.13 / AC4 / Architecture §1106) -----
+  - repo: local
+    hooks:
+      - id: runtime-import-via-abc-validator
+        name: runtime ABC-only import validator (Architecture §1106)
+        entry: uv run python scripts/check_runtime_import_via_abc.py
+        language: system
+        types: [python]
+        # Scope is engine/dispatcher (guarded) + cli/ (explicit permissive). Other
+        # src/sdlc/ modules are governed by MODULE_DEPS["runtime"].forbidden_from
+        # via the boundary-validator above; running this hook on them is a no-op.
+        files: ^src/sdlc/(engine|dispatcher|cli)/.*\.py$
+        pass_filenames: true
+
   # ----- secret-hardcode validator (Story 1.8 / NFR-SEC-1) -----
   - repo: local
     hooks:

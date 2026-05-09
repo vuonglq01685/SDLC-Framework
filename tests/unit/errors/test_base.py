@@ -12,6 +12,7 @@ from sdlc.errors import (
     HookError,
     IdsError,
     JournalError,
+    MockMissError,
     SchemaError,
     SdlcError,
     SignoffError,
@@ -156,3 +157,25 @@ def test_to_envelope_is_json_serializable(cls: type[SdlcError]) -> None:
     err = cls("oops", details={"n": 42})
     envelope = err.to_envelope()
     json.dumps(envelope)  # must not raise
+
+
+@pytest.mark.unit
+def test_mock_miss_error_inherits_dispatch_error_code() -> None:
+    e = MockMissError("test fixture missing")
+    assert e.code == "ERR_DISPATCH"
+    assert e.exit_code == 2
+    assert e.to_envelope()["error"]["code"] == "ERR_DISPATCH"
+
+
+@pytest.mark.unit
+def test_mock_miss_error_is_dispatch_error() -> None:
+    e = MockMissError("test")
+    assert isinstance(e, DispatchError)
+    assert isinstance(e, SdlcError)
+
+
+@pytest.mark.unit
+def test_mock_miss_error_accepts_details() -> None:
+    e = MockMissError("miss", details={"step": "fixture_lookup", "workflow_step": "sdlc-epics"})
+    assert e.details["step"] == "fixture_lookup"
+    assert e.details["workflow_step"] == "sdlc-epics"

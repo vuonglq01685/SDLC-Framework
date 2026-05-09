@@ -3,7 +3,7 @@ Author: Lâm Quốc Vương <vuonglq01685@gmail.com>
 Date:   Fri May 8 22:37:07 2026 +0700
 
     feat: implement append-only journal with property tests and linter (Story 1.11)
-    
+
     - src/sdlc/journal/writer.py: POSIX-only 7-step O_APPEND protocol (flock +
       fsync + monotonic_seq validation) with async/sync dual API
     - src/sdlc/journal/reader.py: cross-platform iter_entries + iter_after with
@@ -26,7 +26,7 @@ index f926e64..645ba49 100644
 @@ -65,6 +65,17 @@ repos:
          files: ^src/sdlc/.*\.py$
          pass_filenames: true
- 
+
 +  # ----- journal append-only validator (Story 1.11 / AC3 / FR31 / Architecture §493) -----
 +  - repo: local
 +    hooks:
@@ -48,7 +48,7 @@ index 66ef87c..b778f9a 100644
 @@ -143,6 +143,18 @@ warn_unreachable = false
  module = "sdlc.state.atomic"
  disable_error_code = ["unreachable", "attr-defined", "no-any-return"]
- 
+
 +# sdlc.journal.writer is POSIX-only and raises ImportError on Windows; mypy on
 +# Windows still parses the module body and flags POSIX-only attributes from
 +# fcntl/os as missing. Narrow suppression mirrors sdlc.state.atomic pattern (ADR-014).
@@ -807,7 +807,7 @@ Author: Lâm Quốc Vương <vuonglq01685@gmail.com>
 Date:   Fri May 8 22:37:07 2026 +0700
 
     feat: implement append-only journal with property tests and linter (Story 1.11)
-    
+
     - src/sdlc/journal/writer.py: POSIX-only 7-step O_APPEND protocol (flock +
       fsync + monotonic_seq validation) with async/sync dual API
     - src/sdlc/journal/reader.py: cross-platform iter_entries + iter_after with

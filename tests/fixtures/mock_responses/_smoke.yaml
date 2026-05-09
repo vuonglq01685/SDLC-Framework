@@ -1,0 +1,8 @@
+# Smoke fixture for MockAIRuntime construction tests.
+# workflow_step="_smoke", prompt="hello".
+# prompt_hash for "hello" = sha256(b"hello") = sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824":
+  output_text: "hello back"
+  tool_calls: []
+  tokens_in: 1
+  tokens_out: 2

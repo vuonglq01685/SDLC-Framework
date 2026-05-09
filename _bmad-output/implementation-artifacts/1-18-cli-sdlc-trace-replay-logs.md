@@ -31,7 +31,7 @@ so that the full audit chain is interrogable from the CLI without parsing JSONL 
    - `entry.target_id == <task-id-raw>` (exact match), OR
    - `entry.kind == "agent_dispatch"` AND `entry.payload.get("task_id") == <task-id-raw>` (forward-compat for Story 2x's agent_dispatch entries that carry task_id in payload, NOT target_id), OR
    - `entry.kind == "hook_invocation"` AND `entry.payload.get("target_id") == <task-id-raw>` (forward-compat for hook entries scoped to a different `target_id` than the hook itself).
-   
+
    The predicate is implemented as a private helper `_event_affects_task(entry: JournalEntry, task_id: str) -> bool` — small, pure, unit-testable. Future stories extend the predicate; v1.18 covers the three cases above.
 6. **Agent runs read**: if `<repo_root>/03-Implementation/agent_runs.jsonl` exists (Architecture §479; Story 2x writes this, but the file may be absent on a fresh project), the command reads each line, parses as JSON, and includes any record where `record.get("target_id") == <task-id-raw>` OR `record.get("task_id") == <task-id-raw>` in the chronological output. Malformed lines (`json.JSONDecodeError`) are SKIPPED with a `_logger.warning("malformed agent_runs line at %s:%d: %s — skipping", path, lineno, exc)` — same permissive-reader posture as `journal/reader.py:45-50`. Missing file is silently treated as "no agent runs to display" (NOT an error — Story 2x hasn't shipped the writer yet at v1.18 time). For v1.18 there is NO contract module for agent_runs.jsonl entries — read as raw `dict[str, object]` and display selected fields (`ts`, `agent`, `target_id`, `stage`, `outcome`, `duration_ms`); the Story 2A/2B authors lock the schema later. Document this in dev notes as a known forward-compat seam.
 7. **Chronological merge + sort**: the journal entries (already sorted by `monotonic_seq`) and the agent runs (sorted by `ts` parsed via `datetime.fromisoformat(ts.replace("Z", "+00:00"))` — same 3.10-compat trick as Story 1.17) are MERGED into a single chronological stream sorted by `ts`. Tie-break: when two events share an identical `ts` string (rare but possible at millisecond resolution), the journal entry sorts FIRST by `monotonic_seq`; agent runs without an explicit seq sort AFTER the journal entry by stable insertion order. This determinism matters for replay tests.
@@ -114,7 +114,7 @@ so that the full audit chain is interrogable from the CLI without parsing JSONL 
    - `"42"` → `(42, 42)` (single line)
    - `"42-50"` → `(42, 50)` (inclusive range; `50` IS read)
    - `"42-42"` → `(42, 42)` (degenerate range; allowed)
-   
+
    Rejected forms (raise `JournalError("invalid replay spec: ...")` mapped to `ERR_USER_INPUT` exit 1 via `emit_error`):
    - Empty string `""`
    - Non-numeric: `"abc"`, `"1a"`, `"-5"`, `"5-"`, `"-"`
