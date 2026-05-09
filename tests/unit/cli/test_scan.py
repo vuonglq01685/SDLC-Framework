@@ -291,17 +291,20 @@ def test_append_scan_journal_entry_calls_append_sync(tmp_path: Path) -> None:
 
 
 def test_scan_emits_error_when_state_read_raises_state_error(bootstrapped: Path) -> None:
-    """A StateError from sdlc.state.read_state surfaces as ERR_INFRASTRUCTURE (exit 3)."""
+    """A StateError from read_state_or_recover surfaces as ERR_STATE_MALFORMED (exit 2)."""
     from sdlc.errors import StateError
 
     ctx = _make_ctx()
     with (
         unittest.mock.patch("sdlc.cli.scan._get_repo_root_or_cwd", return_value=bootstrapped),
-        unittest.mock.patch("sdlc.state.read_state", side_effect=StateError("disk failure")),
+        unittest.mock.patch(
+            "sdlc.state.read_state_or_recover",
+            side_effect=StateError("disk failure", details={"reason": "schema"}),
+        ),
         pytest.raises(typer.Exit) as exc_info,
     ):
         run_scan(ctx=ctx)
-    assert exc_info.value.exit_code == 3
+    assert exc_info.value.exit_code == 2
 
 
 def test_scan_emits_error_when_engine_scan_raises_state_error(bootstrapped: Path) -> None:

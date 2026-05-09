@@ -206,3 +206,29 @@ def test_migrate_command_help_text_includes_version(
         version_str = cmd.name.replace("migrate-v", "")
         doc = (cmd.help or "") or (getattr(cmd.callback, "__doc__", "") or "")
         assert version_str in doc, f"{cmd.name} docstring/help missing version {version_str!r}"
+
+
+@pytest.mark.unit
+def test_main_app_rebuild_state_command_is_registered() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "rebuild-state" in result.stdout
+
+
+@pytest.mark.unit
+def test_main_app_rebuild_state_short_help_text() -> None:
+    result = runner.invoke(app, ["rebuild-state", "--help"])
+    assert result.exit_code == 0
+    # The command name "rebuild-state" trivially produces "rebuild" in --help output;
+    # tighten to the docstring's actual content. AC3.2 docstring: "Rebuild state.json
+    # from the journal (FR35)." — both "state.json" and "journal" must appear.
+    output_lower = result.output.lower()
+    assert "state.json" in output_lower, (
+        f"rebuild-state --help missing 'state.json' in docstring; got:\n{result.output}"
+    )
+    assert "journal" in output_lower, (
+        f"rebuild-state --help missing 'journal' in docstring; got:\n{result.output}"
+    )
+    assert "fr35" in output_lower, (
+        f"rebuild-state --help missing 'FR35' anchor in docstring; got:\n{result.output}"
+    )

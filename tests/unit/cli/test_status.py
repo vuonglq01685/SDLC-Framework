@@ -323,68 +323,63 @@ def test_format_ts_local_returns_raw_string_on_invalid_input() -> None:
 
 
 def test_status_emits_error_when_state_read_raises(bootstrapped: Path) -> None:
-    """A StateError from sdlc.state.read_state surfaces as ERR_INFRASTRUCTURE (exit 3)."""
+    """A StateError from read_state_or_recover surfaces as ERR_STATE_MALFORMED (exit 2)."""
     from sdlc.errors import StateError
 
     ctx = _make_ctx()
     with (
         unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped),
-        unittest.mock.patch("sdlc.state.read_state", side_effect=StateError("disk error")),
+        unittest.mock.patch(
+            "sdlc.state.read_state_or_recover",
+            side_effect=StateError("disk error", details={"reason": "schema"}),
+        ),
         pytest.raises(typer.Exit) as exc_info,
     ):
         run_status(ctx=ctx)
-    assert exc_info.value.exit_code == 3
+    assert exc_info.value.exit_code == 2
 
 
-# ---------------------------------------------------------------------------
-# AC7.2 — `test_status_last_updated_uses_latest_journal_ts` (added in Story 1.17 review)
-# ---------------------------------------------------------------------------
-
-
-def test_status_last_updated_uses_latest_journal_ts(bootstrapped: Path) -> None:
-    """status renders the timestamp of the latest journal entry (AC7.2)."""
-    journal_path = bootstrapped / ".claude" / "state" / "journal.log"
-    from sdlc.contracts.journal_entry import JournalEntry
-    from sdlc.journal import append_sync
-
-    expected_ts = "2026-05-09T12:34:56.789Z"
-    entry = JournalEntry(
-        schema_version=1,
-        monotonic_seq=0,
-        ts=expected_ts,
-        actor="cli",
-        kind="scan_completed",
-        target_id="state",
-        before_hash=None,
-        after_hash="sha256:" + "c" * 64,
-        payload={"epic_count": 0, "story_count": 0, "task_count": 0},
-    )
-    append_sync(entry, journal_path=journal_path)
-
-    with unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped):
-        result = runner.invoke(app, ["--json", "status"])
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.stdout)
-    # JSON mode emits the literal RFC 3339 ts.
-    assert payload["last_updated_ts"] == expected_ts
-
-
-# ---------------------------------------------------------------------------
-# AC7.2 — `test_status_zero_args_invokes_help_or_status_per_typer_default`
-# ---------------------------------------------------------------------------
-
-
-def test_status_zero_args_invokes_help_or_status_per_typer_default(bootstrapped: Path) -> None:
-    """`sdlc status` (no extra args) runs the status command, NOT Typer's auto-help.
-
-    Typer's `no_args_is_help=True` triggers help when no command is given to the root
-    app (`sdlc` alone). When a subcommand is named (`sdlc status`), that subcommand
-    runs even without further args. This test pins that behavior so a future Typer
-    setting change cannot silently swap status for help (AC7.2).
+def test_status_json_envelope_preserves_recovery_details(bootstrapped: Path) -> None:
+    """JSON-mode error envelope MUST surface the recovery-prompt detail keys
+    (state_path, journal_path, inner_message, remediation_primary,
+    remediation_alternative). Closes the F21 verification gap: sanitize_mapping
+    only redacts secret-shaped strings; it must not strip envelope keys.
     """
-    with unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped):
-        result = runner.invoke(app, ["status"])
-    assert result.exit_code == 0, result.output
-    # Help output starts with `Usage:`; status output contains the resume card header.
-    assert "Usage:" not in result.stdout
-    assert "Phase:" in result.stdout
+    from sdlc.errors import StateError
+
+    inner_details = {
+        "reason": "schema_version_mismatch",
+        "state_path": "/abs/repo/.claude/state/state.json",
+        "journal_path": "/abs/repo/.claude/state/journal.log",
+        "inner_message": "schema_version mismatch: state is v2, framework expects v1",
+        "remediation_primary": "sdlc rebuild-state",
+        "remediation_alternative": "sdlc migrate-v1",
+    }
+    with (
+        unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped),
+        unittest.mock.patch(
+            "sdlc.state.read_state_or_recover",
+            side_effect=StateError(
+                "state.json is malformed at ... is untouched.",
+                details=inner_details,
+            ),
+        ),
+    ):
+        result = runner.invoke(app, ["--json", "status"])
+
+    assert result.exit_code == 2, f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    payload = json.loads(result.stderr)
+    rendered_details = payload["error"]["details"]
+    for key in (
+        "state_path",
+        "journal_path",
+        "inner_message",
+        "remediation_primary",
+        "remediation_alternative",
+    ):
+        assert key in rendered_details, f"sanitize_mapping stripped {key!r} from envelope"
+    assert rendered_details["inner_message"] == inner_details["inner_message"]
+
+
+# AC7.2 journal-timestamp and zero-args tests live in test_status_ac72.py
+# (split to satisfy the 400-LOC cap — Architecture §765 + NFR-MAINT-3).

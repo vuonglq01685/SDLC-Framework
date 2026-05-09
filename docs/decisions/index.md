@@ -32,6 +32,7 @@ alternatives, consequences, and a revisit-by date).
 | [020](ADR-020-cli-scan-status-accessibility-flags.md) | CLI `sdlc scan` + `sdlc status` + accessibility flags | 1.17 | Accepted |
 | [021](ADR-021-cli-trace-replay-logs.md) | CLI trace + replay + logs + cross-stream merge | 1.18 | Accepted |
 | [022](ADR-022-migration-framework-and-schema-gate.md) | Migration framework + major-version schema gate | 1.19 | Accepted |
+| [023](ADR-023-rebuild-state-and-recovery-prompt.md) | Rebuild-state command + malformed-state recovery prompt | 1.20 | Accepted |
 
 Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
 until then.

@@ -16,6 +16,8 @@ if sys.platform != "win32":
         write_state_atomic_sync,
         write_state_raw_atomic_sync,
     )
+    from sdlc.state.reader import read_state_or_recover
+    from sdlc.state.rebuild import rebuild_state_from_journal
 else:
 
     def write_state_atomic(*_: object, **__: object) -> None:
@@ -28,6 +30,14 @@ else:
         raise NotImplementedError(
             "write_state_raw_atomic_sync is POSIX-only — see Architecture §573"
         )
+
+    def rebuild_state_from_journal(*_: object, **__: object) -> int:
+        raise NotImplementedError(
+            "rebuild_state_from_journal is POSIX-only — see Architecture §573"
+        )
+
+    def read_state_or_recover(*_: object, **__: object) -> None:
+        raise NotImplementedError("read_state_or_recover is POSIX-only — see Architecture §573")
 
 
 def state_to_canonical_bytes(state: State) -> bytes:
@@ -44,7 +54,7 @@ def state_to_canonical_bytes(state: State) -> bytes:
 
 
 # Semantic order: model → write-async → write-sync → write-raw → read → read-or-refuse
-# → read-raw → projection → bytes → schema-version; do NOT alphabetize.
+# → read-or-recover → read-raw → projection → rebuild → bytes → schema-version; do NOT alphabetize.
 __all__ = (  # noqa: RUF022
     "State",
     "write_state_atomic",
@@ -52,8 +62,10 @@ __all__ = (  # noqa: RUF022
     "write_state_raw_atomic_sync",
     "read_state",
     "read_state_or_refuse",
+    "read_state_or_recover",
     "read_state_raw",
     "project_from_journal",
+    "rebuild_state_from_journal",  # Story 1.20
     "state_to_canonical_bytes",
     "CURRENT_SCHEMA_VERSION",
 )

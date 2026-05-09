@@ -21,10 +21,17 @@ _REFUSAL_MSG_FORMAT: Final[str] = (
     "schema_version mismatch: state is v{state}, framework expects v{framework};"
     " run `sdlc migrate-v{framework}`"
 )
+_RECOVERY_MSG_FORMAT: Final[str] = (
+    "state.json is malformed at {state_path}. To recover: run"
+    " `sdlc rebuild-state` (rebuilds from journal) or"
+    " `sdlc migrate-vN` (if version mismatch)."
+    " The journal at {journal_path} is untouched."
+)
 
-__all__ = (
+__all__ = (  # noqa: RUF022
     "CURRENT_SCHEMA_VERSION",
     "read_state_or_refuse",
+    "read_state_or_recover",  # Story 1.20
     "read_state_raw",
 )
 
@@ -83,6 +90,60 @@ def read_state_or_refuse(target: Path) -> State | None:
             f"state.json failed schema validation: {e}",
             details={"path": str(target), "reason": "schema"},
         ) from e
+
+
+def read_state_or_recover(state_path: Path, journal_path: Path) -> State | None:
+    """Canonical CLI-side state reader — wraps read_state_or_refuse with a recovery prompt.
+
+    Returns None if state_path does not exist (missing state is not a malformation).
+
+    Re-raises ``read_state_or_refuse``'s ``SchemaError`` and ``StateError`` as a
+    ``StateError`` whose message is the unified recovery prompt naming both
+    ``state_path`` and ``journal_path``. ``read_state_or_refuse`` already wraps
+    ``json.JSONDecodeError``, ``OSError``, missing-schema-version, non-object root,
+    and pydantic ``ValidationError`` (via the broad ``ValueError, TypeError`` catch
+    on ``State.model_validate``) into ``StateError`` — so this function transitively
+    covers all malformation classes through the StateError branch.
+
+    Use this function from any CLI subcommand that reads state.json. It composes
+    Story 1.19's ``read_state_or_refuse`` schema gate with the Story 1.20
+    recovery-prompt formatter.
+
+    journal_path is purely for message formatting — this function does NOT read
+    the journal. The "is untouched" wording reassures users that the journal (the
+    source of truth per Decision B5) is safe and recovery is possible.
+
+    ADR-023 mandates callers pass canonical resolved paths so the recovery prompt
+    names a stable absolute path; ``cli/scan.py`` and ``cli/status.py`` ``.resolve()``
+    both arguments before invocation.
+    """
+    if not state_path.exists():
+        return None
+    try:
+        return read_state_or_refuse(state_path)
+    except SchemaError as err:
+        recovery_msg = _RECOVERY_MSG_FORMAT.format(state_path=state_path, journal_path=journal_path)
+        merged_details: dict[str, object] = {
+            **err.details,
+            "state_path": str(state_path),
+            "journal_path": str(journal_path),
+            "reason": "schema_version_mismatch",
+            "inner_message": err.message,
+            "remediation_primary": "sdlc rebuild-state",
+            "remediation_alternative": err.details.get("remediation"),
+        }
+        raise StateError(recovery_msg, details=merged_details) from err
+    except StateError as err:
+        recovery_msg = _RECOVERY_MSG_FORMAT.format(state_path=state_path, journal_path=journal_path)
+        merged_details = {
+            **err.details,
+            "state_path": str(state_path),
+            "journal_path": str(journal_path),
+            "inner_message": err.message,
+            "remediation_primary": "sdlc rebuild-state",
+            "remediation_alternative": "sdlc migrate-vN",
+        }
+        raise StateError(recovery_msg, details=merged_details) from err
 
 
 def read_state_raw(target: Path) -> dict[str, Any] | None:

@@ -92,7 +92,7 @@ def _append_scan_journal_entry(
 def run_scan(*, ctx: typer.Context) -> None:
     """Refresh state.json from the artifact tree (FR3)."""
     from sdlc.errors import JournalError, StateError
-    from sdlc.state import read_state, state_to_canonical_bytes
+    from sdlc.state import read_state_or_recover, state_to_canonical_bytes
 
     root = _get_repo_root_or_cwd()
     state_path = root / _STATE_PATH_REL
@@ -108,18 +108,19 @@ def run_scan(*, ctx: typer.Context) -> None:
 
     before_hash = _compute_sha256_of_file(state_path)
 
+    # ADR-023 mandates callers pass canonical resolved paths to read_state_or_recover so the
+    # recovery prompt names a stable absolute path. Resolve both — symmetric with journal_path.
     try:
-        pre_state = read_state(state_path)
+        pre_state = read_state_or_recover(state_path.resolve(), journal_path.resolve())
     except StateError as exc:
         emit_error(
-            "ERR_INFRASTRUCTURE",
-            f"failed to read existing state.json: {exc}",
+            "ERR_STATE_MALFORMED",
+            exc.message,
             ctx=ctx,
-            details={"path": str(state_path)},
+            details=dict(exc.details),
         )
     if pre_state is None:
-        # Defensive: state_path.exists() was true above, so read_state should not return None.
-        # If it does (TOCTOU file removal between checks), treat as not initialized.
+        # TOCTOU: state_path existed above but vanished before the read. Treat as not initialized.
         emit_error(
             "ERR_NOT_INITIALIZED",
             f"project not initialized at {root}; run `sdlc init` first",

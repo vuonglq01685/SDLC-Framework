@@ -22,6 +22,9 @@ Error code → exit code table (_ERR_CODE_TO_EXIT_CODE):
   ERR_MIGRATION_FAILED → 2      (Story 1.19)
   ERR_MIGRATION_DOWNGRADE → 2   (Story 1.19)
   ERR_STATE_MALFORMED → 2       (Story 1.19)
+  ERR_NO_RECOVERY_SOURCE → 2   (Story 1.20)
+  ERR_JOURNAL_CORRUPT → 2      (Story 1.20)
+  ERR_JOURNAL_SCHEMA_DRIFT → 2 (Story 1.20)
 
 Per-command JSON output schemas (Story 1.21 wire-format-lock ceremony freezes these at v1):
   _SCAN_OUTPUT_SCHEMA, _STATUS_OUTPUT_SCHEMA, _TRACE_OUTPUT_SCHEMA,
@@ -112,6 +115,10 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_MIGRATION_FAILED": 2,
         "ERR_MIGRATION_DOWNGRADE": 2,
         "ERR_STATE_MALFORMED": 2,
+        # Added in Story 1.20 — see ADR-023.
+        "ERR_NO_RECOVERY_SOURCE": 2,
+        "ERR_JOURNAL_CORRUPT": 2,
+        "ERR_JOURNAL_SCHEMA_DRIFT": 2,
     }
 )
 _DEFAULT_EXIT_CODE: Final[int] = 1

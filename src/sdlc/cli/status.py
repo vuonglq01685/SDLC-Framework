@@ -144,7 +144,7 @@ def _compute_suggested_next(state) -> str:  # type: ignore[no-untyped-def]
 def run_status(*, ctx: typer.Context) -> None:
     """Print the resume card with suggested next-action (FR44). Read-only."""
     from sdlc.errors import StateError
-    from sdlc.state import read_state
+    from sdlc.state import read_state_or_recover
 
     root = _get_repo_root_or_cwd()
     state_path = root / _STATE_PATH_REL
@@ -158,14 +158,15 @@ def run_status(*, ctx: typer.Context) -> None:
             details={"project_root": str(root)},
         )
 
+    # ADR-023 mandates canonical resolved paths for the recovery prompt; resolve both.
     try:
-        state = read_state(state_path)
+        state = read_state_or_recover(state_path.resolve(), journal_path.resolve())
     except StateError as exc:
         emit_error(
-            "ERR_INFRASTRUCTURE",
-            f"failed to read state.json: {exc}",
+            "ERR_STATE_MALFORMED",
+            exc.message,
             ctx=ctx,
-            details={"path": str(state_path)},
+            details=dict(exc.details),
         )
     if state is None:
         # TOCTOU: state_path.exists() was true above. Treat as not initialized.

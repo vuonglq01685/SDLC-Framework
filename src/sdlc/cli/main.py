@@ -149,6 +149,14 @@ def logs_command(
     run_logs(ctx=ctx, filter_task=filter_task, filter_agent=filter_agent, follow=follow)
 
 
+@app.command(name="rebuild-state")
+def _rebuild_state_cmd(ctx: typer.Context) -> None:
+    """Rebuild state.json from the journal (FR35)."""
+    from sdlc.cli.rebuild_state import run_rebuild_state  # deferred per Architecture §488
+
+    run_rebuild_state(ctx=ctx)
+
+
 def _register_migrate_commands(app: typer.Typer) -> None:
     """Register one Typer command per discovered migration script.
 
