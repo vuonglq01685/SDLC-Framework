@@ -3,7 +3,7 @@ index c7c57c7..b9be34f 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
 @@ -86,3 +86,27 @@ jobs:
- 
+
        - name: Chaos tests (10 kill points × 100 seeds)
          run: uv run pytest -m chaos --no-cov -q
 +
@@ -38,20 +38,20 @@ index ef530c1..44e8f7d 100644
  +++ b/_bmad-output/implementation-artifacts/1-14-behavioral-conformance-abstraction-adequacy-ci-test.md
  @@ -1,6 +1,6 @@
   # Story 1.14: Behavioral Conformance / Abstraction-Adequacy CI Test
-- 
+-
 +
  -Status: ready-for-dev
  +Status: review
-- 
+-
 +
   <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
-- 
+-
 +
  @@ -172,26 +172,26 @@ This hex MUST match what `MockAIRuntime._hash_prompt(_SEED_PROMPT)` produces —
-- 
+-
 +
   ## Tasks / Subtasks
-- 
+-
 +
  -- [ ] **Task 1: Pre-flight verification of dependencies and existing state (AC: all)**
  -  - [ ] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exports `write_state_atomic_sync`; smoke `uv run python -c "from sdlc.state import write_state_atomic_sync; print('ok')"`.
@@ -60,7 +60,7 @@ index ef530c1..44e8f7d 100644
       - `_RUNTIME_FACTORIES: list[Callable[[Path], AIRuntime]] = [_mock_factory]` and `def _mock_factory(fixtures_dir: Path) -> AIRuntime: return MockAIRuntime(fixtures_dir=fixtures_dir)`. Add the EPIC-2B-GATE comment per AC2.5.
  -  - [ ] LOC budget for `test_abstraction_adequacy.py`: ≤ 350 LOC (test file; not subject to the 400-LOC src cap, but stay disciplined). The file is the contract; verbosity is OK if it serves clarity, but trim ceremony.
  +  - [x] LOC budget for `test_abstraction_adequacy.py`: ≤ 350 LOC (test file; not subject to the 400-LOC src cap, but stay disciplined). The file is the contract; verbosity is OK if it serves clarity, but trim ceremony.
-- 
+-
 +
  -- [ ] **Task 3: Implement the parameterized test function (AC: #1, #2, #3, #4)**
  -  - [ ] Define the parameterized fixture:
@@ -69,7 +69,7 @@ index ef530c1..44e8f7d 100644
  @@ -326,12 +326,12 @@ This hex MUST match what `MockAIRuntime._hash_prompt(_SEED_PROMPT)` produces —
       - `pytest-asyncio` — NOT in dev deps; do NOT add. Use `asyncio.run(coro)` directly (Story 1.13 precedent).
       - Re-creating the `MockAIRuntime` inside the test body — the fixture constructs it once. The fixture is per-test (not session-scoped) so each test run gets a fresh instance, BUT the construction happens in the fixture, not in the test body.
-- 
+-
 +
  -- [ ] **Task 4: Create the seed YAML fixture + golden files (AC: #4, #5)**
  -  - [ ] Compute `_SEED_PROMPT_HASH = sha256("abstraction-adequacy seed prompt".encode("utf-8")).hexdigest()` once via `uv run python -c 'import hashlib; print("sha256:" + hashlib.sha256(b"abstraction-adequacy seed prompt").hexdigest())'`. Capture the output as a 64-char hex string. (Story-author note: the canonical hex for `b"abstraction-adequacy seed prompt"` is reproducible; Task 1 verifies the runtime path agrees.)
@@ -78,7 +78,7 @@ index ef530c1..44e8f7d 100644
  +  - [x] Add a brief regen-history line to `tests/fixtures/abstraction_adequacy/README.md`:
       ```markdown
       # Abstraction-Adequacy Goldens (Story 1.14)
-- 
+-
 +
  @@ -355,10 +355,10 @@ This hex MUST match what `MockAIRuntime._hash_prompt(_SEED_PROMPT)` produces —
       Regen history:
@@ -86,7 +86,7 @@ index ef530c1..44e8f7d 100644
       ```
  -  - [ ] Confirm the goldens are NOT excluded from coverage / CI artifacts (`pyproject.toml [tool.coverage.run].omit` does NOT list `tests/fixtures/...` — fixtures are data, not code).
  +  - [x] Confirm the goldens are NOT excluded from coverage / CI artifacts (`pyproject.toml [tool.coverage.run].omit` does NOT list `tests/fixtures/...` — fixtures are data, not code).
-- 
+-
 +
  -- [ ] **Task 5: Author ADR-017 + update documentation (AC: all)**
  -  - [ ] Create `docs/decisions/ADR-017-abstraction-adequacy-ci-contract.md` using the structure of `docs/decisions/adr-template.md`. Sections:
@@ -95,7 +95,7 @@ index ef530c1..44e8f7d 100644
  -  - [ ] Create `docs/CODEMAPS/integration-tests.md` (or update if exists) listing the abstraction-adequacy test, its fixture, its goldens, and its forward-compat link to Story 2B.3.
  +  - [x] Update `docs/decisions/index.md`: add row `| [017](ADR-017-abstraction-adequacy-ci-contract.md) | Abstraction-adequacy CI contract | 1.14 | Accepted |` after the existing ADR-014 row. If Stories 1.12 / 1.13 have not yet landed their ADR-015 / ADR-016 rows, place this row in numeric position 017 (preserving gaps; the missing rows fill in when those stories commit).
  +  - [x] Create `docs/CODEMAPS/integration-tests.md` (or update if exists) listing the abstraction-adequacy test, its fixture, its goldens, and its forward-compat link to Story 2B.3.
-- 
+-
 +
  -- [ ] **Task 6: Unit tests for the determinism helpers (AC: #4)**
  -  - [ ] Create `tests/unit/integration/__init__.py` (empty file — pytest collection sentinel).
@@ -104,7 +104,7 @@ index ef530c1..44e8f7d 100644
       - `test_state_hash_is_deterministic_across_runs`: subprocess-test pattern (mirror Story 1.13 hash stability test). Run a small script in two separate `uv run python` subprocesses; assert the same hex. Mark `@pytest.mark.integration` (subprocess test). SKIP on Windows if `uv` is not on PATH (`shutil.which("uv")`).
  -  - [ ] Per-package coverage: `tests/integration/test_abstraction_adequacy.py` itself is NOT under `src/`; coverage scope is `src/sdlc/` and `scripts/`. The unit tests for helpers cover the synthesizer + hash logic; the integration test exercises them in pipeline shape. Do NOT add the test file to `[tool.coverage.run].source` — tests are tests, not sources.
  +  - [x] Per-package coverage: `tests/integration/test_abstraction_adequacy.py` itself is NOT under `src/`; coverage scope is `src/sdlc/` and `scripts/`. The unit tests for helpers cover the synthesizer + hash logic; the integration test exercises them in pipeline shape. Do NOT add the test file to `[tool.coverage.run].source` — tests are tests, not sources.
-- 
+-
 +
  -- [ ] **Task 7: Run the full quality gate stack and verify CI green (AC: all)**
  -  - [ ] `uv run ruff check src/ tests/ scripts/` → 0 errors. The new test file's imports must satisfy `from __future__ import annotations` (auto-required by `tool.ruff.lint.isort`).
@@ -113,23 +113,23 @@ index ef530c1..44e8f7d 100644
  +  - [x] Confirm goldens are committed: `git status` → `tests/fixtures/abstraction_adequacy/expected_hook_payloads.json`, `tests/fixtures/abstraction_adequacy/expected_state.json`, `tests/fixtures/abstraction_adequacy/README.md`, `tests/fixtures/mock_responses/abstraction-adequacy.yaml` are all tracked. The goldens directory does NOT need a `.gitkeep` since it has README + 2 JSON files.
  +  - [x] Confirm `_REGENERATE_GOLDENS = False` in the final committed file.
  +  - [x] Run the test on a fresh clone (or via `git clean -fdx; uv sync --frozen --group dev; uv run pytest tests/integration/test_abstraction_adequacy.py`) to confirm the goldens are loaded from disk (not from a stale `_REGENERATE_GOLDENS=True` run); the test must be fresh-clone reproducible.
-- 
+-
 +
   ## Dev Notes
-- 
+-
 +
  @@ -708,10 +708,40 @@ These are explicitly NOT in scope for Story 1.14 — flag if they creep in durin
-- 
+-
 +
   ### Agent Model Used
-- 
+-
 +
  -{{agent_model_name_version}}
  +claude-sonnet-4-6
-- 
+-
 +
   ### Debug Log References
-- 
+-
 +
  +- Pre-existing mypy error in `src/sdlc/journal/writer.py:28` (`Module "sdlc.concurrency" has no attribute "file_lock"`) fixed with `# type: ignore[attr-defined]`. Root cause: `concurrency/__init__.py` conditionally exports `file_lock` only on POSIX; mypy on Windows can't see it statically. Runtime is safe — `writer.py` raises `ImportError` on Windows before reaching the import.
  +- Golden files generated manually via Python script (not via `_REGENERATE_GOLDENS=True` test run) because the integration test is POSIX-only and the dev environment is Windows. Goldens verified correct: `epics={}` because `_EPIC_ID_PATTERN = r"\Aepic-[0-9]+\Z"` does not match `"epic-abstraction-adequacy"`.
@@ -138,7 +138,7 @@ index ef530c1..44e8f7d 100644
  +- ruff `I001` fixed by reordering: `integration.*` imports before `sdlc.*` imports (alphabetical within first-party block).
  +
   ### Completion Notes List
-- 
+-
 +
  +- All 7 tasks complete. ACs 1–5 satisfied.
  +- Integration test (`test_abstraction_adequacy_pipeline[mock_factory]`) correctly skipped on Windows (POSIX-only); will run green on Linux/macOS CI.
@@ -147,7 +147,7 @@ index ef530c1..44e8f7d 100644
  +++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
  @@ -36,9 +36,9 @@
   # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
-- 
+-
 +
   generated: 2026-05-07
  -last_updated: "2026-05-09 (code-review: 1-13 review → done)"
@@ -156,7 +156,7 @@ index ef530c1..44e8f7d 100644
   | [015](ADR-015-state-projection-from-journal.md) | state projection from journal | 1.12 | Accepted |
   | [016](ADR-016-airuntime-abc-and-mock-implementation.md) | AIRuntime ABC + Mock implementation | 1.13 | Accepted |
  +| [017](ADR-017-abstraction-adequacy-ci-contract.md) | Abstraction-adequacy CI contract | 1.14 | Accepted |
-- 
+-
 +
   Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
   until then.
@@ -165,7 +165,7 @@ index ef530c1..44e8f7d 100644
  @@ -25,7 +25,7 @@ import os
   from pathlib import Path
   from typing import Final
-- 
+-
 +
  -from sdlc.concurrency import file_lock
  +from sdlc.concurrency import file_lock  # type: ignore[attr-defined]
@@ -176,15 +176,15 @@ index 56df295..76d6c55 100644
 +++ b/_bmad-output/implementation-artifacts/1-15-engine-scanner-skeleton.md
 @@ -1,6 +1,6 @@
  # Story 1.15: Engine Scanner Skeleton (Idempotent, Side-Effect-Free)
- 
+
 -Status: ready-for-dev
 +Status: done
- 
+
  <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
- 
+
 @@ -42,8 +42,13 @@ so that `sdlc scan` (Story 1.17) has a complete underlying engine, NFR-PERF-1 (`
  **And** the scanner raises `StateError` (with `details={"path": ..., "reason": ...}`) when:
- 
+
  - `project_root` is not absolute (`raise StateError("scan requires an absolute project_root path", details={"path": str(project_root), "reason": "not_absolute"})`).
 +- `project_root` does not exist (`details={"reason": "not_found"}`) — fail-fast on CLI typos rather than returning an empty `State` indistinguishable from a real empty project.
  - `project_root` exists but is a regular file (`details={"reason": "not_a_directory"}`).
@@ -194,13 +194,13 @@ index 56df295..76d6c55 100644
 +- A discovered file's JSON top-level is not an object (`details={"reason": "non_object_artifact", "file": <relative-path>}`).
 +
 +The `<relative-path>` is computed via `path.relative_to(project_root)` so error envelopes never leak the developer/CI host's absolute filesystem layout. Use `from sdlc.errors import StateError`.
- 
+
  **And** all other error paths (missing optional directories, empty subdirectories, non-`.json` files in the artifact dirs) are NOT raises — they are graceful zero-yield walks. Story 1.20's `rebuild-state` will introduce stricter recovery semantics; v1 scanner is permissive.
- 
+
 @@ -77,10 +82,10 @@ so that `sdlc scan` (Story 1.17) has a complete underlying engine, NFR-PERF-1 (`
- 
+
  **Then** the returned `State` has:
- 
+
 -1. `state.epics` is a `dict[str, dict[str, Any]]` keyed by canonical epic id (`"EPIC-alpha"`, `"EPIC-beta"`, `"EPIC-gamma"`). Insertion order MUST follow the canonical naming sort (Python's default lexicographic sort on the kebab-case slug — `"alpha" < "beta" < "gamma"`). The order is observable because `json.dumps(..., sort_keys=True)` re-sorts on serialization, BUT the in-memory `State.epics` dict's insertion order is also canonicalized (use `dict(sorted(...))`) to keep the iteration order — and any downstream `journal.append` payload — deterministic before serialization.
 -2. Each epic value is the parsed JSON content of `EPIC-<slug>.json` (via `json.loads(path.read_text(encoding="utf-8"))`) — no model coercion in v1 (epic schema is owned by Story 2A.11 / 2A.12). The value is `dict[str, Any]`. Required keys are NOT enforced by the scanner; that's the artifact-write hook's job (Story 2A.4).
 -3. `state.stories` is a `dict[str, dict[str, Any]]` keyed by canonical story id (`"EPIC-alpha-S01-bootstrap"`, `"EPIC-alpha-S02-validate"`, `"EPIC-beta-S01-replan"`), insertion order canonical-sorted. Each value is the parsed JSON of `<STORY-id>.json`.
@@ -213,9 +213,9 @@ index 56df295..76d6c55 100644
  6. The scanner uses `sdlc.ids.parse_epic_id`, `sdlc.ids.parse_story_id`, and `sdlc.ids.parse_task_id` to validate the filename stems; the boundary table extension (AC5 below) authorizes this engine→ids dependency.
  7. Cross-link integrity is NOT enforced in v1: a story file under `05-Stories/EPIC-foo/` whose parent directory's epic doesn't exist in `04-Epics/` is still loaded. Story 1.20 (rebuild-state) introduces orphan detection; v1 scanner is purely additive.
 @@ -202,20 +207,20 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
- 
+
  ## Tasks / Subtasks
- 
+
 -- [ ] **Task 1: Pre-flight verification of dependencies and environment (AC: all)**
 -  - [ ] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exists and exports `write_state_atomic_sync` (already known done — sprint-status `1-10: done`); smoke `uv run python -c "from sdlc.state import State, write_state_atomic_sync; print('ok')"`.
 -  - [ ] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `append_sync` and `iter_entries`; smoke `uv run python -c "from sdlc.journal import append_sync, iter_entries; print('ok')"`. **If 1.11 is still in `review`** (per sprint-status snapshot 2026-05-08), the scanner does NOT consume `append_sync` from inside `engine/scanner.py`; it consumes it ONLY at `cli/scan.py` (Story 1.17). Story 1.15 has NO hard import dep on `journal/writer.py`, so 1.11 review status is not blocking.
@@ -262,7 +262,7 @@ index 56df295..76d6c55 100644
      - `test_state_canonical_json_includes_new_fields`: `s = State()`; canonical bytes via `json.dumps(s.model_dump(mode="json"), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")`; assert `b'"phase":1' in bytes_` and `b'"stories":{}' in bytes_` and `b'"tasks":{}' in bytes_`.
 -  - [ ] Verify the existing tests that lock the State shape from Story 1.10 still pass (they shouldn't break — additive only). The chaos test at `tests/chaos/test_atomic_write_kill_points.py` writes a `State()` and re-reads; check it tolerates the extra default fields by reading its assertions.
 +  - [x] Verify the existing tests that lock the State shape from Story 1.10 still pass (they shouldn't break — additive only). The chaos test at `tests/chaos/test_atomic_write_kill_points.py` writes a `State()` and re-reads; check it tolerates the extra default fields by reading its assertions.
- 
+
 -- [ ] **Task 3: Implement `engine/scanner.py` (AC: #1, #2)**
 -  - [ ] Create `src/sdlc/engine/__init__.py` with the public API re-export per AC5.1.
 -  - [ ] Create `src/sdlc/engine/scanner.py`. Top-of-file order:
@@ -316,7 +316,7 @@ index 56df295..76d6c55 100644
 -  - [ ] Type annotations: every public and private function fully annotated. `mypy --strict` must pass on `src/sdlc/engine/`.
 +  - [x] LOC budget for `scanner.py`: ≤ 300 LOC including module docstring, imports, helpers, and the public function. If the implementation grows beyond 250, factor out `_walk_dir_sorted` + `_load_json_artifact` into `engine/_scanner_helpers.py` (mirror `journal/_canonical.py`).
 +  - [x] Type annotations: every public and private function fully annotated. `mypy --strict` must pass on `src/sdlc/engine/`.
- 
+
 -- [ ] **Task 4: Update `MODULE_DEPS` boundary table + linter self-tests (AC: #5.3, #5.4)**
 -  - [ ] Edit `scripts/check_module_boundaries.py` lines 98-113. Add `"ids"` to the `engine.depends_on` frozenset:
 +- [x] **Task 4: Update `MODULE_DEPS` boundary table + linter self-tests (AC: #5.3, #5.4)**
@@ -341,7 +341,7 @@ index 56df295..76d6c55 100644
      Match the existing test's marker convention — read the top of `tests/test_check_module_boundaries.py` to confirm whether it uses `@pytest.mark.unit` (or has no module-level marker, in which case omit). DO NOT add a new pytest marker.
 -  - [ ] Run `uv run pre-commit run boundary-validator --all-files` — must pass.
 +  - [x] Run `uv run pre-commit run boundary-validator --all-files` — must pass.
- 
+
 -- [ ] **Task 5: Unit + integration tests for scanner; goldens regen if Story 1.14 already landed (AC: #1, #2, #3)**
 -  - [ ] Create `tests/unit/engine/__init__.py` (empty pytest collection sentinel; needs `from __future__ import annotations` per project convention even when empty — confirm by checking existing empty `__init__.py` files in `tests/unit/`).
 -  - [ ] Create `tests/unit/engine/test_scanner.py` with `pytestmark = pytest.mark.unit` and the following tests:
@@ -369,7 +369,7 @@ index 56df295..76d6c55 100644
      - Commit the regenerated goldens with the rest of the Story 1.15 commit (single commit per Story 1.14's `_REGENERATE_GOLDENS` discipline).
 -  - [ ] **If Story 1.14's goldens do NOT exist on disk yet**: skip the goldens regen step entirely. Story 1.14 dev later will pick up the extended State model and `scan()` from the start; their initial goldens generation will use the v1.15 shape directly, avoiding a regen.
 +  - [x] **If Story 1.14's goldens do NOT exist on disk yet**: skip the goldens regen step entirely. Story 1.14 dev later will pick up the extended State model and `scan()` from the start; their initial goldens generation will use the v1.15 shape directly, avoiding a regen.
- 
+
 -- [ ] **Task 6: Add `pytest-benchmark` dev dep + benchmark test + CI job (AC: #4)**
 -  - [ ] Add `"pytest-benchmark>=4.0.0,<6"` to `[dependency-groups] dev` in `pyproject.toml` (after `hypothesis>=6.100,<7` per the alphabet-friendly insertion point — but the existing list is partially-sorted-by-purpose, so place it where consistency is best with neighbors; line ~30 is the natural slot). The `<6` cap is defensive against a future major: pytest-benchmark 5.x is current; 6 may shift the `benchmark.pedantic` API. Mirror the cap-pattern from `pyproject.toml:23-30`.
 -  - [ ] Run `uv lock` to refresh `uv.lock`. Commit the lock change in the same commit as the dep addition.
@@ -402,7 +402,7 @@ index 56df295..76d6c55 100644
      Pin Python 3.12 (single cell) — performance budgets are sensitive to interpreter version; running on every matrix cell would explode the gate's complexity for v1. Match the existing `chaos-tests` job's `setup-uv@v3` and `actions/checkout@v4` versions exactly. Story 1.3's CI workflow may use `astral-sh/setup-uv` at a different version; ALIGN to whatever `chaos-tests` already uses.
 -  - [ ] Update `pyproject.toml [tool.coverage.run].omit` if needed: `tests/benchmark/test_scan_perf.py` is under `tests/`; tests aren't in coverage scope, so no omit edit. Verify by re-reading the existing `omit = [...]` block.
 +  - [x] Update `pyproject.toml [tool.coverage.run].omit` if needed: `tests/benchmark/test_scan_perf.py` is under `tests/`; tests aren't in coverage scope, so no omit edit. Verify by re-reading the existing `omit = [...]` block.
- 
+
 -- [ ] **Task 7: Author ADR-018 + update documentation (AC: all)**
 -  - [ ] Create `docs/decisions/ADR-018-engine-scanner-skeleton.md` using the structure of `docs/decisions/adr-template.md`:
 +- [x] **Task 7: Author ADR-018 + update documentation (AC: all)**
@@ -493,18 +493,18 @@ index 56df295..76d6c55 100644
 +- [x] [Review][Defer] Foreign subdir-name skip emits INFO instead of WARN (AC2.5 spec governs files only) [`src/sdlc/engine/scanner.py:130-132`] — deferred, defensible interpretation; flag for spec clarification rather than code change.
 +
 +**Dismissed as noise (2):** `next_monotonic_seq=0` always (AC1.4 mandates 0 for empty; scanner is artifact-only by design); story/task subdir-vs-file cross-link not validated (AC2.7 explicitly says "Cross-link integrity is NOT enforced in v1").
- 
+
  ## Dev Notes
- 
+
 @@ -755,10 +800,58 @@ These are explicitly NOT in scope for Story 1.15 — flag if they creep in durin
- 
+
  ### Agent Model Used
- 
+
 -{{agent_model_name_version}}
 +claude-sonnet-4-6
- 
+
  ### Debug Log References
- 
+
 +- Ruff C901/PLR0912: scan() extracted into `_load_artifacts_from_dir` + `_load_nested_artifacts` helpers to bring complexity within limits.
 +- Ruff UP035: `Callable` moved from `typing` to `collections.abc`.
 +- `ModuleNotFoundError` for benchmark import: changed `from tests.benchmark.conftest` → `from benchmark.conftest` (pytest importmode=prepend puts tests/ on sys.path).
@@ -513,7 +513,7 @@ index 56df295..76d6c55 100644
 +- `State` import in `test_abstraction_adequacy.py`: removed unused `State` after replacing inline stub with `scan()` call.
 +
  ### Completion Notes List
- 
+
 +- **Task 1**: All Story 1.10/1.11/1.6 dependencies confirmed on disk. Story 1.14 goldens present — goldens regen included in Task 5. ADR-018 selected (ADRs 015-017 landed). `benchmark` marker pre-existed at pyproject.toml:188.
 +- **Task 2**: `State` extended with `phase: int = 1`, `stories: dict[str, Any]`, `tasks: dict[str, Any]`. 3 new unit tests added to `tests/unit/state/test_state_model.py`. All existing state tests pass.
 +- **Task 3**: `src/sdlc/engine/__init__.py` + `src/sdlc/engine/scanner.py` created. Scanner is 181 LOC (within 300 budget). `mypy --strict` passes. No `print()`, no `subprocess`, no writes.
@@ -562,16 +562,16 @@ index bf61a2b..e1de56b 100644
 +++ b/_bmad-output/implementation-artifacts/1-16-cli-sdlc-init-greenfield.md
 @@ -1,6 +1,6 @@
  # Story 1.16: CLI `sdlc init` (Greenfield) + `sdlc --version` + package_data
- 
+
 -Status: ready-for-dev
 +Status: review
- 
+
  <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
- 
+
 @@ -295,24 +295,24 @@ so that the framework's first user contact succeeds — `pip install sdlc-framew
- 
+
  ## Tasks / Subtasks
- 
+
 -- [ ] **Task 1: Pre-flight verification of dependencies, environment, and prior-story state (AC: all)**
 -  - [ ] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exists and exports `write_state_atomic_sync` (sprint-status `1-10: done`). Smoke: `uv run python -c "from sdlc.state import State, write_state_atomic_sync; print('ok')"`.
 -  - [ ] Verify Story 1.11 deliverables: `src/sdlc/journal/__init__.py` exports `append_sync`. Smoke: `uv run python -c "from sdlc.journal import append_sync, iter_entries; print('ok')"`. Story 1.11 is in `review` per sprint-status snapshot 2026-05-08; `sdlc init` does NOT call `append_sync` (it only `Path.touch()`s journal.log), so 1.11 review status is non-blocking.
@@ -634,14 +634,14 @@ index bf61a2b..e1de56b 100644
 +  - [x] Run `uv lock` to refresh `uv.lock` with Typer + its transitive deps (click, rich, shellingham). Commit the lock change in the same commit as the dep addition.
 +  - [x] Smoke-test the lock: `uv sync --frozen --group dev` from a clean checkout; assert success. Run `uv run python -c "import typer; print(typer.__version__)"` to confirm Typer imports.
 +  - [x] Smoke-test the wheel build: `uv build --wheel`; assert `dist/sdlc_framework-0.0.0-py3-none-any.whl` exists; run `python -m zipfile -l dist/sdlc_framework-0.0.0-py3-none-any.whl` and verify the listing includes `sdlc/__init__.py` (and after Task 3 lands, `sdlc/cli/main.py` etc.). The seven force-include trees do NOT appear yet (no source files); that's expected.
- 
+
 -- [ ] **Task 3: Create `cli/` module skeleton (`__init__.py`, `main.py`, `version.py`, `output.py`, `exit_codes.py`) (AC: #1, #5.1-#5.6, #5.9)**
 -  - [ ] Create `src/sdlc/cli/__init__.py` with content:
 +- [x] **Task 3: Create `cli/` module skeleton (`__init__.py`, `main.py`, `version.py`, `output.py`, `exit_codes.py`) (AC: #1, #5.1-#5.6, #5.9)**
 +  - [x] Create `src/sdlc/cli/__init__.py` with content:
      ```python
      """SDLC framework CLI surface (Story 1.16+).
- 
+
 @@ -365,7 +365,7 @@ so that the framework's first user contact succeeds — `pip install sdlc-framew
      from __future__ import annotations
      ```
@@ -650,7 +650,7 @@ index bf61a2b..e1de56b 100644
 +  - [x] Create `src/sdlc/cli/exit_codes.py`:
      ```python
      """CLI exit code constants (Architecture §540-§548)."""
- 
+
 @@ -386,7 +386,7 @@ so that the framework's first user contact succeeds — `pip install sdlc-framew
      )
      ```
@@ -668,7 +668,7 @@ index bf61a2b..e1de56b 100644
 +  - [x] Create `src/sdlc/cli/version.py`:
      ```python
      """`sdlc --version` handler (FR47, AC1.4)."""
- 
+
 @@ -429,7 +429,7 @@ so that the framework's first user contact succeeds — `pip install sdlc-framew
          return sdlc.__version__
      ```
@@ -677,7 +677,7 @@ index bf61a2b..e1de56b 100644
 +  - [x] Create `src/sdlc/cli/main.py`:
      ```python
      """Typer application entry — registers all `sdlc <subcommand>` handlers.
- 
+
 @@ -496,12 +496,12 @@ so that the framework's first user contact succeeds — `pip install sdlc-framew
          run_init()
      ```
@@ -688,7 +688,7 @@ index bf61a2b..e1de56b 100644
 +  - [x] Run `uv run mypy --strict src/sdlc/cli/` — must pass on all five files.
 +  - [x] Run `uv run ruff check src/sdlc/cli/` — must pass.
 +  - [x] Run `uv run ruff format --check src/sdlc/cli/` — must pass.
- 
+
 -- [ ] **Task 4: Implement `cli/init.py` — the canonical-layout scaffolder (AC: #2, #3, #4, #5.4)**
 -  - [ ] Create `src/sdlc/cli/init.py`. Top-of-file order:
 +- [x] **Task 4: Implement `cli/init.py` — the canonical-layout scaffolder (AC: #2, #3, #4, #5.4)**
@@ -779,7 +779,7 @@ index bf61a2b..e1de56b 100644
      - Float arithmetic.
 -  - [ ] Type annotations: every public and private function fully annotated. `mypy --strict` must pass.
 +  - [x] Type annotations: every public and private function fully annotated. `mypy --strict` must pass.
- 
+
 -- [ ] **Task 5: Update `MODULE_DEPS` boundary table + linter self-tests (AC: #5.7, #5.8)**
 -  - [ ] Edit `scripts/check_module_boundaries.py`. Locate `MODULE_DEPS["cli"]` at lines 132-135. Replace with:
 +- [x] **Task 5: Update `MODULE_DEPS` boundary table + linter self-tests (AC: #5.7, #5.8)**
@@ -881,9 +881,9 @@ index bf61a2b..e1de56b 100644
      cd $(mktemp -d)
      git init
 @@ -956,4 +956,43 @@ claude-opus-4-7[1m]
- 
+
  ### Completion Notes List
- 
+
 +- All 7 ACs satisfied. 714 tests pass (59 POSIX-only skipped on Windows); coverage 90.26% (gate ≥ 90%).
 +- Typer ≥0.12,<1 wired; console script `sdlc = "sdlc.cli.main:app"` uncommented; ADR-005 force-include block added.
 +- `.gitkeep` markers created in each source tree (`src/sdlc/{agents,commands,hooks,workflows,skills,memory}/`, `src/sdlc/dashboard/static/`) to satisfy hatchling editable-install requirement (force-include paths must exist); `.gitkeep` files are skipped at copy-time in `_copy_package_data_tree`.
@@ -929,9 +929,9 @@ index 74b5580..8c5162b 100644
 --- a/_bmad-output/implementation-artifacts/deferred-work.md
 +++ b/_bmad-output/implementation-artifacts/deferred-work.md
 @@ -2,6 +2,14 @@
- 
+
  Items surfaced during code review or development that are real but not actionable in the current story scope. Each entry cites the originating story and the future story or workstream that owns the eventual fix.
- 
+
 +## Deferred from: code review of 1-15-engine-scanner-skeleton (2026-05-09)
 +
 +- **Filename-vs-payload `id` field mismatch silently kept inconsistent** — `src/sdlc/engine/scanner.py:103-112`. Scanner keys `state.epics[...]` by `path.stem` and never compares to `payload.get("id")`; an `EPIC-alpha.json` whose body is `{"id": "EPIC-bravo"}` (rename-without-edit, copy-paste) is loaded under key `EPIC-alpha` while downstream consumers indexing by `payload["id"]` look up `EPIC-bravo`. Fits the explicit "v1 scanner is permissive; Story 1.20 owns reconciliation" stance from spec AC1.2/AC2.7. **Owner:** Story 1.20 (`sdlc rebuild-state`) — surface the divergence as a reconciliation warning.
@@ -941,7 +941,7 @@ index 74b5580..8c5162b 100644
 +- **Foreign subdir-name skip emits INFO instead of WARN** — `src/sdlc/engine/scanner.py:130-132`. Spec AC2.5 governs file-level WARN for foreign filenames; subdir level is not specified. Implementation chose INFO for foreign subdir names (e.g. a stray dir under `05-Stories/`). Defensible interpretation but not explicitly covered. **Owner:** spec clarification — extend AC2.5 to cover subdir level OR document the INFO choice in ADR-018 once human disambiguates.
 +
  ## Deferred from: code review of 1-14-behavioral-conformance-abstraction-adequacy-ci-test (2026-05-09)
- 
+
  - **Spec internal contradiction: AC1 narrative names the test `test_abstraction_adequacy_against_mock_runtime` (story spec line 29) but Task 3 (line 239) and AC2 (parameterized id contract `test_abstraction_adequacy_pipeline[mock_factory]`) name it `test_abstraction_adequacy_pipeline`** — dev correctly followed Task 3 / AC2 (consistent with `_RUNTIME_FACTORIES` and pytest id derivation); the AC1 narrative form is the stale variant. Not a code defect; spec hygiene. **Owner:** spec-correction follow-up; replace AC1 narrative form with Task 3's form.
 diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
 index f265e70..c40823b 100644
@@ -949,7 +949,7 @@ index f265e70..c40823b 100644
 +++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
 @@ -36,9 +36,9 @@
  # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
- 
+
  generated: 2026-05-07
 -last_updated: "2026-05-09 (code-review: 1-14 in-progress → done; POSIX regen complete via Docker)"
 +last_updated: "2026-05-09 (dev-story: 1-16 ready-for-dev → review)"
@@ -1296,7 +1296,7 @@ index ca63c54..add5e2c 100644
  | [017](ADR-017-abstraction-adequacy-ci-contract.md) | Abstraction-adequacy CI contract | 1.14 | Accepted |
 +| [018](ADR-018-engine-scanner-skeleton.md) | Engine scanner skeleton — pure read, idempotent, perf-gated | 1.15 | Accepted |
 +| [019](ADR-019-cli-skeleton-typer-adoption.md) | CLI skeleton + Typer + boundary widening + idempotency | 1.16 | Accepted |
- 
+
  Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
  until then.
 diff --git a/pyproject.toml b/pyproject.toml
@@ -1309,13 +1309,13 @@ index d605589..a60c6ed 100644
      "pyyaml>=6,<7",     # cap: pyyaml 6→7 has not been released; defensive guard against future major
 +    "typer>=0.12,<1",   # cap: typer 0→1 is the architectural pre-lock (Architecture §791); thin click wrapper
  ]
- 
+
 -# [project.scripts]
 -# sdlc = "sdlc.cli.main:app"
 -# TODO: Wire CLI entry point in Story 1.16. Entry point omitted to avoid shipping a broken script.
 +[project.scripts]
 +sdlc = "sdlc.cli.main:app"
- 
+
  [dependency-groups]
  dev = [
 @@ -27,6 +27,7 @@ dev = [
@@ -1325,9 +1325,9 @@ index d605589..a60c6ed 100644
 +    "pytest-benchmark>=4.0.0,<6",  # cap: 6.x may shift pedantic API; performance CI gate (Story 1.15)
      "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
  ]
- 
+
 @@ -36,8 +37,23 @@ build-backend = "hatchling.build"
- 
+
  [tool.hatch.build.targets.wheel]
  packages = ["src/sdlc"]
 -# TODO: ADR-005 — package_data extension lands in Story 1.16+
@@ -1349,7 +1349,7 @@ index d605589..a60c6ed 100644
 +"src/sdlc/skills" = "sdlc/skills"
 +"src/sdlc/memory" = "sdlc/memory"
 +"src/sdlc/dashboard/static" = "sdlc/dashboard/static"
- 
+
  [tool.hatch.build.targets.sdist]
  # PRD §499 + §216 mandate wheel-only distribution for v1.
 @@ -90,6 +106,9 @@ required-imports = ["from __future__ import annotations"]
@@ -1365,7 +1365,7 @@ index d605589..a60c6ed 100644
 @@ -159,6 +178,12 @@ warn_unreachable = false
  module = "sdlc.journal"
  warn_unreachable = false
- 
+
 +# sdlc.cli.init uses a sys.platform == "win32" guard to select the atomic-write
 +# path; the POSIX branch after the early return is unreachable on Windows.
 +[[tool.mypy.overrides]]
@@ -1413,8 +1413,8 @@ index 399f7ed..6b02205 100644
      # Provisional v0.2 entry: agents/ holds the specialist registry (markdown +
 @@ -270,11 +286,6 @@ def _import_target_module(qualified: str) -> str | None:
      return parts[1] if len(parts) >= _SDLC_MIN_PARTS and parts[0] == "sdlc" else None
- 
- 
+
+
 -# ---------------------------------------------------------------------------
 -# Boundary rule checker
 -# ---------------------------------------------------------------------------
@@ -1425,8 +1425,8 @@ index 399f7ed..6b02205 100644
      return "/".join(sorted(spec.forbidden_from)) + "/" if spec.forbidden_from else ""
 @@ -321,10 +332,6 @@ def check_imports(src_module: str, imports: list[Import]) -> list[str]:
      return violations
- 
- 
+
+
 -# ---------------------------------------------------------------------------
 -# LOC cap checker (AC4 / Architecture §765 / NFR-MAINT-3)
 -# ---------------------------------------------------------------------------
@@ -1436,8 +1436,8 @@ index 399f7ed..6b02205 100644
  # correctly for absolute paths and on Windows (where str(Path) uses '\').
 @@ -361,11 +368,6 @@ def check_loc_cap(p: Path) -> list[str]:
      return []
- 
- 
+
+
 -# ---------------------------------------------------------------------------
 -# Main entrypoint
 -# ---------------------------------------------------------------------------
@@ -2058,12 +2058,12 @@ index 6d4e0b9..7de97e5 100644
 --- a/src/sdlc/state/model.py
 +++ b/src/sdlc/state/model.py
 @@ -8,9 +8,13 @@ from pydantic import BaseModel, ConfigDict, Field
- 
- 
+
+
  class State(BaseModel):
 -    """Minimal v1 state projection (Architecture §520, §841).
 +    """`State` v1 projection (Architecture §520, §841).
- 
+
 -    Full schema with journal-coupled hash fields is deferred to Stories 1.11-1.12.
 +    Skeleton schema for substrate stories 1.10-1.20. Additive shape changes
 +    within `schema_version=1` require both model and serialized-blob update;
@@ -2071,7 +2071,7 @@ index 6d4e0b9..7de97e5 100644
 +    `extra="forbid"` rejects unknown fields so typos surface immediately at
 +    validation time.
      """
- 
+
      model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=False)
 @@ -18,5 +22,11 @@ class State(BaseModel):
      schema_version: int = 1
@@ -2238,12 +2238,12 @@ index 48bfbf8..d9274bd 100644
 +++ b/tests/fixtures/abstraction_adequacy/README.md
 @@ -14,6 +14,7 @@ failure (Decision C2, Architecture §1424).
  ## Regen history
- 
+
  - 2026-05-09: initial generation (Story 1.14, ADR-017).
 +- 2026-05-09 (Story 1.15): regenerated after State model gained phase/stories/tasks fields and scan-stub replaced by engine.scanner.scan.
- 
+
  ## When to regenerate
- 
+
 diff --git a/tests/fixtures/abstraction_adequacy/expected_state.json b/tests/fixtures/abstraction_adequacy/expected_state.json
 index 9554a73..7e53636 100644
 --- a/tests/fixtures/abstraction_adequacy/expected_state.json
@@ -2265,12 +2265,12 @@ index 612922d..23a179a 100644
 -from sdlc.state import State, write_state_atomic_sync
 +from sdlc.state import write_state_atomic_sync
  from sdlc.state.projection import project_from_journal
- 
+
  pytestmark = [
 @@ -122,10 +123,10 @@ def test_abstraction_adequacy_pipeline(tmp_path: Path, runtime: AIRuntime) -> No
      journal_path = state_dir / "journal.log"
      state_path = state_dir / "state.json"
- 
+
 -    # Step 2: scan stub — Story 1.15 will replace with engine.scanner.scan when the
 -    # scanner ships. Story 2B.3 will run the FULL pipeline (with real scan) — at that
 -    # point this stub disappears and the test is upgraded in lockstep.
@@ -2423,19 +2423,19 @@ index f098524..9559617 100644
 --- a/tests/test_check_module_boundaries.py
 +++ b/tests/test_check_module_boundaries.py
 @@ -15,9 +15,7 @@ import pytest
- 
+
  import check_module_boundaries as mb
- 
+
 -# ---------------------------------------------------------------------------
  # MODULE_DEPS completeness + invariants
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
 @@ -73,18 +71,20 @@ def test_agents_module_present_with_conservative_profile() -> None:
          assert forbidden in spec.forbidden_from, f"agents must forbid {forbidden}"
- 
- 
+
+
 +@pytest.mark.unit
 +def test_engine_can_import_ids_per_story_115() -> None:
 +    assert "ids" in mb.MODULE_DEPS["engine"].depends_on
@@ -2448,16 +2448,16 @@ index f098524..9559617 100644
      known = frozenset(mb.MODULE_DEPS)
      for name, spec in mb.MODULE_DEPS.items():
          assert (spec.depends_on | spec.forbidden_from) <= known, name
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # file_to_module
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
 @@ -128,7 +128,6 @@ def test_file_to_module_returns_none_for_scripts_file(tmp_path: Path) -> None:
- 
+
  @pytest.mark.unit
  def test_file_to_module_handles_top_level_flat_file(tmp_path: Path) -> None:
 -    """src/sdlc/version.py -> 'version' (P5: don't silently skip flat-file submodules)."""
@@ -2466,16 +2466,16 @@ index f098524..9559617 100644
      flat = sdlc_root / "version.py"
 @@ -136,9 +135,7 @@ def test_file_to_module_handles_top_level_flat_file(tmp_path: Path) -> None:
      assert mb.file_to_module(flat, sdlc_root=sdlc_root) == "version"
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # _extract_sdlc_imports
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
 @@ -180,7 +177,6 @@ def test_extract_imports_allows_relative_imports_outside_src_module() -> None:
- 
+
  @pytest.mark.unit
  def test_extract_imports_captures_from_sdlc_submodule_form() -> None:
 -    """`from sdlc import engine, dispatcher` — each name is a submodule target (P2)."""
@@ -2483,7 +2483,7 @@ index f098524..9559617 100644
      targets = {imp.module for imp in mb._extract_sdlc_imports(tree)}
      assert targets == {"sdlc.engine", "sdlc.dispatcher"}
 @@ -188,7 +184,6 @@ def test_extract_imports_captures_from_sdlc_submodule_form() -> None:
- 
+
  @pytest.mark.unit
  def test_extract_imports_skips_type_checking_block() -> None:
 -    """`if TYPE_CHECKING:` imports are type-only, not runtime (P14 / PEP 484)."""
@@ -2491,7 +2491,7 @@ index f098524..9559617 100644
          "from typing import TYPE_CHECKING\n"
          "if TYPE_CHECKING:\n"
 @@ -202,16 +197,13 @@ def test_extract_imports_skips_type_checking_block() -> None:
- 
+
  @pytest.mark.unit
  def test_extract_imports_skips_typing_dot_type_checking_block() -> None:
 -    """Also handles `if typing.TYPE_CHECKING:` attribute-form (P14)."""
@@ -2499,63 +2499,63 @@ index f098524..9559617 100644
          "import typing\nif typing.TYPE_CHECKING:\n    from sdlc.engine import EngineProtocol\n"
      )
      assert mb._extract_sdlc_imports(tree, src_module="state") == []
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # check_imports — baseline
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
 @@ -244,9 +236,7 @@ def test_unknown_module_returns_no_violations() -> None:
      assert violations == []
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # check_imports — §1103 specific boundary rules (table-driven)
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.parametrize(
 @@ -275,9 +265,7 @@ def test_specific_boundary_rules(src_module: str, target: str, must_fail: bool)
          assert violations == [], f"{src_module}/ -> {target}/ should pass"
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # check_imports — per-rule §1103-#N citation in error messages (D1/P11)
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.parametrize(
 @@ -303,9 +291,7 @@ def test_specific_rule_citation_in_message(src: str, tgt: str, rule: int) -> Non
      assert f"§1103-#{rule}" in violations[0], violations[0]
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # check_imports — leaf-module rule (§1054 / §1103-#8)
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
 @@ -330,9 +316,7 @@ def test_errors_module_reports_all_violations_not_just_first() -> None:
      assert len(violations) == 2
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # check_imports — message wording (D2 hybrid)
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
 @@ -385,16 +369,29 @@ def test_relative_import_violation_is_reported() -> None:
      assert "§1075" in violations[0]
- 
- 
+
+
 -# ---------------------------------------------------------------------------
  # check_imports — `from sdlc import X` end-to-end (P2)
 -# ---------------------------------------------------------------------------
- 
- 
+
+
  @pytest.mark.unit
  def test_from_sdlc_import_engine_in_state_is_rejected() -> None:
 -    """The historic bypass: `from sdlc import engine` inside state/ must be flagged."""
@@ -3053,8 +3053,8 @@ index 303d059..7efbd24 100644
 +    # Story 1.15: State gained phase/stories/tasks fields (additive, schema_version unchanged).
 +    expected_hex = "sha256:6c7f5534fbb776fa67db12c8b688f558d0f845a15ca8eebcca1c9b92490a7714"
      assert actual_hex == expected_hex
- 
- 
+
+
 @@ -115,7 +116,7 @@ def test_synthesize_hook_payload_rejects_non_string_content_hash() -> None:
              },
          )
@@ -3062,25 +3062,25 @@ index 303d059..7efbd24 100644
 -    with pytest.raises(ValueError, match="content_hash.* must be str"):
 +    with pytest.raises(ValueError, match=r"content_hash.* must be str"):
          _synthesize_hook_payload(bad_result, seq=1)
- 
- 
+
+
 diff --git a/tests/unit/state/test_state_model.py b/tests/unit/state/test_state_model.py
 index 328020c..a595ab7 100644
 --- a/tests/unit/state/test_state_model.py
 +++ b/tests/unit/state/test_state_model.py
 @@ -2,6 +2,8 @@
- 
+
  from __future__ import annotations
- 
+
 +import json
 +
  import pytest
- 
+
  pytestmark = pytest.mark.unit
 @@ -16,6 +18,45 @@ def test_state_defaults() -> None:
      assert s.epics == {}
- 
- 
+
+
 +def test_state_default_construction_has_skeleton_fields() -> None:
 +    from sdlc.state.model import State
 +
@@ -3122,7 +3122,7 @@ index 328020c..a595ab7 100644
 +
  def test_state_construction() -> None:
      from sdlc.state.model import State
- 
+
 diff --git a/uv.lock b/uv.lock
 index 9581df6..8fec7d0 100644
 --- a/uv.lock
@@ -3130,7 +3130,7 @@ index 9581df6..8fec7d0 100644
 @@ -6,6 +6,15 @@ resolution-markers = [
      "python_full_version < '3.15'",
  ]
- 
+
 +[[package]]
 +name = "annotated-doc"
 +version = "0.0.4"
@@ -3146,7 +3146,7 @@ index 9581df6..8fec7d0 100644
 @@ -380,6 +389,18 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/de/1f/77fa3081e4f66ca3576c896ae5d31c3002ac6607f9747d2e3aa49227e464/markdown-3.10.2-py3-none-any.whl", hash = "sha256:e91464b71ae3ee7afd3017d9f358ef0baf158fd9a298db92f1d4761133824c36", size = 108180, upload-time = "2026-02-09T14:57:25.787Z" },
  ]
- 
+
 +[[package]]
 +name = "markdown-it-py"
 +version = "4.2.0"
@@ -3165,7 +3165,7 @@ index 9581df6..8fec7d0 100644
 @@ -465,6 +486,15 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/70/bc/6f1c2f612465f5fa89b95bead1f44dcb607670fd42891d8fdcd5d039f4f4/markupsafe-3.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:32001d6a8fc98c8cb5c947787c5d08b0a50663d139f1305bac5885d98d9b40fa", size = 14146, upload-time = "2025-09-27T18:37:28.327Z" },
  ]
- 
+
 +[[package]]
 +name = "mdurl"
 +version = "0.1.2"
@@ -3181,7 +3181,7 @@ index 9581df6..8fec7d0 100644
 @@ -641,6 +671,15 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/80/6e/4b28b62ecb6aae56769c34a8ff1d661473ec1e9519e2d5f8b2c150086b26/pre_commit-4.6.0-py2.py3-none-any.whl", hash = "sha256:e2cf246f7299edcabcf15f9b0571fdce06058527f0a06535068a86d38089f29b", size = 226472, upload-time = "2026-04-21T20:31:40.092Z" },
  ]
- 
+
 +[[package]]
 +name = "py-cpuinfo"
 +version = "9.0.0"
@@ -3197,7 +3197,7 @@ index 9581df6..8fec7d0 100644
 @@ -799,6 +838,19 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
  ]
- 
+
 +[[package]]
 +name = "pytest-benchmark"
 +version = "5.2.3"
@@ -3217,7 +3217,7 @@ index 9581df6..8fec7d0 100644
 @@ -914,6 +966,19 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/04/11/432f32f8097b03e3cd5fe57e88efb685d964e2e5178a48ed61e841f7fdce/pyyaml_env_tag-1.1-py3-none-any.whl", hash = "sha256:17109e1a528561e32f026364712fee1264bc2ea6715120891174ed1b980d2e04", size = 4722, upload-time = "2025-05-13T15:23:59.629Z" },
  ]
- 
+
 +[[package]]
 +name = "rich"
 +version = "15.0.0"
@@ -3240,7 +3240,7 @@ index 9581df6..8fec7d0 100644
      { name = "pyyaml" },
 +    { name = "typer" },
  ]
- 
+
  [package.dev-dependencies]
 @@ -956,6 +1022,7 @@ dev = [
      { name = "mypy" },
@@ -3256,7 +3256,7 @@ index 9581df6..8fec7d0 100644
      { name = "pyyaml", specifier = ">=6,<7" },
 +    { name = "typer", specifier = ">=0.12,<1" },
  ]
- 
+
  [package.metadata.requires-dev]
 @@ -975,11 +1043,21 @@ dev = [
      { name = "mypy", specifier = ">=1.11.0,<3" },
@@ -3267,7 +3267,7 @@ index 9581df6..8fec7d0 100644
      { name = "ruff", specifier = ">=0.6.0" },
      { name = "types-pyyaml" },
  ]
- 
+
 +[[package]]
 +name = "shellingham"
 +version = "1.5.4"
@@ -3283,7 +3283,7 @@ index 9581df6..8fec7d0 100644
 @@ -1052,6 +1130,21 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/7b/61/cceae43728b7de99d9b847560c262873a1f6c98202171fd5ed62640b494b/tomli-2.4.1-py3-none-any.whl", hash = "sha256:0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe", size = 14583, upload-time = "2026-03-25T20:22:03.012Z" },
  ]
- 
+
 +[[package]]
 +name = "typer"
 +version = "0.25.1"
