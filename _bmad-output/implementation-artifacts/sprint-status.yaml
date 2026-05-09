@@ -36,14 +36,14 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-09 (code-review: 1-17 review → done)"
+last_updated: "2026-05-09 (dev-story: 1-18 in-progress → review)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
 #   2026-05-09 dev-story 1-16-cli-sdlc-init-greenfield (status: ready-for-dev → review; 714 tests pass, 90.26% coverage)
 #   2026-05-09 dev-story 1-17 (status: ready-for-dev → in-progress)
 #   2026-05-09 dev-story 1-17-cli-sdlc-scan-status-accessibility-flags (status: in-progress → review; 816 tests pass, 94% coverage)
-last_action: "code-review 1-17-cli-sdlc-scan-status-accessibility-flags (status: review → done; 907 tests pass, 94.03% coverage; 23 patches applied + 1 decision-needed resolved)"
+last_action: "dev-story 1-18-cli-sdlc-trace-replay-logs (status: in-progress → review; 1001 tests pass, 95% total / 100% new modules coverage)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -70,7 +70,7 @@ development_status:
   1-15-engine-scanner-skeleton: done
   1-16-cli-sdlc-init-greenfield: done
   1-17-cli-sdlc-scan-status-accessibility-flags: done
-  1-18-cli-sdlc-trace-replay-logs: ready-for-dev
+  1-18-cli-sdlc-trace-replay-logs: review
   1-19-migration-framework-major-version-refusal: ready-for-dev
   1-20-recovery-sdlc-rebuild-state: ready-for-dev
   1-21-gate-wire-format-v1-lock-ceremony: ready-for-dev

@@ -85,6 +85,41 @@ def test_no_color_env_var_disables_color(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 @pytest.mark.unit
+def test_main_app_has_trace_subcommand() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "trace" in result.stdout
+
+
+@pytest.mark.unit
+def test_main_app_has_replay_subcommand() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "replay" in result.stdout
+
+
+@pytest.mark.unit
+def test_main_app_has_logs_subcommand() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "logs" in result.stdout
+
+
+@pytest.mark.unit
+def test_main_app_trace_requires_task_id() -> None:
+    result = runner.invoke(app, ["trace"])
+    assert result.exit_code != 0
+    assert "missing" in result.output.lower() or "argument" in result.output.lower()
+
+
+@pytest.mark.unit
+def test_main_app_replay_requires_line_spec() -> None:
+    result = runner.invoke(app, ["replay"])
+    assert result.exit_code != 0
+    assert "missing" in result.output.lower() or "argument" in result.output.lower()
+
+
+@pytest.mark.unit
 def test_main_app_no_args_shows_help() -> None:
     result = runner.invoke(app, [])
     # click 8.x convention: invoking a Group with no subcommand exits 2 even

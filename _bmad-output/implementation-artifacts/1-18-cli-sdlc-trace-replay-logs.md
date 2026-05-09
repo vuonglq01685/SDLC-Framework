@@ -1,6 +1,6 @@
 # Story 1.18: CLI `sdlc trace` + `sdlc replay` + `sdlc logs`
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -401,24 +401,24 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Pre-flight verification of dependencies, environment, and prior-story state (AC: all)**
-  - [ ] Verify Story 1.6 deliverables on disk: `src/sdlc/ids/parsers.py` exports `parse_task_id`, `TaskId`, `TASK_ID_REGEX`. Smoke: `uv run python -c "from sdlc.ids import parse_task_id; print(parse_task_id('EPIC-foo-S01-bar-T01-baz'))"`. Sprint-status `1-6: done`.
-  - [ ] Verify Story 1.7 deliverables on disk: `src/sdlc/contracts/journal_entry.py` exports `JournalEntry` with the v1 contract (schema_version, monotonic_seq, ts, actor, kind, target_id, before_hash, after_hash, payload). Smoke: `uv run python -c "from sdlc.contracts.journal_entry import JournalEntry; print(JournalEntry.model_fields)"`. Sprint-status `1-7: done`.
-  - [ ] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `iter_entries`, `iter_after`, `append`, `append_sync` (POSIX) / `append_sync` raises on Windows. Smoke: `uv run python -c "from sdlc.journal import iter_entries; print(iter_entries)"`. Sprint-status `1-11: done` (or `review` per snapshot 2026-05-08; if still in `review`, gate Story 1.18 dev behind 1.11 reaching `done` because trace/replay/logs hard-depend on the reader).
-  - [ ] Verify Story 1.16 deliverables on disk (or in-flight): `src/sdlc/cli/main.py` (with `app` Typer instance), `src/sdlc/cli/init.py`, `src/sdlc/cli/output.py` (Story 1.17 expanded surface), `src/sdlc/cli/exit_codes.py`, `src/sdlc/cli/version.py`. Smoke: `uv run sdlc --version` prints `sdlc 0.0.0` exit 0. If 1.16 has NOT landed (sprint-status `1-16: ready-for-dev` per snapshot 2026-05-08), gate 1.18 behind 1.16 reaching `done` — the entire CLI architecture this story extends is owned by 1.16.
-  - [ ] Verify Story 1.17 deliverables on disk (or in-flight): `src/sdlc/cli/scan.py`, `src/sdlc/cli/status.py`, expanded `src/sdlc/cli/output.py` with `emit_json`, `emit_error`, `make_console`, `is_no_color_active`, `_ERR_CODE_TO_EXIT_CODE` table. Smoke: `uv run python -c "from sdlc.cli.output import emit_json, emit_error, make_console; print('ok')"`. If 1.17 has NOT landed, gate 1.18 behind 1.17 — Story 1.18 hard-depends on `emit_json`/`emit_error`/`make_console` for output formatting + the `--no-color`/`--json` flag plumbing in `cli/main.py:_root`.
-  - [ ] Verify boundary-linter location: `scripts/check_module_boundaries.py` has `MODULE_DEPS["cli"]` widened by Story 1.16 to include `state`, `journal`, `contracts`, `ids`. Confirm via `grep -A5 '"cli": ModuleSpec' scripts/check_module_boundaries.py`. Story 1.18 does NOT widen further — the existing widening covers `cli/trace.py` (uses `journal`, `state`, `contracts`, `ids`), `cli/replay.py` (uses `journal`, `contracts`), `cli/logs.py` (uses `journal`, `state`, `contracts`, `ids`).
-  - [ ] Verify ADR numbering: ADRs 013, 014 are landed (Stories 1.10, 1.11). ADRs 015-020 are in flight per their stories' AC blocks; Story 1.18 (this story) authors **ADR-021**. Take next free number after the most recent ADR on disk.
-  - [ ] Verify `pyproject.toml [project] dependencies` includes `typer>=0.12,<1` (Story 1.16) AND `rich>=13,<15` (Story 1.17). Story 1.18 ADDS NO new dependencies — it consumes Story 1.17's `rich` via `make_console` + Typer's existing surface for argument/option declarations.
-  - [ ] Verify `src/sdlc/cli/trace.py`, `src/sdlc/cli/replay.py`, `src/sdlc/cli/logs.py` do NOT exist on disk: absence verified via `Test-Path` (PowerShell) or `test -f` (POSIX). If they exist (half-merged earlier story), HALT and reconcile manually before proceeding.
-  - [ ] Verify `tests/unit/cli/test_trace.py`, `test_replay.py`, `test_logs.py`, `test_logs_follow.py` do NOT exist. Same absence check.
-  - [ ] Verify the existing pre-commit hooks pass on `main`: `uv run pre-commit run --all-files`. Establish a green baseline before mutating.
-  - [ ] Confirm the Story 1.16-1.17 walking-skeleton smoke works (if both shipped): in a tmp dir, `git init && uv run sdlc init && uv run sdlc scan && uv run sdlc status`. All exit 0. Story 1.18 extends this stack with `sdlc trace`, `sdlc replay`, `sdlc logs` working too.
-  - [ ] Verify `JournalEntry.payload` is `Mapping[str, object]` (not `dict[str, object]`) per `contracts/journal_entry.py:37` — Story 1.18 reads `payload.get(...)` so the Mapping interface is sufficient; no need to cast to dict.
+- [x] **Task 1: Pre-flight verification of dependencies, environment, and prior-story state (AC: all)**
+  - [x] Verify Story 1.6 deliverables on disk: `src/sdlc/ids/parsers.py` exports `parse_task_id`, `TaskId`, `TASK_ID_REGEX`. Smoke: `uv run python -c "from sdlc.ids import parse_task_id; print(parse_task_id('EPIC-foo-S01-bar-T01-baz'))"`. Sprint-status `1-6: done`.
+  - [x] Verify Story 1.7 deliverables on disk: `src/sdlc/contracts/journal_entry.py` exports `JournalEntry` with the v1 contract (schema_version, monotonic_seq, ts, actor, kind, target_id, before_hash, after_hash, payload). Smoke: `uv run python -c "from sdlc.contracts.journal_entry import JournalEntry; print(JournalEntry.model_fields)"`. Sprint-status `1-7: done`.
+  - [x] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `iter_entries`, `iter_after`, `append`, `append_sync` (POSIX) / `append_sync` raises on Windows. Smoke: `uv run python -c "from sdlc.journal import iter_entries; print(iter_entries)"`. Sprint-status `1-11: done` (or `review` per snapshot 2026-05-08; if still in `review`, gate Story 1.18 dev behind 1.11 reaching `done` because trace/replay/logs hard-depend on the reader).
+  - [x] Verify Story 1.16 deliverables on disk (or in-flight): `src/sdlc/cli/main.py` (with `app` Typer instance), `src/sdlc/cli/init.py`, `src/sdlc/cli/output.py` (Story 1.17 expanded surface), `src/sdlc/cli/exit_codes.py`, `src/sdlc/cli/version.py`. Smoke: `uv run sdlc --version` prints `sdlc 0.0.0` exit 0. If 1.16 has NOT landed (sprint-status `1-16: ready-for-dev` per snapshot 2026-05-08), gate 1.18 behind 1.16 reaching `done` — the entire CLI architecture this story extends is owned by 1.16.
+  - [x] Verify Story 1.17 deliverables on disk (or in-flight): `src/sdlc/cli/scan.py`, `src/sdlc/cli/status.py`, expanded `src/sdlc/cli/output.py` with `emit_json`, `emit_error`, `make_console`, `is_no_color_active`, `_ERR_CODE_TO_EXIT_CODE` table. Smoke: `uv run python -c "from sdlc.cli.output import emit_json, emit_error, make_console; print('ok')"`. If 1.17 has NOT landed, gate 1.18 behind 1.17 — Story 1.18 hard-depends on `emit_json`/`emit_error`/`make_console` for output formatting + the `--no-color`/`--json` flag plumbing in `cli/main.py:_root`.
+  - [x] Verify boundary-linter location: `scripts/check_module_boundaries.py` has `MODULE_DEPS["cli"]` widened by Story 1.16 to include `state`, `journal`, `contracts`, `ids`. Confirm via `grep -A5 '"cli": ModuleSpec' scripts/check_module_boundaries.py`. Story 1.18 does NOT widen further — the existing widening covers `cli/trace.py` (uses `journal`, `state`, `contracts`, `ids`), `cli/replay.py` (uses `journal`, `contracts`), `cli/logs.py` (uses `journal`, `state`, `contracts`, `ids`).
+  - [x] Verify ADR numbering: ADRs 013, 014 are landed (Stories 1.10, 1.11). ADRs 015-020 are in flight per their stories' AC blocks; Story 1.18 (this story) authors **ADR-021**. Take next free number after the most recent ADR on disk.
+  - [x] Verify `pyproject.toml [project] dependencies` includes `typer>=0.12,<1` (Story 1.16) AND `rich>=13,<15` (Story 1.17). Story 1.18 ADDS NO new dependencies — it consumes Story 1.17's `rich` via `make_console` + Typer's existing surface for argument/option declarations.
+  - [x] Verify `src/sdlc/cli/trace.py`, `src/sdlc/cli/replay.py`, `src/sdlc/cli/logs.py` do NOT exist on disk: absence verified via `Test-Path` (PowerShell) or `test -f` (POSIX). If they exist (half-merged earlier story), HALT and reconcile manually before proceeding.
+  - [x] Verify `tests/unit/cli/test_trace.py`, `test_replay.py`, `test_logs.py`, `test_logs_follow.py` do NOT exist. Same absence check.
+  - [x] Verify the existing pre-commit hooks pass on `main`: `uv run pre-commit run --all-files`. Establish a green baseline before mutating.
+  - [x] Confirm the Story 1.16-1.17 walking-skeleton smoke works (if both shipped): in a tmp dir, `git init && uv run sdlc init && uv run sdlc scan && uv run sdlc status`. All exit 0. Story 1.18 extends this stack with `sdlc trace`, `sdlc replay`, `sdlc logs` working too.
+  - [x] Verify `JournalEntry.payload` is `Mapping[str, object]` (not `dict[str, object]`) per `contracts/journal_entry.py:37` — Story 1.18 reads `payload.get(...)` so the Mapping interface is sufficient; no need to cast to dict.
 
-- [ ] **Task 2: Extend `cli/output.py` with new error codes (AC: #5)**
-  - [ ] Open `src/sdlc/cli/output.py`. Locate the `_ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType({...})` block (Story 1.17 added this).
-  - [ ] Add two new entries to the mapping at the end (preserving Story 1.17's order; do NOT alphabetize):
+- [x] **Task 2: Extend `cli/output.py` with new error codes (AC: #5)**
+  - [x] Open `src/sdlc/cli/output.py`. Locate the `_ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType({...})` block (Story 1.17 added this).
+  - [x] Add two new entries to the mapping at the end (preserving Story 1.17's order; do NOT alphabetize):
     ```python
     _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         {
@@ -435,25 +435,25 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         }
     )
     ```
-  - [ ] Add the per-command schema constants alongside Story 1.17's `_SCAN_OUTPUT_SCHEMA` / `_STATUS_OUTPUT_SCHEMA`:
+  - [x] Add the per-command schema constants alongside Story 1.17's `_SCAN_OUTPUT_SCHEMA` / `_STATUS_OUTPUT_SCHEMA`:
     ```python
     _TRACE_OUTPUT_SCHEMA: Final[str] = "v1"
     _REPLAY_OUTPUT_SCHEMA: Final[str] = "v1"
     _LOGS_OUTPUT_SCHEMA: Final[str] = "v1"
     ```
     Document the four schemas (scan/status/trace/replay/logs) in the module docstring as a single block: "Per-command JSON output schemas. Story 1.21 wire-format-lock ceremony freezes these at v1."
-  - [ ] Update the module docstring's "Story 1.17" attribution to also reference Story 1.18 for the new error codes + schemas. Single-line addition:
+  - [x] Update the module docstring's "Story 1.17" attribution to also reference Story 1.18 for the new error codes + schemas. Single-line addition:
     ```python
     """...
     Story 1.18 extension: adds ERR_JOURNAL_READ_FAILED, ERR_AGENT_RUNS_READ_FAILED;
     declares _TRACE_OUTPUT_SCHEMA, _REPLAY_OUTPUT_SCHEMA, _LOGS_OUTPUT_SCHEMA constants.
     ..."""
     ```
-  - [ ] Verify LOC stays ≤ 200 (Story 1.17 cap). Run `uv run mypy --strict src/sdlc/cli/output.py` → must pass.
-  - [ ] Run `uv run ruff check src/sdlc/cli/output.py` and `uv run ruff format --check src/sdlc/cli/output.py` → both pass.
+  - [x] Verify LOC stays ≤ 200 (Story 1.17 cap). Run `uv run mypy --strict src/sdlc/cli/output.py` → must pass.
+  - [x] Run `uv run ruff check src/sdlc/cli/output.py` and `uv run ruff format --check src/sdlc/cli/output.py` → both pass.
 
-- [ ] **Task 3: Implement `cli/trace.py` (AC: #1, #2)**
-  - [ ] Create `src/sdlc/cli/trace.py`. Top-of-file order:
+- [x] **Task 3: Implement `cli/trace.py` (AC: #1, #2)**
+  - [x] Create `src/sdlc/cli/trace.py`. Top-of-file order:
     1. Module docstring: "`sdlc trace <task-id>` implementation (FR33, NFR-OBS-3, Architecture §803, §1159). Filters journal + agent_runs by task-id; chronological merge."
     2. `from __future__ import annotations`.
     3. Stdlib imports (alphabetized): `import datetime`, `import json`, `import logging`, `import subprocess`, `import sys`, `from collections.abc import Iterator, Mapping`, `from pathlib import Path`, `from typing import Any, Final, Literal, TypedDict`.
@@ -469,8 +469,8 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
            "ts", "agent", "target_id", "stage", "outcome", "duration_ms"
        )
        ```
-  - [ ] Implement `_get_repo_root_or_cwd() -> Path` — same pattern as Story 1.16/1.17. If `cli/_paths.py` exists from prior story, IMPORT it instead of duplicating; otherwise inline.
-  - [ ] Implement `_event_affects_task(entry: JournalEntry, task_id: str) -> bool`:
+  - [x] Implement `_get_repo_root_or_cwd() -> Path` — same pattern as Story 1.16/1.17. If `cli/_paths.py` exists from prior story, IMPORT it instead of duplicating; otherwise inline.
+  - [x] Implement `_event_affects_task(entry: JournalEntry, task_id: str) -> bool`:
     ```python
     def _event_affects_task(entry: JournalEntry, task_id: str) -> bool:
         """Return True if this journal entry pertains to the given task-id.
@@ -493,7 +493,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         return False
     ```
     Pure function — unit-testable in isolation.
-  - [ ] Implement `_iter_agent_runs(path: Path) -> Iterator[dict[str, Any]]`:
+  - [x] Implement `_iter_agent_runs(path: Path) -> Iterator[dict[str, Any]]`:
     ```python
     def _iter_agent_runs(path: Path) -> Iterator[dict[str, Any]]:
         """Yield records from agent_runs.jsonl. Missing file → empty iterator. Malformed
@@ -526,7 +526,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
             raise OSError(f"agent_runs read failed at {path}: {exc}") from exc
     ```
     The `OSError` propagates up to `run_trace` which translates to `emit_error("ERR_AGENT_RUNS_READ_FAILED", ...)`.
-  - [ ] Implement `_record_matches_task(record: dict[str, Any], task_id: str) -> bool`:
+  - [x] Implement `_record_matches_task(record: dict[str, Any], task_id: str) -> bool`:
     ```python
     def _record_matches_task(record: dict[str, Any], task_id: str) -> bool:
         for key in ("target_id", "task_id"):
@@ -535,14 +535,14 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
                 return True
         return False
     ```
-  - [ ] Implement `_parse_ts(ts: str) -> datetime.datetime`:
+  - [x] Implement `_parse_ts(ts: str) -> datetime.datetime`:
     ```python
     def _parse_ts(ts: str) -> datetime.datetime:
         """RFC 3339 UTC string → datetime. 3.10-compatible."""
         normalized = ts.replace("Z", "+00:00")
         return datetime.datetime.fromisoformat(normalized)
     ```
-  - [ ] Implement `_collect_events(journal_path, agent_runs_path, task_id) -> list[dict[str, Any]]`:
+  - [x] Implement `_collect_events(journal_path, agent_runs_path, task_id) -> list[dict[str, Any]]`:
     ```python
     def _collect_events(
         *, journal_path: Path, agent_runs_path: Path, task_id: str,
@@ -590,7 +590,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
             e.pop("_sort_seq", None)
         return events
     ```
-  - [ ] Implement the public `run_trace(*, ctx: typer.Context, task_id: str) -> None`:
+  - [x] Implement the public `run_trace(*, ctx: typer.Context, task_id: str) -> None`:
     ```python
     def run_trace(*, ctx: typer.Context, task_id: str) -> None:
         from sdlc.errors import JournalError as _JE  # noqa: F401  # for emit-clarity
@@ -669,17 +669,17 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
                 )
             echo(line, ctx=ctx)
     ```
-  - [ ] Verify LOC ≤ 250 for `cli/trace.py`. If exceeded, factor `_iter_agent_runs`, `_record_matches_task`, `_parse_ts` into `cli/_trace_helpers.py`.
-  - [ ] **Forbidden patterns** (review-time gate):
+  - [x] Verify LOC ≤ 250 for `cli/trace.py`. If exceeded, factor `_iter_agent_runs`, `_record_matches_task`, `_parse_ts` into `cli/_trace_helpers.py`.
+  - [x] **Forbidden patterns** (review-time gate):
     - `print()` — use `echo`/`emit_json`/`emit_error`.
     - Bare `except:` / `except Exception:` — narrow catches only.
     - Mutating `JournalEntry.payload` (it's a `MappingProxyType` — would raise anyway, but never call `.update`/`.pop` on it).
     - `os.environ[...]` direct access — env reads happen in `cli/output.py` only.
     - `time.time()` for ordering — `monotonic_seq` is the ordering primitive.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/trace.py` → must pass. Annotate the `events: list[dict[str, Any]]` return; the `Any` is acceptable here because agent_runs records are schema-free in v1.18.
+  - [x] Run `uv run mypy --strict src/sdlc/cli/trace.py` → must pass. Annotate the `events: list[dict[str, Any]]` return; the `Any` is acceptable here because agent_runs records are schema-free in v1.18.
 
-- [ ] **Task 4: Implement `cli/replay.py` (AC: #3)**
-  - [ ] Create `src/sdlc/cli/replay.py`. Top-of-file order:
+- [x] **Task 4: Implement `cli/replay.py` (AC: #3)**
+  - [x] Create `src/sdlc/cli/replay.py`. Top-of-file order:
     1. Module docstring: "`sdlc replay <line-or-range>` implementation (FR34, Architecture §804, §1160). Pretty-prints parsed JournalEntry models."
     2. `from __future__ import annotations`.
     3. Stdlib imports (alphabetized): `import logging`, `import re`, `import subprocess`, `import sys`, `from collections.abc import Iterable`, `from pathlib import Path`, `from typing import Final`.
@@ -694,8 +694,8 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
        _SINGLE_LINE_RE: Final[re.Pattern[str]] = re.compile(r"^([1-9]\d*)$")
        _RANGE_RE: Final[re.Pattern[str]] = re.compile(r"^([1-9]\d*)-([1-9]\d*)$")
        ```
-  - [ ] Implement `_get_repo_root_or_cwd()` (same as Story 1.16/1.17/Task 3).
-  - [ ] Implement `_parse_line_spec(spec: str) -> tuple[int, int]`:
+  - [x] Implement `_get_repo_root_or_cwd()` (same as Story 1.16/1.17/Task 3).
+  - [x] Implement `_parse_line_spec(spec: str) -> tuple[int, int]`:
     ```python
     def _parse_line_spec(spec: str) -> tuple[int, int]:
         """Parse 'N' or 'N-M'. Both 1-indexed inclusive; require start ≤ end.
@@ -735,7 +735,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         return (start, end)
     ```
     Pure function — unit-testable. The regex anchors `^([1-9]\d*)$` reject `"0"` and any leading-zero forms (`"01"` is invalid by design — line numbers don't carry zero-padding). The `re.match` (not `re.search` and not `re.fullmatch`) is intentional with `$` anchor; both anchors yield the same behavior for these patterns but `^...$` is the project convention.
-  - [ ] Implement `_format_entry_human(lineno: int, entry: JournalEntry, ctx: typer.Context) -> list[str]`:
+  - [x] Implement `_format_entry_human(lineno: int, entry: JournalEntry, ctx: typer.Context) -> list[str]`:
     ```python
     def _format_entry_human(lineno: int, entry: JournalEntry) -> list[str]:
         """Return a list of lines forming the pretty-print block for one entry."""
@@ -756,7 +756,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         return lines
     ```
     Test asserts presence of `--- line N ---`, `monotonic_seq:`, `ts:`, etc. — exact byte format is non-load-bearing.
-  - [ ] Implement `run_replay(*, ctx: typer.Context, line_spec: str) -> None`:
+  - [x] Implement `run_replay(*, ctx: typer.Context, line_spec: str) -> None`:
     ```python
     def run_replay(*, ctx: typer.Context, line_spec: str) -> None:
         root = _get_repo_root_or_cwd()
@@ -838,12 +838,12 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
             for line in _format_entry_human(ln, entry):
                 echo(line, ctx=ctx)
     ```
-  - [ ] Verify LOC ≤ 200 for `cli/replay.py`. If exceeded, factor `_format_entry_human` into `cli/_replay_helpers.py`.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/replay.py` → must pass.
-  - [ ] **Forbidden patterns** (review-time): same as Task 3.
+  - [x] Verify LOC ≤ 200 for `cli/replay.py`. If exceeded, factor `_format_entry_human` into `cli/_replay_helpers.py`.
+  - [x] Run `uv run mypy --strict src/sdlc/cli/replay.py` → must pass.
+  - [x] **Forbidden patterns** (review-time): same as Task 3.
 
-- [ ] **Task 5: Implement `cli/logs.py` (AC: #4)**
-  - [ ] Create `src/sdlc/cli/logs.py`. Top-of-file order:
+- [x] **Task 5: Implement `cli/logs.py` (AC: #4)**
+  - [x] Create `src/sdlc/cli/logs.py`. Top-of-file order:
     1. Module docstring: "`sdlc logs` implementation (FR45, NFR-OBS-6, Architecture §809, §1171). Tails journal + agent_runs.jsonl with filters + follow-mode."
     2. `from __future__ import annotations`.
     3. Stdlib imports (alphabetized): `import datetime`, `import json`, `import logging`, `import subprocess`, `import sys`, `import time`, `from collections.abc import Iterator`, `from pathlib import Path`, `from typing import Any, Final`.
@@ -861,14 +861,14 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
        )
        ```
        (Add `from collections.abc import Mapping` and `from types import MappingProxyType` to imports.)
-  - [ ] Implement `_get_repo_root_or_cwd()` (same as Tasks 3-4).
-  - [ ] Implement `_iter_agent_runs(path: Path) -> Iterator[dict[str, Any]]` — same body as Task 3's helper. Factor into `cli/_logs_helpers.py` if `cli/trace.py` and `cli/logs.py` both exceed their LOC caps; otherwise duplicate (single-use helpers are acceptable per project convention; both modules are ≤ 250 LOC). The DRY-versus-duplication trade is documented in dev notes.
-  - [ ] Implement `_journal_actor_matches_agent(actor: str, agent_name: str) -> bool`:
+  - [x] Implement `_get_repo_root_or_cwd()` (same as Tasks 3-4).
+  - [x] Implement `_iter_agent_runs(path: Path) -> Iterator[dict[str, Any]]` — same body as Task 3's helper. Factor into `cli/_logs_helpers.py` if `cli/trace.py` and `cli/logs.py` both exceed their LOC caps; otherwise duplicate (single-use helpers are acceptable per project convention; both modules are ≤ 250 LOC). The DRY-versus-duplication trade is documented in dev notes.
+  - [x] Implement `_journal_actor_matches_agent(actor: str, agent_name: str) -> bool`:
     ```python
     def _journal_actor_matches_agent(actor: str, agent_name: str) -> bool:
         return actor == f"agent:{agent_name}"
     ```
-  - [ ] Implement `_journal_entry_matches_filters(entry, filter_task, filter_agent) -> bool`:
+  - [x] Implement `_journal_entry_matches_filters(entry, filter_task, filter_agent) -> bool`:
     ```python
     def _journal_entry_matches_filters(
         entry: JournalEntry,
@@ -903,7 +903,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         return True
     ```
     NOTE: For v1.18 the duplicated `_event_affects_task` logic is acceptable; if a future story touches trace AND logs together, factor into `cli/_event_filters.py`.
-  - [ ] Implement `_agent_run_record_matches_filters(record, filter_task, filter_agent) -> bool`:
+  - [x] Implement `_agent_run_record_matches_filters(record, filter_task, filter_agent) -> bool`:
     ```python
     def _agent_run_record_matches_filters(
         record: dict[str, Any],
@@ -919,8 +919,8 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
                 return False
         return True
     ```
-  - [ ] Implement `_collect_logs(journal_path, agent_runs_path, filter_task, filter_agent) -> list[dict[str, Any]]` — mirrors Task 3's `_collect_events` but without `task_id` argument; uses the filter helpers.
-  - [ ] Implement `_format_log_line_human(event: dict[str, Any]) -> str`:
+  - [x] Implement `_collect_logs(journal_path, agent_runs_path, filter_task, filter_agent) -> list[dict[str, Any]]` — mirrors Task 3's `_collect_events` but without `task_id` argument; uses the filter helpers.
+  - [x] Implement `_format_log_line_human(event: dict[str, Any]) -> str`:
     ```python
     def _format_log_line_human(event: dict[str, Any]) -> str:
         if event["source"] == "journal":
@@ -936,7 +936,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         )
     ```
     Optional rich styling via `make_console(ctx).print(...)` deferred to a follow-up; v1.18 ships the plain-text format routed through `echo` (already a11y-clean per Story 1.17's `--no-color` plumbing).
-  - [ ] Implement `_follow_streams(journal_path, agent_runs_path, filter_task, filter_agent, ctx) -> None`:
+  - [x] Implement `_follow_streams(journal_path, agent_runs_path, filter_task, filter_agent, ctx) -> None`:
     ```python
     def _follow_streams(
         journal_path: Path,
@@ -1025,7 +1025,7 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
             return  # caller raises typer.Exit(0)
     ```
     NOTE: NDJSON output in follow+json mode bypasses `emit_json` because the latter assumes a single-document terminator; the `typer.echo(json.dumps(...))` call here intentionally emits one JSON object per line. Document this exception in dev notes.
-  - [ ] Implement `run_logs(*, ctx, filter_task, filter_agent, follow) -> None`:
+  - [x] Implement `run_logs(*, ctx, filter_task, filter_agent, follow) -> None`:
     ```python
     def run_logs(
         *,
@@ -1114,13 +1114,13 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
             pass
         raise typer.Exit(code=0)
     ```
-  - [ ] Verify LOC ≤ 350 for `cli/logs.py`. If exceeded, factor follow-mode into `cli/_logs_follow.py` and filters into `cli/_logs_filters.py`.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/logs.py` → must pass.
-  - [ ] **Forbidden patterns**: same as Tasks 3-4. PLUS: do NOT use `os.kill`, `signal.signal` (KeyboardInterrupt is the canonical follow-mode exit signal; explicit signal handling adds Windows portability bugs).
+  - [x] Verify LOC ≤ 350 for `cli/logs.py`. If exceeded, factor follow-mode into `cli/_logs_follow.py` and filters into `cli/_logs_filters.py`.
+  - [x] Run `uv run mypy --strict src/sdlc/cli/logs.py` → must pass.
+  - [x] **Forbidden patterns**: same as Tasks 3-4. PLUS: do NOT use `os.kill`, `signal.signal` (KeyboardInterrupt is the canonical follow-mode exit signal; explicit signal handling adds Windows portability bugs).
 
-- [ ] **Task 6: Wire `trace`, `replay`, `logs` subcommands into `cli/main.py` (AC: #6)**
-  - [ ] Open `src/sdlc/cli/main.py`. Locate the existing subcommand registrations (`init_command`, `scan_command`, `status_command` from Stories 1.16-1.17).
-  - [ ] Append three new subcommand registrations after `status_command`:
+- [x] **Task 6: Wire `trace`, `replay`, `logs` subcommands into `cli/main.py` (AC: #6)**
+  - [x] Open `src/sdlc/cli/main.py`. Locate the existing subcommand registrations (`init_command`, `scan_command`, `status_command` from Stories 1.16-1.17).
+  - [x] Append three new subcommand registrations after `status_command`:
     ```python
     @app.command(name="trace")
     def trace_command(
@@ -1153,10 +1153,10 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         from sdlc.cli.logs import run_logs  # deferred
         run_logs(ctx=ctx, filter_task=filter_task, filter_agent=filter_agent, follow=follow)
     ```
-  - [ ] Verify `cli/main.py` LOC ≤ 180. If exceeded, factor argument-help strings into a `cli/_main_helpers.py:HELP_TEXTS: Final[Mapping[str, str]]` constant.
-  - [ ] Module-level imports stay minimal — NO new imports. The `from sdlc.cli.{trace,replay,logs} import ...` calls are all inside the subcommand bodies (deferred per Architecture §488).
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/main.py` → must pass.
-  - [ ] Smoke-test the wiring (after init/scan):
+  - [x] Verify `cli/main.py` LOC ≤ 180. If exceeded, factor argument-help strings into a `cli/_main_helpers.py:HELP_TEXTS: Final[Mapping[str, str]]` constant.
+  - [x] Module-level imports stay minimal — NO new imports. The `from sdlc.cli.{trace,replay,logs} import ...` calls are all inside the subcommand bodies (deferred per Architecture §488).
+  - [x] Run `uv run mypy --strict src/sdlc/cli/main.py` → must pass.
+  - [x] Smoke-test the wiring (after init/scan):
     ```bash
     cd $(mktemp -d)
     git init
@@ -1172,8 +1172,8 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
     ```
     Each command exits 0 with shaped output.
 
-- [ ] **Task 7: Tests — unit + integration + e2e (AC: #7)**
-  - [ ] Create `tests/unit/cli/test_trace.py` with `pytestmark = pytest.mark.unit`. Add the 11 tests from AC7.1. Use a `_initialize_test_project(tmp_path, ctx=fake_ctx)` helper (re-exported from existing `tests/unit/cli/conftest.py` if Stories 1.16-1.17 created one). Helper for crafting JournalEntry instances:
+- [x] **Task 7: Tests — unit + integration + e2e (AC: #7)**
+  - [x] Create `tests/unit/cli/test_trace.py` with `pytestmark = pytest.mark.unit`. Add the 11 tests from AC7.1. Use a `_initialize_test_project(tmp_path, ctx=fake_ctx)` helper (re-exported from existing `tests/unit/cli/conftest.py` if Stories 1.16-1.17 created one). Helper for crafting JournalEntry instances:
     ```python
     def _make_entry(seq: int, ts: str, *, target_id: str = "state",
                    actor: str = "cli", kind: str = "scan_completed",
@@ -1191,17 +1191,17 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         )
     ```
     Append entries via `sdlc.journal.append_sync(entry, journal_path=...)` on POSIX. On Windows the writer raises; for the Windows test posture, write canonical bytes directly via `journal_path.write_text(...)` (one entry per line, JSON-serialized via `entry.model_dump_json()`).
-  - [ ] Create `tests/unit/cli/test_replay.py` with `pytestmark = pytest.mark.unit`. Add the 11 tests from AC7.2. Reuse the `_make_entry` helper. The `_parse_line_spec` parametrized tests directly import the private helper:
+  - [x] Create `tests/unit/cli/test_replay.py` with `pytestmark = pytest.mark.unit`. Add the 11 tests from AC7.2. Reuse the `_make_entry` helper. The `_parse_line_spec` parametrized tests directly import the private helper:
     ```python
     from sdlc.cli.replay import _parse_line_spec
     ```
-  - [ ] Create `tests/unit/cli/test_logs.py` with `pytestmark = pytest.mark.unit`. Add the 12 tests from AC7.3. Reuse helpers.
-  - [ ] Create `tests/unit/cli/test_logs_follow.py` with `pytestmark = pytest.mark.unit`. Add the 2 tests from AC7.4. Use `pytest.MonkeyPatch` to override `_FOLLOW_INTERVAL_S` to 0.05 s. Use `threading.Thread` to run `run_logs(..., follow=True)` and `signal.pthread_kill` (POSIX) or simulate KI via `subprocess.Popen + send_signal(signal.SIGINT)` for the integration variant. Skip on Windows for signal-based tests.
-  - [ ] Extend `tests/unit/cli/test_main.py` (Stories 1.16-1.17) with the 5 tests from AC7.5. Reuse the existing `runner` / `app` fixtures.
-  - [ ] Extend `tests/unit/cli/test_output.py` (Story 1.17) with the parametrized test from AC7.6 covering the new error codes.
-  - [ ] Create `tests/integration/test_trace_replay_logs_e2e.py` with `pytestmark = [pytest.mark.integration, pytest.mark.e2e]`. Add the 3 tests from AC7.7. Use `subprocess.run(["uv", "run", "sdlc", ...], cwd=tmp_path)` for the e2e flow; skip on Windows when `shutil.which("uv") is None`.
-  - [ ] Create `tests/integration/test_logs_follow_subprocess.py` with `pytestmark = pytest.mark.integration` AND `pytest.mark.skipif(sys.platform == "win32", ...)`. Add the test from AC7.8.
-  - [ ] Run all new tests:
+  - [x] Create `tests/unit/cli/test_logs.py` with `pytestmark = pytest.mark.unit`. Add the 12 tests from AC7.3. Reuse helpers.
+  - [x] Create `tests/unit/cli/test_logs_follow.py` with `pytestmark = pytest.mark.unit`. Add the 2 tests from AC7.4. Use `pytest.MonkeyPatch` to override `_FOLLOW_INTERVAL_S` to 0.05 s. Use `threading.Thread` to run `run_logs(..., follow=True)` and `signal.pthread_kill` (POSIX) or simulate KI via `subprocess.Popen + send_signal(signal.SIGINT)` for the integration variant. Skip on Windows for signal-based tests.
+  - [x] Extend `tests/unit/cli/test_main.py` (Stories 1.16-1.17) with the 5 tests from AC7.5. Reuse the existing `runner` / `app` fixtures.
+  - [x] Extend `tests/unit/cli/test_output.py` (Story 1.17) with the parametrized test from AC7.6 covering the new error codes.
+  - [x] Create `tests/integration/test_trace_replay_logs_e2e.py` with `pytestmark = [pytest.mark.integration, pytest.mark.e2e]`. Add the 3 tests from AC7.7. Use `subprocess.run(["uv", "run", "sdlc", ...], cwd=tmp_path)` for the e2e flow; skip on Windows when `shutil.which("uv") is None`.
+  - [x] Create `tests/integration/test_logs_follow_subprocess.py` with `pytestmark = pytest.mark.integration` AND `pytest.mark.skipif(sys.platform == "win32", ...)`. Add the test from AC7.8.
+  - [x] Run all new tests:
     ```bash
     uv run pytest tests/unit/cli/test_trace.py -v
     uv run pytest tests/unit/cli/test_replay.py -v
@@ -1211,14 +1211,14 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
     uv run pytest tests/integration/test_logs_follow_subprocess.py -v
     ```
     All green (with appropriate Windows skips).
-  - [ ] Verify coverage: `uv run pytest tests/unit/cli/ tests/integration/test_trace_replay_logs_e2e.py --cov=src/sdlc/cli --cov-report=term-missing`. The new `cli/trace.py`, `cli/replay.py`, `cli/logs.py` MUST reach ≥ 90% line coverage. Acceptable uncovered: Windows-fallback branches (covered on Linux CI matrix cells), defensive paths under `OSError` catches that integration tests can't reliably trigger.
+  - [x] Verify coverage: `uv run pytest tests/unit/cli/ tests/integration/test_trace_replay_logs_e2e.py --cov=src/sdlc/cli --cov-report=term-missing`. The new `cli/trace.py`, `cli/replay.py`, `cli/logs.py` MUST reach ≥ 90% line coverage. Acceptable uncovered: Windows-fallback branches (covered on Linux CI matrix cells), defensive paths under `OSError` catches that integration tests can't reliably trigger.
 
-- [ ] **Task 8: Author ADR-021 + update documentation (AC: #8)**
-  - [ ] Determine the next free ADR number. Read `docs/decisions/index.md`. Story 1.18 takes the next number after the most recent ADR (typically 021 if 1.17's ADR-020 has landed; otherwise next-free).
-  - [ ] Create `docs/decisions/ADR-021-cli-trace-replay-logs.md` using `docs/decisions/adr-template.md`. Populate per AC8 sections 1-7.
-  - [ ] Update `docs/decisions/index.md`: add the row for ADR-021 after the most-recent ADR row.
-  - [ ] Update `docs/CODEMAPS/cli-module.md` (Stories 1.16-1.17 maintain this codemap): add rows for `trace.py`, `replay.py`, `logs.py` with one-line responsibilities.
-  - [ ] Update `README.md` (if a "Quick Start" section exists from prior stories) to extend the demo with trace/replay/logs:
+- [x] **Task 8: Author ADR-021 + update documentation (AC: #8)**
+  - [x] Determine the next free ADR number. Read `docs/decisions/index.md`. Story 1.18 takes the next number after the most recent ADR (typically 021 if 1.17's ADR-020 has landed; otherwise next-free).
+  - [x] Create `docs/decisions/ADR-021-cli-trace-replay-logs.md` using `docs/decisions/adr-template.md`. Populate per AC8 sections 1-7.
+  - [x] Update `docs/decisions/index.md`: add the row for ADR-021 after the most-recent ADR row.
+  - [x] Update `docs/CODEMAPS/cli-module.md` (Stories 1.16-1.17 maintain this codemap): add rows for `trace.py`, `replay.py`, `logs.py` with one-line responsibilities.
+  - [x] Update `README.md` (if a "Quick Start" section exists from prior stories) to extend the demo with trace/replay/logs:
     ```bash
     sdlc trace EPIC-foo-S01-bar-T01-baz  # full chronological history of a task
     sdlc replay 42                        # pretty-print journal line 42
@@ -1228,22 +1228,22 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
     sdlc logs --follow                    # tail-style; Ctrl-C to exit
     ```
 
-- [ ] **Task 9: Run the full quality gate stack and verify CI green (AC: all)**
-  - [ ] `uv run ruff check src/ tests/ scripts/` → 0 errors. New `cli/trace.py`, `cli/replay.py`, `cli/logs.py` MUST have `from __future__ import annotations`.
-  - [ ] `uv run ruff format --check src/ tests/ scripts/` → all formatted.
-  - [ ] `uv run mypy --strict src/` → 0 errors. All new code fully annotated; `dict[str, Any]` is acceptable for agent_runs records (no contract module yet); no `Any` leak through public surface (`run_trace`, `run_replay`, `run_logs` all `-> None`).
-  - [ ] `uv run pre-commit run --all-files` → all hooks pass:
+- [x] **Task 9: Run the full quality gate stack and verify CI green (AC: all)**
+  - [x] `uv run ruff check src/ tests/ scripts/` → 0 errors. New `cli/trace.py`, `cli/replay.py`, `cli/logs.py` MUST have `from __future__ import annotations`.
+  - [x] `uv run ruff format --check src/ tests/ scripts/` → all formatted.
+  - [x] `uv run mypy --strict src/` → 0 errors. All new code fully annotated; `dict[str, Any]` is acceptable for agent_runs records (no contract module yet); no `Any` leak through public surface (`run_trace`, `run_replay`, `run_logs` all `-> None`).
+  - [x] `uv run pre-commit run --all-files` → all hooks pass:
     - `ruff-check`, `ruff-format`, `mypy-strict` (existing).
     - `boundary-validator` — `cli` already widened to include `state, journal, contracts, ids, errors`; no further widening needed for Story 1.18.
     - `state-write-protocol-validator` — Story 1.18 modules do NOT call `write_state_atomic_sync`; not in scope.
     - `journal-append-only-validator` — Story 1.18 modules do NOT call `append_sync`; only READ via `iter_entries`; not in scope.
     - `secret-hardcode-validator` — scoped to `^src/sdlc/.*\.py$`; no secrets in new files.
-  - [ ] `uv run pytest tests/unit/cli/ -m unit -v` → all green.
-  - [ ] `uv run pytest tests/integration/ -m integration -v` → all green (skipped where appropriate on Windows).
-  - [ ] Global `uv run pytest --cov=src --cov-fail-under=90` → coverage gate passes.
-  - [ ] Confirm new files are tracked: `git status` → `src/sdlc/cli/trace.py`, `src/sdlc/cli/replay.py`, `src/sdlc/cli/logs.py` (new); `src/sdlc/cli/output.py`, `src/sdlc/cli/main.py` (modified). New tests: `tests/unit/cli/test_trace.py`, `test_replay.py`, `test_logs.py`, `test_logs_follow.py`, `tests/integration/test_trace_replay_logs_e2e.py`, `test_logs_follow_subprocess.py`. Docs: `docs/decisions/ADR-021-cli-trace-replay-logs.md`, `docs/decisions/index.md` (modified), `docs/CODEMAPS/cli-module.md` (modified).
-  - [ ] Run from a clean clone-equivalent: `git clean -fdx; uv sync --frozen --group dev; uv run pytest`. Everything must pass.
-  - [ ] Smoke-test the actual user flow:
+  - [x] `uv run pytest tests/unit/cli/ -m unit -v` → all green.
+  - [x] `uv run pytest tests/integration/ -m integration -v` → all green (skipped where appropriate on Windows).
+  - [x] Global `uv run pytest --cov=src --cov-fail-under=90` → coverage gate passes.
+  - [x] Confirm new files are tracked: `git status` → `src/sdlc/cli/trace.py`, `src/sdlc/cli/replay.py`, `src/sdlc/cli/logs.py` (new); `src/sdlc/cli/output.py`, `src/sdlc/cli/main.py` (modified). New tests: `tests/unit/cli/test_trace.py`, `test_replay.py`, `test_logs.py`, `test_logs_follow.py`, `tests/integration/test_trace_replay_logs_e2e.py`, `test_logs_follow_subprocess.py`. Docs: `docs/decisions/ADR-021-cli-trace-replay-logs.md`, `docs/decisions/index.md` (modified), `docs/CODEMAPS/cli-module.md` (modified).
+  - [x] Run from a clean clone-equivalent: `git clean -fdx; uv sync --frozen --group dev; uv run pytest`. Everything must pass.
+  - [x] Smoke-test the actual user flow:
     ```bash
     cd $(mktemp -d)
     git init
@@ -1477,6 +1477,46 @@ claude-opus-4-7
 
 ### Debug Log References
 
+- C901 complexity on `run_trace` → extracted `_load_events` and `_format_event_line` helpers
+- mypy `unreachable` on `isinstance(raw, dict)` after `json.loads` → used intermediate `raw: object` variable
+- SIM105/SIM102/PLR0912 in `logs.py` → extracted `_poll_journal`, `_poll_agent_runs`, `_load_events_or_error`; replaced `try/except/pass` with `contextlib.suppress`
+- `pytest.raises(SystemExit)` for `emit_error` → changed to `pytest.raises(typer.Exit)` (emit_error raises `typer.Exit`, not `SystemExit`)
+- ruff SIM117: nested `with` blocks → combined to single `with` statement
+- Deferred `iter_entries` import in `replay.py` → monkeypatched via `sdlc.journal.iter_entries` (not module-level attribute) in tests
+
 ### Completion Notes List
 
+- Implemented `src/sdlc/cli/trace.py` (FR33): reads journal + agent_runs.jsonl, filters by task-id with three predicates (direct target_id, agent_dispatch payload, hook_invocation payload), chronological merge sort, human and JSON output modes. 100% unit coverage.
+- Implemented `src/sdlc/cli/replay.py` (FR34): validates line-spec (single int or range), reads journal entries by 1-indexed line number, human-readable field-labeled output and JSON envelope. 100% unit coverage.
+- Implemented `src/sdlc/cli/logs.py` (FR45): filters by --filter-task / --filter-agent, chronological merge of journal + agent_runs, --follow mode polls at 0.25s intervals, NDJSON in --follow --json mode. 100% unit coverage.
+- Registered all three commands in `cli/main.py` with deferred imports per Architecture §488.
+- Extended `cli/output.py` with ERR_JOURNAL_READ_FAILED (exit 2), ERR_AGENT_RUNS_READ_FAILED (exit 2), and three schema version constants.
+- Authored ADR-021 and updated docs/decisions/index.md.
+- Updated docs/CODEMAPS/cli-module.md to v1.18.
+- Full quality gate: ruff check ✓, ruff format ✓, mypy --strict ✓, all 16 pre-commit hooks ✓, 1001 tests pass, total coverage 95% (new modules 100% each).
+
 ### File List
+
+- src/sdlc/cli/trace.py (new)
+- src/sdlc/cli/replay.py (new)
+- src/sdlc/cli/logs.py (new)
+- src/sdlc/cli/main.py (modified — added trace_command, replay_command, logs_command)
+- src/sdlc/cli/output.py (modified — ERR_JOURNAL_READ_FAILED, ERR_AGENT_RUNS_READ_FAILED, schema constants)
+- tests/unit/cli/test_trace.py (new)
+- tests/unit/cli/test_replay.py (new)
+- tests/unit/cli/test_logs.py (new)
+- tests/unit/cli/test_logs_follow.py (new)
+- tests/unit/cli/test_main.py (modified — trace/replay/logs --help + missing-arg tests)
+- tests/unit/cli/test_output.py (modified — new error code parametrized test)
+- tests/integration/test_trace_replay_logs_e2e.py (new)
+- tests/integration/test_logs_follow_subprocess.py (new)
+- docs/decisions/ADR-021-cli-trace-replay-logs.md (new)
+- docs/decisions/index.md (modified — ADR-021 row)
+- docs/CODEMAPS/cli-module.md (modified — v1.18 entries)
+- _bmad-output/implementation-artifacts/sprint-status.yaml (modified — 1-18 status)
+
+### Change Log
+
+| Date | Version | Description | Author |
+|------|---------|-------------|--------|
+| 2026-05-09 | 1.18.0 | Implement sdlc trace + replay + logs (FR33, FR34, FR45); all new CLI modules at 100% coverage; total coverage 95% | claude-sonnet-4-6 |

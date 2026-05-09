@@ -15,6 +15,15 @@ Error code → exit code table (_ERR_CODE_TO_EXIT_CODE):
   ERR_JOURNAL_APPEND_FAILED → 2
   ERR_STATE_WRITE_FAILED → 2
   ERR_INFRASTRUCTURE     → 3
+  ERR_JOURNAL_READ_FAILED → 2    (Story 1.18)
+  ERR_AGENT_RUNS_READ_FAILED → 2 (Story 1.18)
+
+Per-command JSON output schemas (Story 1.21 wire-format-lock ceremony freezes these at v1):
+  _SCAN_OUTPUT_SCHEMA, _STATUS_OUTPUT_SCHEMA, _TRACE_OUTPUT_SCHEMA,
+  _REPLAY_OUTPUT_SCHEMA, _LOGS_OUTPUT_SCHEMA
+
+Story 1.18 extension: adds ERR_JOURNAL_READ_FAILED, ERR_AGENT_RUNS_READ_FAILED;
+declares _TRACE_OUTPUT_SCHEMA, _REPLAY_OUTPUT_SCHEMA, _LOGS_OUTPUT_SCHEMA constants.
 """
 
 from __future__ import annotations
@@ -89,11 +98,17 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_JOURNAL_APPEND_FAILED": 2,
         "ERR_STATE_WRITE_FAILED": 2,
         "ERR_INFRASTRUCTURE": 3,
+        # Added in Story 1.18 — see ADR-021.
+        "ERR_JOURNAL_READ_FAILED": 2,
+        "ERR_AGENT_RUNS_READ_FAILED": 2,
     }
 )
 _DEFAULT_EXIT_CODE: Final[int] = 1
 _SCAN_OUTPUT_SCHEMA: Final[str] = "v1"
 _STATUS_OUTPUT_SCHEMA: Final[str] = "v1"
+_TRACE_OUTPUT_SCHEMA: Final[str] = "v1"
+_REPLAY_OUTPUT_SCHEMA: Final[str] = "v1"
+_LOGS_OUTPUT_SCHEMA: Final[str] = "v1"
 
 
 def is_no_color_active(ctx: typer.Context | None) -> bool:

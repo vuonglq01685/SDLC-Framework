@@ -98,3 +98,44 @@ def status_command(ctx: typer.Context) -> None:
     from sdlc.cli.status import run_status  # deferred
 
     run_status(ctx=ctx)
+
+
+@app.command(name="trace")
+def trace_command(
+    ctx: typer.Context,
+    task_id: str = typer.Argument(..., help="Task identifier (EPIC-...-S<NN>-...-T<NN>-...)."),
+) -> None:
+    """Reconstruct chronological history of a task (FR33)."""
+    from sdlc.cli.trace import run_trace  # deferred per Architecture §488
+
+    run_trace(ctx=ctx, task_id=task_id)
+
+
+@app.command(name="replay")
+def replay_command(
+    ctx: typer.Context,
+    line_spec: str = typer.Argument(..., help="Line number or range (e.g. '42' or '42-50')."),
+) -> None:
+    """Pretty-print parsed journal entries by line (FR34)."""
+    from sdlc.cli.replay import run_replay  # deferred
+
+    run_replay(ctx=ctx, line_spec=line_spec)
+
+
+@app.command(name="logs")
+def logs_command(
+    ctx: typer.Context,
+    filter_task: str | None = typer.Option(
+        None, "--filter-task", help="Restrict to entries matching this task-id."
+    ),
+    filter_agent: str | None = typer.Option(
+        None, "--filter-agent", help="Restrict to entries from this agent."
+    ),
+    follow: bool = typer.Option(
+        False, "--follow", "-f", help="Tail-follow streams; exit on Ctrl-C."
+    ),
+) -> None:
+    """Tail journal + agent_runs.jsonl with filters (FR45, NFR-OBS-6)."""
+    from sdlc.cli.logs import run_logs  # deferred
+
+    run_logs(ctx=ctx, filter_task=filter_task, filter_agent=filter_agent, follow=follow)

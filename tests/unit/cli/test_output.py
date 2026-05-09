@@ -118,6 +118,20 @@ def test_is_no_color_active_none_ctx(monkeypatch: pytest.MonkeyPatch) -> None:
     assert is_no_color_active(None) is False
 
 
+@pytest.mark.parametrize(
+    "code,expected_exit",
+    [
+        ("ERR_JOURNAL_READ_FAILED", 2),
+        ("ERR_AGENT_RUNS_READ_FAILED", 2),
+    ],
+)
+def test_emit_error_new_codes_map_to_exit_codes(code: str, expected_exit: int) -> None:
+    ctx = _make_ctx(json_mode=True)
+    with pytest.raises(typer.Exit) as exc_info:
+        emit_error(code, "test message", ctx=ctx)
+    assert exc_info.value.exit_code == expected_exit
+
+
 def test_emit_error_sanitizes_secret_patterns_in_details(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
