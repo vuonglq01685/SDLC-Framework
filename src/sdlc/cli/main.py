@@ -126,16 +126,24 @@ def replay_command(
 def logs_command(
     ctx: typer.Context,
     filter_task: str | None = typer.Option(
-        None, "--filter-task", help="Restrict to entries matching this task-id."
+        None,
+        "--filter-task",
+        help="Restrict to entries matching this task-id (combined with --filter-agent as AND).",
     ),
     filter_agent: str | None = typer.Option(
-        None, "--filter-agent", help="Restrict to entries from this agent."
+        None,
+        "--filter-agent",
+        help="Restrict to entries from this agent (combined with --filter-task as AND).",
     ),
     follow: bool = typer.Option(
         False, "--follow", "-f", help="Tail-follow streams; exit on Ctrl-C."
     ),
 ) -> None:
-    """Tail journal + agent_runs.jsonl with filters (FR45, NFR-OBS-6)."""
+    """Tail journal + agent_runs.jsonl with filters (FR45, NFR-OBS-6).
+
+    `--filter-task` and `--filter-agent` are intersected (AND-semantics);
+    an entry is kept only if it satisfies every filter that is set.
+    """
     from sdlc.cli.logs import run_logs  # deferred
 
     run_logs(ctx=ctx, filter_task=filter_task, filter_agent=filter_agent, follow=follow)

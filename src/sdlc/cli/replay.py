@@ -5,10 +5,11 @@ Pretty-prints parsed JournalEntry models.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 import typer
 
@@ -67,6 +68,18 @@ def _parse_line_spec(spec: str) -> tuple[int, int]:
     return (start, end)
 
 
+def _format_payload_value(v: Any) -> str:
+    """Stringify a payload value as JSON-ish for human display.
+
+    Bytes/dicts/lists round-trip through json.dumps with default=str so
+    nested structures stay readable instead of falling back to Python repr.
+    """
+    try:
+        return json.dumps(v, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return repr(v)
+
+
 def _format_entry_human(lineno: int, entry: JournalEntry) -> list[str]:
     """Return a list of lines forming the pretty-print block for one entry."""
     lines = [f"--- line {lineno} ---"]
@@ -80,7 +93,7 @@ def _format_entry_human(lineno: int, entry: JournalEntry) -> list[str]:
     lines.append("payload:")
     if entry.payload:
         for k, v in entry.payload.items():
-            lines.append(f"  {k}: {v}")
+            lines.append(f"  {k}: {_format_payload_value(v)}")
     else:
         lines.append("  (empty)")
     return lines
@@ -98,6 +111,23 @@ def _read_journal_range(
     Emits ERR_USER_INPUT and raises typer.Exit if any line is out of range.
     """
     from sdlc.journal import iter_entries  # deferred
+
+    # Distinguish "journal log file does not exist yet" from "journal exists but
+    # has 0 lines" — both fail AC3.3 but the missing-file case deserves a clearer
+    # diagnostic so users running `sdlc replay 1` against a fresh project see
+    # what is wrong without rummaging through the filesystem.
+    if not journal_path.exists():
+        emit_error(
+            "ERR_USER_INPUT",
+            f"line {end} not in journal (journal log not found at {journal_path})",
+            ctx=ctx,
+            details={
+                "requested_line": end,
+                "journal_lines": 0,
+                "path": str(journal_path),
+                "exists": False,
+            },
+        )
 
     collected: list[tuple[int, JournalEntry]] = []
     total_lines = 0

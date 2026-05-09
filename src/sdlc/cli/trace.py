@@ -5,7 +5,6 @@ Filters journal + agent_runs by task-id; chronological merge.
 
 from __future__ import annotations
 
-import datetime
 import logging
 from pathlib import Path
 from typing import Any, Final
@@ -13,6 +12,12 @@ from typing import Any, Final
 import typer
 
 from sdlc.cli._agent_runs import iter_agent_runs as _iter_agent_runs
+from sdlc.cli._event_builders import (
+    agent_event_from_record as _agent_event_from_record,
+)
+from sdlc.cli._event_builders import (
+    journal_event_from_entry as _journal_event_from_entry,
+)
 from sdlc.cli._paths import get_repo_root_or_cwd
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.contracts.journal_entry import JournalEntry
@@ -63,12 +68,6 @@ def _record_matches_task(record: dict[str, Any], task_id: str) -> bool:
     return False
 
 
-def _parse_ts(ts: str) -> datetime.datetime:
-    """RFC 3339 UTC string → datetime. 3.10-compatible."""
-    normalized = ts.replace("Z", "+00:00")
-    return datetime.datetime.fromisoformat(normalized)
-
-
 def _collect_events(
     *,
     journal_path: Path,
@@ -81,41 +80,15 @@ def _collect_events(
     for entry in iter_entries(journal_path):
         if not _event_affects_task(entry, task_id):
             continue
-        events.append(
-            {
-                "source": "journal",
-                "ts": entry.ts,
-                "_sort_ts": _parse_ts(entry.ts),
-                "_sort_seq": entry.monotonic_seq,
-                "monotonic_seq": entry.monotonic_seq,
-                "kind": entry.kind,
-                "actor": entry.actor,
-                "target_id": entry.target_id,
-                "before_hash": entry.before_hash,
-                "after_hash": entry.after_hash,
-                "payload": dict(entry.payload),
-            }
-        )
+        event = _journal_event_from_entry(entry)
+        if event is not None:
+            events.append(event)
     for record in _iter_agent_runs(agent_runs_path):
         if not _record_matches_task(record, task_id):
             continue
-        ts = record.get("ts")
-        if not isinstance(ts, str):
-            continue
-        events.append(
-            {
-                "source": "agent_runs",
-                "ts": ts,
-                "_sort_ts": _parse_ts(ts),
-                "_sort_seq": -1,
-                "agent": record.get("agent"),
-                "stage": record.get("stage"),
-                "outcome": record.get("outcome"),
-                "duration_ms": record.get("duration_ms"),
-                "target_id": record.get("target_id") or record.get("task_id"),
-                "raw": record,
-            }
-        )
+        event = _agent_event_from_record(record)
+        if event is not None:
+            events.append(event)
     events.sort(
         key=lambda e: (
             e["_sort_ts"],
@@ -157,16 +130,18 @@ def _load_events(
             ctx=ctx,
             details={"path": str(agent_runs_path)},
         )
+    # emit_error is NoReturn; defensive fallback if a test stub or future
+    # refactor breaks that contract — keeps the typed return non-None.
+    raise AssertionError("unreachable: emit_error did not exit")
 
 
 def _format_event_line(e: dict[str, Any]) -> str:
     if e["source"] == "journal":
         return f"  [{e['ts']}]   kind={e['kind']:<20} target={e['target_id']}   actor={e['actor']}"
-    return (
-        f"  [{e['ts']}]   agent_run             "
-        f"agent={e.get('agent')}   stage={e.get('stage')}   "
-        f"outcome={e.get('outcome')}"
+    fields = "   ".join(
+        f"{name}={e.get(name)}" for name in _AGENT_RUN_DISPLAY_FIELDS if name != "ts"
     )
+    return f"  [{e['ts']}]   agent_run             {fields}"
 
 
 def run_trace(*, ctx: typer.Context, task_id: str) -> None:
