@@ -1,10 +1,10 @@
 # generated: 2026-05-07
-# last_updated: 2026-05-09 (code-review: 1-20 review → done; 33 patches applied, 3 deferred, 12 dismissed; 108 tests green, ruff clean, mypy strict clean)
+# last_updated: 2026-05-10 (sprint-planning refresh; Story 2A.0 E2E harness precursor added to epics.md + sprint-status.yaml per Epic 1 retro action A3; Epic 2A story count 19 → 20)
 # project: SDLC-Framework
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: {project-root}/_bmad-output/implementation-artifacts
-# last_action: "create-story 1-21-gate-wire-format-v1-lock-ceremony (status: backlog → ready-for-dev)"
+# last_action: "sprint-planning 2026-05-10 (Epic 2A: +1 story 2A.0 E2E harness; total stories 94 → 95; Epic 1 done 22/22 preserved)"
 
 # STATUS DEFINITIONS:
 # ==================
@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-09 (1-21 review → done; 24 patches applied, 5 deferred, 4 dismissed; 30 wireformat-lock tests green, ruff clean, mypy strict clean)"
+last_updated: "2026-05-10 (sprint-planning refresh; Story 2A.0 E2E test harness precursor formally added to epics.md + sprint-status.yaml per Epic 1 retro action A3; Epic 2A: 19 → 20 stories; total: 93 → 94 stories)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -46,16 +46,18 @@ project: SDLC-Framework
 #   2026-05-09 code-review 1-20-recovery-sdlc-rebuild-state (status: review → done; F1-F33 patches applied, D1-D3 deferred, 12 dismissed; 108 tests green)
 #   2026-05-09 dev-story 1-21-gate-wire-format-v1-lock-ceremony (status: ready-for-dev → review; 21 new tests, 93.37% coverage)
 #   2026-05-09 code-review 1-21-gate-wire-format-v1-lock-ceremony (status: review → done; P1-P24 patches applied, D1-D5 deferred, 4 dismissed; 30 wireformat-lock tests green)
-last_action: "code-review 1-21-gate-wire-format-v1-lock-ceremony (status: review → done; 24 patches applied + 5 deferred + 4 dismissed; 30 wireformat-lock tests green)"
+#   2026-05-09 retrospective epic-1 (status: optional → done; document at epic-1-retro-2026-05-09.md; 22/22 stories done, 1114 tests, 93.37% coverage; 7 process actions + 7 debt items + 4 ADRs queued for Epic 2A prep sprint)
+#   2026-05-10 sprint-planning (Story 2A.0 E2E harness precursor added to epics.md + sprint-status.yaml; Epic 2A 19 → 20 stories per retro action A3 [Dana lead + Charlie review])
+last_action: "sprint-planning 2026-05-10 (Epic 2A: +1 story 2A.0 E2E test harness precursor [Tier-1 CLI + Tier-2 pipeline MockAIRuntime] per Epic 1 retro action A3; status: backlog; total 95 stories across 6 epics)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
 
 development_status:
   # ============================================================
-  # Epic 1: Substrate & Walking Skeleton (21 stories)
+  # Epic 1: Substrate & Walking Skeleton (22 stories — incl 1-18-1 hardening sub-story)
   # ============================================================
-  epic-1: in-progress
+  epic-1: done
   1-1-project-bootstrap-with-uv-init-hatchling: done
   1-2-pyproject-toml-quality-gates-configuration: done
   1-3-github-actions-cicd-pipelines: done
@@ -78,12 +80,13 @@ development_status:
   1-19-migration-framework-major-version-refusal: done
   1-20-recovery-sdlc-rebuild-state: done
   1-21-gate-wire-format-v1-lock-ceremony: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # ============================================================
-  # Epic 2A: Phase Orchestration Mechanics (19 stories)
+  # Epic 2A: Phase Orchestration Mechanics (20 stories)
   # ============================================================
   epic-2a: backlog
+  2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: backlog
   2a-1-workflow-yaml-loader-schema-validation: backlog
   2a-2-specialist-registry-manifest-validation: backlog
   2a-3-dispatcher-primary-parallel-synthesizer-retry: backlog

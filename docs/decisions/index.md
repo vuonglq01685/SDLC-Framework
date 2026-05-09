@@ -34,8 +34,15 @@ alternatives, consequences, and a revisit-by date).
 | [022](ADR-022-migration-framework-and-schema-gate.md) | Migration framework + major-version schema gate | 1.19 | Accepted |
 | [023](ADR-023-rebuild-state-and-recovery-prompt.md) | Rebuild-state command + malformed-state recovery prompt | 1.20 | Accepted |
 | [024](ADR-024-wire-format-v1-lock.md) | wire-format v1 lock ceremony | 1.21 | Accepted |
+| [025](ADR-025-pydantic-strict-mode-default.md) | Pydantic strict-mode default | Epic 2A prep (D2) | Proposed |
+| [026](ADR-026-tdd-first-chunked-review-workflow.md) | TDD-first + chunked-review workflow | Epic 2A prep (A1+A2) | Proposed |
+| [027](ADR-027-e2e-test-framework-strategy.md) | E2E test framework strategy (Tier-1/2/3) | Epic 2A prep (A3, Story 2A.0) | Proposed |
 
 Note: ADR-024 closes the Decision F3 wire-format-lock loop; future per-contract version bumps cite it.
+
+Note: ADRs 025–027 are Epic-2A preparation-sprint outputs from the Epic 1 retrospective
+(`_bmad-output/implementation-artifacts/epic-1-retro-2026-05-09.md`). They move from
+**Proposed** → **Accepted** when the prep sprint closes and Story 2A.1 enters implementation.
 
 ## Authoring a new ADR
 

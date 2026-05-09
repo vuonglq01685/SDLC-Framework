@@ -63,7 +63,12 @@ nav:
       - "ADR-022 — migration framework + schema gate": decisions/ADR-022-migration-framework-and-schema-gate.md
       - "ADR-023 — rebuild-state + recovery prompt": decisions/ADR-023-rebuild-state-and-recovery-prompt.md
       - "ADR-024 — wire-format v1 lock ceremony": decisions/ADR-024-wire-format-v1-lock.md
+      - "ADR-025 — Pydantic strict-mode default": decisions/ADR-025-pydantic-strict-mode-default.md
+      - "ADR-026 — TDD-first + chunked-review workflow": decisions/ADR-026-tdd-first-chunked-review-workflow.md
+      - "ADR-027 — E2E test framework strategy": decisions/ADR-027-e2e-test-framework-strategy.md
       - "ADR template": decisions/adr-template.md
+  - Sprints:
+      - "Epic 2A — story DAG & parallelism plan": sprints/epic-2a-dag.md
   - Code Maps:
       - CODEMAPS/cli-module.md
       - CODEMAPS/engine-module.md

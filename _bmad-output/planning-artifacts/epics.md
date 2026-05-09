@@ -967,6 +967,28 @@ So that Epic 2A specialists can be authored against a frozen contract surface wi
 
 **Epic goal.** A tech lead can drive a project through Phase 1 → Phase 2 → Phase 3 with all 13 slash commands, hash-validated signoffs, phase-gate hooks, and dispatcher mechanics (primary + parallel + synthesizer + retry). Entire pipeline validated against MockAIRuntime — gated to Epic 2B for real Claude Code dispatch.
 
+### Story 2A.0: E2E Test Harness — Tier-1 CLI + Tier-2 Pipeline (MockAIRuntime)
+
+As an engineer preparing to author Epic 2A stories under the new TDD-first / chunked-review / worktree-parallelization process improvements (Epic 1 retrospective actions A1–A7),
+I want a two-tier E2E test harness — Tier-1 (CLI in → stdout/state-out goldens) and Tier-2 (full pipeline driven against MockAIRuntime) — committed before Story 2A.1 begins,
+So that every Epic 2A story can land with executable end-to-end coverage instead of unit-only verification, and parallelized worktree execution can rely on a shared deterministic golden corpus.
+
+**Status:** Stub — full acceptance criteria to be authored via `/bmad-create-story 2a-0` before Story 2A.1 implementation starts.
+
+**Origin:** Epic 1 retrospective 2026-05-09 — process action A3 (Dana lead + Charlie review). Documented in `_bmad-output/implementation-artifacts/epic-1-retro-2026-05-09.md` (Carry-Over item C1, DAG diagram precursor node).
+
+**Provisional Acceptance Criteria (to be expanded):**
+
+**Given** the Tier-1 CLI golden harness under `tests/e2e/cli/`
+**When** any `sdlc <command>` is invoked against a fixture project state
+**Then** stdout, exit code, and post-command journal/state hash are asserted byte-stable against committed goldens
+**And** golden mismatches surface a unified-diff for fast review
+
+**Given** the Tier-2 pipeline harness under `tests/e2e/pipeline/`
+**When** a multi-phase scenario is replayed against `MockAIRuntime` with a YAML-driven specialist script
+**Then** the full Phase 1 → Phase 2 → Phase 3 happy-path completes without hook violations
+**And** journal append sequence + signoff hashes are asserted byte-stable
+
 ### Story 2A.1: Workflow YAML Loader + Schema Validation + Disjoint-Writes Static Check
 
 As an engineer treating workflow YAML as a typed program (Concern #4),
@@ -1418,7 +1440,7 @@ So that the audit chain reflects reality after a major direction change (FR4).
 
 **Epic 2A Story Summary**
 
-- **19 stories** covering 23 FRs (FR4, FR6–18, FR25–27, FR32, FR36–40), 2 recovery slices (Stories 2A.5 + 2A.7).
+- **20 stories** covering 23 FRs (FR4, FR6–18, FR25–27, FR32, FR36–40), 2 recovery slices (Stories 2A.5 + 2A.7), and 1 process-driven precursor (Story 2A.0 E2E harness, added per Epic 1 retrospective 2026-05-09 action A3).
 - **Test gates:** disjoint-writes adversarial fixtures, hook chain parity test (engine vs Claude PreToolUse), hash-drift property test, signoff state-machine property test.
 - **Ship signal:** ❌ Gated to Epic 2B (orchestration without real LLM = incomplete).
 - **Gate to Epic 2B:** Behavioral conformance contract (Story 1.14) extended to cover full orchestration pipeline against MockAIRuntime.
