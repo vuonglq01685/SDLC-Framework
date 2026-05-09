@@ -18,10 +18,13 @@ module with write access to `state.json` and `journal.log` at the I/O level.
 | `status.py` | ~180 | `run_status()` — read-only resume card: phase, counts, suggested next, last_updated |
 | `output.py` | ~200 | `echo`, `emit_json`, `emit_error`, `make_console`, `is_no_color_active`; 9-entry error code table; per-command schema constants |
 | `exit_codes.py` | ~20 | Exit code constants: `EXIT_OK=0`, `EXIT_USER_ERROR=1`, `EXIT_FRAMEWORK_FAILURE=2`, `EXIT_INFRASTRUCTURE=3` |
-| `trace.py` | ~200 | `run_trace()` — filters journal + agent_runs by task-id; chronological merge; exits 0 always (FR33, ADR-021) |
-| `replay.py` | ~160 | `run_replay()` — pretty-prints JournalEntry at 1-indexed line(s); `_parse_line_spec`; 1000-line cap (FR34, ADR-021) |
-| `logs.py` | ~320 | `run_logs()` — tails journal + agent_runs with `--filter-task`, `--filter-agent`, `--follow`; NDJSON in follow+json mode (FR45, ADR-021) |
-| `_paths.py` | ~30 | `get_repo_root_or_cwd()` — shared repo-root resolver via `git rev-parse`; falls back to cwd |
+| `trace.py` | ~270 | `run_trace()` — filters journal + agent_runs by task-id; chronological merge; exits 0 always (FR33, [ADR-021](../decisions/ADR-021-cli-trace-replay-logs.md)) |
+| `replay.py` | ~200 | `run_replay()` — pretty-prints JournalEntry at 1-indexed line(s); `_parse_line_spec`; 1000-line cap (FR34, [ADR-021](../decisions/ADR-021-cli-trace-replay-logs.md)) |
+| `logs.py` | ~460 | `run_logs()` — tails journal + agent_runs with `--filter-task`, `--filter-agent`, `--follow`; NDJSON in follow+json mode (FR45, [ADR-021](../decisions/ADR-021-cli-trace-replay-logs.md)) |
+| `_agent_runs.py` | ~50 | `iter_agent_runs(path)` — yields raw `dict` records from `agent_runs.jsonl`; missing/zero-byte file → empty iterator; malformed JSON → WARNING + skip; shared by `trace.py` and `logs.py` (Story 1.18, [ADR-021](../decisions/ADR-021-cli-trace-replay-logs.md)) |
+| `_paths.py` | ~40 | `get_repo_root_or_cwd()` — shared repo-root resolver via `git rev-parse`; falls back to cwd. Extracted in Story 1.17 (commit `67bba07`); reused by `init`, `scan`, `status`, `trace`, `replay`, `logs` |
+
+Note on `cli/git.py`: previously listed as a planned Story 1.18 addition. The promise was reabsorbed — `git rev-parse` helpers stayed in `_paths.py` (Story 1.17) and no separate module shipped. There is no `cli/git.py` in v1.18.
 
 ## Planned additions (Stories 1.19–1.20)
 
@@ -32,7 +35,9 @@ module with write access to `state.json` and `journal.log` at the I/O level.
 
 - **Cold-start budget**: `sdlc --version` must complete in < 200 ms.
   All heavy imports (`state`, `journal`, `engine`) are deferred to command-body
-  level per Architecture §488.
+  level per Architecture §488. Subcommand modules themselves (`init`, `scan`,
+  `status`, `trace`, `replay`, `logs`) are also imported lazily inside their
+  Typer command callbacks, not at `main.py` import time.
 - **No `print()`**: all stdout/stderr goes through `cli/output.py:echo()` so Story 1.17
   can add `--no-color`/`--json` envelope plumbing in one place.
 - **No `os.environ` direct access**: env-var reads go through `config/env.py` (Story 1.8).

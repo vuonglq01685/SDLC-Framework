@@ -1,6 +1,15 @@
 # Story 1.18: CLI `sdlc trace` + `sdlc replay` + `sdlc logs`
 
-Status: review
+Status: in-progress
+
+<!--
+Status trail:
+  2026-05-09 (dev-story):  in-progress → review (1001 tests pass, 95% total / 100% new modules coverage)
+  2026-05-09 (code-review chunk A source):  review → in-progress (14 patches + 1 D1 patch applied; D2/D3 deferred)
+  2026-05-09 (code-review chunk B tests):   30 patches logged as action items (B-PC1/B-PC2 + B-P3..B-P30); 5 deferred
+  2026-05-09 (code-review chunk C docs):    22 patches applied; E1 deferred to Story 1.21; 7 deferred
+  Status will return to `review` once chunk-B test action items are addressed (or scoped to a follow-up story).
+-->
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -1262,6 +1271,189 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
     ```
     Document the smoke in the Story 1.18 dev notes / completion log so the reviewer can replay it.
 
+### Review Findings
+
+_Review run: 2026-05-09 · Chunk A (source files only — `src/sdlc/cli/*`). Tests (Chunk B) and docs (Chunk C) reviewed in follow-up runs._
+
+**Patch-to-task index (Chunk A):**
+
+| Origin task | File touched | Patches |
+|-------------|--------------|---------|
+| Task 3 (cli/trace.py) | `src/sdlc/cli/trace.py` | P1, P2, P3, P9, P10, P12 |
+| Task 4 (cli/replay.py) | `src/sdlc/cli/replay.py` | P8, P11 |
+| Task 5 (cli/logs.py) | `src/sdlc/cli/logs.py` | P1, P2, P3, P4, P5, P7, P10, P12, P14, P15 (D1) |
+| Task 6 (cli/main.py) | `src/sdlc/cli/main.py` | P13 |
+| Task 1/2 (helpers) | `src/sdlc/cli/_agent_runs.py` | P6 |
+
+**Decisions resolved (2026-05-09):**
+
+- [x] [Review][Decision-resolved] `--follow --json` NDJSON shape vs envelope shape → **patch** (option 1): unify NDJSON to full event schema + add `"command":"logs"` key per line so consumer sees one consistent shape. See patch P14 below.
+- [x] [Review][Decision-resolved] `--follow` rotation/truncation/inode-change → **defer**: spec doesn't mention rotation; over-engineering for v1.18 violates scope. Revisit after Story 1.20 finalizes truncate semantics. See deferred-work.md.
+- [x] [Review][Decision-resolved] Rich styling for human-readable output → **defer**: spec dev-note line 938 self-permits plain-text v1.18; ADR-021 (Chunk C) to formally record rich-styling deferral to v1.18.1. See deferred-work.md.
+
+**Patches (fixable now):**
+
+- [x] [Review][Patch] `_load_events` / `_load_events_or_error` returns `None` on error path — emit_error is `NoReturn` in practice but the function signature is `list[dict[str, Any]]`; if emit_error contract ever returns, downstream `len(events)` / `for e in events` TypeErrors. Add explicit `raise typer.Exit(...)` after each `emit_error` call. [src/sdlc/cli/trace.py:140-159, 193-198; src/sdlc/cli/logs.py:288-308, 342-348]
+- [x] [Review][Patch] `_parse_ts` crashes whole command on a single malformed `ts` — agent_runs.jsonl is treated as untrusted (malformed lines skipped) but `datetime.fromisoformat` is called outside try/except. A bad `ts` raises `ValueError` and surfaces as a Python traceback, not the canonical error envelope. Wrap calls; on failure log warning + skip event (mirror `journal/reader.py:45-50` permissive policy). [src/sdlc/cli/trace.py:66-69, 81-98; src/sdlc/cli/logs.py:33-35, 91-108]
+- [x] [Review][Patch] Mixed-tz datetime sort `TypeError` — if one agent_runs record has timezone-aware `ts` and another has naive, the merge sort raises `can't compare offset-naive and offset-aware datetimes`. Normalize naive → UTC inside `_parse_ts`. [src/sdlc/cli/trace.py:66-69; src/sdlc/cli/logs.py:33-35]
+- [x] [Review][Patch] `--follow` race window loses events written between historical-collect and tail-start — `_collect_logs` reads journal then `_follow_streams` separately calls `stat().st_size`; events appended in-between are skipped entirely. Capture `st_size` BEFORE the historical pass and use it as the seek-anchor for follow. [src/sdlc/cli/logs.py:401-435]
+- [x] [Review][Patch] `--follow` broken-pipe traceback when piping to `head` — `typer.echo` raises `BrokenPipeError` under SIGPIPE; not suppressed in `_follow_streams`. Add `BrokenPipeError` to the existing `contextlib.suppress(KeyboardInterrupt)`. [src/sdlc/cli/logs.py:317]
+- [x] [Review][Patch] `iter_agent_runs` TOCTOU on `path.exists()` — between `path.exists()` returning True and `path.open()`, file can disappear → `FileNotFoundError` violates the "missing → empty iterator" contract. Restructure: `try: open ... except FileNotFoundError: return`. [src/sdlc/cli/_agent_runs.py:20-26]
+- [x] [Review][Patch] `--filter-agent` accepts empty string + has no validation parity with `--filter-task` — empty string passes through, only matches actor `"agent:"`, silently filters everything. Add explicit empty-string guard → `ERR_USER_INPUT`. [src/sdlc/cli/logs.py:328-337, 387-396]
+- [x] [Review][Patch] Replay missing-file vs empty-file diagnostic confused — both report `"journal has 0 lines"`. Detect `journal_path.exists() == False` early and emit a dedicated `"journal not found"` message. [src/sdlc/cli/replay.py]
+- [x] [Review][Patch] Trace agent_run human row drops `target_id` and `duration_ms` — AC1.6/1.8 prescribe 6 display fields; only 3 shipped. Constant `_AGENT_RUN_DISPLAY_FIELDS` is declared but unused. Drive `_format_event_line` from the constant. [src/sdlc/cli/trace.py:735-742, 873-877]
+- [x] [Review][Patch] Asymmetric defensive copying for `raw` payload — journal branch copies (`"payload": dict(entry.payload)`) but agent_runs branch aliases (`"raw": record`). Wrap in `dict(record)` for symmetry; also avoids size-doubling in JSON output. [src/sdlc/cli/trace.py:813-826; src/sdlc/cli/logs.py:174-187]
+- [x] [Review][Patch] Replay payload values stringified with f-string repr — bytes show as `b'\\xff'`, nested dicts as Python repr. Use `json.dumps(v, default=str)` per value (or `pprint.pformat`). [src/sdlc/cli/replay.py:81-83]
+- [x] [Review][Patch] Malformed agent_runs records dropped silently (no warning) — when `ts` is non-string, `continue` without `_logger.warning`. Mirror reader policy: warn + skip. [src/sdlc/cli/trace.py:102-104; src/sdlc/cli/logs.py:112-114]
+- [x] [Review][Patch] Filter combination AND-semantics undocumented — `--filter-task X --filter-agent Y` is intersection, not union; not stated in `--help`. Extend help string. [src/sdlc/cli/logs.py:42-66]
+- [x] [Review][Patch] `<10` field-width magic number breaks alignment for long actor names — extract a named constant; either truncate with ellipsis or accept variable width with a clearer comment. [src/sdlc/cli/logs.py:201-211]
+- [x] [Review][Patch] (P14, from D1) `--follow --json` NDJSON shape inconsistency — historical events go through `_emit_event` (full schema) but live `_poll_journal` strips `before_hash`, `after_hash`, `payload`; no `command` field per NDJSON line vs envelope mode. Build the full event dict in `_poll_journal` (parity with `_emit_event`) and add `"command":"logs"` to each NDJSON line so consumers see one shape across historical→live transition. [src/sdlc/cli/logs.py:214-219, 247-276]
+
+**Deferred (real but not actionable now):**
+
+- [x] [Review][Defer] (from D2) `--follow` rotation/truncation/inode-change handling — `_poll_journal` keeps a numeric `journal_pos`; on truncate silently waits forever; on rotate-replace skips new file prefix. Spec doesn't mention rotation. Reason: spec scope; revisit after Story 1.20 finalizes truncate/rebuild semantics. [src/sdlc/cli/logs.py:233-244, 261-276] — deferred per D2 decision.
+- [x] [Review][Defer] (from D3) Rich styling for human-readable trace/replay/logs output — ACs 1.8/3.5/4.2 declare rich output but code ships plain text; `make_console` not imported in trace.py/replay.py/logs.py; `_OUTCOME_STYLES` constant from spec line 859-862 silently dropped. Reason: spec dev-note line 938 self-permits plain-text v1.18; ADR-021 update (Chunk C) to formally record rich styling deferred to v1.18.1. — deferred per D3 decision.
+
+- [x] [Review][Defer] Replay walks entire journal for out-of-range single-line lookup — `replay 5` on a 10M-line journal fast-paths; but `replay 99999999` on a small journal full-scans before erroring. Optimization, not correctness. [src/sdlc/cli/replay.py:104-117] — deferred, perf-only.
+- [x] [Review][Defer] Replay regex rejects `0` and `1-0` with `invalid_shape` instead of `inverted_range` — diagnostic drift; behavior is correct (rejection). [src/sdlc/cli/replay.py:25-26, 38-49] — deferred, message-precision nicety.
+- [x] [Review][Defer] `parse_task_id` not applied to payload `task_id` values — pure-string equality is fail-closed (no false matches). Conservative, not buggy. — deferred, document v1.18 contract.
+- [x] [Review][Defer] DRY drift: `_event_affects_task` (trace) vs `_journal_entry_matches_filters` (logs) — two parallel-but-divergent implementations of "does this entry pertain to a task". [src/sdlc/cli/trace.py:745-763 vs src/sdlc/cli/logs.py:101-125] — deferred, refactor opportunity.
+- [x] [Review][Defer] `_FOLLOW_INTERVAL_S=0.25` hardcoded, no exponential backoff when files idle — 4 wakeups/sec × 691,200 stat calls/day. Fine on local SSD; bad on NFS/sshfs. Spec mandates 0.25s constant. [src/sdlc/cli/logs.py:30] — deferred, perf-only.
+- [x] [Review][Defer] Corrupted-journal partial state in `_collect_logs` — `iter_entries` raising mid-stream discards already-collected events; `replay 1-49` fails entirely instead of returning the readable prefix. Behavior is consistent (fail-stop); changing requires spec input. — deferred, behavior change requires decision.
+- [x] [Review][Defer] `_journal_actor_matches_agent` hard-codes `agent:` prefix with `# kept for now; see ADR-021` admission — brittle assumption, no follow-up tag. [src/sdlc/cli/logs.py:97-98] — deferred, tracked by ADR-021.
+- [x] [Review][Defer] `agent_runs.jsonl` zero-byte file silent — empty file yields no events, no diagnostic. Users wonder why filters return nothing. [src/sdlc/cli/_agent_runs.py] — deferred, minor diagnostic gap.
+
+**Dismissed (verified false alarms — not written to story):**
+- Blind Hunter HIGH "`_read_journal_range` total_lines off-by-one" — Auditor verified the success path; total_lines reflects `end` only when collected==range, in which case `end > total_lines` is False → no error fires. Safe.
+- Auditor LOW "`IdsError.message` verification gap" — confirmed `SdlcError.__init__` at `src/sdlc/errors/base.py:24` sets `self.message`; all subclasses inherit. Safe.
+
+---
+
+### Review Findings — Chunk B (tests)
+
+_Review run: 2026-05-09 · Chunk B (test files only — `tests/unit/cli/*` + `tests/integration/test_trace_replay_logs_*`)._
+
+**Patches (fixable now — 30 items):**
+
+_Critical / High — flake vectors and untested patches from Chunk A_
+
+- [ ] [Review][Patch] (B-PC1) Follow-mode tests use `ctypes.PyThreadState_SetAsyncExc` to inject `KeyboardInterrupt` into a worker thread — CPython internals; flaky on busy threads, version-dependent (`c_long` vs `c_ulong`). Refactor to send `os.kill(os.getpid(), SIGINT)` from main thread OR add a stop-event the SUT honors. [tests/unit/cli/test_logs_follow.py:855-861, 908-913]
+- [ ] [Review][Patch] (B-PC2) Follow-mode tests gate correctness on fixed `time.sleep(0.15..0.6)` budgets — will flake on loaded CI. Replace with explicit synchronization barrier (event/queue handshake) or polled assertion with a generous deadline. [tests/unit/cli/test_logs_follow.py:852, 899, 906; tests/integration/test_logs_follow_subprocess.py:70-72]
+- [ ] [Review][Patch] (B-P3) Add test: empty `--filter-agent` (`""`, `"   "`) → ERR_USER_INPUT exit 1 (covers Chunk-A patch P7). [tests/unit/cli/test_logs.py or test_logs_coverage.py]
+- [ ] [Review][Patch] (B-P4) Add test: mixed naive + aware `ts` in journal/agent_runs sorts chronologically without TypeError (covers Chunk-A patch P3 datetime UTC coercion).
+- [ ] [Review][Patch] (B-P5) Add test: malformed `ts` in journal entry / agent_runs record → warning logged, event skipped, no exception (covers Chunk-A patch P2 `_safe_parse_ts`).
+- [ ] [Review][Patch] (B-P6) Extend `test_logs_emit_event_json_mode_follow_ndjson` to assert each NDJSON line has `obj["command"] == "logs"` and same schema as historical events (covers Chunk-A patch P15).
+- [ ] [Review][Patch] (B-P7) Rewrite `test_logs_coverage.py:698-706` — currently monkeypatches `_follow_streams` to no-op then asserts NDJSON; the assertion comes from pre-follow flush, not follow-mode. Either rename to reflect what it tests, or exercise the real follow path. [tests/unit/cli/test_logs_coverage.py:698-706]
+- [ ] [Review][Patch] (B-P8) `test_replay_journal_error_exits_with_error` accepts `exit_code in (1, 2)` — pin to 2 (`ERR_JOURNAL_READ_FAILED`). Spec maps each error class to one code. [tests/unit/cli/test_replay.py:1532-1534]
+- [ ] [Review][Patch] (B-P9) Replace `result.output.lower() or result.stderr or ""` stream-confused assertions with `mix_stderr=False` CliRunner + envelope-code assertion. [tests/unit/cli/test_trace.py:1606-1609]
+- [ ] [Review][Patch] (B-P10) Replace 5 hand-rolled `try: orig = mod.echo; mod.echo = _cap; finally: mod.echo = orig` patterns with `monkeypatch.setattr(logs, "echo", _cap)` — exception-safe. [tests/unit/cli/test_logs_poll.py:1004-1017, 1031-1041, 1083-1095, 1117-1131, 1150-1161]
+- [ ] [Review][Patch] (B-P11) Extract `EXIT_USER_ERROR=1`, `EXIT_SYSTEM_ERROR=2` constants (or import from `sdlc.errors`/`sdlc.cli.output`) and replace bare `assert exit_code == 1`/`== 2` throughout. [test_trace.py, test_replay.py, test_logs.py, test_logs_coverage.py]
+- [ ] [Review][Patch] (B-P12) Add test: `replay 1` against missing `journal.log` → stderr contains `"journal log not found"` and JSON details `"exists": False` (covers Chunk-A patch P8). [tests/unit/cli/test_replay.py]
+- [ ] [Review][Patch] (B-P13) Add test: trace human row for an `agent_run` event includes `target_id=...` and `duration_ms=...` substrings (covers Chunk-A patches P9/P1 — `_AGENT_RUN_DISPLAY_FIELDS` driving the row; AC1.6/AC1.8 source-of-truth). [tests/unit/cli/test_trace.py]
+- [ ] [Review][Patch] (B-P14) Add test: replay payload with nested dict/list values renders as JSON (e.g. `items: [1, 2, 3]`), not Python repr (covers Chunk-A patch P11). [tests/unit/cli/test_replay.py]
+- [ ] [Review][Patch] (B-P15) Add subprocess test: `sdlc logs --follow | head -1` exits 0, stderr contains no `Traceback`/`BrokenPipeError` (covers Chunk-A patch P5). [tests/integration/test_logs_follow_subprocess.py]
+- [ ] [Review][Patch] (B-P16) Add test: monkeypatch `Path.open` to raise `FileNotFoundError` on agent_runs path → `iter_agent_runs` yields empty iterator (covers Chunk-A patch P6 TOCTOU race). [tests/unit/cli/test_trace_coverage.py or test_logs_coverage.py]
+- [ ] [Review][Patch] (B-P17) Add test: `_TRACE_OUTPUT_SCHEMA == "v1"`, `_REPLAY_OUTPUT_SCHEMA == "v1"`, `_LOGS_OUTPUT_SCHEMA == "v1"` (AC2.5 / AC5.1 — Story 1.21 wire-format-lock will freeze these). [tests/unit/cli/test_output.py]
+
+_Medium — quality + traceability_
+
+- [ ] [Review][Patch] (B-P18) Replace brittle prose-string assertions like `"1 events"`, `"--- line 1 ---"`, `stdout.count("[journal/")` with envelope-key assertions where contract is explicit. Reserve at most one snapshot test per command for prose. [test_trace.py, test_replay.py, test_logs.py — many sites]
+- [ ] [Review][Patch] (B-P19) Move duplicated `_make_ctx`, `_make_entry`, `_bootstrap_project`, `_append_entry` helpers from 6+ test files to `tests/unit/cli/conftest.py` (or `tests/_helpers/journal.py`). DRY hazard when journal schema gains a required field.
+- [ ] [Review][Patch] (B-P20) Add 1 byte-equality test on canonical JSON output for each command (`assert stdout_bytes == sorted_keys_serialization`) — current envelope tests parse via `json.loads` and discard ordering. Spec mandates canonical bytes.
+- [ ] [Review][Patch] (B-P21) Replace `time.monotonic()` budget `< 2.0` in `test_logs_no_follow_returns_after_streams_exhausted` — sentinel `_follow_streams = lambda *a, **kw: pytest.fail("entered follow")` proves the contract without wall-clock. [tests/unit/cli/test_logs.py:512-517]
+- [ ] [Review][Patch] (B-P22) Convert `_uv_sdlc` e2e calls to in-process `CliRunner` for the contract assertions; reserve subprocess only for genuinely cross-process behavior (SIGINT, broken-pipe). Speeds up CI; removes `uv` dependency on dev machines. [tests/integration/test_trace_replay_logs_e2e.py + test_logs_follow_subprocess.py]
+- [ ] [Review][Patch] (B-P23) `test_no_color_flag_strips_ansi_on_trace_replay_logs` proves nothing — the empty/near-empty stream wouldn't colorize anyway. Drive a path that WOULD produce color (multi-event with kind highlighting OR error envelope) then assert escapes are stripped. [tests/integration/test_trace_replay_logs_e2e.py:166-202]
+- [ ] [Review][Patch] (B-P24) Add boundary case: `replay 1-1000` (exact-at-cap) succeeds; only `1-1001` (over-cap) is currently tested. [tests/unit/cli/test_replay.py:test_replay_parse_line_spec_valid_forms]
+- [ ] [Review][Patch] (B-P25) Add test for follow-mode race window: monkeypatch `_collect_logs` to slow down; in the gap append a journal entry; assert that entry appears exactly once in follow output (covers Chunk-A patch P4). [tests/unit/cli/test_logs_follow.py]
+- [ ] [Review][Patch] (B-P26) Tighten `test_replay_empty_journal` and `test_replay_out_of_range_single` to assert the exact `"line N not in journal"` substring (AC3.3 mandates verbatim). Also tighten `test_replay_range_too_large` to assert `"range too large"` substring (AC3.7).
+- [ ] [Review][Patch] (B-P27) Tighten `test_trace_empty_journal_exits_zero` to assert `"(no events recorded for this task yet)"` sentinel line (AC1.10). Currently only `"0 events"` is asserted.
+- [ ] [Review][Patch] (B-P28) Extend e2e parametrize to include 3 missing AC8 smoke commands: `replay 1-1` (range form), `replay 999` (out-of-range exit-1 negative path), `logs --filter-agent <name>`. [tests/integration/test_trace_replay_logs_e2e.py]
+
+_Low_
+
+- [ ] [Review][Patch] (B-P29) Replace `__import__("typer.testing", fromlist=["CliRunner"]).CliRunner()` reflection in `test_logs.py:270` and `test_replay.py:1260` with `from typer.testing import CliRunner`. Already correct in `test_trace.py`.
+- [ ] [Review][Patch] (B-P30) Add JSON-mode envelope assertion for `--filter-task <invalid>` path: stderr is parseable JSON with `error.code == "ERR_USER_INPUT"`. Currently only exit_code=1 is asserted. [tests/unit/cli/test_logs.py:test_logs_filter_task_invalid_id]
+
+**Deferred:**
+
+- [x] [Review][Defer] Hash-chain integrity in test fixtures (Blind Hunter MEDIUM #15) — `_make_entry` hardcodes `before_hash="sha256:" + "0"*64` regardless of previous entry's `after_hash`. **Why:** chain integrity is journal/reader's contract (Story 1.11), not CLI's. CLI tests verify CLI behavior; the journal hash-chain is enforced by `iter_entries` invariants tested elsewhere. Adding real chain to CLI tests duplicates the property test suite. — deferred, owner: journal-property tests (Story 1.11).
+- [x] [Review][Defer] Replay `--json` missing-journal envelope shape not specifically tested (Edge Hunter MEDIUM) — generic error envelope shape is covered by `test_emit_error_new_codes_map_to_exit_codes`. **Why:** path-specific JSON envelope assertion is incremental; missing-journal already routes through ERR_USER_INPUT which IS envelope-tested. — deferred, low ROI.
+- [x] [Review][Defer] AC4.2 outcome color semantics (`success`=green / `failure`=red / `partial`=yellow) not tested (Auditor MEDIUM #8) — **Why:** rich styling deferred per D3 decision (Chunk A); v1.18 ships plain-text. Test cannot exist for behavior that doesn't ship. Tracked alongside D3 in deferred-work. — deferred, blocked on D3 rich-styling implementation.
+- [x] [Review][Defer] Coverage CI gate (`pytest --cov-fail-under=90`) not asserted in test code (Auditor MEDIUM #10) — **Why:** CI gate is config not test code (lives in `.github/workflows/*` or `pyproject.toml`). Out of Chunk B (test code) scope; verify in Chunk C (docs/config) review. — deferred, scope.
+- [x] [Review][Defer] `pytest.mark.skipif(sys.platform == "win32")` wholesale-skips follow-mode tests on Windows (Blind LOW #17) — **Why:** root cause is the underlying flake (B-PC1, B-PC2). After those patches land the skipif can be removed. — deferred, owner: B-PC1/B-PC2.
+
+**Dismissed (not written to story):**
+
+- Auditor MEDIUM #4 "AC1.5.3 hook_invocation only in supplemental coverage file" — test exists in `test_trace_coverage.py:test_trace_hook_invocation_payload_filter`; supplemental files are net positive. Spec's AC7.1 list undercounts but is informative not load-bearing.
+- Auditor LOW #12 "3 unprescribed test files" — Auditor's own conclusion: net positive (cover private helpers introduced by refactor).
+- Auditor LOW #13 "AC1.8 em-dash not asserted" — spec line 49 explicitly says "Exact bytes are not load-bearing".
+- Edge Hunter LOW "_format_payload_value repr fallback" — hard to trigger without circular ref; not a real path.
+- Auditor finding #14 "Forward-compat seam — TESTS COMPLY" — positive finding, not a defect.
+
+---
+
+### Review Findings — Chunk C (docs)
+
+_Review run: 2026-05-09 · Chunk C (docs/CODEMAPS/cli-module.md, docs/decisions/ADR-021-*.md, docs/decisions/index.md, this spec, sprint-status.yaml)._
+
+**Decisions resolved (2026-05-09):**
+
+- [x] [Review][Decision-resolved] **Schema-version emission on wire** → **defer to Story 1.21** + ADR-021 note: schema constants `_*_OUTPUT_SCHEMA = "v1"` stay internal-only until Story 1.21's wire-format-lock ceremony. Reason: Story 1.21 is the wire-format-lock surface; emitting `schema_version` now would double-work when 1.21 locks the canonical-bytes layout. Patch C-P17 (Story 1.21 freeze list) is extended to enumerate `schema_version` emission as part of the freeze contract; deferred-work.md tracks the gap.
+
+**Patches (17 fixable now):**
+
+_Critical_
+
+- [x] [Review][Patch] (C-P1, CRITICAL) ADR-021 doesn't document the `command` field on NDJSON lines (Chunk-A patch P15 / decision D1). Per `cli/logs.py:200-211`, every `--follow --json` line carries `"command":"logs"` via `_emit_event`. ADR-021 line 563 only says "NDJSON (one JSON object per line) rather than a single document" — does not name the `command` field, does not specify canonical-bytes ordering, does not declare historical-pass + follow-pass shape parity. Add an explicit "NDJSON shape" subsection.
+
+_High — D2/D3 missing + docs/source drift_
+
+- [x] [Review][Patch] (C-P2) ADR-021 omits D2 (rotation/truncation/inode-change deferred) — spec lines 1276/1296 explicitly tasked Chunk C's ADR with formally recording the deferral. Add a "Known limitations / deferred to v1.18.1+" bullet noting `--follow` does NOT detect rotation/truncation/inode-replacement; recommend users avoid `logrotate` on `journal.log`/`agent_runs.jsonl`; link the follow-up story.
+- [x] [Review][Patch] (C-P3) ADR-021 omits D3 (rich styling deferred to v1.18.1) — spec lines 1277/1300 tasked Chunk C ADR with formal recording. Add a one-line bullet to Consequences: "Rich styling for human-readable trace/replay/logs output is deferred; v1.18 ships plain-text via `echo()`. Tracked for v1.18.1."
+- [x] [Review][Patch] (C-P4) `docs/CODEMAPS/cli-module.md` does NOT list `src/sdlc/cli/_agent_runs.py` despite the module shipping (used by both `trace` and `logs` per Chunk-A patch P6). Add a row: `| _agent_runs.py | ~30 | iter_agent_runs(path) — yields dicts; missing/zero-byte file → empty iterator (Story 1.18, ADR-021) |`. Also append `src/sdlc/cli/_agent_runs.py (new)` to this spec's File List section.
+- [x] [Review][Patch] (C-P5) Spec Status field internally contradictory: line 3 says `Status: in-progress` while line 7 says `Status (pre-review baseline): review`. The `(pre-review baseline)` annotation confuses readers. Pick one — keep `Status: in-progress` (chunks B/C still have action items) and DELETE the parenthetical annotation; or revert to `Status: review` if action items are tracked elsewhere. (Caused by edit during this review run.)
+- [x] [Review][Patch] (C-P6) Codemap silently removes the "Planned additions" row for `cli/git.py` without showing it shipped — a Story 1.18 promise was reabsorbed (helpers stayed inline in `trace.py`'s `_get_repo_root_or_cwd` reusing Story 1.17's `_paths.py`). Add a one-line note in CODEMAPS or here in dev notes: "`cli/git.py` planned for Story 1.18 was reabsorbed; `git rev-parse` helpers stayed in `_paths.py` (Story 1.17)."
+- [x] [Review][Patch] (C-P7) ADR-021 references `_MAX_REPLAY_RANGE = 1000` as a "soft UX bound" but the symbol is underscore-prefixed (private). Either expose publicly OR clarify in ADR wording that "the cap is a documented contract; the underscore on the symbol is conventional file-private encapsulation only." Quick wording fix.
+- [x] [Review][Patch] (C-P8) Spec body claims "100% unit coverage" three times (lines 412-414) while Task 7 explicitly accepts "Windows-fallback branches" as uncovered. Tighten the claim to "100% line coverage on macOS/Linux; documented Windows-fallback branches uncovered (Task 7)" — and remove the duplicate clauses.
+- [x] [Review][Patch] (C-P9) ADR-021 mentions only the 2 NEW error codes (`ERR_JOURNAL_READ_FAILED`, `ERR_AGENT_RUNS_READ_FAILED`); no error-code-to-meaning catalog. Users have no documented map. Add a 9-entry error catalog (mapped exit code + triggering condition) to ADR-021 OR `docs/CODEMAPS/cli-module.md`.
+- [x] [Review][Patch] (C-P10) ADR-021 documents `--filter-agent` matching `actor == "agent:<name>"` but provides no example or gotcha-warning. A user who runs `sdlc logs --filter-agent claude-code` against journal entries with `actor=claude-code` (no `agent:` prefix) gets zero results silently. Add an example showing the convention + the `payload.agent` fallback OR a warning paragraph.
+- [x] [Review][Patch] (C-P11) ADR-021 doesn't document `--filter-task` validation contract OR the asymmetric error paths between `--filter-task` (parse_task_id rejects empty/malformed) and `--filter-agent` (empty rejected with `ERR_USER_INPUT` non_empty after Chunk-A patch P7). Document both validation contracts with one example error each.
+- [x] [Review][Patch] (C-P12) Add 2 missing examples to README/ADR-021 quickstart: (a) `sdlc trace TASK-id-with-no-events` showing the "(no events recorded for this task yet)" output, (b) `sdlc logs --filter-task X --filter-agent Y` showing AND-semantics intersection.
+
+_Medium — links, completeness, refs_
+
+- [x] [Review][Patch] (C-P13) `docs/CODEMAPS/cli-module.md` references `ADR-021` as plaintext in 3 cells; convert to markdown link `[ADR-021](../decisions/ADR-021-cli-trace-replay-logs.md)`.
+- [x] [Review][Patch] (C-P14) ADR-021 line 520-521 `Status: Accepted (2026-05-09, Story 1.18)` doesn't link back to the source story spec. Add `Story 1.18` → `_bmad-output/implementation-artifacts/1-18-cli-sdlc-trace-replay-logs.md` for traceability.
+- [x] [Review][Patch] (C-P15) ADR-021 doesn't document `BrokenPipeError` suppression in `--follow` (Chunk-A patch P5: `contextlib.suppress(KeyboardInterrupt, BrokenPipeError)`). Add to Consequences: "follow-mode exits silently when downstream pipe closes — `sdlc logs --follow | head -5` is supported and will not traceback."
+- [x] [Review][Patch] (C-P16) ADR-021 doesn't declare the UTF-8 / non-ASCII contract. Add a one-liner: "JSON output uses `ensure_ascii=False` (canonical-bytes contract); consumers must accept UTF-8 byte streams."
+- [x] [Review][Patch] (C-P17, with E1 resolution) ADR-021 Story 1.21 freeze list is weak (only schema constants named). Enumerate what 1.21 will freeze: (a) the 9 ERR_* codes + exit mappings; (b) the `_*_OUTPUT_SCHEMA` constants AND whether to start emitting `schema_version` on the wire (per resolved Decision E1: deferred to 1.21); (c) the NDJSON `command` field; (d) the canonical-bytes serialization contract (`sort_keys=True, ensure_ascii=False`, compact separators). Currently only (b) is named.
+- [x] [Review][Patch] (C-P18) `docs/CODEMAPS/cli-module.md` "Cold-start budget" bullet says "All heavy imports (`state`, `journal`, `engine`) are deferred" but doesn't mention that subcommand modules themselves (`init`, `scan`, `status`, `trace`, `replay`, `logs`) are deferred too — load-bearing nuance for Architecture §488 compliance. Append.
+- [x] [Review][Patch] (C-P19) Add patch-to-task index table at the top of "Review Findings" sections — currently a reader cannot tell which Tasks/Subtasks (1-10) own each patch (e.g., P9 fixes `_AGENT_RUN_DISPLAY_FIELDS` from Task 3). Cheap traceability win.
+
+_Low_
+
+- [x] [Review][Patch] (C-P20) CODEMAPS LOC entries (`trace.py | ~200`, `replay.py | ~160`, `logs.py | ~320`) drift from actual (`wc -l` reports trace=269, replay=203, logs=459). Update to nearest 50.
+- [x] [Review][Patch] (C-P21) `_paths.py` row in CODEMAPS lacks Story 1.17 attribution (extracted in commit `67bba07`). One-line note.
+- [x] [Review][Patch] (C-P22) `sprint-status.yaml` `last_action` is now 137 chars; adjacent entries are ≤90. Tighten to: `"code-review 1-18 chunk B tests (status: in-progress; 30 patches in story; chunk C pending)"`.
+
+**Deferred:**
+
+- [x] [Review][Defer] Pre-flight ADR numbering contradiction — story line 42 says "ADRs 015-020 are in flight" but Task 8 says "typically 021 if 1.17's ADR-020 has landed". The actual ADR number resolved correctly (021). The contradictory pre-flight prose is historical noise. Reason: resolved in practice; spec-hygiene cleanup low priority. — deferred, future spec-hygiene pass.
+- [x] [Review][Defer] Naming inconsistency `sdlc trace` / `cli/trace.py` / `run_trace` / "trace command" / "trace tool" across ADR-021 + CODEMAPS — stylistic only; multiple equivalent forms work. Reason: consistent glossary is nice-to-have; substantive meaning unambiguous. — deferred, future docs-style pass.
+- [x] [Review][Defer] "Story 4.x" vague forward reference in ADR-021 line 532 (debug_events.jsonl) — placeholder until Story 4 numbering finalizes. Reason: Story 4 is backlog; concrete number assignable when first 4.x story is created. — deferred, owner: Story 4.x author.
+- [x] [Review][Defer] `output.py` LOC ~200 == cap — file is at the redline; no Story 1.19 can extend without busting the cap. Reason: track for Story 1.19 budgeting; not a v1.18 docs defect. — deferred, owner: Story 1.19 budget review.
+- [x] [Review][Defer] ADR-021 Alternatives drift 1 item from spec AC8.4 verbatim list (added `sdlc audit` rejection, omitted `--follow` no-filter alternative) — substantively equivalent. Reason: AC8.4 list was illustrative not load-bearing; ADR can supplement. — deferred, optional spec change-log note.
+- [x] [Review][Defer] `state.json` exists but `journal.log` doesn't — asymmetry: trace silently exits 0 with "no events"; replay emits explicit "journal log not found" error. Reason: behavior shipped consistently; documenting the asymmetry is incremental. — deferred, future docs hardening.
+- [x] [Review][Defer] Huge `agent_runs.jsonl` (>1GB) memory behavior unspecified — `_collect_*` materializes full list before sort; OOMs on multi-GB streams. Reason: ADR-021 line 583-585 already rejects index-based replay seek as premature ("journals are ≤ MB at v1 scale"); same logic applies. Add Known Limitations bullet later. — deferred, low priority.
+
+**Dismissed (not written to story):**
+
+- Blind Hunter MEDIUM "ADR-021 `Status: Accepted` while story status is `review`/`in-progress`" — conventional ADR practice: `Status: Accepted` reflects decision finality, not story workflow status. The 2026-05-09 date matches authorship.
+- Blind Hunter MEDIUM "Revisit-by 2027-05-09 hand-rolled" — 2027-05-09 = +1 year is policy-compliant per NFR-MAINT-5 12-month revisit rule (per Auditor's confirmation).
+- Blind Hunter LOW "Numbered predicates only for trace, not replay/logs" — stylistic, not load-bearing.
+- Auditor LOW-2 `index.md` ADR-021 row title casing — Auditor's own note: consistent with adjacent rows.
+- Edge Hunter LOW "ADR title says Cross-Stream Merge but body never defines term" — acceptable framing; subsection optional.
+
 ## Dev Notes
 
 ### Why this story exists (FR + NFR + Decision mapping)
@@ -1486,9 +1678,10 @@ claude-opus-4-7
 
 ### Completion Notes List
 
-- Implemented `src/sdlc/cli/trace.py` (FR33): reads journal + agent_runs.jsonl, filters by task-id with three predicates (direct target_id, agent_dispatch payload, hook_invocation payload), chronological merge sort, human and JSON output modes. 100% unit coverage.
-- Implemented `src/sdlc/cli/replay.py` (FR34): validates line-spec (single int or range), reads journal entries by 1-indexed line number, human-readable field-labeled output and JSON envelope. 100% unit coverage.
-- Implemented `src/sdlc/cli/logs.py` (FR45): filters by --filter-task / --filter-agent, chronological merge of journal + agent_runs, --follow mode polls at 0.25s intervals, NDJSON in --follow --json mode. 100% unit coverage.
+- Implemented `src/sdlc/cli/trace.py` (FR33): reads journal + agent_runs.jsonl, filters by task-id with three predicates (direct target_id, agent_dispatch payload, hook_invocation payload), chronological merge sort, human and JSON output modes.
+- Implemented `src/sdlc/cli/replay.py` (FR34): validates line-spec (single int or range), reads journal entries by 1-indexed line number, human-readable field-labeled output and JSON envelope.
+- Implemented `src/sdlc/cli/logs.py` (FR45): filters by --filter-task / --filter-agent, chronological merge of journal + agent_runs, --follow mode polls at 0.25s intervals, NDJSON in --follow --json mode.
+- Coverage: 100% line coverage on the three new modules across macOS/Linux pytest runs; documented Windows-fallback branches in `_get_repo_root_or_cwd` are uncovered per Task 7 explicit acceptance ("Acceptable uncovered: Windows-fallback branches").
 - Registered all three commands in `cli/main.py` with deferred imports per Architecture §488.
 - Extended `cli/output.py` with ERR_JOURNAL_READ_FAILED (exit 2), ERR_AGENT_RUNS_READ_FAILED (exit 2), and three schema version constants.
 - Authored ADR-021 and updated docs/decisions/index.md.
