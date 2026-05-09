@@ -62,6 +62,30 @@ Golden files (byte-stable across OS/Python-version matrix):
 | 2A.4 | `hooks.runner.run_hook_chain` ships | Replace synthesizer stub; regen goldens |
 | 2B.3 | `ClaudeAIRuntime` ships | Extend `_RUNTIME_FACTORIES`; goldens MUST hold for both factories |
 
-## Related ADR
+## Story 1.17 Integration Tests
 
-[ADR-017](../decisions/ADR-017-abstraction-adequacy-ci-contract.md) — records the CI contract design, parameterization strategy, golden-file discipline, and revisit-by trigger.
+### `tests/integration/test_walking_skeleton_e2e.py`
+
+End-to-end subprocess tests for the v0.2 walking skeleton: `sdlc init → sdlc scan → sdlc status`.
+
+- Skips on Windows for scan-related tests (`journal.append_sync` is POSIX-only).
+- Verifies exit codes, JSON envelopes, `phase_name`, and `last_updated_ts` after scan.
+- `_SKIP_NO_UV` guard skips all tests when `uv` is not on PATH.
+
+### `tests/integration/test_no_color_every_command.py`
+
+Parametrized subprocess tests: every subcommand × every no-color signal → zero ANSI in stdout/stderr.
+
+- Covers `--no-color` flag and `NO_COLOR=1` env var.
+- Commands tested: `sdlc init`, `sdlc status`.
+
+### `tests/integration/test_scan_journal_seq_continuity.py`
+
+Journal seq chain invariants: each `sdlc scan` appends one entry with `monotonic_seq` incrementing
+from 0 (POSIX only). Verifies schema fields, RFC3339 UTC timestamp, and `state.json` seq increment.
+
+## Related ADRs
+
+[ADR-017](../decisions/ADR-017-abstraction-adequacy-ci-contract.md) — abstraction-adequacy CI contract.
+
+[ADR-020](../decisions/ADR-020-cli-scan-status-accessibility-flags.md) — `sdlc scan`, `sdlc status`, and accessibility flags design.

@@ -56,7 +56,13 @@ class TestReadEnv:
         assert ENV_PREFIX_ALLOWLIST == ("SDLC_", "CLAUDE_")
 
     def test_env_exact_allowlist_constant(self) -> None:
-        assert frozenset({"GH_TOKEN"}) == ENV_EXACT_ALLOWLIST
+        assert "GH_TOKEN" in ENV_EXACT_ALLOWLIST
+        assert "NO_COLOR" in ENV_EXACT_ALLOWLIST
+
+    def test_read_env_allows_no_color(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        result = read_env("NO_COLOR")
+        assert result is None or isinstance(result, str)
 
     def test_claude_prefix_allowed_but_unset_returns_none(
         self, monkeypatch: pytest.MonkeyPatch

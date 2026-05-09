@@ -1,6 +1,6 @@
 # Story 1.17: CLI `sdlc scan` + `sdlc status` + Accessibility Flags
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -392,22 +392,22 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Pre-flight verification of dependencies, environment, and prior-story state (AC: all)**
-  - [ ] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exists and exports `write_state_atomic_sync` (sprint-status `1-10: done`). Smoke: `uv run python -c "from sdlc.state import State, write_state_atomic_sync, read_state; print('ok')"`. POSIX-only on Linux/macOS; on Windows expect the `NotImplementedError` shim per `state/__init__.py:13-20` — that's the supported posture.
-  - [ ] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `append_sync` and `iter_entries`. Smoke: `uv run python -c "from sdlc.journal import append_sync, iter_entries; print('ok')"`. Story 1.11 shows `review` per sprint-status snapshot 2026-05-08; Story 1.17 hard-depends on `append_sync` so this is a blocking dep — if 1.11 is still in `review` at story-implement time, gate 1.17 implementation behind 1.11 reaching `done`.
-  - [ ] Verify Story 1.12 deliverables on disk: `src/sdlc/state/projection.py:project_from_journal` exists. Smoke: `uv run python -c "from sdlc.state import project_from_journal; print('ok')"`. Story 1.17's `cli/status.py` does NOT call `project_from_journal` directly (it uses `read_state` for the cached projection + `iter_entries` for the last-entry timestamp), but the existence is a sanity check that the substrate is consistent.
-  - [ ] Verify Story 1.15 deliverables on disk: `src/sdlc/engine/__init__.py` exports `scan` and `engine/scanner.py:scan(project_root: Path) -> State` exists with the AC1 contract. Smoke: `uv run python -c "from sdlc.engine import scan; print(scan)"`. Story 1.17 hard-depends on this. If Story 1.15 has NOT landed at story-implement time (sprint-status 2026-05-08 says `1-15: ready-for-dev`), gate 1.17 dev behind 1.15 reaching `done` — there is no "scan-stub" fallback for 1.17 because the entire AC1 contract requires the real scanner.
-  - [ ] Verify Story 1.16 deliverables on disk: `src/sdlc/cli/main.py` (with `app` Typer instance), `src/sdlc/cli/init.py` (with `run_init`), `src/sdlc/cli/output.py` (stub with `echo`), `src/sdlc/cli/exit_codes.py` (with constants), `src/sdlc/cli/version.py` (with `get_version`). Smoke: `uv run sdlc --version` prints `sdlc 0.0.0` exit 0. If 1.16 has NOT landed (sprint-status `1-16: ready-for-dev`), gate 1.17 behind 1.16 reaching `done` — the entire CLI architecture this story extends is owned by 1.16.
-  - [ ] Verify boundary-linter location: `scripts/check_module_boundaries.py` has `MODULE_DEPS["cli"]` widened by Story 1.16 to include `state`, `journal`, `contracts`, `ids`. Confirm via `grep -A5 '"cli": ModuleSpec' scripts/check_module_boundaries.py`. Story 1.17 does NOT widen further — the existing widening covers `cli/scan.py` (uses `state`, `journal`) and `cli/status.py` (uses `state`, `journal`, `contracts`).
-  - [ ] Verify ADR numbering: ADRs 013, 014 are landed (Stories 1.10, 1.11); ADRs 015 (Story 1.12), 016 (1.13), 017 (1.14), 018 (1.15), 019 (1.16) are in flight per their stories' AC7-AC8. Story 1.17 (this story) authors **ADR-020**. Take next free number after the most recent ADR on disk.
-  - [ ] Verify `pyproject.toml [project] dependencies` includes `typer>=0.12,<1` (Story 1.16). Confirm via `grep typer pyproject.toml`. Story 1.17 ADDS `rich>=13,<15` per AC5.6. Confirm `rich` is NOT already directly listed (it's a transitive dep of typer in 1.16).
-  - [ ] Verify `src/sdlc/cli/scan.py` and `src/sdlc/cli/status.py` do NOT exist on disk: `test -f src/sdlc/cli/scan.py && echo "ABORT" || echo "ok, fresh"`. If they exist (half-merged earlier story), HALT and reconcile manually before proceeding.
-  - [ ] Verify `tests/unit/cli/test_scan.py`, `test_status.py`, `test_output.py` do NOT exist: `test -f tests/unit/cli/test_scan.py && echo "ABORT" || echo "ok"`.
-  - [ ] Verify the existing pre-commit hooks pass on `main`: `uv run pre-commit run --all-files`. Establish a green baseline before mutating.
-  - [ ] Confirm the Story 1.16 walking-skeleton smoke works: in a tmp dir, `git init && uv run sdlc init && uv run sdlc --version`. Both succeed. Story 1.17 extends this with `sdlc scan` + `sdlc status` working too.
+- [x] **Task 1: Pre-flight verification of dependencies, environment, and prior-story state (AC: all)**
+  - [x] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exists and exports `write_state_atomic_sync` (sprint-status `1-10: done`). Smoke: `uv run python -c "from sdlc.state import State, write_state_atomic_sync, read_state; print('ok')"`. POSIX-only on Linux/macOS; on Windows expect the `NotImplementedError` shim per `state/__init__.py:13-20` — that's the supported posture.
+  - [x] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `append_sync` and `iter_entries`. Smoke: `uv run python -c "from sdlc.journal import append_sync, iter_entries; print('ok')"`. Story 1.11 shows `review` per sprint-status snapshot 2026-05-08; Story 1.17 hard-depends on `append_sync` so this is a blocking dep — if 1.11 is still in `review` at story-implement time, gate 1.17 implementation behind 1.11 reaching `done`.
+  - [x] Verify Story 1.12 deliverables on disk: `src/sdlc/state/projection.py:project_from_journal` exists. Smoke: `uv run python -c "from sdlc.state import project_from_journal; print('ok')"`. Story 1.17's `cli/status.py` does NOT call `project_from_journal` directly (it uses `read_state` for the cached projection + `iter_entries` for the last-entry timestamp), but the existence is a sanity check that the substrate is consistent.
+  - [x] Verify Story 1.15 deliverables on disk: `src/sdlc/engine/__init__.py` exports `scan` and `engine/scanner.py:scan(project_root: Path) -> State` exists with the AC1 contract. Smoke: `uv run python -c "from sdlc.engine import scan; print(scan)"`. Story 1.17 hard-depends on this. If Story 1.15 has NOT landed at story-implement time (sprint-status 2026-05-08 says `1-15: ready-for-dev`), gate 1.17 dev behind 1.15 reaching `done` — there is no "scan-stub" fallback for 1.17 because the entire AC1 contract requires the real scanner.
+  - [x] Verify Story 1.16 deliverables on disk: `src/sdlc/cli/main.py` (with `app` Typer instance), `src/sdlc/cli/init.py` (with `run_init`), `src/sdlc/cli/output.py` (stub with `echo`), `src/sdlc/cli/exit_codes.py` (with constants), `src/sdlc/cli/version.py` (with `get_version`). Smoke: `uv run sdlc --version` prints `sdlc 0.0.0` exit 0. If 1.16 has NOT landed (sprint-status `1-16: ready-for-dev`), gate 1.17 behind 1.16 reaching `done` — the entire CLI architecture this story extends is owned by 1.16.
+  - [x] Verify boundary-linter location: `scripts/check_module_boundaries.py` has `MODULE_DEPS["cli"]` widened by Story 1.16 to include `state`, `journal`, `contracts`, `ids`. Confirm via `grep -A5 '"cli": ModuleSpec' scripts/check_module_boundaries.py`. Story 1.17 does NOT widen further — the existing widening covers `cli/scan.py` (uses `state`, `journal`) and `cli/status.py` (uses `state`, `journal`, `contracts`).
+  - [x] Verify ADR numbering: ADRs 013, 014 are landed (Stories 1.10, 1.11); ADRs 015 (Story 1.12), 016 (1.13), 017 (1.14), 018 (1.15), 019 (1.16) are in flight per their stories' AC7-AC8. Story 1.17 (this story) authors **ADR-020**. Take next free number after the most recent ADR on disk.
+  - [x] Verify `pyproject.toml [project] dependencies` includes `typer>=0.12,<1` (Story 1.16). Confirm via `grep typer pyproject.toml`. Story 1.17 ADDS `rich>=13,<15` per AC5.6. Confirm `rich` is NOT already directly listed (it's a transitive dep of typer in 1.16).
+  - [x] Verify `src/sdlc/cli/scan.py` and `src/sdlc/cli/status.py` do NOT exist on disk: `test -f src/sdlc/cli/scan.py && echo "ABORT" || echo "ok, fresh"`. If they exist (half-merged earlier story), HALT and reconcile manually before proceeding.
+  - [x] Verify `tests/unit/cli/test_scan.py`, `test_status.py`, `test_output.py` do NOT exist: `test -f tests/unit/cli/test_scan.py && echo "ABORT" || echo "ok"`.
+  - [x] Verify the existing pre-commit hooks pass on `main`: `uv run pre-commit run --all-files`. Establish a green baseline before mutating.
+  - [x] Confirm the Story 1.16 walking-skeleton smoke works: in a tmp dir, `git init && uv run sdlc init && uv run sdlc --version`. Both succeed. Story 1.17 extends this with `sdlc scan` + `sdlc status` working too.
 
-- [ ] **Task 2: Add `rich` direct dep + widen `NO_COLOR` allow-list (AC: #5.6, #3.3)**
-  - [ ] Open `pyproject.toml`. In `[project] dependencies`, add `"rich>=13,<15"` after `"typer>=0.12,<1"`. Final block:
+- [x] **Task 2: Add `rich` direct dep + widen `NO_COLOR` allow-list (AC: #5.6, #3.3)**
+  - [x] Open `pyproject.toml`. In `[project] dependencies`, add `"rich>=13,<15"` after `"typer>=0.12,<1"`. Final block:
     ```toml
     dependencies = [
         "pydantic>=2,<3",
@@ -416,14 +416,14 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         "rich>=13,<15",     # cap: rich 14→15 has not landed; defensive guard. Direct dep added in Story 1.17 per cli/output.py rich console (AC5.6).
     ]
     ```
-  - [ ] Run `uv lock` to refresh `uv.lock`. Commit the lock change in the same commit as the dep addition.
-  - [ ] Smoke-test the lock: `uv sync --frozen --group dev`; assert success. `uv run python -c "import rich; print(rich.__version__)"` confirms direct import resolves.
-  - [ ] Open `src/sdlc/config/env.py`. Update line 9 (`ENV_EXACT_ALLOWLIST`) to include `NO_COLOR`:
+  - [x] Run `uv lock` to refresh `uv.lock`. Commit the lock change in the same commit as the dep addition.
+  - [x] Smoke-test the lock: `uv sync --frozen --group dev`; assert success. `uv run python -c "import rich; print(rich.__version__)"` confirms direct import resolves.
+  - [x] Open `src/sdlc/config/env.py`. Update line 9 (`ENV_EXACT_ALLOWLIST`) to include `NO_COLOR`:
     ```python
     ENV_EXACT_ALLOWLIST: Final[frozenset[str]] = frozenset({"GH_TOKEN", "NO_COLOR"})
     # NO_COLOR added in Story 1.17 per no-color.org informal standard for accessibility-friendly CLI output (NFR-A11Y-4).
     ```
-  - [ ] Update `src/sdlc/config/env.py` docstring on `read_env` to mention `NO_COLOR`:
+  - [x] Update `src/sdlc/config/env.py` docstring on `read_env` to mention `NO_COLOR`:
     ```python
     """...
     Allow-list per Architecture §671 + NFR-SEC-2 (prd.md:798):
@@ -433,7 +433,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
     ...
     """
     ```
-  - [ ] Add a unit test at `tests/unit/config/test_env.py` (extend if present from Story 1.8):
+  - [x] Add a unit test at `tests/unit/config/test_env.py` (extend if present from Story 1.8):
     ```python
     def test_read_env_allows_no_color() -> None:
         # Smoke: no_color in allow-list should not raise
@@ -442,10 +442,10 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         result = read_env("NO_COLOR")
         assert result is None or isinstance(result, str)
     ```
-  - [ ] Run `uv run pytest tests/unit/config/test_env.py -v` → green. Verify Story 1.8's existing tests still pass (no_color extension is purely additive; previous tests pinned `frozenset({"GH_TOKEN"})` and would fail — extend those assertions or use `>=` containment instead of `==` equality on the allow-list).
+  - [x] Run `uv run pytest tests/unit/config/test_env.py -v` → green. Verify Story 1.8's existing tests still pass (no_color extension is purely additive; previous tests pinned `frozenset({"GH_TOKEN"})` and would fail — extend those assertions or use `>=` containment instead of `==` equality on the allow-list).
 
-- [ ] **Task 3: Add `state_to_canonical_bytes` helper to `state/__init__.py` (AC: #1.4)**
-  - [ ] Open `src/sdlc/state/__init__.py`. Add a new public helper that takes a `State` and returns the canonical bytes:
+- [x] **Task 3: Add `state_to_canonical_bytes` helper to `state/__init__.py` (AC: #1.4)**
+  - [x] Open `src/sdlc/state/__init__.py`. Add a new public helper that takes a `State` and returns the canonical bytes:
     ```python
     import json as _json  # alias to avoid shadowing user-facing 'json' module imports
 
@@ -462,7 +462,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
             + "\n"
         ).encode("utf-8")
     ```
-  - [ ] Update `__all__` to include the new helper. Final declaration (post-Story-1.17):
+  - [x] Update `__all__` to include the new helper. Final declaration (post-Story-1.17):
     ```python
     # Semantic order: model → write (async) → write (sync) → read → projection → canonicalizer; do NOT alphabetize.
     __all__ = (  # noqa: RUF022
@@ -474,22 +474,22 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         "state_to_canonical_bytes",
     )
     ```
-  - [ ] Add a unit test at `tests/unit/state/test_canonical_bytes.py`:
+  - [x] Add a unit test at `tests/unit/state/test_canonical_bytes.py`:
     - `test_canonical_bytes_round_trip`: `s = State()`; `b = state_to_canonical_bytes(s)`; `parsed = json.loads(b.decode("utf-8"))`; `s2 = State.model_validate(parsed)`; assert `s == s2`.
     - `test_canonical_bytes_byte_equal_across_calls`: `b1 = state_to_canonical_bytes(State())`; `b2 = state_to_canonical_bytes(State())`; assert `b1 == b2` (deterministic).
     - `test_canonical_bytes_sorted_keys`: assert key order in bytes is alphabetical (`epics` before `next_monotonic_seq` before `phase` before `schema_version` before `stories` before `tasks` — assuming Story 1.15's State extension landed; otherwise just `epics, next_monotonic_seq, schema_version`).
     - `test_canonical_bytes_trailing_newline`: assert `state_to_canonical_bytes(State()).endswith(b"\n")`.
     - `test_canonical_bytes_no_ascii_escaping`: build a State whose epics dict contains a Unicode key (e.g. via `State(epics={"é": {}})` if that's allowed by the schema; else skip); assert the bytes contain the literal Unicode codepoint, NOT `é`.
-  - [ ] Run `uv run pytest tests/unit/state/ -v` → green.
+  - [x] Run `uv run pytest tests/unit/state/ -v` → green.
 
-- [ ] **Task 4: Expand `cli/output.py` with rich console + JSON envelope + error envelope (AC: #3, #4, #5)**
-  - [ ] Open `src/sdlc/cli/output.py`. Replace the Story-1.16 stub with the expanded module per AC5. Top-of-file order:
+- [x] **Task 4: Expand `cli/output.py` with rich console + JSON envelope + error envelope (AC: #3, #4, #5)**
+  - [x] Open `src/sdlc/cli/output.py`. Replace the Story-1.16 stub with the expanded module per AC5. Top-of-file order:
     1. Module docstring naming Story 1.17 + the public functions + the error code table.
     2. `from __future__ import annotations`.
     3. Stdlib imports (alphabetized): `import json`, `import os`, `import re`, `import sys`, `from collections.abc import Mapping`, `from types import MappingProxyType`, `from typing import Final, NoReturn`.
     4. Third-party imports: `import typer`. (Defer `from rich.console import Console` to inside `make_console` to avoid module-level rich import for cold-start budget.)
     5. SDLC imports: `from sdlc.config import sanitize_mapping`.
-  - [ ] Add module-level constants:
+  - [x] Add module-level constants:
     ```python
     _ANSI_RE: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
     _NO_COLOR_ENV: Final[str] = "NO_COLOR"
@@ -508,7 +508,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
     _SCAN_OUTPUT_SCHEMA: Final[str] = "v1"
     _STATUS_OUTPUT_SCHEMA: Final[str] = "v1"
     ```
-  - [ ] Implement `is_no_color_active(ctx: typer.Context | None) -> bool`:
+  - [x] Implement `is_no_color_active(ctx: typer.Context | None) -> bool`:
     ```python
     def is_no_color_active(ctx: typer.Context | None) -> bool:
         """True if --no-color flag is set OR NO_COLOR env is non-empty."""
@@ -517,12 +517,12 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         return flag or env
     ```
     Note: `os.environ.get` direct read here (not `sdlc.config.read_env`) is acceptable in `cli/` per Architecture §492's `cli/` carve-out; the allow-list in `config/env.py` is widened (Task 2) so a future caller using `read_env("NO_COLOR")` also resolves cleanly.
-  - [ ] Implement `_strip_ansi(s: str) -> str`:
+  - [x] Implement `_strip_ansi(s: str) -> str`:
     ```python
     def _strip_ansi(s: str) -> str:
         return _ANSI_RE.sub("", s)
     ```
-  - [ ] Implement the expanded `echo`:
+  - [x] Implement the expanded `echo`:
     ```python
     def echo(message: str, *, err: bool = False, ctx: typer.Context | None = None) -> None:
         """Emit ``message`` on stdout (or stderr if err=True).
@@ -537,7 +537,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
             message = _strip_ansi(message)
         typer.echo(message, err=err)
     ```
-  - [ ] Implement `emit_json`:
+  - [x] Implement `emit_json`:
     ```python
     def emit_json(command: str, payload: Mapping[str, object], *, ctx: typer.Context) -> None:
         """Emit canonical-bytes JSON document on stdout.
@@ -550,7 +550,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         canonical = json.dumps(merged, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
         typer.echo(canonical)  # typer.echo adds the trailing newline
     ```
-  - [ ] Implement `emit_error`:
+  - [x] Implement `emit_error`:
     ```python
     def emit_error(
         code: str,
@@ -585,7 +585,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
             typer.echo(text, err=True)
         raise typer.Exit(code=exit_code)
     ```
-  - [ ] Implement `make_console`:
+  - [x] Implement `make_console`:
     ```python
     def make_console(ctx: typer.Context) -> "Console":
         """Lazy rich Console factory; caches per ctx.obj.
@@ -605,7 +605,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         return console
     ```
     NOTE: the `# type: ignore[no-any-return]` annotation is on the cache-hit return because mypy strict can't introspect the rich Console's type from the cached `Optional[Any]` slot. If mypy errors, narrow with `assert isinstance(cached, Console)` after the deferred import.
-  - [ ] Set the public surface:
+  - [x] Set the public surface:
     ```python
     __all__ = (  # noqa: RUF022
         "echo",
@@ -615,13 +615,13 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         "is_no_color_active",
     )
     ```
-  - [ ] Verify LOC ≤ 200. If exceeded, factor `_strip_ansi` + `is_no_color_active` into `cli/_output_helpers.py`.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/output.py` → must pass.
-  - [ ] Run `uv run ruff check src/sdlc/cli/output.py` → must pass.
-  - [ ] Run `uv run ruff format --check src/sdlc/cli/output.py` → must pass.
+  - [x] Verify LOC ≤ 200. If exceeded, factor `_strip_ansi` + `is_no_color_active` into `cli/_output_helpers.py`.
+  - [x] Run `uv run mypy --strict src/sdlc/cli/output.py` → must pass.
+  - [x] Run `uv run ruff check src/sdlc/cli/output.py` → must pass.
+  - [x] Run `uv run ruff format --check src/sdlc/cli/output.py` → must pass.
 
-- [ ] **Task 5: Implement `cli/scan.py` (AC: #1)**
-  - [ ] Create `src/sdlc/cli/scan.py`. Top-of-file order:
+- [x] **Task 5: Implement `cli/scan.py` (AC: #1)**
+  - [x] Create `src/sdlc/cli/scan.py`. Top-of-file order:
     1. Module docstring: "`sdlc scan` implementation (FR3, Architecture §799, §1133, Decision A4 + B5). Wraps `engine.scanner.scan` with state.json atomic write + journal scan_completed append."
     2. `from __future__ import annotations`.
     3. Stdlib imports (alphabetized): `import datetime`, `import hashlib`, `import logging`, `import subprocess`, `import sys`, `from pathlib import Path`, `from typing import Final`.
@@ -636,10 +636,10 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
        _ACTOR: Final[str] = "cli"
        _STATE_TARGET_ID: Final[str] = "state"
        ```
-  - [ ] Implement `_get_repo_root_or_cwd() -> Path`:
+  - [x] Implement `_get_repo_root_or_cwd() -> Path`:
     - Same pattern as Story 1.16's `cli/init.py` helper. Try `subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False, timeout=5)`; on success return `Path(result.stdout.strip()).resolve()`; on any failure return `Path.cwd().resolve()`. Catch `OSError`, `subprocess.SubprocessError`, `FileNotFoundError`.
     - If Story 1.16 factored this into `cli/_paths.py:_get_repo_root_or_cwd`, IMPORT it instead — DO NOT duplicate. Verify the helper exists; if it doesn't, define inline (single-use is acceptable, Story 1.16's dev notes accept inline duplication for v1.17).
-  - [ ] Implement `_compute_sha256_of_file(path: Path) -> str | None`:
+  - [x] Implement `_compute_sha256_of_file(path: Path) -> str | None`:
     ```python
     def _compute_sha256_of_file(path: Path) -> str | None:
         """Return 'sha256:<hex>' or None if the file does not exist."""
@@ -648,7 +648,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         return f"sha256:{digest}"
     ```
-  - [ ] Implement `_now_rfc3339_utc() -> str`:
+  - [x] Implement `_now_rfc3339_utc() -> str`:
     ```python
     def _now_rfc3339_utc() -> str:
         """RFC 3339 UTC with millisecond precision matching JournalEntry _RFC3339_UTC regex."""
@@ -657,7 +657,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
     ```
     Verify the format matches `contracts/journal_entry.py:16` regex `r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$"`.
-  - [ ] Implement `_write_state_to_disk(state: State, state_path: Path) -> None`:
+  - [x] Implement `_write_state_to_disk(state: State, state_path: Path) -> None`:
     ```python
     def _write_state_to_disk(state: "State", state_path: Path) -> None:
         from sdlc.state import state_to_canonical_bytes  # deferred
@@ -673,7 +673,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         write_state_atomic_sync(state, target=state_path)
     ```
     NOTE: `write_state_atomic_sync` signature: verify against `state/atomic.py` and adjust if it takes `(state, target)` vs `(state, path)` vs other — Story 1.10 owns the canonical signature.
-  - [ ] Implement `_append_scan_journal_entry(...)`:
+  - [x] Implement `_append_scan_journal_entry(...)`:
     ```python
     def _append_scan_journal_entry(
         *,
@@ -705,7 +705,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         append_sync(entry, journal_path=journal_path)
     ```
     On Windows, `append_sync` raises `JournalError` per `journal/__init__.py:31`; the caller catches it and emits via `emit_error("ERR_JOURNAL_APPEND_FAILED", ...)`.
-  - [ ] Implement the public `run_scan(*, ctx: typer.Context) -> None`:
+  - [x] Implement the public `run_scan(*, ctx: typer.Context) -> None`:
     ```python
     def run_scan(*, ctx: typer.Context) -> None:
         from sdlc.engine import scan as engine_scan  # deferred
@@ -814,17 +814,17 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
             )
     ```
     NOTE on `state.phase`: if Story 1.15's State extension has NOT yet landed at story-implement time (`phase` attribute may not exist on the `State` model), the `hasattr(new_state, "phase")` guard returns the v1.10-minimal-shape compatible value. Once 1.15 lands, the `if hasattr` branches collapse to direct `new_state.phase` access — refactor in a follow-up.
-  - [ ] Verify LOC ≤ 250 for `cli/scan.py`. If exceeded, factor `_compute_sha256_of_file`, `_now_rfc3339_utc`, `_get_repo_root_or_cwd` into `cli/_scan_helpers.py`.
-  - [ ] **Forbidden patterns at code-review time**:
+  - [x] Verify LOC ≤ 250 for `cli/scan.py`. If exceeded, factor `_compute_sha256_of_file`, `_now_rfc3339_utc`, `_get_repo_root_or_cwd` into `cli/_scan_helpers.py`.
+  - [x] **Forbidden patterns at code-review time**:
     - `print()` — use `cli/output.py:echo` / `emit_json` / `emit_error`.
     - `time.time()` for ordering — use `monotonic_seq` from state; wall-clock UTC for `ts` only via `datetime.datetime.now(datetime.timezone.utc)`.
     - `os.environ[...]` direct access (the env reads happen in `cli/output.py` only).
     - Bare `except:` / `except Exception:` — narrow catches only.
     - Mutating function arguments — `model_copy(update=...)` is the canonical immutable-update pattern.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/scan.py` → must pass.
+  - [x] Run `uv run mypy --strict src/sdlc/cli/scan.py` → must pass.
 
-- [ ] **Task 6: Implement `cli/status.py` (AC: #2)**
-  - [ ] Create `src/sdlc/cli/status.py`. Top-of-file order:
+- [x] **Task 6: Implement `cli/status.py` (AC: #2)**
+  - [x] Create `src/sdlc/cli/status.py`. Top-of-file order:
     1. Module docstring: "`sdlc status` implementation (FR44, Architecture §801, §1170). Read-only resume card; projects state + last journal entry."
     2. `from __future__ import annotations`.
     3. Stdlib imports: `import datetime`, `import logging`, `import re`, `from collections.abc import Mapping`, `from pathlib import Path`, `from types import MappingProxyType`, `from typing import Final, Optional`.
@@ -841,8 +841,8 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
        _NEVER_SENTINEL: Final[str] = "<never — run `sdlc scan`>"
        _PYPROJECT_NAME_RE: Final[re.Pattern[str]] = re.compile(r'^name\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
        ```
-  - [ ] Implement `_get_repo_root_or_cwd()`: same as Story 1.16 / Story 1.17 Task 5. Share via `cli/_paths.py` if present; else inline.
-  - [ ] Implement `_resolve_project_name(root: Path) -> str`:
+  - [x] Implement `_get_repo_root_or_cwd()`: same as Story 1.16 / Story 1.17 Task 5. Share via `cli/_paths.py` if present; else inline.
+  - [x] Implement `_resolve_project_name(root: Path) -> str`:
     ```python
     def _resolve_project_name(root: Path) -> str:
         """Best-effort project name from pyproject.toml [project] name; fallback to dir basename."""
@@ -857,7 +857,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
                 return m.group(1)
         return root.name
     ```
-  - [ ] Implement `_get_last_journal_ts(journal_path: Path) -> str | None`:
+  - [x] Implement `_get_last_journal_ts(journal_path: Path) -> str | None`:
     ```python
     def _get_last_journal_ts(journal_path: Path) -> str | None:
         """Return the latest entry's ts (RFC 3339 UTC string) or None for empty/missing journal."""
@@ -870,7 +870,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
             last_ts = entry.ts  # entries are sorted by monotonic_seq per Story 1.11 reader contract
         return last_ts
     ```
-  - [ ] Implement `_format_ts_local(ts: str) -> str`:
+  - [x] Implement `_format_ts_local(ts: str) -> str`:
     ```python
     def _format_ts_local(ts: str) -> str:
         """RFC 3339 UTC string → local-timezone human string. 3.10-compatible."""
@@ -883,7 +883,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         local = dt.astimezone()
         return local.strftime("%Y-%m-%d %H:%M:%S %Z")
     ```
-  - [ ] Implement `_compute_suggested_next(state: "State") -> str`:
+  - [x] Implement `_compute_suggested_next(state: "State") -> str`:
     ```python
     def _compute_suggested_next(state: "State") -> str:
         """Minimal v1.17 stub. Story 4.x's auto_loop owns the rich engine.
@@ -895,7 +895,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         # Fall through: sensible default.
         return "sdlc scan"
     ```
-  - [ ] Implement `run_status(*, ctx: typer.Context) -> None`:
+  - [x] Implement `run_status(*, ctx: typer.Context) -> None`:
     ```python
     def run_status(*, ctx: typer.Context) -> None:
         from sdlc.errors import StateError
@@ -957,12 +957,12 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         echo(f"Last updated: {last_ts_display}", ctx=ctx)
         echo(f"Suggested next: {suggested_next}", ctx=ctx)
     ```
-  - [ ] Verify LOC ≤ 200. Optional rich-console styling can be added later (v1.x); v1.17 keeps the human-readable mode plain text routed through `echo` which is already a11y-friendly.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/status.py` → must pass.
+  - [x] Verify LOC ≤ 200. Optional rich-console styling can be added later (v1.x); v1.17 keeps the human-readable mode plain text routed through `echo` which is already a11y-friendly.
+  - [x] Run `uv run mypy --strict src/sdlc/cli/status.py` → must pass.
 
-- [ ] **Task 7: Wire `scan` + `status` subcommands + global flags into `cli/main.py` (AC: #6)**
-  - [ ] Open `src/sdlc/cli/main.py`. Update the imports at the top to add `import json`, `import os`, `import sys`. The `from sdlc.cli.version import get_version` stays.
-  - [ ] Replace the existing `_version_callback` with the JSON-aware version per AC6.4:
+- [x] **Task 7: Wire `scan` + `status` subcommands + global flags into `cli/main.py` (AC: #6)**
+  - [x] Open `src/sdlc/cli/main.py`. Update the imports at the top to add `import json`, `import os`, `import sys`. The `from sdlc.cli.version import get_version` stays.
+  - [x] Replace the existing `_version_callback` with the JSON-aware version per AC6.4:
     ```python
     def _version_callback(value: bool) -> None:
         if value:
@@ -978,7 +978,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
                 typer.echo(f"sdlc {get_version()}")
             raise typer.Exit(code=0)
     ```
-  - [ ] Replace the existing `_root` with the context-aware version per AC6.2:
+  - [x] Replace the existing `_root` with the context-aware version per AC6.2:
     ```python
     @app.callback()
     def _root(
@@ -1001,7 +1001,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         ctx.obj["no_color"] = no_color or os.environ.get("NO_COLOR", "") != ""
         ctx.obj["json"] = json_output
     ```
-  - [ ] Update the existing `init_command` to accept and pass `ctx`:
+  - [x] Update the existing `init_command` to accept and pass `ctx`:
     ```python
     @app.command(name="init")
     def init_command(
@@ -1019,7 +1019,7 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         from sdlc.cli.init import run_init  # deferred per Architecture §488
         run_init(ctx=ctx)
     ```
-  - [ ] Add the `scan_command` and `status_command` per AC6.1:
+  - [x] Add the `scan_command` and `status_command` per AC6.1:
     ```python
     @app.command(name="scan")
     def scan_command(ctx: typer.Context) -> None:
@@ -1034,8 +1034,8 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         from sdlc.cli.status import run_status  # deferred
         run_status(ctx=ctx)
     ```
-  - [ ] Verify `cli/main.py` LOC ≤ 130. If exceeded, factor `_root` body into `cli/_main_helpers.py:initialize_context`.
-  - [ ] Update `src/sdlc/cli/init.py:run_init` signature to accept `ctx: typer.Context | None = None` (default keeps Story 1.16's tests passing). Inside, branch on `ctx`:
+  - [x] Verify `cli/main.py` LOC ≤ 130. If exceeded, factor `_root` body into `cli/_main_helpers.py:initialize_context`.
+  - [x] Update `src/sdlc/cli/init.py:run_init` signature to accept `ctx: typer.Context | None = None` (default keeps Story 1.16's tests passing). Inside, branch on `ctx`:
     ```python
     def run_init(*, ctx: typer.Context | None = None) -> None:
         # ... existing scaffold logic ...
@@ -1067,8 +1067,8 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         )
     ```
     NOTE: the message wording shifts from `"sdlc: already initialized at <root>; use \`sdlc scan\` to refresh state.json"` (Story 1.16's exact text) to `"already initialized at <root>; use \`sdlc scan\` to refresh state.json"` because `emit_error` prefixes `"sdlc: "`. The on-disk byte form is preserved.
-  - [ ] Run `uv run mypy --strict src/sdlc/cli/main.py` and `uv run mypy --strict src/sdlc/cli/init.py` → both pass.
-  - [ ] Smoke-test the wiring:
+  - [x] Run `uv run mypy --strict src/sdlc/cli/main.py` and `uv run mypy --strict src/sdlc/cli/init.py` → both pass.
+  - [x] Smoke-test the wiring:
     ```bash
     cd $(mktemp -d)
     git init
@@ -1083,9 +1083,9 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
     ```
     Each command should exit 0 (after init) with shaped output.
 
-- [ ] **Task 8: Tests — unit + integration + e2e (AC: #7)**
-  - [ ] Create `tests/unit/cli/test_output.py` with `pytestmark = pytest.mark.unit`. Add the 6 tests from AC7.3. Use `pytest.MonkeyPatch` for env-var manipulation; build fake Typer contexts via `typer.Context(command=typer.core.TyperCommand("test"), parent=None)` or a lightweight fake-context fixture (consult Typer 0.12+ docs at typer.tiangolo.com/tutorial/commands/context/ for the canonical pattern).
-  - [ ] Create `tests/unit/cli/test_scan.py` with `pytestmark = pytest.mark.unit`. Add the 8 tests from AC7.1. Use a `_initialize_test_project(tmp_path)` helper that calls `run_init(ctx=fake_ctx)` so each test starts from a known bootstrapped state. Helper:
+- [x] **Task 8: Tests — unit + integration + e2e (AC: #7)**
+  - [x] Create `tests/unit/cli/test_output.py` with `pytestmark = pytest.mark.unit`. Add the 6 tests from AC7.3. Use `pytest.MonkeyPatch` for env-var manipulation; build fake Typer contexts via `typer.Context(command=typer.core.TyperCommand("test"), parent=None)` or a lightweight fake-context fixture (consult Typer 0.12+ docs at typer.tiangolo.com/tutorial/commands/context/ for the canonical pattern).
+  - [x] Create `tests/unit/cli/test_scan.py` with `pytestmark = pytest.mark.unit`. Add the 8 tests from AC7.1. Use a `_initialize_test_project(tmp_path)` helper that calls `run_init(ctx=fake_ctx)` so each test starts from a known bootstrapped state. Helper:
     ```python
     def _initialize_test_project(tmp_path: Path, ctx: typer.Context | None = None) -> None:
         import os
@@ -1093,12 +1093,12 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
         from sdlc.cli.init import run_init
         run_init(ctx=ctx)
     ```
-  - [ ] Create `tests/unit/cli/test_status.py` with `pytestmark = pytest.mark.unit`. Add the 9 tests from AC7.2. Use the same `_initialize_test_project` helper. The `unknown_phase` test synthesizes a state.json by writing canonical bytes manually: `(tmp_path / ".claude/state/state.json").write_text(json.dumps({"schema_version": 1, "next_monotonic_seq": 0, "phase": 99, "epics": {}, "stories": {}, "tasks": {}}, sort_keys=True))`.
-  - [ ] Extend `tests/unit/cli/test_main.py` (Story 1.16) with the 5 tests from AC7.4. Reuse the existing `runner` / `app` fixtures.
-  - [ ] Create `tests/integration/test_no_color_every_command.py` with `pytestmark = pytest.mark.integration`. Add the parametrized test from AC3.6. Use Typer's `CliRunner` (in-process) for speed; assert no ANSI in `result.stdout` AND `result.stderr` for every (cmd, no-color-signal) combination.
-  - [ ] Create `tests/integration/test_walking_skeleton_e2e.py` with both `pytest.mark.integration` and `pytest.mark.e2e` markers (use `pytestmark = [pytest.mark.integration, pytest.mark.e2e]`). Add the two tests from AC7.6 using `subprocess.run(["uv", "run", "sdlc", ...], cwd=tmp_path)`. Skip on Windows when `shutil.which("uv") is None`.
-  - [ ] Create `tests/integration/test_scan_journal_seq_continuity.py` with `pytestmark = pytest.mark.integration`. Add the two tests from AC7.7.
-  - [ ] Run all new tests:
+  - [x] Create `tests/unit/cli/test_status.py` with `pytestmark = pytest.mark.unit`. Add the 9 tests from AC7.2. Use the same `_initialize_test_project` helper. The `unknown_phase` test synthesizes a state.json by writing canonical bytes manually: `(tmp_path / ".claude/state/state.json").write_text(json.dumps({"schema_version": 1, "next_monotonic_seq": 0, "phase": 99, "epics": {}, "stories": {}, "tasks": {}}, sort_keys=True))`.
+  - [x] Extend `tests/unit/cli/test_main.py` (Story 1.16) with the 5 tests from AC7.4. Reuse the existing `runner` / `app` fixtures.
+  - [x] Create `tests/integration/test_no_color_every_command.py` with `pytestmark = pytest.mark.integration`. Add the parametrized test from AC3.6. Use Typer's `CliRunner` (in-process) for speed; assert no ANSI in `result.stdout` AND `result.stderr` for every (cmd, no-color-signal) combination.
+  - [x] Create `tests/integration/test_walking_skeleton_e2e.py` with both `pytest.mark.integration` and `pytest.mark.e2e` markers (use `pytestmark = [pytest.mark.integration, pytest.mark.e2e]`). Add the two tests from AC7.6 using `subprocess.run(["uv", "run", "sdlc", ...], cwd=tmp_path)`. Skip on Windows when `shutil.which("uv") is None`.
+  - [x] Create `tests/integration/test_scan_journal_seq_continuity.py` with `pytestmark = pytest.mark.integration`. Add the two tests from AC7.7.
+  - [x] Run all new tests:
     ```bash
     uv run pytest tests/unit/cli/ -m unit -v
     uv run pytest tests/integration/test_no_color_every_command.py -v
@@ -1106,15 +1106,15 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
     uv run pytest tests/integration/test_scan_journal_seq_continuity.py -v
     ```
     All green.
-  - [ ] Verify coverage: `uv run pytest tests/unit/cli/ tests/integration/test_no_color_every_command.py --cov=src/sdlc/cli --cov-report=term-missing`. The new `cli/scan.py`, `cli/status.py`, `cli/output.py` (post-expansion) MUST reach ≥ 90% line coverage. Uncovered lines acceptable: Windows-fallback branches (covered on Linux CI matrix cells), unreachable defensive paths.
-  - [ ] Add a regression test for the `run_init` ctx-aware signature: `tests/unit/cli/test_init.py` (Story 1.16 file) gets a new test `test_init_with_ctx_emits_json_envelope_when_json_mode` that invokes `run_init` with a fake-ctx whose `json=True` and asserts canonical JSON on stdout.
+  - [x] Verify coverage: `uv run pytest tests/unit/cli/ tests/integration/test_no_color_every_command.py --cov=src/sdlc/cli --cov-report=term-missing`. The new `cli/scan.py`, `cli/status.py`, `cli/output.py` (post-expansion) MUST reach ≥ 90% line coverage. Uncovered lines acceptable: Windows-fallback branches (covered on Linux CI matrix cells), unreachable defensive paths.
+  - [x] Add a regression test for the `run_init` ctx-aware signature: `tests/unit/cli/test_init.py` (Story 1.16 file) gets a new test `test_init_with_ctx_emits_json_envelope_when_json_mode` that invokes `run_init` with a fake-ctx whose `json=True` and asserts canonical JSON on stdout.
 
-- [ ] **Task 9: Author ADR-020 + update documentation (AC: #8)**
-  - [ ] Determine the next free ADR number. Read `docs/decisions/index.md`. Story 1.17 takes the next number after the most recent ADR (typically 020 if 1.16's ADR-019 has landed; otherwise next-free).
-  - [ ] Create `docs/decisions/ADR-020-cli-scan-status-accessibility-flags.md` using `docs/decisions/adr-template.md`. Populate per AC8 sections 1-7.
-  - [ ] Update `docs/decisions/index.md`: add the row for ADR-020 after the most-recent ADR row.
-  - [ ] Update `docs/CODEMAPS/cli-module.md` (Story 1.16 created this): add rows for `scan.py` and `status.py` with one-line responsibilities. Update the `output.py` row from "v1.16 stub: echo()" to "v1.17 expanded: echo, emit_json, emit_error, make_console, is_no_color_active".
-  - [ ] Update `README.md` (if a "Quick Start" section exists from Story 1.16) to extend the demo:
+- [x] **Task 9: Author ADR-020 + update documentation (AC: #8)**
+  - [x] Determine the next free ADR number. Read `docs/decisions/index.md`. Story 1.17 takes the next number after the most recent ADR (typically 020 if 1.16's ADR-019 has landed; otherwise next-free).
+  - [x] Create `docs/decisions/ADR-020-cli-scan-status-accessibility-flags.md` using `docs/decisions/adr-template.md`. Populate per AC8 sections 1-7.
+  - [x] Update `docs/decisions/index.md`: add the row for ADR-020 after the most-recent ADR row.
+  - [x] Update `docs/CODEMAPS/cli-module.md` (Story 1.16 created this): add rows for `scan.py` and `status.py` with one-line responsibilities. Update the `output.py` row from "v1.16 stub: echo()" to "v1.17 expanded: echo, emit_json, emit_error, make_console, is_no_color_active".
+  - [x] Update `README.md` (if a "Quick Start" section exists from Story 1.16) to extend the demo:
     ```bash
     pip install sdlc-framework
     sdlc init
@@ -1124,22 +1124,22 @@ When `last_updated_ts` is the "never" sentinel (empty journal), the JSON value i
     sdlc --json status       # machine-readable for tooling
     ```
 
-- [ ] **Task 10: Run the full quality gate stack and verify CI green (AC: all)**
-  - [ ] `uv run ruff check src/ tests/ scripts/` → 0 errors. New `cli/scan.py`, `cli/status.py`, expanded `cli/output.py` MUST have `from __future__ import annotations`.
-  - [ ] `uv run ruff format --check src/ tests/ scripts/` → all formatted.
-  - [ ] `uv run mypy --strict src/` → 0 errors. All new code fully annotated; no `Any` leak through public surface.
-  - [ ] `uv run pre-commit run --all-files` → all hooks pass:
+- [x] **Task 10: Run the full quality gate stack and verify CI green (AC: all)**
+  - [x] `uv run ruff check src/ tests/ scripts/` → 0 errors. New `cli/scan.py`, `cli/status.py`, expanded `cli/output.py` MUST have `from __future__ import annotations`.
+  - [x] `uv run ruff format --check src/ tests/ scripts/` → all formatted.
+  - [x] `uv run mypy --strict src/` → 0 errors. All new code fully annotated; no `Any` leak through public surface.
+  - [x] `uv run pre-commit run --all-files` → all hooks pass:
     - `ruff-check`, `ruff-format`, `mypy-strict` (existing).
     - `boundary-validator` — verify the cli's existing widening (state, journal, contracts, ids per Story 1.16) covers `cli/scan.py` + `cli/status.py` + `cli/output.py`. No further widening needed.
     - `state-write-protocol-validator` (Story 1.10) — `cli/scan.py` calls `write_state_atomic_sync`; the validator's allowlist must include `cli/scan.py` (Story 1.16 added `cli/init.py`; this story adds `cli/scan.py`). If the allowlist is in `scripts/check_no_state_mutation.py`, add the entry per Story 1.16's pattern.
     - `journal-append-only-validator` (Story 1.11) — `cli/scan.py` calls `append_sync` which is the canonical writer; should not fire on canonical use.
     - `secret-hardcode-validator` (Story 1.8) — scoped to `^src/sdlc/.*\.py$`; no secrets in new files.
-  - [ ] `uv run pytest tests/unit/cli/ -m unit -v` → all green.
-  - [ ] `uv run pytest tests/integration/ -m integration -v` → all green (skipped where appropriate on Windows for subprocess tests).
-  - [ ] Global `uv run pytest --cov=src --cov-fail-under=90` → coverage gate passes.
-  - [ ] Confirm new files are tracked: `git status` → `src/sdlc/cli/scan.py`, `src/sdlc/cli/status.py` (new); `src/sdlc/cli/output.py`, `src/sdlc/cli/main.py`, `src/sdlc/cli/init.py`, `src/sdlc/state/__init__.py`, `src/sdlc/config/env.py`, `pyproject.toml`, `uv.lock` (modified). New tests: `tests/unit/cli/test_scan.py`, `test_status.py`, `test_output.py`, `tests/unit/state/test_canonical_bytes.py`, `tests/integration/test_no_color_every_command.py`, `test_walking_skeleton_e2e.py`, `test_scan_journal_seq_continuity.py`. Docs: `docs/decisions/ADR-020-cli-scan-status-accessibility-flags.md`, `docs/decisions/index.md` (modified), `docs/CODEMAPS/cli-module.md` (modified).
-  - [ ] Run from a clean clone-equivalent: `git clean -fdx; uv sync --frozen --group dev; uv run pytest`. Everything must pass.
-  - [ ] Smoke-test the actual user flow (Architecture §1408 walking-skeleton end state):
+  - [x] `uv run pytest tests/unit/cli/ -m unit -v` → all green.
+  - [x] `uv run pytest tests/integration/ -m integration -v` → all green (skipped where appropriate on Windows for subprocess tests).
+  - [x] Global `uv run pytest --cov=src --cov-fail-under=90` → coverage gate passes.
+  - [x] Confirm new files are tracked: `git status` → `src/sdlc/cli/scan.py`, `src/sdlc/cli/status.py` (new); `src/sdlc/cli/output.py`, `src/sdlc/cli/main.py`, `src/sdlc/cli/init.py`, `src/sdlc/state/__init__.py`, `src/sdlc/config/env.py`, `pyproject.toml`, `uv.lock` (modified). New tests: `tests/unit/cli/test_scan.py`, `test_status.py`, `test_output.py`, `tests/unit/state/test_canonical_bytes.py`, `tests/integration/test_no_color_every_command.py`, `test_walking_skeleton_e2e.py`, `test_scan_journal_seq_continuity.py`. Docs: `docs/decisions/ADR-020-cli-scan-status-accessibility-flags.md`, `docs/decisions/index.md` (modified), `docs/CODEMAPS/cli-module.md` (modified).
+  - [x] Run from a clean clone-equivalent: `git clean -fdx; uv sync --frozen --group dev; uv run pytest`. Everything must pass.
+  - [x] Smoke-test the actual user flow (Architecture §1408 walking-skeleton end state):
     ```bash
     cd $(mktemp -d)
     git init
@@ -1400,4 +1400,43 @@ claude-opus-4-7[1m]
 
 ### Completion Notes List
 
+- Implemented `cli/scan.py` with `run_scan()`, all helper functions, and Windows non-atomic fallback per AC1.
+- Implemented `cli/status.py` with `run_status()`, `_compute_suggested_next()` stub, `_get_last_journal_ts()`, `_format_ts_local()`, `_resolve_project_name()`, per AC2.
+- Expanded `cli/output.py` from Story 1.16 stub to full v1.17 surface: `echo`, `emit_json`, `emit_error`, `make_console`, `is_no_color_active`.
+- Extended `cli/main.py` with `scan` + `status` subcommands, global `--no-color` / `--json` flags, JSON-aware `_version_callback`.
+- Updated `cli/init.py:run_init` to accept `ctx: typer.Context | None = None` for backward compat.
+- Added `state_to_canonical_bytes()` to `state/__init__.py` as shared canonical-bytes helper.
+- Added `NO_COLOR` to `config/env.py:ENV_EXACT_ALLOWLIST`; added `rich>=13,<15` to `pyproject.toml` dependencies.
+- Authored ADR-020; updated `docs/decisions/index.md` and `docs/CODEMAPS/cli-module.md`.
+- Test suites: 38 targeted unit tests added across `test_scan.py`, `test_status.py`, and `test_runtime_import_via_abc_validator.py` to bring total coverage from 81% → 94% (gate: `fail_under=90`).
+- All 16 pre-commit hooks passed; 816 tests passed, 69 skipped. Coverage gate ✅.
+
 ### File List
+
+**New:**
+- `src/sdlc/cli/scan.py`
+- `src/sdlc/cli/status.py`
+- `tests/unit/cli/test_scan.py`
+- `tests/unit/cli/test_status.py`
+- `tests/unit/cli/test_output.py`
+- `tests/unit/state/test_canonical_bytes.py`
+- `tests/integration/test_no_color_every_command.py`
+- `tests/integration/test_walking_skeleton_e2e.py`
+- `tests/integration/test_scan_journal_seq_continuity.py`
+- `docs/decisions/ADR-020-cli-scan-status-accessibility-flags.md`
+
+**Modified:**
+- `src/sdlc/cli/output.py`
+- `src/sdlc/cli/main.py`
+- `src/sdlc/cli/init.py`
+- `src/sdlc/state/__init__.py`
+- `src/sdlc/config/env.py`
+- `pyproject.toml`
+- `uv.lock`
+- `tests/unit/cli/test_main.py`
+- `tests/unit/cli/test_init.py`
+- `tests/unit/config/test_env.py`
+- `tests/unit/test_runtime_import_via_abc_validator.py`
+- `docs/decisions/index.md`
+- `docs/CODEMAPS/cli-module.md`
+- `README.md`

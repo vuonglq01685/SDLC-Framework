@@ -29,6 +29,7 @@ alternatives, consequences, and a revisit-by date).
 | [017](ADR-017-abstraction-adequacy-ci-contract.md) | Abstraction-adequacy CI contract | 1.14 | Accepted |
 | [018](ADR-018-engine-scanner-skeleton.md) | Engine scanner skeleton — pure read, idempotent, perf-gated | 1.15 | Accepted |
 | [019](ADR-019-cli-skeleton-typer-adoption.md) | CLI skeleton + Typer + boundary widening + idempotency | 1.16 | Accepted |
+| [020](ADR-020-cli-scan-status-accessibility-flags.md) | CLI `sdlc scan` + `sdlc status` + accessibility flags | 1.17 | Accepted |
 
 Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
 until then.

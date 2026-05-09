@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2,<3",   # cap: pydantic 2→3 will introduce schema breaks (v3 is on the roadmap)
     "pyyaml>=6,<7",     # cap: pyyaml 6→7 has not been released; defensive guard against future major
     "typer>=0.15,<0.26",  # floor: 0.15+ is when --version eager-callback semantics stabilised; cap matches lockfile (0.25.x)
+    "rich>=13,<15",  # cap: rich 14→15 defensive guard. Direct dep added in Story 1.17 per cli/output.py rich console (AC5.6).
 ]
 
 [project.scripts]
@@ -178,10 +179,10 @@ warn_unreachable = false
 module = "sdlc.journal"
 warn_unreachable = false
 
-# sdlc.cli.init uses a sys.platform == "win32" guard to select the atomic-write
-# path; the POSIX branch after the early return is unreachable on Windows.
+# sdlc.cli.init and sdlc.cli.scan use a sys.platform == "win32" guard to select the
+# atomic-write path; the POSIX branch after the early return is unreachable on Windows.
 [[tool.mypy.overrides]]
-module = "sdlc.cli.init"
+module = ["sdlc.cli.init", "sdlc.cli.scan"]
 warn_unreachable = false
 
 # =============================================================================

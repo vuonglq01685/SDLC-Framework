@@ -6,7 +6,8 @@ from typing import Final
 from sdlc.errors import ConfigError
 
 ENV_PREFIX_ALLOWLIST: Final[tuple[str, ...]] = ("SDLC_", "CLAUDE_")
-ENV_EXACT_ALLOWLIST: Final[frozenset[str]] = frozenset({"GH_TOKEN"})
+ENV_EXACT_ALLOWLIST: Final[frozenset[str]] = frozenset({"GH_TOKEN", "NO_COLOR"})
+# NO_COLOR: added Story 1.17 per no-color.org informal standard (NFR-A11Y-4).
 
 
 def read_env(name: str) -> str | None:
@@ -14,7 +15,8 @@ def read_env(name: str) -> str | None:
 
     Allow-list per Architecture §671 + NFR-SEC-2 (prd.md:798):
     - prefix matches: SDLC_*, CLAUDE_*
-    - exact matches: GH_TOKEN (consumed only by the pr-author specialist)
+    - exact matches: GH_TOKEN (consumed only by the pr-author specialist),
+      NO_COLOR (consumed by cli/output.py for accessibility — Story 1.17)
 
     Returns None for allowed-but-unset env vars (legitimate "not configured" signal).
     Raises ConfigError for forbidden reads.

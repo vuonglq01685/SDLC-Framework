@@ -67,9 +67,7 @@ _REQUIRED_CLI_FILES = frozenset(
 # Suffixes that indicate "content" — would only be legitimate in future
 # stories that actually ship runtime content under sdlc/<tree>/. v1.16 must
 # not ship any of these outside .dist-info/.
-_CONTENT_SUFFIXES = frozenset(
-    {".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".csv"}
-)
+_CONTENT_SUFFIXES = frozenset({".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".csv"})
 
 
 def _build_wheel(out_dir: Path) -> Path:
@@ -129,9 +127,7 @@ def test_wheel_does_not_ship_content_files(tmp_path: Path) -> None:
     leaks = [
         n
         for n in names
-        if not n.endswith("/")
-        and ".dist-info/" not in n
-        and Path(n).suffix in _CONTENT_SUFFIXES
+        if not n.endswith("/") and ".dist-info/" not in n and Path(n).suffix in _CONTENT_SUFFIXES
     ]
     assert not leaks, (
         f"AC4.4 violation — v1.16 wheel ships content files outside .dist-info/: {leaks}"

@@ -1,4 +1,4 @@
-"""Unit tests for sdlc.cli.init (AC6.2)."""
+"""Unit tests for sdlc.cli.init (AC6.2, AC7.4)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,13 @@ from typing import Any
 
 import pytest
 import typer
+from typer.testing import CliRunner
 
 from sdlc.cli.init import run_init
+from sdlc.cli.main import app
 from sdlc.state import State
+
+_runner = CliRunner()
 
 
 def _expected_initial_state_payload() -> dict[str, Any]:
@@ -173,7 +177,9 @@ def test_state_already_exists_detects_partial_layout(tmp_path: Path) -> None:
     assert _state_already_exists(tmp_path) is True
 
 
-def test_get_repo_root_uses_git_top_level_when_available(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_get_repo_root_uses_git_top_level_when_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Successful `git rev-parse` output is taken as the repo root."""
     from sdlc.cli.init import _get_repo_root_or_cwd
 
@@ -254,6 +260,17 @@ def test_copy_package_data_tree_filters_gitkeep_and_unsafe_names(tmp_path: Path)
     assert (target / "real.json").read_text() == '{"id": "x"}'
     # .gitkeep is filtered out
     assert not (target / ".gitkeep").exists()
+
+
+def test_run_init_json_mode_emits_json_envelope(tmp_path: Path) -> None:
+    """run_init with --json emits a JSON envelope, not human text."""
+    with unittest.mock.patch("sdlc.cli.init._get_repo_root_or_cwd", return_value=tmp_path):
+        result = _runner.invoke(app, ["--json", "init"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["command"] == "init"
+    assert "project_root" in payload
+    assert "created" in payload
 
 
 def test_copy_traversable_entry_recurses_into_directories(tmp_path: Path) -> None:

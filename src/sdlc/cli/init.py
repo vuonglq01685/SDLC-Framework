@@ -34,7 +34,7 @@ from typing import Final
 import typer
 
 from sdlc.cli.exit_codes import EXIT_USER_ERROR
-from sdlc.cli.output import echo
+from sdlc.cli.output import echo, emit_error, emit_json
 
 _logger = logging.getLogger(__name__)
 
@@ -229,7 +229,7 @@ def _create_phase_dirs(root: Path) -> None:
         (root / phase_dir).mkdir(parents=True, exist_ok=True)
 
 
-def run_init() -> None:
+def run_init(*, ctx: typer.Context | None = None) -> None:
     """Scaffold the canonical SDLC layout in the current repo.
 
     Idempotent-via-refusal: if `.claude/state/state.json` already exists,
@@ -237,6 +237,13 @@ def run_init() -> None:
     """
     root = _get_repo_root_or_cwd()
     if _state_already_exists(root):
+        if ctx is not None:
+            emit_error(
+                "ERR_ALREADY_INITIALIZED",
+                f"already initialized at {root}; use `sdlc scan` to refresh state.json",
+                ctx=ctx,
+                details={"project_root": str(root)},
+            )
         echo(
             _ALREADY_INITIALIZED_TEMPLATE.format(root=root),
             err=True,
@@ -245,8 +252,15 @@ def run_init() -> None:
     _create_state_subtree(root)
     _create_static_asset_dirs(root)
     _create_phase_dirs(root)
-    echo(f"Initialized SDLC framework in {root}")
-    echo("  .claude/state/         (state.json, journal.log)")
-    echo("  .claude/{agents,commands,hooks,workflows,memory,skills}/")
-    echo("  01-Requirement/  02-Architecture/  03-Implementation/")
-    echo("Next: sdlc status")
+    if ctx is not None and ctx.obj is not None and ctx.obj.get("json", False):
+        created = [
+            ".claude/state/state.json",
+            ".claude/state/journal.log",
+        ]
+        emit_json("init", {"project_root": str(root), "created": sorted(created)}, ctx=ctx)
+        return
+    echo(f"Initialized SDLC framework in {root}", ctx=ctx)
+    echo("  .claude/state/         (state.json, journal.log)", ctx=ctx)
+    echo("  .claude/{agents,commands,hooks,workflows,memory,skills}/", ctx=ctx)
+    echo("  01-Requirement/  02-Architecture/  03-Implementation/", ctx=ctx)
+    echo("Next: sdlc status", ctx=ctx)

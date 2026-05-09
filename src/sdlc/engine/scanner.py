@@ -130,9 +130,7 @@ def _classify_walk_entry(
     return True
 
 
-def _walk_dir_sorted(
-    dir_path: Path, regex: re.Pattern[str], project_root: Path
-) -> list[Path]:
+def _walk_dir_sorted(dir_path: Path, regex: re.Pattern[str], project_root: Path) -> list[Path]:
     """Return sorted .json file paths under dir_path whose stems match regex.
 
     Non-matching stems are logged at WARNING and skipped (never raised).
