@@ -1,6 +1,6 @@
 # ADR-022: Migration Framework and Major-Version Schema Gate
 
-**Status:** Accepted (2026-05-09, [Story 1.19](../../_bmad-output/implementation-artifacts/1-19-migration-framework-major-version-refusal.md))
+**Status:** Accepted (2026-05-09, Story 1.19)
 
 ## Context
 

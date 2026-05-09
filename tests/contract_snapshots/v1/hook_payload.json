@@ -1,0 +1,49 @@
+{
+  "additionalProperties":false,
+  "description":"Wire-format contract: pre-write hook payload (Architecture §615-§621, Decision D2).",
+  "properties":{
+    "content_hash_before":{
+      "anyOf":[
+        {
+          "pattern":"^sha256:[0-9a-f]{64}$",
+          "type":"string"
+        },
+        {
+          "type":"null"
+        }
+      ],
+      "title":"Content Hash Before"
+    },
+    "hook_name":{
+      "title":"Hook Name",
+      "type":"string"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    },
+    "target_kind":{
+      "title":"Target Kind",
+      "type":"string"
+    },
+    "target_path":{
+      "title":"Target Path",
+      "type":"string"
+    },
+    "write_intent":{
+      "title":"Write Intent",
+      "type":"string"
+    }
+  },
+  "required":[
+    "hook_name",
+    "target_path",
+    "target_kind",
+    "content_hash_before",
+    "write_intent"
+  ],
+  "title":"HookPayload",
+  "type":"object"
+}

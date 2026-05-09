@@ -51,4 +51,23 @@ nav:
       - "ADR-010 — pre-commit-config": decisions/ADR-010-pre-commit-config.md
       - "ADR-011 — mkdocs setup": decisions/ADR-011-mkdocs-setup.md
       - "ADR-012 — module layout": decisions/ADR-012-module-layout.md
+      - "ADR-013 — atomic state write protocol": decisions/ADR-013-atomic-state-write-protocol.md
+      - "ADR-014 — append-only journal protocol": decisions/ADR-014-append-only-journal-protocol.md
+      - "ADR-015 — state projection from journal": decisions/ADR-015-state-projection-from-journal.md
+      - "ADR-016 — AIRuntime ABC + Mock": decisions/ADR-016-airuntime-abc-and-mock-implementation.md
+      - "ADR-017 — abstraction-adequacy CI contract": decisions/ADR-017-abstraction-adequacy-ci-contract.md
+      - "ADR-018 — engine scanner skeleton": decisions/ADR-018-engine-scanner-skeleton.md
+      - "ADR-019 — CLI skeleton + Typer": decisions/ADR-019-cli-skeleton-typer-adoption.md
+      - "ADR-020 — CLI scan + status flags": decisions/ADR-020-cli-scan-status-accessibility-flags.md
+      - "ADR-021 — CLI trace + replay + logs": decisions/ADR-021-cli-trace-replay-logs.md
+      - "ADR-022 — migration framework + schema gate": decisions/ADR-022-migration-framework-and-schema-gate.md
+      - "ADR-023 — rebuild-state + recovery prompt": decisions/ADR-023-rebuild-state-and-recovery-prompt.md
+      - "ADR-024 — wire-format v1 lock ceremony": decisions/ADR-024-wire-format-v1-lock.md
       - "ADR template": decisions/adr-template.md
+  - Code Maps:
+      - CODEMAPS/cli-module.md
+      - CODEMAPS/engine-module.md
+      - CODEMAPS/integration-tests.md
+      - CODEMAPS/journal.md
+      - CODEMAPS/runtime.md
+      - CODEMAPS/state.md

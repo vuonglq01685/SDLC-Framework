@@ -1,0 +1,64 @@
+{
+  "additionalProperties":false,
+  "description":"Wire-format contract: specialist YAML frontmatter (Architecture §623-§632).",
+  "properties":{
+    "description":{
+      "title":"Description",
+      "type":"string"
+    },
+    "icon":{
+      "maxLength":4,
+      "minLength":1,
+      "title":"Icon",
+      "type":"string"
+    },
+    "model":{
+      "title":"Model",
+      "type":"string"
+    },
+    "name":{
+      "title":"Name",
+      "type":"string"
+    },
+    "read_globs":{
+      "items":{
+        "type":"string"
+      },
+      "title":"Read Globs",
+      "type":"array"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    },
+    "title":{
+      "title":"Title",
+      "type":"string"
+    },
+    "tools":{
+      "items":{
+        "type":"string"
+      },
+      "title":"Tools",
+      "type":"array"
+    },
+    "write_globs":{
+      "items":{
+        "type":"string"
+      },
+      "title":"Write Globs",
+      "type":"array"
+    }
+  },
+  "required":[
+    "name",
+    "title",
+    "icon",
+    "model",
+    "description"
+  ],
+  "title":"SpecialistFrontmatter",
+  "type":"object"
+}

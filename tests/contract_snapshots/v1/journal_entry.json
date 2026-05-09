@@ -1,0 +1,67 @@
+{
+  "additionalProperties":false,
+  "description":"Wire-format contract: append-only journal record (Architecture §595-§606, Decision B3).",
+  "properties":{
+    "actor":{
+      "title":"Actor",
+      "type":"string"
+    },
+    "after_hash":{
+      "pattern":"^sha256:[0-9a-f]{64}$",
+      "title":"After Hash",
+      "type":"string"
+    },
+    "before_hash":{
+      "anyOf":[
+        {
+          "pattern":"^sha256:[0-9a-f]{64}$",
+          "type":"string"
+        },
+        {
+          "type":"null"
+        }
+      ],
+      "title":"Before Hash"
+    },
+    "kind":{
+      "title":"Kind",
+      "type":"string"
+    },
+    "monotonic_seq":{
+      "minimum":0,
+      "title":"Monotonic Seq",
+      "type":"integer"
+    },
+    "payload":{
+      "additionalProperties":true,
+      "title":"Payload",
+      "type":"object"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    },
+    "target_id":{
+      "title":"Target Id",
+      "type":"string"
+    },
+    "ts":{
+      "pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title":"Ts",
+      "type":"string"
+    }
+  },
+  "required":[
+    "monotonic_seq",
+    "ts",
+    "actor",
+    "kind",
+    "target_id",
+    "before_hash",
+    "after_hash"
+  ],
+  "title":"JournalEntry",
+  "type":"object"
+}

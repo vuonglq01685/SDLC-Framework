@@ -33,9 +33,9 @@ alternatives, consequences, and a revisit-by date).
 | [021](ADR-021-cli-trace-replay-logs.md) | CLI trace + replay + logs + cross-stream merge | 1.18 | Accepted |
 | [022](ADR-022-migration-framework-and-schema-gate.md) | Migration framework + major-version schema gate | 1.19 | Accepted |
 | [023](ADR-023-rebuild-state-and-recovery-prompt.md) | Rebuild-state command + malformed-state recovery prompt | 1.20 | Accepted |
+| [024](ADR-024-wire-format-v1-lock.md) | wire-format v1 lock ceremony | 1.21 | Accepted |
 
-Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
-until then.
+Note: ADR-024 closes the Decision F3 wire-format-lock loop; future per-contract version bumps cite it.
 
 ## Authoring a new ADR
 

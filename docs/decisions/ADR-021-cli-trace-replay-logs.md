@@ -1,6 +1,6 @@
 # ADR-021: CLI `sdlc trace` + `sdlc replay` + `sdlc logs` + Cross-Stream Merge
 
-**Status:** Accepted (2026-05-09, [Story 1.18](../../_bmad-output/implementation-artifacts/1-18-cli-sdlc-trace-replay-logs.md))
+**Status:** Accepted (2026-05-09, Story 1.18)
 
 > **Cross-Stream Merge** — the `journal.log` (audit) and `agent_runs.jsonl` (dispatches) streams are read independently and chronologically merged into a single deterministic output stream by `trace` and `logs`, with journal entries tie-breaking before agent_run records at the same `ts`.
 

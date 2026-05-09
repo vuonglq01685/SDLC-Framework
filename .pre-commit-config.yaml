@@ -111,6 +111,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # ----- wire-format immutability gate (Story 1.21 / AC3 / Decision F3 / Architecture §382) -----
+  - repo: local
+    hooks:
+      - id: wireformat-immutability-validator
+        name: wire-format immutability check (Decision F3 + Architecture §1238)
+        entry: uv run python scripts/freeze_wireformat_snapshots.py
+        language: system
+        pass_filenames: false
+        files: ^(src/sdlc/contracts/.*\.py|tests/contract_snapshots/.*\.json)$
+
   # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
   - repo: local
     hooks:

@@ -1,6 +1,6 @@
 # ADR-023: Rebuild-State Command and Malformed-State Recovery Prompt
 
-**Status:** Accepted (2026-05-09, [Story 1.20](../../_bmad-output/implementation-artifacts/1-20-recovery-sdlc-rebuild-state.md))
+**Status:** Accepted (2026-05-09, Story 1.20)
 
 ## Context
 

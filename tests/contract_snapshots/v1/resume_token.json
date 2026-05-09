@@ -1,0 +1,38 @@
+{
+  "additionalProperties":false,
+  "description":"Wire-format contract: resume-from-checkpoint token (Architecture §608-§613).",
+  "properties":{
+    "cursor":{
+      "additionalProperties":true,
+      "title":"Cursor",
+      "type":"object"
+    },
+    "phase":{
+      "minimum":0,
+      "title":"Phase",
+      "type":"integer"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    },
+    "state_hash":{
+      "pattern":"^sha256:[0-9a-f]{64}$",
+      "title":"State Hash",
+      "type":"string"
+    },
+    "suggested_next_command":{
+      "title":"Suggested Next Command",
+      "type":"string"
+    }
+  },
+  "required":[
+    "phase",
+    "suggested_next_command",
+    "state_hash"
+  ],
+  "title":"ResumeToken",
+  "type":"object"
+}

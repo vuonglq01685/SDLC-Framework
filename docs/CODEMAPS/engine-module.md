@@ -2,7 +2,7 @@
 
 **Story:** 1.15 — Engine Scanner Skeleton (Idempotent, Side-Effect-Free)
 **ADR:** [ADR-018](../decisions/ADR-018-engine-scanner-skeleton.md)
-**Cross-links:** [sdlc.state codemap](state.md) — scanner returns `State`; [sdlc.ids](../../src/sdlc/ids/) — regex + parsers consumed by scanner
+**Cross-links:** [sdlc.state codemap](state.md) — scanner returns `State`; `sdlc.ids` — regex + parsers consumed by scanner
 
 ## Files
 

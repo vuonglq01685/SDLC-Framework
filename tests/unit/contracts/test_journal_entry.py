@@ -224,6 +224,18 @@ class TestJournalEntryCanonical:
         canonical = _canonicalize(je.model_dump(mode="json"))
         assert b"\xc3\xa9" in canonical
 
+    def test_payload_accepts_arbitrary_nested_keys(self) -> None:
+        """Decision F3: open-ended payload locks 'extra=forbid' at the top level only,
+        NOT inside payload. A future schema-typed payload would be a wire-format
+        break (Story 1.21 lock applies)."""
+        je = JournalEntry(
+            **{
+                **_VALID_KWARGS,
+                "payload": {"any": {"deeply": {"nested": ["array", 1, None, True]}}},
+            }
+        )
+        assert je.payload["any"]["deeply"]["nested"] == ["array", 1, None, True]  # type: ignore[index]
+
     def test_json_roundtrip(self) -> None:
         # Real wire-format invariant: dump-as-json → str → dict → reconstruct.
         je = JournalEntry(**_VALID_KWARGS)

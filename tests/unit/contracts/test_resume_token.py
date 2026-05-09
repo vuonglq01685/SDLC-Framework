@@ -165,6 +165,17 @@ class TestResumeTokenCanonical:
         canonical = _canonicalize(rt.model_dump(mode="json"))
         assert b"\xc3\xa9" in canonical
 
+    def test_cursor_accepts_arbitrary_nested_keys(self) -> None:
+        """Decision F3: open-ended cursor locks 'extra=forbid' at the top level only,
+        NOT inside cursor. Mirror of test_payload_accepts_arbitrary_nested_keys (Story 1.21)."""
+        rt = ResumeToken(
+            **{
+                **_VALID_KWARGS,
+                "cursor": {"any": {"deeply": {"nested": ["array", 1, None, True]}}},
+            }
+        )
+        assert rt.cursor["any"]["deeply"]["nested"] == ["array", 1, None, True]  # type: ignore[index]
+
     def test_json_roundtrip(self) -> None:
         rt = ResumeToken(**_VALID_KWARGS)
         json_str = json.dumps(rt.model_dump(mode="json"))

@@ -1,0 +1,73 @@
+{
+  "additionalProperties":false,
+  "description":"Wire-format contract: workflow YAML specification (Architecture §634-§643).",
+  "properties":{
+    "name":{
+      "title":"Name",
+      "type":"string"
+    },
+    "parallel_agents":{
+      "items":{
+        "type":"string"
+      },
+      "title":"Parallel Agents",
+      "type":"array"
+    },
+    "postconditions":{
+      "items":{
+        "type":"string"
+      },
+      "title":"Postconditions",
+      "type":"array"
+    },
+    "primary_agent":{
+      "title":"Primary Agent",
+      "type":"string"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    },
+    "slash_command":{
+      "title":"Slash Command",
+      "type":"string"
+    },
+    "stop_on_postcondition_failure":{
+      "default":true,
+      "title":"Stop On Postcondition Failure",
+      "type":"boolean"
+    },
+    "synthesizer_agent":{
+      "anyOf":[
+        {
+          "type":"string"
+        },
+        {
+          "type":"null"
+        }
+      ],
+      "default":null,
+      "title":"Synthesizer Agent"
+    },
+    "write_globs":{
+      "additionalProperties":{
+        "items":{
+          "type":"string"
+        },
+        "type":"array"
+      },
+      "title":"Write Globs",
+      "type":"object"
+    }
+  },
+  "required":[
+    "name",
+    "slash_command",
+    "primary_agent",
+    "write_globs"
+  ],
+  "title":"WorkflowSpec",
+  "type":"object"
+}
