@@ -25,7 +25,7 @@ import os
 from pathlib import Path
 from typing import Final
 
-from sdlc.concurrency import file_lock
+from sdlc.concurrency import file_lock  # type: ignore[attr-defined]
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import JournalError
 from sdlc.journal._canonical import _canonicalize_entry, _normalize_strings  # noqa: F401

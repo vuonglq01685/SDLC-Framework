@@ -31,3 +31,10 @@ python -c 'import hashlib; print("sha256:"+hashlib.sha256("YOUR PROMPT".encode("
 Per-workflow fixtures (`sdlc-epics.yaml`, `sdlc-task.yaml`, etc.) are owned by their
 respective workflow stories (Stories 2A-9 onwards). Story 1.13 ships the SHAPE + a smoke
 fixture only. Do NOT add per-workflow fixtures here until the relevant workflow story lands.
+
+## Live fixtures
+
+`abstraction-adequacy.yaml` is the live fixture used by
+`tests/integration/test_abstraction_adequacy.py` (Story 1.14). Do NOT edit without
+re-generating the golden files at `tests/fixtures/abstraction_adequacy/` — see that
+directory's README for the regeneration procedure.

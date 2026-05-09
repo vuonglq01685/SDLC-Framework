@@ -26,6 +26,7 @@ alternatives, consequences, and a revisit-by date).
 | [014](ADR-014-append-only-journal-protocol.md) | append-only journal protocol | 1.11 | Accepted |
 | [015](ADR-015-state-projection-from-journal.md) | state projection from journal | 1.12 | Accepted |
 | [016](ADR-016-airuntime-abc-and-mock-implementation.md) | AIRuntime ABC + Mock implementation | 1.13 | Accepted |
+| [017](ADR-017-abstraction-adequacy-ci-contract.md) | Abstraction-adequacy CI contract | 1.14 | Accepted |
 
 Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
 until then.

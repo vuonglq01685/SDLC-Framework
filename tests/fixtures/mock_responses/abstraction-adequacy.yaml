@@ -1,0 +1,15 @@
+# tests/fixtures/mock_responses/abstraction-adequacy.yaml
+# Seed fixture for Story 1.14 abstraction-adequacy CI test.
+# workflow_step="abstraction-adequacy"; prompt="abstraction-adequacy seed prompt".
+# prompt_hash = sha256("abstraction-adequacy seed prompt".encode("utf-8")).hexdigest()
+# Generated via:
+#   uv run python -c 'import hashlib; print("sha256:" + hashlib.sha256(b"abstraction-adequacy seed prompt").hexdigest())'
+"sha256:1944573a27dc9cc1fb5fc366b4e6df342aa013515e5e686ecfc70c27d2b9b62d":
+  output_text: "Generated abstraction-adequacy seed artifact for Story 1.14 / 2B.3 conformance contract."
+  tool_calls:
+    - name: "write_artifact"
+      args:
+        target: "01-Requirement/04-Epics/EPIC-abstraction-adequacy.json"
+        content_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  tokens_in: 42
+  tokens_out: 84
