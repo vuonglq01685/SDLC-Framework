@@ -11,11 +11,11 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2,<3",   # cap: pydantic 2→3 will introduce schema breaks (v3 is on the roadmap)
     "pyyaml>=6,<7",     # cap: pyyaml 6→7 has not been released; defensive guard against future major
+    "typer>=0.15,<0.26",  # floor: 0.15+ is when --version eager-callback semantics stabilised; cap matches lockfile (0.25.x)
 ]
 
-# [project.scripts]
-# sdlc = "sdlc.cli.main:app"
-# TODO: Wire CLI entry point in Story 1.16. Entry point omitted to avoid shipping a broken script.
+[project.scripts]
+sdlc = "sdlc.cli.main:app"
 
 [dependency-groups]
 dev = [
@@ -27,6 +27,7 @@ dev = [
     "pre-commit>=4.0.0,<5",
     "mkdocs>=1.6.0,<2",
     "hypothesis>=6.100,<7",
+    "pytest-benchmark>=5.0.0,<6",  # floor: 4.x had pedantic(rounds=1) regressions; cap: 6.x may shift pedantic API (Story 1.15 perf gate)
     "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
 ]
 
@@ -36,8 +37,23 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sdlc"]
-# TODO: ADR-005 — package_data extension lands in Story 1.16+
-# Future additions: agents/, commands/, skills/, dashboard/static/, workflows/, memory/, claude_hooks/
+# ADR-005: force-include the content trees under src/sdlc/ that ship as
+# package_data. Each tree is created as content lands in later stories
+# (agents → Story 2A.2; commands → Story 2A.6/2A.8+; workflows → Story 2A.1;
+# hooks → Story 2A.4-2A.6; skills/memory/dashboard → Stories 2A/5/x).
+# Empty trees are NOT pre-created; force-include is a no-op when the source
+# path is missing (verified: hatch silently skips missing force-include sources).
+# Story 1.16's `sdlc init` is the consumer — it copies whatever exists from
+# these trees into `.claude/` at init time.
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/sdlc/agents" = "sdlc/agents"
+"src/sdlc/commands" = "sdlc/commands"
+"src/sdlc/hooks" = "sdlc/hooks"
+"src/sdlc/workflows" = "sdlc/workflows"
+"src/sdlc/skills" = "sdlc/skills"
+"src/sdlc/memory" = "sdlc/memory"
+"src/sdlc/dashboard/static" = "sdlc/dashboard/static"
 
 [tool.hatch.build.targets.sdist]
 # PRD §499 + §216 mandate wheel-only distribution for v1.
@@ -89,6 +105,9 @@ required-imports = ["from __future__ import annotations"]
     "PLR2004",  # magic numbers in tests are fine
     "PLC0415",  # deferred imports inside functions needed for POSIX-only modules skipped on Windows
     "PLW1510",  # subprocess.run check=False is intentional in test helpers
+]
+"src/sdlc/cli/**" = [
+    "PLC0415",  # deferred imports in cli/ per Architecture §488 cold-start budget (< 200 ms)
 ]
 "src/sdlc/config/secrets.py" = [
     "C901",     # _sanitize_value complexity — pre-existing (Story 1.8); acceptable for recursive sanitizer
@@ -157,6 +176,12 @@ warn_unreachable = false
 # sdlc.journal.__init__ uses conditional imports for the POSIX-only writer.
 [[tool.mypy.overrides]]
 module = "sdlc.journal"
+warn_unreachable = false
+
+# sdlc.cli.init uses a sys.platform == "win32" guard to select the atomic-write
+# path; the POSIX branch after the early return is unreachable on Windows.
+[[tool.mypy.overrides]]
+module = "sdlc.cli.init"
 warn_unreachable = false
 
 # =============================================================================

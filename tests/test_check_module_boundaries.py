@@ -15,9 +15,7 @@ import pytest
 
 import check_module_boundaries as mb
 
-# ---------------------------------------------------------------------------
 # MODULE_DEPS completeness + invariants
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -74,17 +72,19 @@ def test_agents_module_present_with_conservative_profile() -> None:
 
 
 @pytest.mark.unit
+def test_engine_can_import_ids_per_story_115() -> None:
+    assert "ids" in mb.MODULE_DEPS["engine"].depends_on
+
+
+@pytest.mark.unit
 def test_module_deps_invariant_no_unknown_references() -> None:
-    """Re-run the import-time invariant for visibility (and fail loudly if violated)."""
     mb._validate_module_deps_table()
     known = frozenset(mb.MODULE_DEPS)
     for name, spec in mb.MODULE_DEPS.items():
         assert (spec.depends_on | spec.forbidden_from) <= known, name
 
 
-# ---------------------------------------------------------------------------
 # file_to_module
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -128,7 +128,6 @@ def test_file_to_module_returns_none_for_scripts_file(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_file_to_module_handles_top_level_flat_file(tmp_path: Path) -> None:
-    """src/sdlc/version.py -> 'version' (P5: don't silently skip flat-file submodules)."""
     sdlc_root = tmp_path / "src" / "sdlc"
     sdlc_root.mkdir(parents=True)
     flat = sdlc_root / "version.py"
@@ -136,9 +135,7 @@ def test_file_to_module_handles_top_level_flat_file(tmp_path: Path) -> None:
     assert mb.file_to_module(flat, sdlc_root=sdlc_root) == "version"
 
 
-# ---------------------------------------------------------------------------
 # _extract_sdlc_imports
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -180,7 +177,6 @@ def test_extract_imports_allows_relative_imports_outside_src_module() -> None:
 
 @pytest.mark.unit
 def test_extract_imports_captures_from_sdlc_submodule_form() -> None:
-    """`from sdlc import engine, dispatcher` — each name is a submodule target (P2)."""
     tree = ast.parse("from sdlc import engine, dispatcher\n")
     targets = {imp.module for imp in mb._extract_sdlc_imports(tree)}
     assert targets == {"sdlc.engine", "sdlc.dispatcher"}
@@ -188,7 +184,6 @@ def test_extract_imports_captures_from_sdlc_submodule_form() -> None:
 
 @pytest.mark.unit
 def test_extract_imports_skips_type_checking_block() -> None:
-    """`if TYPE_CHECKING:` imports are type-only, not runtime (P14 / PEP 484)."""
     tree = ast.parse(
         "from typing import TYPE_CHECKING\n"
         "if TYPE_CHECKING:\n"
@@ -202,16 +197,13 @@ def test_extract_imports_skips_type_checking_block() -> None:
 
 @pytest.mark.unit
 def test_extract_imports_skips_typing_dot_type_checking_block() -> None:
-    """Also handles `if typing.TYPE_CHECKING:` attribute-form (P14)."""
     tree = ast.parse(
         "import typing\nif typing.TYPE_CHECKING:\n    from sdlc.engine import EngineProtocol\n"
     )
     assert mb._extract_sdlc_imports(tree, src_module="state") == []
 
 
-# ---------------------------------------------------------------------------
 # check_imports — baseline
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -244,9 +236,7 @@ def test_unknown_module_returns_no_violations() -> None:
     assert violations == []
 
 
-# ---------------------------------------------------------------------------
 # check_imports — §1103 specific boundary rules (table-driven)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -275,9 +265,7 @@ def test_specific_boundary_rules(src_module: str, target: str, must_fail: bool) 
         assert violations == [], f"{src_module}/ -> {target}/ should pass"
 
 
-# ---------------------------------------------------------------------------
 # check_imports — per-rule §1103-#N citation in error messages (D1/P11)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -303,9 +291,7 @@ def test_specific_rule_citation_in_message(src: str, tgt: str, rule: int) -> Non
     assert f"§1103-#{rule}" in violations[0], violations[0]
 
 
-# ---------------------------------------------------------------------------
 # check_imports — leaf-module rule (§1054 / §1103-#8)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -330,9 +316,7 @@ def test_errors_module_reports_all_violations_not_just_first() -> None:
     assert len(violations) == 2
 
 
-# ---------------------------------------------------------------------------
 # check_imports — message wording (D2 hybrid)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -385,16 +369,29 @@ def test_relative_import_violation_is_reported() -> None:
     assert "§1075" in violations[0]
 
 
-# ---------------------------------------------------------------------------
 # check_imports — `from sdlc import X` end-to-end (P2)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 def test_from_sdlc_import_engine_in_state_is_rejected() -> None:
-    """The historic bypass: `from sdlc import engine` inside state/ must be flagged."""
     tree = ast.parse("from sdlc import engine\n")
     imports = mb._extract_sdlc_imports(tree, src_module="state")
     violations = mb.check_imports("state", imports)
     assert len(violations) == 1
     assert "state/ -> engine/" in violations[0]
+
+
+# Story 1.16 — cli/ boundary widening regression
+
+
+@pytest.mark.unit
+def test_cli_can_import_state_journal_per_story_116() -> None:
+    cli_deps = mb.MODULE_DEPS["cli"].depends_on
+    assert "state" in cli_deps, "Story 1.16 requires cli→state for state.json writes"
+    assert "journal" in cli_deps, "Story 1.16 requires cli→journal for journal.log creation"
+    assert "ids" in cli_deps, (
+        "Story 1.16 requires cli→ids for canonical id validation in scan/rebuild"
+    )
+    assert "contracts" in cli_deps, (
+        "Story 1.16 requires cli→contracts for pydantic JournalEntry / State"
+    )

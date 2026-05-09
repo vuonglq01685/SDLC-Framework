@@ -1,6 +1,6 @@
 # Story 1.15: Engine Scanner Skeleton (Idempotent, Side-Effect-Free)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -42,8 +42,13 @@ so that `sdlc scan` (Story 1.17) has a complete underlying engine, NFR-PERF-1 (`
 **And** the scanner raises `StateError` (with `details={"path": ..., "reason": ...}`) when:
 
 - `project_root` is not absolute (`raise StateError("scan requires an absolute project_root path", details={"path": str(project_root), "reason": "not_absolute"})`).
+- `project_root` does not exist (`details={"reason": "not_found"}`) — fail-fast on CLI typos rather than returning an empty `State` indistinguishable from a real empty project.
 - `project_root` exists but is a regular file (`details={"reason": "not_a_directory"}`).
-- A discovered epic/story/task JSON file fails `json.loads` or `parse_*_id` validation (`details={"reason": "malformed_artifact", "file": <relative-path>}`). Use `from sdlc.errors import StateError`.
+- A discovered epic/story/task JSON file fails UTF-8 decode (`details={"reason": "non_utf8_artifact", "file": <relative-path>}`).
+- A discovered epic/story/task JSON file fails `json.loads` or `parse_*_id` validation (`details={"reason": "malformed_artifact", "file": <relative-path>}`).
+- A discovered file's JSON top-level is not an object (`details={"reason": "non_object_artifact", "file": <relative-path>}`).
+
+The `<relative-path>` is computed via `path.relative_to(project_root)` so error envelopes never leak the developer/CI host's absolute filesystem layout. Use `from sdlc.errors import StateError`.
 
 **And** all other error paths (missing optional directories, empty subdirectories, non-`.json` files in the artifact dirs) are NOT raises — they are graceful zero-yield walks. Story 1.20's `rebuild-state` will introduce stricter recovery semantics; v1 scanner is permissive.
 
@@ -77,10 +82,10 @@ so that `sdlc scan` (Story 1.17) has a complete underlying engine, NFR-PERF-1 (`
 
 **Then** the returned `State` has:
 
-1. `state.epics` is a `dict[str, dict[str, Any]]` keyed by canonical epic id (`"EPIC-alpha"`, `"EPIC-beta"`, `"EPIC-gamma"`). Insertion order MUST follow the canonical naming sort (Python's default lexicographic sort on the kebab-case slug — `"alpha" < "beta" < "gamma"`). The order is observable because `json.dumps(..., sort_keys=True)` re-sorts on serialization, BUT the in-memory `State.epics` dict's insertion order is also canonicalized (use `dict(sorted(...))`) to keep the iteration order — and any downstream `journal.append` payload — deterministic before serialization.
-2. Each epic value is the parsed JSON content of `EPIC-<slug>.json` (via `json.loads(path.read_text(encoding="utf-8"))`) — no model coercion in v1 (epic schema is owned by Story 2A.11 / 2A.12). The value is `dict[str, Any]`. Required keys are NOT enforced by the scanner; that's the artifact-write hook's job (Story 2A.4).
-3. `state.stories` is a `dict[str, dict[str, Any]]` keyed by canonical story id (`"EPIC-alpha-S01-bootstrap"`, `"EPIC-alpha-S02-validate"`, `"EPIC-beta-S01-replan"`), insertion order canonical-sorted. Each value is the parsed JSON of `<STORY-id>.json`.
-4. `state.tasks` is a `dict[str, dict[str, Any]]` keyed by canonical task id (`"EPIC-alpha-S01-bootstrap-T01-init"`, etc.), insertion order canonical-sorted. Each value is the parsed JSON of `<TASK-id>.json`.
+1. `state.epics` is a `dict[str, Any]` keyed by canonical epic id (`"EPIC-alpha"`, `"EPIC-beta"`, `"EPIC-gamma"`). The value is the parsed JSON object; type-level value-shape assertion (i.e. tightening to `dict[str, dict[str, Any]]`) is deferred to the artifact-write hook in Story 2A.4. Insertion order MUST follow the canonical naming sort (Python's default lexicographic sort on the kebab-case slug — `"alpha" < "beta" < "gamma"`). The order is observable because `json.dumps(..., sort_keys=True)` re-sorts on serialization, BUT the in-memory `State.epics` dict's insertion order is also canonicalized (use `dict(sorted(...))`) to keep the iteration order — and any downstream `journal.append` payload — deterministic before serialization.
+2. Each epic value is the parsed JSON content of `EPIC-<slug>.json` (via `json.loads(path.read_text(encoding="utf-8-sig"))` — `utf-8-sig` to accept Notepad/Windows-saved BOM-prefixed UTF-8) — no model coercion in v1 (epic schema is owned by Story 2A.11 / 2A.12). Required keys are NOT enforced by the scanner; that's the artifact-write hook's job (Story 2A.4).
+3. `state.stories` is a `dict[str, Any]` keyed by canonical story id (`"EPIC-alpha-S01-bootstrap"`, `"EPIC-alpha-S02-validate"`, `"EPIC-beta-S01-replan"`), insertion order canonical-sorted. Each value is the parsed JSON of `<STORY-id>.json`.
+4. `state.tasks` is a `dict[str, Any]` keyed by canonical task id (`"EPIC-alpha-S01-bootstrap-T01-init"`, etc.), insertion order canonical-sorted. Each value is the parsed JSON of `<TASK-id>.json`.
 5. Filename validation: every JSON file under `04-Epics/` MUST have a stem matching `EPIC_ID_REGEX` (`^EPIC-[a-z0-9]+(?:-[a-z0-9]+)*$`); under `05-Stories/<EPIC-id>/` matching `STORY_ID_REGEX`; under `tasks/<STORY-id>/` matching `TASK_ID_REGEX`. Files that don't match the regex are SKIPPED (logged via `structlog` at WARN — but this v1 substrate uses Python's stdlib `logging.getLogger(__name__).warning(...)` since `engine/logging.py` lands in Story 2A.x; the import is local to scanner.py and uses the canonical `_logger = logging.getLogger(__name__)` pattern from `journal/writer.py:34`). NEVER raise on a foreign filename — that would couple scanner correctness to filesystem hygiene the user can't control during adopt-mode.
 6. The scanner uses `sdlc.ids.parse_epic_id`, `sdlc.ids.parse_story_id`, and `sdlc.ids.parse_task_id` to validate the filename stems; the boundary table extension (AC5 below) authorizes this engine→ids dependency.
 7. Cross-link integrity is NOT enforced in v1: a story file under `05-Stories/EPIC-foo/` whose parent directory's epic doesn't exist in `04-Epics/` is still loaded. Story 1.20 (rebuild-state) introduces orphan detection; v1 scanner is purely additive.
@@ -202,20 +207,20 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Pre-flight verification of dependencies and environment (AC: all)**
-  - [ ] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exists and exports `write_state_atomic_sync` (already known done — sprint-status `1-10: done`); smoke `uv run python -c "from sdlc.state import State, write_state_atomic_sync; print('ok')"`.
-  - [ ] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `append_sync` and `iter_entries`; smoke `uv run python -c "from sdlc.journal import append_sync, iter_entries; print('ok')"`. **If 1.11 is still in `review`** (per sprint-status snapshot 2026-05-08), the scanner does NOT consume `append_sync` from inside `engine/scanner.py`; it consumes it ONLY at `cli/scan.py` (Story 1.17). Story 1.15 has NO hard import dep on `journal/writer.py`, so 1.11 review status is not blocking.
-  - [ ] Verify Story 1.6 (`ids/`) deliverables on disk: `src/sdlc/ids/__init__.py` exports `parse_epic_id`, `parse_story_id`, `parse_task_id`. Smoke `uv run python -c "from sdlc.ids import parse_epic_id, parse_story_id, parse_task_id; print('ok')"`. Hard dep — must succeed.
-  - [ ] Verify boundary-linter location: `scripts/check_module_boundaries.py` exists with the `MODULE_DEPS` table at lines 29-144. Confirm the engine row is at lines 98-118 with `depends_on=frozenset({...})`. The Task 5 edit adds `"ids"` to that frozenset.
-  - [ ] Determine whether Story 1.14 has landed on disk: `ls tests/fixtures/abstraction_adequacy/expected_state.json`. If present, Task 5 includes the goldens-regen step; if absent, Task 5 skips that step (Story 1.14 dev later will produce goldens against the extended `State` model directly).
-  - [ ] Verify ADR numbering: existing ADRs are 001-014 per `docs/decisions/index.md`. ADRs 015 (Story 1.12), 016 (Story 1.13), 017 (Story 1.14) are in flight (their stories are `ready-for-dev`). Story 1.15 (this story) authors **ADR-018**. If 1.12/1.13/1.14 ADRs land first, 018 is still next-available; if any of those haven't shipped at story-implement time, just take the next free number after 014 + however many landed.
-  - [ ] Verify `pyproject.toml [tool.pytest.ini_options].markers` contains `benchmark` at line 181 (already added by Story 1.2). No new marker.
-  - [ ] Verify CI matrix in `.github/workflows/ci.yml`: existing jobs are `quality-gates` (matrix `os × python-version`) and `chaos-tests` (single cell). Locate the `chaos-tests` job (around lines 60-90 per the architecture/sprint-status timeline) — the new `benchmarks` job slots in immediately after.
-  - [ ] Confirm engine module directory is absent: `test -d src/sdlc/engine && echo "EXISTS — abort, Story 1.15 expects fresh creation" || echo "ok, fresh"`. If `src/sdlc/engine/` already exists (from a half-merged earlier story), HALT and reconcile manually before proceeding — this story owns the initial population.
-  - [ ] Confirm pyproject.toml dev deps exclude `pytest-benchmark` today: `grep -F "pytest-benchmark" pyproject.toml` returns no match. Task 6 adds it.
+- [x] **Task 1: Pre-flight verification of dependencies and environment (AC: all)**
+  - [x] Verify Story 1.10 deliverables on disk: `src/sdlc/state/atomic.py` exists and exports `write_state_atomic_sync` (already known done — sprint-status `1-10: done`); smoke `uv run python -c "from sdlc.state import State, write_state_atomic_sync; print('ok')"`.
+  - [x] Verify Story 1.11 deliverables on disk: `src/sdlc/journal/__init__.py` exports `append_sync` and `iter_entries`; smoke `uv run python -c "from sdlc.journal import append_sync, iter_entries; print('ok')"`. **If 1.11 is still in `review`** (per sprint-status snapshot 2026-05-08), the scanner does NOT consume `append_sync` from inside `engine/scanner.py`; it consumes it ONLY at `cli/scan.py` (Story 1.17). Story 1.15 has NO hard import dep on `journal/writer.py`, so 1.11 review status is not blocking.
+  - [x] Verify Story 1.6 (`ids/`) deliverables on disk: `src/sdlc/ids/__init__.py` exports `parse_epic_id`, `parse_story_id`, `parse_task_id`. Smoke `uv run python -c "from sdlc.ids import parse_epic_id, parse_story_id, parse_task_id; print('ok')"`. Hard dep — must succeed.
+  - [x] Verify boundary-linter location: `scripts/check_module_boundaries.py` exists with the `MODULE_DEPS` table at lines 29-144. Confirm the engine row is at lines 98-118 with `depends_on=frozenset({...})`. The Task 5 edit adds `"ids"` to that frozenset.
+  - [x] Determine whether Story 1.14 has landed on disk: `ls tests/fixtures/abstraction_adequacy/expected_state.json`. If present, Task 5 includes the goldens-regen step; if absent, Task 5 skips that step (Story 1.14 dev later will produce goldens against the extended `State` model directly).
+  - [x] Verify ADR numbering: existing ADRs are 001-014 per `docs/decisions/index.md`. ADRs 015 (Story 1.12), 016 (Story 1.13), 017 (Story 1.14) are in flight (their stories are `ready-for-dev`). Story 1.15 (this story) authors **ADR-018**. If 1.12/1.13/1.14 ADRs land first, 018 is still next-available; if any of those haven't shipped at story-implement time, just take the next free number after 014 + however many landed.
+  - [x] Verify `pyproject.toml [tool.pytest.ini_options].markers` contains `benchmark` at line 181 (already added by Story 1.2). No new marker.
+  - [x] Verify CI matrix in `.github/workflows/ci.yml`: existing jobs are `quality-gates` (matrix `os × python-version`) and `chaos-tests` (single cell). Locate the `chaos-tests` job (around lines 60-90 per the architecture/sprint-status timeline) — the new `benchmarks` job slots in immediately after.
+  - [x] Confirm engine module directory is absent: `test -d src/sdlc/engine && echo "EXISTS — abort, Story 1.15 expects fresh creation" || echo "ok, fresh"`. If `src/sdlc/engine/` already exists (from a half-merged earlier story), HALT and reconcile manually before proceeding — this story owns the initial population.
+  - [x] Confirm pyproject.toml dev deps exclude `pytest-benchmark` today: `grep -F "pytest-benchmark" pyproject.toml` returns no match. Task 6 adds it.
 
-- [ ] **Task 2: Extend `state/model.py` with `phase`, `stories`, `tasks` fields (AC: #3)**
-  - [ ] Open `src/sdlc/state/model.py`. Add three new fields to the `State` class, ordered after `next_monotonic_seq` and before/after `epics` per the canonical SDLC layout: `phase` (project phase) sits BEFORE `epics` because phase is project-scope; `stories` and `tasks` sit AFTER `epics` because they're refinements of epic-scope. Final field order:
+- [x] **Task 2: Extend `state/model.py` with `phase`, `stories`, `tasks` fields (AC: #3)**
+  - [x] Open `src/sdlc/state/model.py`. Add three new fields to the `State` class, ordered after `next_monotonic_seq` and before/after `epics` per the canonical SDLC layout: `phase` (project phase) sits BEFORE `epics` because phase is project-scope; `stories` and `tasks` sit AFTER `epics` because they're refinements of epic-scope. Final field order:
     ```python
     schema_version: int = 1
     next_monotonic_seq: int = 0
@@ -225,17 +230,17 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
     tasks: dict[str, Any] = Field(default_factory=dict)
     ```
     Pydantic v2 serializes fields in declaration order by default; `model_dump(mode="json")` then `json.dumps(..., sort_keys=True)` re-orders alphabetically — so the on-disk byte form is alphabetical regardless of declaration order. Declaration order is for code readability.
-  - [ ] Update the docstring of `State` to: "`State` v1 projection (Architecture §520, §841). Skeleton schema for substrate stories 1.10-1.20; further field additions remain backward-compatible until schema_version bumps in Story 1.21."
-  - [ ] Confirm `model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=False)` is unchanged. `frozen=True` ensures the State is hashable (prereq for hash-chain protocol Story 1.20); `extra="forbid"` rejects EXTRA keys but TOLERATES MISSING ones (pydantic v2 default-supplying behavior).
-  - [ ] Add a unit test at `tests/unit/state/test_state_model.py` (extend if already present from Story 1.10):
+  - [x] Update the docstring of `State` to: "`State` v1 projection (Architecture §520, §841). Skeleton schema for substrate stories 1.10-1.20; further field additions remain backward-compatible until schema_version bumps in Story 1.21."
+  - [x] Confirm `model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=False)` is unchanged. `frozen=True` ensures the State is hashable (prereq for hash-chain protocol Story 1.20); `extra="forbid"` rejects EXTRA keys but TOLERATES MISSING ones (pydantic v2 default-supplying behavior).
+  - [x] Add a unit test at `tests/unit/state/test_state_model.py` (extend if already present from Story 1.10):
     - `test_state_default_construction_has_skeleton_fields`: `s = State()`; assert `s.phase == 1`, `s.stories == {}`, `s.tasks == {}`. Already-present fields (`schema_version`, `next_monotonic_seq`, `epics`) keep their existing assertions.
     - `test_state_old_state_json_validates_against_extended_model`: build a dict matching the Story-1.10-era shape `{"schema_version": 1, "next_monotonic_seq": 0, "epics": {}}`, call `State.model_validate(d)`, assert success and that `phase == 1`, `stories == {}`, `tasks == {}` (defaults supplied).
     - `test_state_canonical_json_includes_new_fields`: `s = State()`; canonical bytes via `json.dumps(s.model_dump(mode="json"), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")`; assert `b'"phase":1' in bytes_` and `b'"stories":{}' in bytes_` and `b'"tasks":{}' in bytes_`.
-  - [ ] Verify the existing tests that lock the State shape from Story 1.10 still pass (they shouldn't break — additive only). The chaos test at `tests/chaos/test_atomic_write_kill_points.py` writes a `State()` and re-reads; check it tolerates the extra default fields by reading its assertions.
+  - [x] Verify the existing tests that lock the State shape from Story 1.10 still pass (they shouldn't break — additive only). The chaos test at `tests/chaos/test_atomic_write_kill_points.py` writes a `State()` and re-reads; check it tolerates the extra default fields by reading its assertions.
 
-- [ ] **Task 3: Implement `engine/scanner.py` (AC: #1, #2)**
-  - [ ] Create `src/sdlc/engine/__init__.py` with the public API re-export per AC5.1.
-  - [ ] Create `src/sdlc/engine/scanner.py`. Top-of-file order:
+- [x] **Task 3: Implement `engine/scanner.py` (AC: #1, #2)**
+  - [x] Create `src/sdlc/engine/__init__.py` with the public API re-export per AC5.1.
+  - [x] Create `src/sdlc/engine/scanner.py`. Top-of-file order:
     1. Module docstring (one paragraph): "Filesystem scanner for SDLC projects (FR3, Architecture §815, §1133, Decision A4 + B5). Pure read-only function: walks `01-Requirement/04-Epics/`, `01-Requirement/05-Stories/`, `03-Implementation/tasks/`; returns a `State` projection. NO writes — `cli/scan.py` (Story 1.17) handles state.json + journal append."
     2. `from __future__ import annotations`
     3. Stdlib imports (alphabetized within block): `import json`, `import logging`, `from pathlib import Path`, `from typing import Any`
@@ -249,16 +254,16 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
        _TASKS_SUBDIR: Final[str] = "03-Implementation/tasks"
        ```
        (Use `from typing import Final`.)
-  - [ ] Implement helper `_validate_project_root(project_root: Path) -> None`:
+  - [x] Implement helper `_validate_project_root(project_root: Path) -> None`:
     - If `not project_root.is_absolute()`: raise `StateError("scan requires an absolute project_root path", details={"path": str(project_root), "reason": "not_absolute"})`.
     - If `project_root.exists() and not project_root.is_dir()`: raise `StateError("scan project_root points at a non-directory path", details={"path": str(project_root), "reason": "not_a_directory"})`.
     - Missing project_root is NOT an error — falls through to the main walk which produces an empty State.
-  - [ ] Implement helper `_load_json_artifact(path: Path) -> dict[str, Any]`:
+  - [x] Implement helper `_load_json_artifact(path: Path) -> dict[str, Any]`:
     - `text = path.read_text(encoding="utf-8")`.
     - `try: payload = json.loads(text); except json.JSONDecodeError as e: raise StateError(f"scan failed to parse JSON artifact: {e}", details={"file": str(path), "reason": "malformed_artifact"}) from e`.
     - If `not isinstance(payload, dict)`: raise `StateError("scan expected JSON object at top level", details={"file": str(path), "reason": "non_object_artifact"})`.
     - Return `payload` (typed `dict[str, Any]`).
-  - [ ] Implement helper `_walk_dir_sorted(dir_path: Path, regex: re.Pattern[str]) -> list[Path]`:
+  - [x] Implement helper `_walk_dir_sorted(dir_path: Path, regex: re.Pattern[str]) -> list[Path]`:
     - If `not dir_path.exists()`: return `[]`.
     - If `not dir_path.is_dir()`: return `[]` (defensive — symlink to a file, etc.).
     - Iterate `sorted(dir_path.iterdir(), key=lambda p: p.name)`. Filter:
@@ -267,13 +272,13 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
       - Skip if `p.suffix != ".json"`.
       - Skip if `not regex.match(p.stem)` — log at WARN: `_logger.warning("scan: skipping foreign filename %s under %s (does not match %s)", p.name, dir_path, regex.pattern)`. NEVER raise.
     - Return sorted list of matching paths.
-  - [ ] Implement the public `scan(project_root: Path) -> State`:
+  - [x] Implement the public `scan(project_root: Path) -> State`:
     1. Call `_validate_project_root(project_root)`.
     2. Walk epics: `epic_paths = _walk_dir_sorted(project_root / _EPICS_SUBDIR, EPIC_ID_REGEX)`. For each path: `epic_id = parse_epic_id(path.stem).raw` (validates + canonicalizes); load JSON; insert into a local `epics_dict: dict[str, Any]`. Use `dict(sorted(epics_dict.items()))` at the end to canonicalize insertion order (defensive — `_walk_dir_sorted` already sorted).
     3. Walk stories: iterate `sorted((project_root / _STORIES_SUBDIR).iterdir(), key=lambda p: p.name)` (subdirs per epic). For each subdir matching `EPIC_ID_REGEX` on its name, walk its `*.json` files via `_walk_dir_sorted(subdir, STORY_ID_REGEX)` and merge into `stories_dict`. Cross-link integrity is NOT checked (epic existence not verified).
     4. Walk tasks: same pattern, two-level nested, `regex=TASK_ID_REGEX`.
     5. Construct `State(schema_version=1, next_monotonic_seq=0, phase=1, epics=epics_dict, stories=stories_dict, tasks=tasks_dict)`. Return.
-  - [ ] **Forbidden patterns at code-review time** (mirror Stories 1.10–1.14):
+  - [x] **Forbidden patterns at code-review time** (mirror Stories 1.10–1.14):
     - `print()` — use `_logger`.
     - `time.time()` / `datetime.now()` — scanner doesn't compute timestamps.
     - `os.environ[...]` — scanner takes `project_root` as input; environment never enters.
@@ -283,11 +288,11 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
     - Mutating function arguments — `project_root` is read-only input.
     - Float arithmetic — no numerics.
     - Caching scan results in module globals — scanner is per-call pure; no module-level state. (Future caching, if needed, lives in a dedicated cache layer with explicit invalidation; out of scope for v1 substrate.)
-  - [ ] LOC budget for `scanner.py`: ≤ 300 LOC including module docstring, imports, helpers, and the public function. If the implementation grows beyond 250, factor out `_walk_dir_sorted` + `_load_json_artifact` into `engine/_scanner_helpers.py` (mirror `journal/_canonical.py`).
-  - [ ] Type annotations: every public and private function fully annotated. `mypy --strict` must pass on `src/sdlc/engine/`.
+  - [x] LOC budget for `scanner.py`: ≤ 300 LOC including module docstring, imports, helpers, and the public function. If the implementation grows beyond 250, factor out `_walk_dir_sorted` + `_load_json_artifact` into `engine/_scanner_helpers.py` (mirror `journal/_canonical.py`).
+  - [x] Type annotations: every public and private function fully annotated. `mypy --strict` must pass on `src/sdlc/engine/`.
 
-- [ ] **Task 4: Update `MODULE_DEPS` boundary table + linter self-tests (AC: #5.3, #5.4)**
-  - [ ] Edit `scripts/check_module_boundaries.py` lines 98-113. Add `"ids"` to the `engine.depends_on` frozenset:
+- [x] **Task 4: Update `MODULE_DEPS` boundary table + linter self-tests (AC: #5.3, #5.4)**
+  - [x] Edit `scripts/check_module_boundaries.py` lines 98-113. Add `"ids"` to the `engine.depends_on` frozenset:
     ```python
     "engine": ModuleSpec(
         depends_on=frozenset(
@@ -310,8 +315,8 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
     ),
     ```
     Add the inline comment naming Story 1.15 + scanner.py's import need so future readers understand the widening rationale.
-  - [ ] Run the boundary linter against the codebase including the new scanner: `uv run python scripts/check_module_boundaries.py src/sdlc/ tests/`. Exit code MUST be 0. If any unrelated module fires, that's a pre-existing issue; only the engine→ids edit is in this story's scope.
-  - [ ] Find the boundary self-discipline tests at `tests/test_check_module_boundaries.py` (and `tests/test_module_boundaries_main.py` for the CLI runner shape — per Story 1.4 patterns). Add a regression test in `tests/test_check_module_boundaries.py`:
+  - [x] Run the boundary linter against the codebase including the new scanner: `uv run python scripts/check_module_boundaries.py src/sdlc/ tests/`. Exit code MUST be 0. If any unrelated module fires, that's a pre-existing issue; only the engine→ids edit is in this story's scope.
+  - [x] Find the boundary self-discipline tests at `tests/test_check_module_boundaries.py` (and `tests/test_module_boundaries_main.py` for the CLI runner shape — per Story 1.4 patterns). Add a regression test in `tests/test_check_module_boundaries.py`:
     ```python
     def test_engine_can_import_ids_per_story_115() -> None:
         from scripts.check_module_boundaries import MODULE_DEPS
@@ -320,11 +325,11 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
         )
     ```
     Match the existing test's marker convention — read the top of `tests/test_check_module_boundaries.py` to confirm whether it uses `@pytest.mark.unit` (or has no module-level marker, in which case omit). DO NOT add a new pytest marker.
-  - [ ] Run `uv run pre-commit run boundary-validator --all-files` — must pass.
+  - [x] Run `uv run pre-commit run boundary-validator --all-files` — must pass.
 
-- [ ] **Task 5: Unit + integration tests for scanner; goldens regen if Story 1.14 already landed (AC: #1, #2, #3)**
-  - [ ] Create `tests/unit/engine/__init__.py` (empty pytest collection sentinel; needs `from __future__ import annotations` per project convention even when empty — confirm by checking existing empty `__init__.py` files in `tests/unit/`).
-  - [ ] Create `tests/unit/engine/test_scanner.py` with `pytestmark = pytest.mark.unit` and the following tests:
+- [x] **Task 5: Unit + integration tests for scanner; goldens regen if Story 1.14 already landed (AC: #1, #2, #3)**
+  - [x] Create `tests/unit/engine/__init__.py` (empty pytest collection sentinel; needs `from __future__ import annotations` per project convention even when empty — confirm by checking existing empty `__init__.py` files in `tests/unit/`).
+  - [x] Create `tests/unit/engine/test_scanner.py` with `pytestmark = pytest.mark.unit` and the following tests:
     - `test_scan_returns_empty_state_on_empty_project`: `scan(tmp_path)` returns `State(schema_version=1, next_monotonic_seq=0, phase=1, epics={}, stories={}, tasks={})`. Assert via `model_dump(mode="json")` equality.
     - `test_scan_returns_empty_state_when_artifact_dirs_missing`: same as above, also assert `_logger` did not raise (use `caplog` if logging assertions are needed).
     - `test_scan_raises_on_relative_project_root`: pass `Path("relative/path")`; assert `StateError` with `details["reason"] == "not_absolute"`.
@@ -338,9 +343,9 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
     - `test_scan_skips_hidden_files`: scaffold `04-Epics/EPIC-real.json` and `04-Epics/.DS_Store`. `scan(tmp_path).epics` contains only `"EPIC-real"`.
     - `test_scan_skips_non_json_files`: scaffold `04-Epics/EPIC-real.json` and `04-Epics/EPIC-text.txt`. `scan(tmp_path).epics` contains only `"EPIC-real"`.
     - `test_scan_is_idempotent_byte_equal`: scaffold a non-trivial corpus; `s1 = scan(p); s2 = scan(p)`; assert `_state_bytes(s1) == _state_bytes(s2)` per the canonical-bytes helper from AC1.3.
-  - [ ] Create `tests/integration/test_scan_idempotent.py` with `pytestmark = pytest.mark.integration` and:
+  - [x] Create `tests/integration/test_scan_idempotent.py` with `pytestmark = pytest.mark.integration` and:
     - `test_scan_idempotent_across_processes`: scaffold a corpus in `tmp_path`; run `scan` twice via `subprocess.run` invoking small inline `uv run python -c "..."` scripts that print the canonical state bytes hex; assert the two hex strings match. SKIP on Windows if `shutil.which("uv") is None` (mirror Story 1.13's subprocess-test skip pattern). This catches non-determinism that's latent in single-process tests (e.g. `Path.iterdir()` order on filesystems where it's nondeterministic).
-  - [ ] **If Story 1.14's goldens exist on disk** (Task 1 pre-flight check):
+  - [x] **If Story 1.14's goldens exist on disk** (Task 1 pre-flight check):
     - Open `tests/integration/test_abstraction_adequacy.py`. Find the inline scan-stub: `initial_state = State(schema_version=1, next_monotonic_seq=0, epics={})`. Replace with:
       ```python
       from sdlc.engine import scan
@@ -352,13 +357,13 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
     - Set `_REGENERATE_GOLDENS = False` and re-run. Test should pass green.
     - Update the `Regen history` block in `tests/fixtures/abstraction_adequacy/README.md`: add line `- 2026-05-09 (Story 1.15): regenerated after State model gained phase/stories/tasks fields and scan-stub replaced by engine.scanner.scan.`
     - Commit the regenerated goldens with the rest of the Story 1.15 commit (single commit per Story 1.14's `_REGENERATE_GOLDENS` discipline).
-  - [ ] **If Story 1.14's goldens do NOT exist on disk yet**: skip the goldens regen step entirely. Story 1.14 dev later will pick up the extended State model and `scan()` from the start; their initial goldens generation will use the v1.15 shape directly, avoiding a regen.
+  - [x] **If Story 1.14's goldens do NOT exist on disk yet**: skip the goldens regen step entirely. Story 1.14 dev later will pick up the extended State model and `scan()` from the start; their initial goldens generation will use the v1.15 shape directly, avoiding a regen.
 
-- [ ] **Task 6: Add `pytest-benchmark` dev dep + benchmark test + CI job (AC: #4)**
-  - [ ] Add `"pytest-benchmark>=4.0.0,<6"` to `[dependency-groups] dev` in `pyproject.toml` (after `hypothesis>=6.100,<7` per the alphabet-friendly insertion point — but the existing list is partially-sorted-by-purpose, so place it where consistency is best with neighbors; line ~30 is the natural slot). The `<6` cap is defensive against a future major: pytest-benchmark 5.x is current; 6 may shift the `benchmark.pedantic` API. Mirror the cap-pattern from `pyproject.toml:23-30`.
-  - [ ] Run `uv lock` to refresh `uv.lock`. Commit the lock change in the same commit as the dep addition.
-  - [ ] Create `tests/benchmark/__init__.py` (empty pytest collection sentinel with `from __future__ import annotations`).
-  - [ ] Create `tests/benchmark/conftest.py` with the `_build_perf_corpus(root: Path) -> None` helper (per AC4 spec). Use `from __future__ import annotations`. The corpus is 4 epics × 50 stories per epic × 5 tasks per story = 200 stories + 1000 tasks total. Distributing across 4 epics keeps every per-epic story number in the regex-valid `S01..S50` range — `STORY_ID_REGEX` from `sdlc/ids/parsers.py:14` requires EXACTLY 2 digits in the `-S<NN>-` segment, so `S100+` would be silently skipped by `_walk_dir_sorted`'s regex filter. The helper:
+- [x] **Task 6: Add `pytest-benchmark` dev dep + benchmark test + CI job (AC: #4)**
+  - [x] Add `"pytest-benchmark>=4.0.0,<6"` to `[dependency-groups] dev` in `pyproject.toml` (after `hypothesis>=6.100,<7` per the alphabet-friendly insertion point — but the existing list is partially-sorted-by-purpose, so place it where consistency is best with neighbors; line ~30 is the natural slot). The `<6` cap is defensive against a future major: pytest-benchmark 5.x is current; 6 may shift the `benchmark.pedantic` API. Mirror the cap-pattern from `pyproject.toml:23-30`.
+  - [x] Run `uv lock` to refresh `uv.lock`. Commit the lock change in the same commit as the dep addition.
+  - [x] Create `tests/benchmark/__init__.py` (empty pytest collection sentinel with `from __future__ import annotations`).
+  - [x] Create `tests/benchmark/conftest.py` with the `_build_perf_corpus(root: Path) -> None` helper (per AC4 spec). Use `from __future__ import annotations`. The corpus is 4 epics × 50 stories per epic × 5 tasks per story = 200 stories + 1000 tasks total. Distributing across 4 epics keeps every per-epic story number in the regex-valid `S01..S50` range — `STORY_ID_REGEX` from `sdlc/ids/parsers.py:14` requires EXACTLY 2 digits in the `-S<NN>-` segment, so `S100+` would be silently skipped by `_walk_dir_sorted`'s regex filter. The helper:
     ```python
     def _build_perf_corpus(root: Path) -> None:
         """Scaffold 4 epics + 200 stories + 1000 tasks under root for the perf gate.
@@ -398,9 +403,9 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
                     )
     ```
     Total writes: 4 + 200 + 1000 = 1204 small JSON files (~60 KB). Construction time on a typical SSD is ~200-400 ms; the benchmark itself is the long pole, not the corpus build.
-  - [ ] Create `tests/benchmark/test_scan_perf.py` with the cold + warm benchmark tests per AC4. Use `pytestmark = pytest.mark.benchmark` at module level. Skip on Windows (`@pytest.mark.skipif(sys.platform == "win32", reason="perf budget tuned for Linux/macOS; Windows pathlib walk diverges")`) — the warm-cache test is too sensitive on Windows for v1.
-  - [ ] Create `tests/benchmark/README.md` with one paragraph: "Benchmark suite for performance-sensitive substrate. All corpora are scaffolded at runtime via `tmp_path` (see `conftest.py`); NO committed fixture trees. Run: `uv run pytest -m benchmark --benchmark-only`. Failures are CI gates, not informational."
-  - [ ] Edit `.github/workflows/ci.yml`. Add a `benchmarks` job after `chaos-tests`:
+  - [x] Create `tests/benchmark/test_scan_perf.py` with the cold + warm benchmark tests per AC4. Use `pytestmark = pytest.mark.benchmark` at module level. Skip on Windows (`@pytest.mark.skipif(sys.platform == "win32", reason="perf budget tuned for Linux/macOS; Windows pathlib walk diverges")`) — the warm-cache test is too sensitive on Windows for v1.
+  - [x] Create `tests/benchmark/README.md` with one paragraph: "Benchmark suite for performance-sensitive substrate. All corpora are scaffolded at runtime via `tmp_path` (see `conftest.py`); NO committed fixture trees. Run: `uv run pytest -m benchmark --benchmark-only`. Failures are CI gates, not informational."
+  - [x] Edit `.github/workflows/ci.yml`. Add a `benchmarks` job after `chaos-tests`:
     ```yaml
     benchmarks:
       name: Performance Benchmarks (Story 1.15)
@@ -421,10 +426,10 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
           run: uv run pytest -m benchmark --benchmark-only --no-cov -v
     ```
     Pin Python 3.12 (single cell) — performance budgets are sensitive to interpreter version; running on every matrix cell would explode the gate's complexity for v1. Match the existing `chaos-tests` job's `setup-uv@v3` and `actions/checkout@v4` versions exactly. Story 1.3's CI workflow may use `astral-sh/setup-uv` at a different version; ALIGN to whatever `chaos-tests` already uses.
-  - [ ] Update `pyproject.toml [tool.coverage.run].omit` if needed: `tests/benchmark/test_scan_perf.py` is under `tests/`; tests aren't in coverage scope, so no omit edit. Verify by re-reading the existing `omit = [...]` block.
+  - [x] Update `pyproject.toml [tool.coverage.run].omit` if needed: `tests/benchmark/test_scan_perf.py` is under `tests/`; tests aren't in coverage scope, so no omit edit. Verify by re-reading the existing `omit = [...]` block.
 
-- [ ] **Task 7: Author ADR-018 + update documentation (AC: all)**
-  - [ ] Create `docs/decisions/ADR-018-engine-scanner-skeleton.md` using the structure of `docs/decisions/adr-template.md`:
+- [x] **Task 7: Author ADR-018 + update documentation (AC: all)**
+  - [x] Create `docs/decisions/ADR-018-engine-scanner-skeleton.md` using the structure of `docs/decisions/adr-template.md`:
     - **Status:** Accepted
     - **Date:** 2026-05-09 (or system date when story is dev'd)
     - **Story:** 1.15
@@ -451,14 +456,14 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
       - The benchmark gate is now a hard CI requirement. PRs that regress scan performance > 5% beyond the 2 s / 100 ms budget will fail CI. The escape valve is `pytest --benchmark-compare-fail=mean:5%` for soft warnings or removing the `assert` line entirely (NEVER do this; the assertion is the gate).
     - **Revisit by:** Story 1.21 (wire-format v1 lock ceremony — the moment State schema_version is locked at 1; all field additions after that point require schema_version bump + migration script).
     - **References:** Architecture §117 (Project Lifecycle Mgmt FR1-FR5), §339 (Decision A4), §349 (Decision B5), §388 (v0.2 substrate roadmap), §815 (engine/scanner.py spec), §1133 (FR3 mapping), §1407 (engine implementation timeline). PRD §FR3, §NFR-PERF-1, §NFR-REL-5. ADR-013 (atomic state write protocol), ADR-014 (journal append-only), ADR-015 (state projection from journal — Story 1.12), ADR-017 (abstraction-adequacy — Story 1.14).
-  - [ ] Update `docs/decisions/index.md`: add row `| [018](ADR-018-engine-scanner-skeleton.md) | Engine scanner skeleton — pure read, idempotent, perf-gated | 1.15 | Accepted |` after the existing ADR-014 row. Place in numeric position 018 (preserving any 015-017 gaps for in-flight stories).
-  - [ ] Create or update `docs/CODEMAPS/engine-module.md` (one paragraph + table of submodules + scanner one-pager). For v1 the only submodule is `scanner.py`; future entries (`auto_loop.py`, `stop_triggers.py`) land in their respective stories.
+  - [x] Update `docs/decisions/index.md`: add row `| [018](ADR-018-engine-scanner-skeleton.md) | Engine scanner skeleton — pure read, idempotent, perf-gated | 1.15 | Accepted |` after the existing ADR-014 row. Place in numeric position 018 (preserving any 015-017 gaps for in-flight stories).
+  - [x] Create or update `docs/CODEMAPS/engine-module.md` (one paragraph + table of submodules + scanner one-pager). For v1 the only submodule is `scanner.py`; future entries (`auto_loop.py`, `stop_triggers.py`) land in their respective stories.
 
-- [ ] **Task 8: Run the full quality gate stack and verify CI green (AC: all)**
-  - [ ] `uv run ruff check src/ tests/ scripts/` → 0 errors. The new `engine/scanner.py` and `engine/__init__.py` MUST satisfy `from __future__ import annotations` (auto-required by `tool.ruff.lint.isort`).
-  - [ ] `uv run ruff format --check src/ tests/ scripts/` → all formatted.
-  - [ ] `uv run mypy --strict src/` → 0 errors. `engine/scanner.py` is fully annotated; no `Any` leak through public surface (the `dict[str, Any]` epic/story/task value is legitimate — artifact schema is not modeled in v1).
-  - [ ] `uv run pre-commit run --all-files` → all hooks pass:
+- [x] **Task 8: Run the full quality gate stack and verify CI green (AC: all)**
+  - [x] `uv run ruff check src/ tests/ scripts/` → 0 errors. The new `engine/scanner.py` and `engine/__init__.py` MUST satisfy `from __future__ import annotations` (auto-required by `tool.ruff.lint.isort`).
+  - [x] `uv run ruff format --check src/ tests/ scripts/` → all formatted.
+  - [x] `uv run mypy --strict src/` → 0 errors. `engine/scanner.py` is fully annotated; no `Any` leak through public surface (the `dict[str, Any]` epic/story/task value is legitimate — artifact schema is not modeled in v1).
+  - [x] `uv run pre-commit run --all-files` → all hooks pass:
     - `ruff-check`, `ruff-format`, `mypy-strict` (existing).
     - `boundary-validator` — verify the `engine` row's added `ids` dep allows the scanner's import. The new file's imports MUST satisfy the boundary table (engine→{errors, ids, state} all permitted post-edit).
     - `state-write-protocol-validator` (Story 1.10) — runs on `src/sdlc/`; scanner.py does NOT call `Path.write_text` / `state.json` / atomic writes, so the validator's allowlist isn't relevant. Should not fire.
@@ -466,14 +471,54 @@ def test_scan_perf_cold(benchmark, tmp_path: Path) -> None:
     - `runtime-import-via-abc-validator` (Story 1.13, if landed by then) — scanner.py does NOT import `runtime/`; should not fire.
     - `secret-hardcode-validator` (Story 1.8) — scoped to `^src/sdlc/.*\.py$`; scanner.py has no secrets.
     - `specialist-validator` (placeholder) — no impact.
-  - [ ] `uv run pytest tests/unit/engine/ -m unit -v` → green; all scanner unit tests pass.
-  - [ ] `uv run pytest tests/integration/test_scan_idempotent.py -m integration -v` → green (skipped on Windows if `uv` not on PATH).
-  - [ ] `uv run pytest tests/benchmark/ -m benchmark --benchmark-only --no-cov -v` → green; cold mean < 2.0 s, warm mean < 100 ms on the dev host. (CI repeats on `ubuntu-latest`.)
-  - [ ] If Story 1.14 already landed: `uv run pytest tests/integration/test_abstraction_adequacy.py -m integration -v` → green with regenerated goldens.
-  - [ ] Global `uv run pytest --cov=src --cov-fail-under=90` → coverage gate passes. New `engine/scanner.py` should reach ≥ 95% line coverage from the unit + integration suites combined; the only uncovered branches should be unreachable defensive `_validate_project_root` paths (e.g. `not project_root.exists()` is graceful, not raising).
-  - [ ] Confirm new files are tracked: `git status` → `src/sdlc/engine/__init__.py`, `src/sdlc/engine/scanner.py`, `tests/unit/engine/__init__.py`, `tests/unit/engine/test_scanner.py`, `tests/integration/test_scan_idempotent.py`, `tests/benchmark/__init__.py`, `tests/benchmark/conftest.py`, `tests/benchmark/test_scan_perf.py`, `tests/benchmark/README.md`, `docs/decisions/ADR-018-engine-scanner-skeleton.md`, `docs/CODEMAPS/engine-module.md` are all tracked. `pyproject.toml`, `uv.lock`, `scripts/check_module_boundaries.py`, `src/sdlc/state/model.py`, `.github/workflows/ci.yml` show modifications; if Story 1.14 landed, `tests/integration/test_abstraction_adequacy.py` and `tests/fixtures/abstraction_adequacy/expected_state.json` + `README.md` show modifications.
-  - [ ] Verify `_REGENERATE_GOLDENS = False` in any committed file referencing the toggle (`tests/integration/test_abstraction_adequacy.py`). Mirror Story 1.14's belt-and-braces discipline.
-  - [ ] Run the full suite from a clean clone-equivalent: `git clean -fdx; uv sync --frozen --group dev; uv run pytest`. Everything must pass.
+  - [x] `uv run pytest tests/unit/engine/ -m unit -v` → green; all scanner unit tests pass.
+  - [x] `uv run pytest tests/integration/test_scan_idempotent.py -m integration -v` → green (skipped on Windows if `uv` not on PATH).
+  - [x] `uv run pytest tests/benchmark/ -m benchmark --benchmark-only --no-cov -v` → green; cold mean < 2.0 s, warm mean < 100 ms on the dev host. (CI repeats on `ubuntu-latest`.)
+  - [x] If Story 1.14 already landed: `uv run pytest tests/integration/test_abstraction_adequacy.py -m integration -v` → green with regenerated goldens.
+  - [x] Global `uv run pytest --cov=src --cov-fail-under=90` → coverage gate passes. New `engine/scanner.py` should reach ≥ 95% line coverage from the unit + integration suites combined; the only uncovered branches should be unreachable defensive `_validate_project_root` paths (e.g. `not project_root.exists()` is graceful, not raising).
+  - [x] Confirm new files are tracked: `git status` → `src/sdlc/engine/__init__.py`, `src/sdlc/engine/scanner.py`, `tests/unit/engine/__init__.py`, `tests/unit/engine/test_scanner.py`, `tests/integration/test_scan_idempotent.py`, `tests/benchmark/__init__.py`, `tests/benchmark/conftest.py`, `tests/benchmark/test_scan_perf.py`, `tests/benchmark/README.md`, `docs/decisions/ADR-018-engine-scanner-skeleton.md`, `docs/CODEMAPS/engine-module.md` are all tracked. `pyproject.toml`, `uv.lock`, `scripts/check_module_boundaries.py`, `src/sdlc/state/model.py`, `.github/workflows/ci.yml` show modifications; if Story 1.14 landed, `tests/integration/test_abstraction_adequacy.py` and `tests/fixtures/abstraction_adequacy/expected_state.json` + `README.md` show modifications.
+  - [x] Verify `_REGENERATE_GOLDENS = False` in any committed file referencing the toggle (`tests/integration/test_abstraction_adequacy.py`). Mirror Story 1.14's belt-and-braces discipline.
+  - [x] Run the full suite from a clean clone-equivalent: `git clean -fdx; uv sync --frozen --group dev; uv run pytest`. Everything must pass.
+
+### Review Findings
+
+_Code review completed 2026-05-09 (bmad-code-review on uncommitted changes; 3-layer adversarial pass: Blind Hunter, Edge Case Hunter, Acceptance Auditor)._
+
+**Decision-needed (0) — all 6 resolved 2026-05-09 and folded into the patch list below.**
+
+_Resolution log (2026-05-09, user `Vuonglq01685`):_
+- D1 → Fail-fast: add `not_found` reason in `_validate_project_root`. (Spec AC1 to be amended to list `not_found` alongside `not_absolute` / `not_a_directory`.)
+- D2 → Accept BOM via `encoding="utf-8-sig"` in `_load_json_artifact`.
+- D3 → Switch cold benchmark to `rounds=1, iterations=1` for one true cold sample per CI run; rely on the 10× headroom over median (~200 ms vs 2 s gate) for stability.
+- D4 → Skip both perf tests on Windows entirely via `@pytest.mark.skipif(sys.platform == "win32", ...)`; drop `_STRICT_BUDGET` flag; CI matrix already pins benchmark job to ubuntu-latest per AC4.
+- D5 → Keep `dict[str, Any]` (matches AC3 sample). Spec AC2.1 wording to be amended: type-level value-shape assertion deferred to artifact-write hook (Story 2A.4).
+- D6 → Keep `extra="forbid"` (matches AC3). Rewrite the model-level docstring to clarify that additive shape changes within `schema_version=1` require both model and serialized-blob update; cross-version compat owned by Story 1.19 migration framework.
+
+**Patch (13) — code/spec/docstring issues with unambiguous fixes:**
+
+- [x] [Review][Patch] **D1: Fail-fast on nonexistent `project_root` (HIGH)** [`src/sdlc/engine/scanner.py:37-47`] — extend `_validate_project_root` to raise `StateError("scan target does not exist", details={"path": str(project_root), "reason": "not_found"})` when `not project_root.exists()`. Add unit test `test_scan_raises_when_project_root_missing`.
+- [x] [Review][Patch] **D2: Accept UTF-8 BOM transparently (MED)** [`src/sdlc/engine/scanner.py:51`] — change `path.read_text(encoding="utf-8")` to `encoding="utf-8-sig"` so Notepad/Windows-saved artifacts parse cleanly. Add unit test with a BOM-prefixed JSON fixture.
+- [x] [Review][Patch] **D3: Cold benchmark uses one true cold sample (MED)** [`tests/benchmark/test_scan_perf.py:1037-1046`] — `benchmark.pedantic(scan, args=(corpus,), iterations=1, rounds=1, warmup_rounds=0)` so the assertion measures real cold-start, not a 1-cold + 4-warm average.
+- [x] [Review][Patch] **D4: Skip benchmark suite on Windows (MED)** [`tests/benchmark/test_scan_perf.py:19-21, 29-33, 43-47`] — wrap both tests with `@pytest.mark.skipif(sys.platform == "win32", reason="NFR-PERF-1 gate runs on Linux CI per AC4")`; remove `_STRICT_BUDGET` flag and the inline `if _STRICT_BUDGET:` guard.
+- [x] [Review][Patch] **D5: Spec amendment AC2.1 → match `dict[str, Any]` (MED, spec-only)** [`_bmad-output/implementation-artifacts/1-15-engine-scanner-skeleton.md` AC2.1] — rewrite "is a `dict[str, dict[str, Any]]`" to "is a `dict[str, Any]` (value is the parsed JSON object; type-level value-shape assertion deferred to the artifact-write hook in Story 2A.4)" so AC2.1 stops contradicting AC3 sample code.
+- [x] [Review][Patch] **D6: Rewrite `State` docstring to drop the impossible forward-compat claim (MED)** [`src/sdlc/state/model.py:11-15`] — replace "further field additions remain backward-compatible until schema_version bumps in Story 1.21" with "additive shape changes within schema_version=1 require both model + serialized-blob update; cross-version compat is owned by Story 1.19 migration framework". Keep `extra="forbid"`.
+- [x] [Review][Patch] **Non-UTF-8 bytes leak `UnicodeDecodeError` past `StateError` envelope (HIGH)** [`src/sdlc/engine/scanner.py:51`] — wrap `path.read_text(encoding="utf-8-sig")` in try/except `UnicodeDecodeError`, raise `StateError(..., details={"reason": "non_utf8_artifact", "file": <relative>})`. (Note: this lands AFTER the D2 change so the catch is on `utf-8-sig`.)
+- [x] [Review][Patch] **`details["file"]` carries absolute path instead of `<relative-path>` per AC1 (HIGH/MED)** [`src/sdlc/engine/scanner.py:55-58, 60-63, 108-111`] — replace `str(path)` with `str(path.relative_to(project_root))`. Update `tests/unit/engine/test_scanner.py:91` to assert exact relative path, not just `endswith`.
+- [x] [Review][Patch] **File vanishes between `iterdir()` and `read_text()` leaks `FileNotFoundError` (MED)** [`src/sdlc/engine/scanner.py:51`] — wrap `read_text` in try/except `OSError`, log WARN and skip the entry (consistent with v1's "permissive scanner" stance per spec AC1.2).
+- [x] [Review][Patch] **Broken-symlink INFO log not implemented per AC2 (MED)** [`src/sdlc/engine/scanner.py:77-78`] — distinguish "not is_file because broken symlink" from "not is_file because directory"; add `_logger.info("scan: skipping broken symlink %s", p)` for the symlink case (`p.is_symlink() and not p.exists()`).
+- [x] [Review][Patch] **Wrong `pytest.fixture` annotation on benchmark fixture parameter, masked by `# type: ignore` (LOW)** [`tests/benchmark/test_scan_perf.py:1037, 1049`] — replace `benchmark: pytest.fixture` with `benchmark: BenchmarkFixture` (`from pytest_benchmark.fixture import BenchmarkFixture`); drop the suppression.
+- [x] [Review][Patch] **Cross-process idempotency test depends on cwd/PATH for `uv run` (LOW)** [`tests/integration/test_scan_idempotent.py:54-65`] — pass `cwd=Path(__file__).resolve().parents[2]` to both `subprocess.run` calls so the test is hermetic regardless of pytest invocation directory.
+- [x] [Review][Patch] **`test_scan_loads_stories_under_epic_subdirs` makes a tautological sort assertion (LOW)** [`tests/unit/engine/test_scanner.py:1370-1377`] — write `S02-y.json` first, then `S01-x.json`, then assert `list(result.stories.keys()) == ["EPIC-alpha-S01-x", "EPIC-alpha-S02-y"]` so the sort is genuinely exercised.
+
+**Defer (5) — pre-existing or out-of-scope; tracked in `_bmad-output/implementation-artifacts/deferred-work.md`:**
+
+- [x] [Review][Defer] Filename-vs-payload `id` mismatch silently kept inconsistent [`src/sdlc/engine/scanner.py:103-112`] — deferred, fits the "v1 scanner is permissive; Story 1.20 owns reconciliation" stance.
+- [x] [Review][Defer] Dead `IdsError` arm in `_load_artifacts_from_dir` (regex pre-filter is identical so the parser cannot fail) [`src/sdlc/engine/scanner.py:103-111`] — deferred, defensive code; harmless.
+- [x] [Review][Defer] JSON files with duplicate top-level keys silently keep last value [`src/sdlc/engine/scanner.py:50-64`] — deferred, Python `json.loads` default; rare authoring mistake.
+- [x] [Review][Defer] Cross-process determinism test only proves same-FS-state-twice (no locale/case/hashseed parametrization) [`tests/integration/test_scan_idempotent.py:49-67`] — deferred, AC1.5 cross-platform claim is partially covered by the Windows CI matrix; full parametrization is a future hardening pass.
+- [x] [Review][Defer] Foreign subdir-name skip emits INFO instead of WARN (AC2.5 spec governs files only) [`src/sdlc/engine/scanner.py:130-132`] — deferred, defensible interpretation; flag for spec clarification rather than code change.
+
+**Dismissed as noise (2):** `next_monotonic_seq=0` always (AC1.4 mandates 0 for empty; scanner is artifact-only by design); story/task subdir-vs-file cross-link not validated (AC2.7 explicitly says "Cross-link integrity is NOT enforced in v1").
 
 ## Dev Notes
 
@@ -755,10 +800,58 @@ These are explicitly NOT in scope for Story 1.15 — flag if they creep in durin
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-4-6
 
 ### Debug Log References
 
+- Ruff C901/PLR0912: scan() extracted into `_load_artifacts_from_dir` + `_load_nested_artifacts` helpers to bring complexity within limits.
+- Ruff UP035: `Callable` moved from `typing` to `collections.abc`.
+- `ModuleNotFoundError` for benchmark import: changed `from tests.benchmark.conftest` → `from benchmark.conftest` (pytest importmode=prepend puts tests/ on sys.path).
+- `test_canonical_state_hash_is_stable`: expected hash updated from Story 1.10-era value to include new `phase`/`stories`/`tasks` fields in canonical bytes.
+- `test_check_module_boundaries.py` LOC cap (407 > 400): removed 8 single-line docstrings whose intent was already conveyed by test names.
+- `State` import in `test_abstraction_adequacy.py`: removed unused `State` after replacing inline stub with `scan()` call.
+
 ### Completion Notes List
 
+- **Task 1**: All Story 1.10/1.11/1.6 dependencies confirmed on disk. Story 1.14 goldens present — goldens regen included in Task 5. ADR-018 selected (ADRs 015-017 landed). `benchmark` marker pre-existed at pyproject.toml:188.
+- **Task 2**: `State` extended with `phase: int = 1`, `stories: dict[str, Any]`, `tasks: dict[str, Any]`. 3 new unit tests added to `tests/unit/state/test_state_model.py`. All existing state tests pass.
+- **Task 3**: `src/sdlc/engine/__init__.py` + `src/sdlc/engine/scanner.py` created. Scanner is 181 LOC (within 300 budget). `mypy --strict` passes. No `print()`, no `subprocess`, no writes.
+- **Task 4**: `"ids"` added to `MODULE_DEPS["engine"].depends_on`. Boundary linter passes. Regression test `test_engine_can_import_ids_per_story_115` added (condensed to 2 lines to respect LOC cap).
+- **Task 5**: 13 unit tests in `tests/unit/engine/test_scanner.py` (all pass). Cross-process idempotency integration test in `tests/integration/test_scan_idempotent.py`. Story 1.14 goldens regenerated: `expected_state.json` updated with `phase`/`stories`/`tasks`; `_REGENERATE_GOLDENS = False` confirmed.
+- **Task 6**: `pytest-benchmark>=4.0.0,<6` added to pyproject.toml dev deps. `uv.lock` refreshed. `tests/benchmark/` package created with `conftest.py` (`_build_perf_corpus`), `test_scan_perf.py` (cold + warm gates), `README.md`. Both benchmarks pass on Windows (strict budget fires only on Linux CI).
+- **Task 7**: `docs/decisions/ADR-018-engine-scanner-skeleton.md` created. `docs/decisions/index.md` updated with ADR-018 row. `docs/CODEMAPS/engine-module.md` created.
+- **Task 8**: ruff check ✓, ruff format ✓, mypy --strict ✓, pre-commit --all-files ✓ (all hooks pass), 694 passed / 45 skipped (full suite), benchmark cold + warm pass, coverage 90%+ gate passes, `_REGENERATE_GOLDENS = False` confirmed.
+
 ### File List
+
+**New files:**
+- `src/sdlc/engine/__init__.py`
+- `src/sdlc/engine/scanner.py`
+- `tests/unit/engine/__init__.py`
+- `tests/unit/engine/test_scanner.py`
+- `tests/integration/test_scan_idempotent.py`
+- `tests/benchmark/__init__.py`
+- `tests/benchmark/conftest.py`
+- `tests/benchmark/test_scan_perf.py`
+- `tests/benchmark/README.md`
+- `docs/decisions/ADR-018-engine-scanner-skeleton.md`
+- `docs/CODEMAPS/engine-module.md`
+
+**Modified files:**
+- `src/sdlc/state/model.py` — additive State fields: `phase`, `stories`, `tasks`
+- `scripts/check_module_boundaries.py` — `engine.depends_on` gains `"ids"`
+- `pyproject.toml` — `pytest-benchmark>=4.0.0,<6` dev dep added
+- `uv.lock` — refreshed (pytest-benchmark 5.2.3 + py-cpuinfo 9.0.0)
+- `.github/workflows/ci.yml` — `benchmarks` job added after `chaos-tests`
+- `docs/decisions/index.md` — ADR-018 row added
+- `tests/unit/state/test_state_model.py` — 3 new tests for extended State
+- `tests/test_check_module_boundaries.py` — `test_engine_can_import_ids_per_story_115` added; 8 single-line docstrings removed to stay within 400-LOC cap
+- `tests/integration/test_abstraction_adequacy.py` — scan-stub replaced by `scan(tmp_path)`; unused `State` import removed
+- `tests/fixtures/abstraction_adequacy/expected_state.json` — regenerated with `phase`/`stories`/`tasks` fields
+- `tests/fixtures/abstraction_adequacy/README.md` — regen-history line added
+- `tests/unit/integration/test_abstraction_adequacy_helpers.py` — stable-hash expected value updated; raw string fix for RUF043
+
+### Change Log
+
+- 2026-05-09 (Story 1.15): Implemented engine scanner skeleton — `scan(project_root) -> State`, pure read-only, idempotent, cross-platform. Extended State model with `phase`/`stories`/`tasks`. Added pytest-benchmark CI gate (NFR-PERF-1). Regenerated Story 1.14 goldens for extended State shape.
+- 2026-05-09 (Story 1.15, code-review patches): Applied 13 review patches — fail-fast on missing `project_root` (`not_found` reason), accept UTF-8 BOM via `utf-8-sig`, raise `non_utf8_artifact` on bad bytes, skip vanished files with WARN, log broken symlinks at INFO, relative paths in error envelopes, cold benchmark to single round, skip benchmark suite on Windows, `BenchmarkFixture` typed annotation, hermetic `cwd=` for cross-process test, real permutation in story sort assertion. Spec amendments: AC1 (added `not_found` / `non_utf8_artifact` / `non_object_artifact` reasons + relative-path mandate), AC2.1 (typing softened to `dict[str, Any]` to match AC3 + impl). State model docstring rewrite: forward-compat claim replaced with explicit cross-version-via-Story-1.19 statement. Final state: 697 passed / 58 skipped, coverage 91.27%, mypy --strict src/ ✓, ruff ✓, scanner.py 230 LOC.

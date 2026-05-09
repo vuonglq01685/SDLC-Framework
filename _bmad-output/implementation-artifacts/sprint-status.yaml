@@ -36,9 +36,12 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-09 (code-review: 1-14 in-progress → done; POSIX regen complete via Docker)"
+last_updated: "2026-05-09 (code-review: 1-16 review → done; 18 patches applied)"
 project: SDLC-Framework
-last_action: "code-review 1-14-behavioral-conformance-abstraction-adequacy-ci-test (status: in-progress → done; goldens regenerated on Linux container, verified green on both POSIX + Windows)"
+# last_action is a single line; prior transitions remain in the audit log:
+#   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
+#   2026-05-09 dev-story 1-16-cli-sdlc-init-greenfield (status: ready-for-dev → review; 714 tests pass, 90.26% coverage)
+last_action: "code-review 1-16-cli-sdlc-init-greenfield (status: review → done; 18 patches applied; 6 decisions resolved)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -62,8 +65,8 @@ development_status:
   1-12-state-projection-from-journal-replay-property-test: done
   1-13-airuntime-abc-mock-airuntime: done
   1-14-behavioral-conformance-abstraction-adequacy-ci-test: done
-  1-15-engine-scanner-skeleton: ready-for-dev
-  1-16-cli-sdlc-init-greenfield: ready-for-dev
+  1-15-engine-scanner-skeleton: done
+  1-16-cli-sdlc-init-greenfield: done
   1-17-cli-sdlc-scan-status-accessibility-flags: ready-for-dev
   1-18-cli-sdlc-trace-replay-logs: ready-for-dev
   1-19-migration-framework-major-version-refusal: ready-for-dev

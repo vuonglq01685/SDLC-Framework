@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -14,6 +16,45 @@ def test_state_defaults() -> None:
     assert s.schema_version == 1
     assert s.next_monotonic_seq == 0
     assert s.epics == {}
+
+
+def test_state_default_construction_has_skeleton_fields() -> None:
+    from sdlc.state.model import State
+
+    s = State()
+    assert s.phase == 1
+    assert s.stories == {}
+    assert s.tasks == {}
+    # existing fields still present
+    assert s.schema_version == 1
+    assert s.next_monotonic_seq == 0
+    assert s.epics == {}
+
+
+def test_state_old_state_json_validates_against_extended_model() -> None:
+    """Old state.json (Story 1.10 era, no phase/stories/tasks) still validates."""
+    from sdlc.state.model import State
+
+    old_shape = {"schema_version": 1, "next_monotonic_seq": 0, "epics": {}}
+    s = State.model_validate(old_shape)
+    assert s.phase == 1
+    assert s.stories == {}
+    assert s.tasks == {}
+
+
+def test_state_canonical_json_includes_new_fields() -> None:
+    from sdlc.state.model import State
+
+    s = State()
+    bytes_ = json.dumps(
+        s.model_dump(mode="json"),
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    assert b'"phase":1' in bytes_
+    assert b'"stories":{}' in bytes_
+    assert b'"tasks":{}' in bytes_
 
 
 def test_state_construction() -> None:

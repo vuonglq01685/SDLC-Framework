@@ -101,6 +101,7 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         depends_on=frozenset(
             {
                 "errors",
+                "ids",  # NEW (Story 1.15) — scanner.py needs parse_epic_id/_story_id/_task_id
                 "state",
                 "journal",
                 "signoff",
@@ -132,7 +133,22 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "hooks", "adopt"}),
     ),
     "cli": ModuleSpec(
-        depends_on=frozenset({"engine", "adopt", "dashboard", "runtime", "config", "errors"}),
+        depends_on=frozenset(
+            {
+                "engine",
+                "adopt",
+                "dashboard",
+                "runtime",
+                "config",
+                "errors",
+                # Story 1.16 widening: cli/init.py + cli/scan.py (Story 1.17) +
+                # cli/rebuild_state.py (Story 1.20) need direct state/journal I/O.
+                "state",  # cli/init.py writes state.json via write_state_atomic_sync
+                "journal",  # cli/init.py creates empty journal.log; cli/scan.py appends
+                "contracts",  # JournalEntry / State pydantic contracts used by cli
+                "ids",  # cli/init.py + cli/scan.py validate canonical IDs
+            }
+        ),
         forbidden_from=frozenset(),
     ),
     # Provisional v0.2 entry: agents/ holds the specialist registry (markdown +
@@ -270,11 +286,6 @@ def _import_target_module(qualified: str) -> str | None:
     return parts[1] if len(parts) >= _SDLC_MIN_PARTS and parts[0] == "sdlc" else None
 
 
-# ---------------------------------------------------------------------------
-# Boundary rule checker
-# ---------------------------------------------------------------------------
-
-
 def _format_forbidden_set(spec: ModuleSpec) -> str:
     """Render forbidden targets as `engine/dispatcher/runtime/cli` for messages."""
     return "/".join(sorted(spec.forbidden_from)) + "/" if spec.forbidden_from else ""
@@ -321,10 +332,6 @@ def check_imports(src_module: str, imports: list[Import]) -> list[str]:
     return violations
 
 
-# ---------------------------------------------------------------------------
-# LOC cap checker (AC4 / Architecture §765 / NFR-MAINT-3)
-# ---------------------------------------------------------------------------
-
 LOC_CAP = 400
 # Path-prefix exemptions, expressed as `Path.parts` tuples so matching works
 # correctly for absolute paths and on Windows (where str(Path) uses '\').
@@ -359,11 +366,6 @@ def check_loc_cap(p: Path) -> list[str]:
             f"see Architecture §765 + NFR-MAINT-3)"
         ]
     return []
-
-
-# ---------------------------------------------------------------------------
-# Main entrypoint
-# ---------------------------------------------------------------------------
 
 
 def main(argv: list[str]) -> int:

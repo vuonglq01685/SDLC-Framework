@@ -41,9 +41,10 @@ from integration._abstraction_adequacy_helpers import (
     _state_hash,
     _synthesize_hook_payload,
 )
+from sdlc.engine import scan
 from sdlc.journal import append_sync
 from sdlc.runtime import AIRuntime, MockAIRuntime
-from sdlc.state import State, write_state_atomic_sync
+from sdlc.state import write_state_atomic_sync
 from sdlc.state.projection import project_from_journal
 
 pytestmark = [
@@ -122,10 +123,10 @@ def test_abstraction_adequacy_pipeline(tmp_path: Path, runtime: AIRuntime) -> No
     journal_path = state_dir / "journal.log"
     state_path = state_dir / "state.json"
 
-    # Step 2: scan stub — Story 1.15 will replace with engine.scanner.scan when the
-    # scanner ships. Story 2B.3 will run the FULL pipeline (with real scan) — at that
-    # point this stub disappears and the test is upgraded in lockstep.
-    initial_state = State(schema_version=1, next_monotonic_seq=0, epics={})
+    # Step 2: scan — Story 1.15: real scan replaces 1.14's no-op stub.
+    # tmp_path has no SDLC artifact dirs, so scan() returns an empty State projection.
+    # Story 2B.3 will run the FULL pipeline including hook chain (Story 2A.4 substrate).
+    initial_state = scan(tmp_path)
     # Sanity: an empty journal projects to the canonical initial state (writer-side
     # determinism is exercised below; this guards the read-side identity).
     assert project_from_journal(journal_path) == initial_state

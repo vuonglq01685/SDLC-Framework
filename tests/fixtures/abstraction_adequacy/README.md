@@ -14,6 +14,7 @@ failure (Decision C2, Architecture §1424).
 ## Regen history
 
 - 2026-05-09: initial generation (Story 1.14, ADR-017).
+- 2026-05-09 (Story 1.15): regenerated after State model gained phase/stories/tasks fields and scan-stub replaced by engine.scanner.scan.
 
 ## When to regenerate
 

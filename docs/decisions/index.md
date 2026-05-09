@@ -27,6 +27,8 @@ alternatives, consequences, and a revisit-by date).
 | [015](ADR-015-state-projection-from-journal.md) | state projection from journal | 1.12 | Accepted |
 | [016](ADR-016-airuntime-abc-and-mock-implementation.md) | AIRuntime ABC + Mock implementation | 1.13 | Accepted |
 | [017](ADR-017-abstraction-adequacy-ci-contract.md) | Abstraction-adequacy CI contract | 1.14 | Accepted |
+| [018](ADR-018-engine-scanner-skeleton.md) | Engine scanner skeleton — pure read, idempotent, perf-gated | 1.15 | Accepted |
+| [019](ADR-019-cli-skeleton-typer-adoption.md) | CLI skeleton + Typer + boundary widening + idempotency | 1.16 | Accepted |
 
 Note: A future ADR for wire-format v1 lock ceremony is owned by Story 1.21 and is intentionally absent
 until then.
