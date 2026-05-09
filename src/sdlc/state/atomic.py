@@ -19,6 +19,7 @@ import contextlib
 import json
 import os
 import unicodedata
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
@@ -33,7 +34,11 @@ STATE_TMP_SUFFIX: Final[str] = ".tmp"
 # Canonical write API names — intentional drift detector: if atomic.py renames
 # either function, this constant breaks check_no_direct_state_writes.py.
 _CANONICAL_WRITE_API: Final[frozenset[str]] = frozenset(
-    {"sdlc.state.atomic.write_state_atomic", "sdlc.state.atomic.write_state_atomic_sync"}
+    {
+        "sdlc.state.atomic.write_state_atomic",
+        "sdlc.state.atomic.write_state_atomic_sync",
+        "sdlc.state.atomic.write_state_raw_atomic_sync",
+    }
 )
 
 _MIN_ARGS_FOR_OPEN = 2
@@ -60,6 +65,21 @@ def _canonicalize_state(state: State) -> bytes:
     payload = _normalize_strings(state.model_dump(mode="json"))
     return (
         json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        + b"\n"
+    )
+
+
+def _canonicalize_raw(payload: Mapping[str, object]) -> bytes:
+    """Return canonical JSON bytes for a raw dict (Architecture §501-§508).
+
+    Used by write_state_raw_atomic_sync to serialize post-migration state dicts
+    whose schema_version may exceed what the State pydantic model knows about.
+    """
+    normalized = _normalize_strings(dict(payload))
+    return (
+        json.dumps(normalized, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode(
             "utf-8"
         )
         + b"\n"
@@ -134,16 +154,15 @@ def _fsync_parent_dir(parent_dir: str, target_path: str) -> None:
                 os.close(dir_fd)
 
 
-def _write_protocol_body(state: State, target: Path, sync_mode: bool = False) -> None:
+def _write_protocol_body(canonical_bytes: bytes, target: Path) -> None:
     """Synchronous protocol body — single source of truth for the 7-step write protocol.
 
-    sync_mode is reserved for future behavior toggles (Story 1.13+); currently unused.
+    Takes pre-canonicalized bytes; callers are responsible for canonicalization via
+    _canonicalize_state or _canonicalize_raw.
     """
     target_path = str(target)
     tmp_path = str(target.with_suffix(target.suffix + STATE_TMP_SUFFIX))
     parent_dir = str(target.parent)
-
-    canonical_bytes = _canonicalize_state(state)
 
     # Step 1: open <target>.tmp
     tmp_fd = _open_tmp(tmp_path, target_path)
@@ -185,7 +204,8 @@ async def write_state_atomic(state: State, target: Path) -> None:
     lock_path = target.with_suffix(target.suffix + STATE_LOCK_SUFFIX)
     # Step 4: acquire flock (lock path is a sentinel file, NOT the target — Decision B2)
     async with file_lock(lock_path):
-        await asyncio.to_thread(_write_protocol_body, state, target, False)
+        canonical_bytes = _canonicalize_state(state)
+        await asyncio.to_thread(_write_protocol_body, canonical_bytes, target)
 
 
 def write_state_atomic_sync(state: State, target: Path) -> None:
@@ -211,9 +231,41 @@ def write_state_atomic_sync(state: State, target: Path) -> None:
     lock_path = target.with_suffix(target.suffix + STATE_LOCK_SUFFIX)
     # Step 4: acquire flock (sync variant)
     with file_lock(lock_path):
-        _write_protocol_body(state, target, True)
+        canonical_bytes = _canonicalize_state(state)
+        _write_protocol_body(canonical_bytes, target)
+
+
+def write_state_raw_atomic_sync(payload: Mapping[str, object], target: Path) -> None:
+    """Write a raw dict atomically using the 7-step POSIX protocol (Story 1.19, AC4).
+
+    Bypasses pydantic and the schema gate — reserved for cli/migrate.py and
+    state/rebuild.py (Story 1.20). The caller is responsible for ensuring the
+    payload is semantically correct.
+
+    Uses the same flock + atomic rename + fsync protocol as write_state_atomic_sync.
+    """
+    try:
+        asyncio.get_running_loop()
+        raise StateError(
+            "write_state_raw_atomic_sync called from inside an event loop"
+            " — use write_state_atomic for production paths",
+            details={"path": str(target), "errno": 0, "step": "loop_check"},
+        )
+    except RuntimeError:
+        pass  # No running loop — safe to proceed
+
+    if not target.is_absolute():
+        raise StateError(
+            "write_state_raw_atomic_sync requires an absolute target path",
+            details={"path": str(target), "errno": 0, "step": "validate_path"},
+        )
+    lock_path = target.with_suffix(target.suffix + STATE_LOCK_SUFFIX)
+    with file_lock(lock_path):
+        canonical_bytes = _canonicalize_raw(payload)
+        _write_protocol_body(canonical_bytes, target)
 
 
 # read_state moved to sdlc.state._read for cross-platform availability (Story 1.17 review).
 # Re-exported here for backward compatibility with POSIX-side tests that import it directly.
+# Story 1.19: _read.py now delegates to read_state_or_refuse so all callers get the schema gate.
 from sdlc.state._read import read_state as read_state  # noqa: PLC0414, E402

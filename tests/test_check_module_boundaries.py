@@ -19,7 +19,7 @@ import check_module_boundaries as mb
 
 
 @pytest.mark.unit
-def test_module_deps_contains_all_17_modules() -> None:
+def test_module_deps_contains_all_18_modules() -> None:
     expected = {
         "errors",
         "ids",
@@ -37,6 +37,7 @@ def test_module_deps_contains_all_17_modules() -> None:
         "dispatcher",
         "engine",
         "adopt",
+        "migrations",
         "dashboard",
         "cli",
         "agents",

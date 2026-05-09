@@ -6,46 +6,24 @@ reads on POSIX, and Story 1.16's Windows fallback (`Path.write_bytes` for the
 canonical bytes) is whole-file and equally torn-free. Hosting `read_state` here
 lets `cli/scan.py` and `cli/status.py` use one cross-platform reader instead of
 forking a `_read_state_portable` helper per command (see ADR-020 §Consequences).
+
+Story 1.19: delegates to `read_state_or_refuse` so all callers transparently get
+the schema-version gate without any import changes.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from sdlc.errors import StateError
 from sdlc.state.model import State
+from sdlc.state.reader import read_state_or_refuse
 
 
 def read_state(target: Path) -> State | None:
-    """Read and parse state.json (no hash verification — deferred to Story 1.12).
+    """Read and parse state.json with the schema-version gate (Story 1.19).
 
-    Returns None if target does not exist; raises StateError on JSON or schema errors.
-    Cross-platform: pure stdlib, no `fcntl`. Story 1.10's atomic rename provides the
-    no-torn-reads guarantee on POSIX; Story 1.16's `Path.write_bytes` fallback does
-    the same on Windows.
+    Delegates to sdlc.state.reader.read_state_or_refuse so existing callers
+    from Stories 1.16-1.17 transparently get refusal behavior on schema mismatch.
+    Returns None if target does not exist; raises StateError or SchemaError otherwise.
     """
-    if not target.exists():
-        return None
-    try:
-        text = target.read_text(encoding="utf-8")
-        payload = json.loads(text)
-        return State.model_validate(payload)
-    except json.JSONDecodeError as e:
-        raise StateError(
-            f"state.json contains invalid JSON: {e}",
-            details={"path": str(target), "reason": "json"},
-        ) from e
-    except OSError as e:
-        raise StateError(
-            f"state.json could not be read: {e}",
-            details={"path": str(target), "errno": e.errno, "reason": "io"},
-        ) from e
-    except (ValueError, TypeError) as e:
-        # pydantic.ValidationError subclasses ValueError; ValueError/TypeError cover
-        # schema violations without swallowing programmer errors like NameError or
-        # AttributeError that would indicate a bug rather than data corruption.
-        raise StateError(
-            f"state.json failed schema validation: {e}",
-            details={"path": str(target), "reason": "schema"},
-        ) from e
+    return read_state_or_refuse(target)

@@ -101,6 +101,16 @@ repos:
         files: ^src/sdlc/.*\.py$
         pass_filenames: true
 
+  # ----- migration registry lint (Story 1.19 / AC1.7 / ADR-022) -----
+  - repo: local
+    hooks:
+      - id: migration-registry-lint
+        name: migration registry lint (Story 1.19 AC1.7 ADR-022)
+        entry: uv run python scripts/check_migration_registry.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
   - repo: local
     hooks:

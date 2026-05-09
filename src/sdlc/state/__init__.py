@@ -6,11 +6,16 @@ import sys
 from sdlc.state._read import read_state
 from sdlc.state.model import State
 from sdlc.state.projection import project_from_journal
+from sdlc.state.reader import CURRENT_SCHEMA_VERSION, read_state_or_refuse, read_state_raw
 
 # atomic.py is POSIX-only; only the WRITE protocol needs fcntl + parent-dir fsync
 # (Architecture §573). read_state is cross-platform and lives in state/_read.py.
 if sys.platform != "win32":
-    from sdlc.state.atomic import write_state_atomic, write_state_atomic_sync
+    from sdlc.state.atomic import (
+        write_state_atomic,
+        write_state_atomic_sync,
+        write_state_raw_atomic_sync,
+    )
 else:
 
     def write_state_atomic(*_: object, **__: object) -> None:
@@ -18,6 +23,11 @@ else:
 
     def write_state_atomic_sync(*_: object, **__: object) -> None:
         raise NotImplementedError("write_state_atomic_sync is POSIX-only — see Architecture §573")
+
+    def write_state_raw_atomic_sync(*_: object, **__: object) -> None:
+        raise NotImplementedError(
+            "write_state_raw_atomic_sync is POSIX-only — see Architecture §573"
+        )
 
 
 def state_to_canonical_bytes(state: State) -> bytes:
@@ -33,12 +43,17 @@ def state_to_canonical_bytes(state: State) -> bytes:
     ).encode("utf-8")
 
 
-# Semantic order: model → write-async → write-sync → read → projection → bytes; do NOT alphabetize.
+# Semantic order: model → write-async → write-sync → write-raw → read → read-or-refuse
+# → read-raw → projection → bytes → schema-version; do NOT alphabetize.
 __all__ = (  # noqa: RUF022
     "State",
     "write_state_atomic",
     "write_state_atomic_sync",
+    "write_state_raw_atomic_sync",
     "read_state",
+    "read_state_or_refuse",
+    "read_state_raw",
     "project_from_journal",
     "state_to_canonical_bytes",
+    "CURRENT_SCHEMA_VERSION",
 )

@@ -17,6 +17,11 @@ Error code → exit code table (_ERR_CODE_TO_EXIT_CODE):
   ERR_INFRASTRUCTURE     → 3
   ERR_JOURNAL_READ_FAILED → 2    (Story 1.18)
   ERR_AGENT_RUNS_READ_FAILED → 2 (Story 1.18)
+  ERR_MIGRATION_NOT_FOUND → 2   (Story 1.19)
+  ERR_MIGRATION_INVALID → 2     (Story 1.19)
+  ERR_MIGRATION_FAILED → 2      (Story 1.19)
+  ERR_MIGRATION_DOWNGRADE → 2   (Story 1.19)
+  ERR_STATE_MALFORMED → 2       (Story 1.19)
 
 Per-command JSON output schemas (Story 1.21 wire-format-lock ceremony freezes these at v1):
   _SCAN_OUTPUT_SCHEMA, _STATUS_OUTPUT_SCHEMA, _TRACE_OUTPUT_SCHEMA,
@@ -101,6 +106,12 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         # Added in Story 1.18 — see ADR-021.
         "ERR_JOURNAL_READ_FAILED": 2,
         "ERR_AGENT_RUNS_READ_FAILED": 2,
+        # Added in Story 1.19 — see ADR-022.
+        "ERR_MIGRATION_NOT_FOUND": 2,
+        "ERR_MIGRATION_INVALID": 2,
+        "ERR_MIGRATION_FAILED": 2,
+        "ERR_MIGRATION_DOWNGRADE": 2,
+        "ERR_STATE_MALFORMED": 2,
     }
 )
 _DEFAULT_EXIT_CODE: Final[int] = 1

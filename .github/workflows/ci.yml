@@ -51,6 +51,9 @@ jobs:
       - name: Type check (mypy --strict)
         run: uv run mypy --strict src/
 
+      - name: Migration registry lint (Story 1.19 AC1.7 ADR-022)
+        run: uv run python scripts/check_migration_registry.py
+
       - name: Unit + integration tests (pytest with coverage gate)
         run: uv run pytest
 

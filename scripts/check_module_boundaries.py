@@ -126,8 +126,12 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         depends_on=frozenset({"errors", "state", "journal", "signoff", "config"}),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime"}),
     ),
-    # Known gap: "read-only with respect to state/journal" is not expressible
-    # at import-graph level (ADR-010 Consequences).
+    # Story 1.19 / ADR-022: migration scripts are a leaf cluster (errors + state only).
+    "migrations": ModuleSpec(
+        depends_on=frozenset({"errors", "state"}),
+        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
+    ),
+    # Known gap: "read-only" constraint is not expressible at import-graph level (ADR-010).
     "dashboard": ModuleSpec(
         depends_on=frozenset({"errors", "state", "journal", "telemetry", "signoff", "config"}),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "hooks", "adopt"}),
@@ -147,6 +151,7 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
                 "journal",  # cli/init.py creates empty journal.log; cli/scan.py appends
                 "contracts",  # JournalEntry / State pydantic contracts used by cli
                 "ids",  # cli/init.py + cli/scan.py validate canonical IDs
+                "migrations",  # cli/migrate.py dispatches migration scripts (Story 1.19)
             }
         ),
         forbidden_from=frozenset(),

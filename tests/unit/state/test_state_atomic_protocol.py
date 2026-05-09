@@ -89,11 +89,11 @@ def test_step4_flock_held_during_protocol(target: Path, state: object) -> None:
 
     import sdlc.state.atomic as _atomic
 
-    def spy_body(s: object, t: object, sync_mode: bool = False) -> None:
+    def spy_body(s: object, t: object) -> None:
         assert original_body is not None
         reg = lock_registry()
         held_during.append(len(reg) > 0)
-        original_body(s, t, sync_mode)  # type: ignore[call-arg]
+        original_body(s, t)  # type: ignore[call-arg]
 
     original_body = _atomic._write_protocol_body  # type: ignore[assignment]
     with patch.object(_atomic, "_write_protocol_body", side_effect=spy_body):
