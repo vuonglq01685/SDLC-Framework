@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import Final
+
+from pydantic import BaseModel
+
 from sdlc.contracts.hook_payload import HookPayload
 
 # Imports kept in semantic order matching __all__ per Architecture §1238 enumeration:
@@ -16,4 +20,17 @@ __all__ = (  # noqa: RUF022
     "HookPayload",
     "SpecialistFrontmatter",
     "WorkflowSpec",
+)
+
+# Wire-format lock registry (Story 1.21, Decision F3, ADR-024).
+# Single source of truth for the canonical (slug, ContractCls) iteration order shared by
+# `scripts/freeze_wireformat_snapshots.py` and `tests/contracts/test_wireformat_immutability.py`.
+# Private (NOT in __all__): adding a 6th contract requires an ADR amendment + new snapshot,
+# so callers should not import this transitively.
+_WIRE_FORMAT_REGISTRY: Final[tuple[tuple[str, type[BaseModel]], ...]] = (
+    ("journal_entry", JournalEntry),
+    ("resume_token", ResumeToken),
+    ("hook_payload", HookPayload),
+    ("specialist_frontmatter", SpecialistFrontmatter),
+    ("workflow_spec", WorkflowSpec),
 )

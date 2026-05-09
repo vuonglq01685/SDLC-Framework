@@ -20,29 +20,19 @@ from typing import Final
 import pytest
 from pydantic import BaseModel
 
-from sdlc.contracts import (
-    HookPayload,
-    JournalEntry,
-    ResumeToken,
-    SpecialistFrontmatter,
-    WorkflowSpec,
-)
+# Single source of truth (Story 1.21 review patch P20): the registry lives in
+# sdlc.contracts. The previous "test C parity" assertion is no longer needed —
+# script and test now share the same import.
+from sdlc.contracts import _WIRE_FORMAT_REGISTRY
 
+# Module-level pytestmark applies to every test below; per-test @pytest.mark.unit
+# decorators dropped as redundant (P18).
 pytestmark = pytest.mark.unit
 
 _SNAPSHOT_DIR: Final[Path] = Path(__file__).parent.parent / "contract_snapshots" / "v1"
-
-# Duplicate of scripts/freeze_wireformat_snapshots.py:_CONTRACTS — intentional.
-# Tests must not depend on scripts/; Test C below cross-checks parity between the two.
-_CONTRACTS: Final[tuple[tuple[str, type[BaseModel]], ...]] = (
-    ("journal_entry", JournalEntry),
-    ("resume_token", ResumeToken),
-    ("hook_payload", HookPayload),
-    ("specialist_frontmatter", SpecialistFrontmatter),
-    ("workflow_spec", WorkflowSpec),
-)
-
 _DIFF_MAX_LINES: Final[int] = 80
+
+_CONTRACTS: Final[tuple[tuple[str, type[BaseModel]], ...]] = _WIRE_FORMAT_REGISTRY
 
 
 def _canonical_schema_bytes(model_cls: type[BaseModel]) -> bytes:
@@ -60,15 +50,23 @@ def _canonical_schema_bytes(model_cls: type[BaseModel]) -> bytes:
 
 
 def _unified_diff(a: bytes, b: bytes, label: str) -> str:
-    a_lines = a.decode("utf-8", errors="replace").splitlines(keepends=True)
-    b_lines = b.decode("utf-8", errors="replace").splitlines(keepends=True)
+    # errors="strict" surfaces real corruption instead of silently substituting
+    # U+FFFD; truncate to (_DIFF_MAX_LINES - 1) so the marker doesn't replace the
+    # last real diff line at the threshold boundary.
+    try:
+        a_lines = a.decode("utf-8").splitlines(keepends=True)
+        b_lines = b.decode("utf-8").splitlines(keepends=True)
+    except UnicodeDecodeError as exc:
+        return (
+            f"--- diff unavailable: snapshot encoding corrupt ({exc}). "
+            f"Run scripts/freeze_wireformat_snapshots.py --write to repair.\n"
+        )
     diff_lines = list(difflib.unified_diff(a_lines, b_lines, fromfile=label, tofile="<live>"))
     if len(diff_lines) > _DIFF_MAX_LINES:
-        diff_lines = [*diff_lines[:_DIFF_MAX_LINES], "... [truncated]\n"]
+        diff_lines = [*diff_lines[: _DIFF_MAX_LINES - 1], "... [truncated]\n"]
     return "".join(diff_lines)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("slug,model_cls", _CONTRACTS, ids=[s for s, _ in _CONTRACTS])
 def test_wireformat_schema_matches_snapshot(slug: str, model_cls: type[BaseModel]) -> None:
     snapshot_path = _SNAPSHOT_DIR / f"{slug}.json"
@@ -82,8 +80,9 @@ def test_wireformat_schema_matches_snapshot(slug: str, model_cls: type[BaseModel
     assert live_bytes == snapshot_bytes, (
         f"wireformat-immutability drift: {model_cls.__name__} schema diverged from "
         f"snapshot at {snapshot_path}\n"
+        # P6: per-slug subdir form matches Forward-Compat Seam #2 + ADR-024 §3.
         f"action: bump {model_cls.__name__}.schema_version (Literal[1] -> Literal[2]) "
-        f"AND add migration entry under src/sdlc/migrations/contracts/v<N>.py "
+        f"AND add migration entry under src/sdlc/migrations/contracts/v<N>/{slug}.py "
         f"(see ADR-024), THEN run "
         f"`uv run python scripts/freeze_wireformat_snapshots.py --write`.\n"
         f"--- diff (first {_DIFF_MAX_LINES} lines): ---\n"
@@ -91,7 +90,6 @@ def test_wireformat_schema_matches_snapshot(slug: str, model_cls: type[BaseModel
     )
 
 
-@pytest.mark.unit
 def test_contracts_tuple_matches_public_all() -> None:
     """Guard against silent contract drift: the locked set MUST equal sdlc.contracts.__all__."""
     import sdlc.contracts
@@ -103,28 +101,22 @@ def test_contracts_tuple_matches_public_all() -> None:
         f"  locked but not public: {locked_class_names - public_class_names}\n"
         f"  public but not locked: {public_class_names - locked_class_names}\n"
         f"action: if you intentionally added a 6th wire-format contract, append it to "
-        f"_CONTRACTS in BOTH scripts/freeze_wireformat_snapshots.py AND "
-        f"tests/contracts/test_wireformat_immutability.py, run --write, commit the new "
-        f"snapshot, AND amend ADR-024 with the new contract."
+        f"_WIRE_FORMAT_REGISTRY in src/sdlc/contracts/__init__.py, run "
+        f"`scripts/freeze_wireformat_snapshots.py --write`, commit the new snapshot, "
+        f"AND amend ADR-024 with the new contract."
     )
 
 
-@pytest.mark.unit
-def test_script_and_test_share_contract_registry() -> None:
-    """Guard against script vs test _CONTRACTS drift."""
-    # scripts/ is on sys.path via tests/conftest.py (Story 1.4 / Story 1.21)
-    import freeze_wireformat_snapshots  # type: ignore[import-not-found]
+# P15: defensive uniqueness assertions on the registry. The script also asserts these
+# at module-load time; this test ensures pytest catches a duplicate slug/class even if
+# someone runs the script with assertions disabled (`python -O`).
+def test_wire_format_registry_has_unique_slugs() -> None:
+    slugs = [slug for slug, _ in _CONTRACTS]
+    assert len(set(slugs)) == len(slugs), f"duplicate slugs in _WIRE_FORMAT_REGISTRY: {slugs}"
 
-    script_slugs = tuple(slug for slug, _ in freeze_wireformat_snapshots._CONTRACTS)
-    test_slugs = tuple(slug for slug, _ in _CONTRACTS)
-    assert script_slugs == test_slugs, (
-        f"script vs test contract list drift:\n"
-        f"  script: {script_slugs}\n"
-        f"  test:   {test_slugs}\n"
-        f"action: keep _CONTRACTS in lockstep across both files."
-    )
-    script_classes = tuple(cls for _, cls in freeze_wireformat_snapshots._CONTRACTS)
-    test_classes = tuple(cls for _, cls in _CONTRACTS)
-    assert script_classes == test_classes, (
-        "script vs test contract class list drift; same actions as above."
+
+def test_wire_format_registry_has_unique_classes() -> None:
+    classes = [cls for _, cls in _CONTRACTS]
+    assert len(set(classes)) == len(classes), (
+        f"duplicate classes in _WIRE_FORMAT_REGISTRY: {[c.__name__ for c in classes]}"
     )

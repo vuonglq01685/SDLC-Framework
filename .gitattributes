@@ -12,5 +12,12 @@ tests/fixtures/abstraction_adequacy/*.yaml text eol=lf
 # across Windows-checkout vs Linux-CI invocations.
 tests/fixtures/mock_responses/*.yaml text eol=lf
 
+# Wire-format contract JSON-Schema snapshots (Story 1.21 lock ceremony) must stay LF
+# — the immutability gate compares Path.read_bytes() against bytes generated on POSIX.
+# A Windows checkout with core.autocrlf=true would silently break the byte-equality
+# assertion. The global `* text=auto eol=lf` rule above already covers this, but
+# pinning the snapshots explicitly survives any future relaxation of the global rule.
+tests/contract_snapshots/**/*.json text eol=lf
+
 # Python source must stay LF — many src/ tools (ruff, mypy, pre-commit) assume LF.
 *.py text eol=lf

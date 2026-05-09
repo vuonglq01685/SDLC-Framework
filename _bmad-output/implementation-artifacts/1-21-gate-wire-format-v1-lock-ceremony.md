@@ -1,6 +1,6 @@
 # Story 1.21: [Gate] Wire-Format v1.0 Lock Ceremony
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -557,8 +557,10 @@ This is the Epic 1 ship gate. The walking skeleton is otherwise complete (Storie
 - **Modified files:**
   - `tests/unit/contracts/test_journal_entry.py` — add `test_payload_accepts_arbitrary_nested_keys` (Item A)
   - `tests/unit/contracts/test_resume_token.py` — add the cursor-equivalent (Item A)
-  - `tests/unit/runtime/test_mock.py` — add `test_fixture_and_agent_result_have_parity_fields` (Item D)
   - `tests/conftest.py` — extend `sys.path` to include `scripts/` if not already (Task 4)
+  - (`tests/unit/runtime/test_mock.py` is listed under "New files" below — it did
+    not exist before Story 1.21; siblings `test_mock_dispatch.py` etc. cover the
+    pre-existing surface. Spec line corrected per code-review patch P5.)
   - `.pre-commit-config.yaml` — add `wireformat-immutability-validator` hook (AC3.5)
   - `.github/workflows/ci.yml` — add CI step (AC4.2)
   - `mkdocs.yml` — add ADR file to `nav:` block (AC5.12)
@@ -663,9 +665,9 @@ claude-sonnet-4-6 (2026-05-09)
 
 ### Completion Notes List
 
-- **Task 1**: `scripts/freeze_wireformat_snapshots.py` created (154 LOC). `main()` split into `_run_write`/`_run_check` to satisfy C901. `_DIFF_MAX_LINES = 80` constant; `[*list[:n], item]` unpack pattern.
+- **Task 1**: `scripts/freeze_wireformat_snapshots.py` created (180 LOC at story landing; expanded to ~210 LOC by review patches P1/P2/P7/P10/P11/P12/P13/P15/P20). `main()` split into `_run_write`/`_run_check` to satisfy C901. `_DIFF_MAX_LINES = 80` constant; `[*list[:n], item]` unpack pattern. Self-report LOC corrected per patch P16 (was 154; actual file size at landing was 180).
 - **Task 2**: 5 snapshot files bootstrapped. Idempotency confirmed (second `--write --yes` produces zero git diff).
-- **Task 3**: `tests/contracts/__init__.py` (empty) + `tests/contracts/test_wireformat_immutability.py` (117 LOC). All 7 tests pass.
+- **Task 3**: `tests/contracts/__init__.py` (empty) + `tests/contracts/test_wireformat_immutability.py` (130 LOC at story landing; reduced after patch P20 deleted the redundant Test C parity assertion). Self-report LOC corrected per patch P16 (was 117; actual file size at landing was 130).
 - **Task 4**: `tests/conftest.py` already adds `scripts/` to sys.path (Story 1.4). No changes needed.
 - **Task 5**: `wireformat-immutability-validator` hook added to `.pre-commit-config.yaml`. Hook passes.
 - **Task 6**: CI step added with `if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'` pin.
@@ -708,4 +710,62 @@ claude-sonnet-4-6 (2026-05-09)
 
 ### Change Log
 
-- 2026-05-09 | Story 1.21 implemented | claude-sonnet-4-6 | Wire-format v1 lock ceremony: 5 JSON-Schema snapshots, dual-gate enforcement (pre-commit + pytest), ADR-024, 3 deferred-work items resolved. 21 new tests, 93.37% coverage.
+- 2026-05-09 | Story 1.21 implemented | claude-sonnet-4-6 | Wire-format v1 lock ceremony: 5 JSON-Schema snapshots, dual-gate enforcement (pre-commit + pytest), ADR-024, 3 deferred-work items resolved. ~24 new tests at landing (5 parametrized contract tests + 2 standalone gate tests + 1 fixture-parity test + 11 unit tests for the freeze script + 2 integration smoke tests + 2 nested-key contract tests + 1 runtime-parity test). 93.37% coverage. Test-count self-report corrected per code-review patch P19 (was "21 new tests"; actual count was ~24).
+- 2026-05-09 | Story 1.21 review patches applied | claude-opus-4-7 | 24 patches (P1-P24) addressing exit-code semantics, atomic snapshot writes, non-tty refusal, registry single-source-of-truth, drift-induced subprocess test, ADR enumeration completeness, line-ending pin, and pre-commit/CI scope unification. Decisions DN1/DN2/DN3/DN4/DN6 resolved per code-review walkthrough; DN5/DN7 dismissed (pydantic minor-bump drift accepted as deliberate maintenance event; Item B deferred-work owner kept loose pending Epic 2A/3 start). 5 deferred items recorded in deferred-work.md.
+
+## Review Findings
+
+Code-review pass: 2026-05-09 (Blind Hunter + Edge Case Hunter + Acceptance Auditor; commit `d2bde81`).
+Raw findings: 16 (Blind) + 22 (Edge) + 18 (Auditor) = 56 → after dedup/triage: 7 decision-needed + 19 patches + 5 deferred + 2 dismissed.
+
+### Decision-Needed (resolved 2026-05-09)
+
+- [x] [Review][Decision] DN1 → **Resolved (b)**: promote `_CONTRACTS` to `sdlc.contracts._WIRE_FORMAT_REGISTRY` (single source); update script + test imports; delete Test C parity test (made redundant). See **P20**.
+- [x] [Review][Decision] DN2 → **Resolved (a)**: inline `--cov=scripts.freeze_wireformat_snapshots --cov-fail-under=90` in subprocess args + add drift-mutation integration test using tmp snapshot dir. See **P21**.
+- [x] [Review][Decision] DN3 → **Resolved (a)**: `.pre-commit-config.yaml` set `always_run: true`, drop `files:` regex (mirrors `secret-hardcode-validator` precedent). See **P22**.
+- [x] [Review][Decision] DN4 → **Resolved (a)**: drop `if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'` clause from CI step (script <1s; aligns gate scope across matrix). See **P23**.
+- [x] [Review][Decision] DN5 → **Dismissed**: accept pydantic minor-bump schema drift as a deliberate maintenance event; already documented in Discipline Reminders (line 593 — "common culprit: pydantic version bump"). No code change.
+- [x] [Review][Decision] DN6 → **Resolved (b)**: strengthen parity assertion to compare `frozenset((name, annotation, required))` tuples instead of names; keep `_Fixture` private. See **P24**.
+- [x] [Review][Decision] DN7 → **Dismissed**: accept loose Item B owner ("Epic 2A or Epic 3 property-hardening"); already in deferred-work.md, will be claimed when Epic 2A/3 starts. No code change.
+
+### Patches (unambiguous fixes)
+
+- [x] [Review][Patch] P1 — User-cancel & EOF return exit 1, conflating with drift detection [scripts/freeze_wireformat_snapshots.py:115-117 (`_run_write` interactive path)]
+- [x] [Review][Patch] P2 — Module docstring claims journal-canonical equivalence but actual rule uses `indent=2` (hybrid format) [scripts/freeze_wireformat_snapshots.py:6-8 (module docstring)]
+- [x] [Review][Patch] P3 — `_unified_diff` uses `errors='replace'` (hides corruption) and truncation overwrites the 80th real line [scripts/freeze_wireformat_snapshots.py:84-85; tests/contracts/test_wireformat_immutability.py:66-67]
+- [x] [Review][Patch] P4 — Snapshot files lack `.gitattributes` LF pin — Windows autocrlf breaks byte-equality gate [`.gitattributes` (file does not exist or is missing the rule)]
+- [x] [Review][Patch] P5 — Spec internal contradiction: `tests/unit/runtime/test_mock.py` listed as both NEW (line 692) and MODIFIED (line 560) — fix spec to match impl (NEW) [_bmad-output/implementation-artifacts/1-21-gate-wire-format-v1-lock-ceremony.md:560 (Project Structure Notes "Modified files")]
+- [x] [Review][Patch] P6 — Drift error-message migration path inconsistent: says `migrations/contracts/v<N>.py` (flat) but Forward-Compat Seam #2 + AC3.3 say `migrations/contracts/v<N>/<slug>.py` (per-slug subdir) [tests/contracts/test_wireformat_immutability.py:86 (assert message); spec AC2.4 line 105-107 also needs aligning]
+- [x] [Review][Patch] P7 — `_run_check` returns 2 immediately on first missing snapshot but accumulates drifts — should accumulate missing-file errors symmetrically [scripts/freeze_wireformat_snapshots.py:744-767 (`_run_check`)]
+- [x] [Review][Patch] P8 — ADR-024 missing: dedicated "What is locked (canonical order)" section; Resume*Card* UI render models in "Excluded from the lock" enumeration; mutation taxonomy beyond `Literal[1]→Literal[1,2]` (default-value, type-narrowing, enum-widening) [docs/decisions/ADR-024-wire-format-v1-lock.md:111-113 (Excluded), Decision clause 1, §3 mutation guidance]
+- [x] [Review][Patch] P9 — Snapshot directory hygiene: a 6th unexpected JSON file in `tests/contract_snapshots/v1/` is not detected; verify-mode should fail on extras [scripts/freeze_wireformat_snapshots.py:_run_check (add extras check) OR tests/contracts/test_wireformat_immutability.py (add sentinel test)]
+- [x] [Review][Patch] P10 — Empty / non-UTF8 snapshot file produces giant unhelpful diff; add early-fail check [scripts/freeze_wireformat_snapshots.py:_verify_one (line ~705-717)]
+- [x] [Review][Patch] P11 — Non-tty `--write` without `--yes` silently overwrites without confirmation (prompt is skipped when `is_tty=False`) — refuse instead [scripts/freeze_wireformat_snapshots.py:725-733 (`_run_write`)]
+- [x] [Review][Patch] P12 — Snapshot writes are not atomic (SIGINT mid-loop after writing N&lt;5 files leaves mixed state) — write to tmp paths first, then `os.replace` each [scripts/freeze_wireformat_snapshots.py:734-736 (`_run_write` write loop)]
+- [x] [Review][Patch] P13 — `--check` flag parsed but never branched on (`args.check` unused); `--yes` without `--write` is silent no-op — add argparse validation [scripts/freeze_wireformat_snapshots.py:777-791 (`main` argument parsing)]
+- [x] [Review][Patch] P14 — Unit test `test_main_check_exits_0_when_all_match` runs against real repo state; should monkeypatch `_REPO_ROOT` to a fixture dir with seeded snapshots [tests/unit/scripts/test_freeze_wireformat_snapshots.py:1450-1453]
+- [x] [Review][Patch] P15 — `_CONTRACTS` lacks slug-uniqueness + class-uniqueness assertion — defensive one-liner [scripts/freeze_wireformat_snapshots.py:_CONTRACTS (line ~670-675); tests/contracts/test_wireformat_immutability.py (mirror)]
+- [x] [Review][Patch] P16 — Completion Notes self-reports script LOC as 154 (actual 180) and test LOC as 117 (actual 130) [_bmad-output/implementation-artifacts/1-21-gate-wire-format-v1-lock-ceremony.md:666, 668 (Completion Notes List)]
+- [x] [Review][Patch] P17 — ADR-024 cross-references use bare `_bmad-output/...` paths — same mistake just-fixed in ADR-021/022/023; wrap in code formatting or convert to mkdocs-tracked links [docs/decisions/ADR-024-wire-format-v1-lock.md:549-565 (References section)]
+- [x] [Review][Patch] P18 — Redundant pytest marks: module-level `pytestmark = pytest.mark.unit` AND each test decorated `@pytest.mark.unit` — drop one [tests/contracts/test_wireformat_immutability.py (top-of-file `pytestmark` and per-test decorators)]
+- [x] [Review][Patch] P19 — Change Log claims "21 new tests" but actual count is ~24 (5 parametrized + 2 standalone + 1 parity + 11 unit + 2 integration + 2 nested-key + 1 fixture-parity) [_bmad-output/implementation-artifacts/1-21-gate-wire-format-v1-lock-ceremony.md:711 (Change Log)]
+- [x] [Review][Patch] P20 (from DN1) — Promote `_CONTRACTS` to single source of truth: add `_WIRE_FORMAT_REGISTRY: Final[tuple[tuple[str, type[BaseModel]], ...]] = (...)` to `src/sdlc/contracts/__init__.py` (private, NOT in `__all__`). Update `scripts/freeze_wireformat_snapshots.py` and `tests/contracts/test_wireformat_immutability.py` to import the registry instead of duplicating. Delete `test_script_and_test_share_contract_registry` (made redundant). Subsumes P15's "test mirror" portion. [src/sdlc/contracts/__init__.py; scripts/freeze_wireformat_snapshots.py:_CONTRACTS; tests/contracts/test_wireformat_immutability.py:_CONTRACTS + Test C]
+- [x] [Review][Patch] P21 (from DN2) — Add subprocess coverage + drift-induced integration test: replace `--no-cov` with `--cov=scripts.freeze_wireformat_snapshots --cov-fail-under=90` in `tests/integration/test_wireformat_lock_e2e.py:1306`. Add new test `test_immutability_pytest_gate_exits_1_on_drift` that copies snapshots to `tmp_path`, mutates one byte, monkeypatches `_REPO_ROOT`, runs the freeze script via subprocess, asserts exit code 1 and stderr contains drift error message. [tests/integration/test_wireformat_lock_e2e.py:1295-1310]
+- [x] [Review][Patch] P22 (from DN3) — Pre-commit hook: set `always_run: true` and remove the `files:` regex on the `wireformat-immutability-validator` hook (mirror `secret-hardcode-validator` pattern). [.pre-commit-config.yaml:23-35]
+- [x] [Review][Patch] P23 (from DN4) — CI step: drop the `if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'` clause from the `wireformat-immutability check` step. [.github/workflows/ci.yml:57]
+- [x] [Review][Patch] P24 (from DN6) — Strengthen `_Fixture` ↔ `AgentResult` parity assertion: replace name-only comparison with `frozenset((name, field_info.annotation, field_info.is_required())) for name, field_info in cls.model_fields.items()` tuple comparison. [tests/unit/runtime/test_mock.py:1376-1393]
+
+### Deferred (real but not actionable in this story scope)
+
+- [x] [Review][Defer] D1 — AC4.2 references CI lint-job anchor steps (`state-write-protocol-validator`, `secret-hardcode-validator`) that don't exist in the CI workflow (they're only pre-commit hooks). Dev placed the new CI step in a reasonable analog slot. Spec wording defect; current placement is acceptable. — deferred, spec-amendment owner: next story-creation cycle (or a one-line spec-hygiene PR). [.github/workflows/ci.yml:54-60 vs spec AC4.2]
+- [x] [Review][Defer] D2 — Integration test asserts on stdout content (regex on "wireformat-immutability check" wrap text); cosmetic stdout edit silently breaks test. Low impact in current scope. — deferred, owner: future test-hardening pass. [tests/integration/test_wireformat_lock_e2e.py:1285-1296]
+- [x] [Review][Defer] D3 — `mkdocs.yml` nav was massively expanded (ADR-013–023 + Code Maps top-level section) and ADR-021/022/023 + `docs/CODEMAPS/engine-module.md` received drive-by edits. None strictly required by Story 1.21 ACs but necessary to satisfy AC8.7 (`mkdocs --strict` green). Document the broader nav cleanup in Change Log. — deferred, owner: Change Log addendum (cosmetic). [mkdocs.yml:51-71; docs/decisions/ADR-021/022/023; docs/CODEMAPS/engine-module.md]
+- [x] [Review][Defer] D4 — Story 1.19 uses flat `migrations/v<N>.py`; ADR-024 prescribes nested `migrations/contracts/v<N>/<slug>.py`. Two parallel migration regimes under one package, no structural test enforces correct placement. Real concern but only matters at first contract bump. — deferred, owner: first-bump story (will create the package; add a sanity check then). [docs/decisions/ADR-024-wire-format-v1-lock.md (mutation guidance) vs src/sdlc/migrations/ layout]
+- [x] [Review][Defer] D5 — Story 1.7's `_GOLDEN` golden-bytes per-fixture tests now structurally overlap with the new JSON-Schema snapshots (different scopes: fixture-bytes vs schema-bytes). Architectural call whether to retire `_GOLDEN` tests after v1 lock. — deferred, owner: future test-rationalization pass once Story 2A specialist authors compose against the locked surface. [tests/unit/contracts/test_*.py `_GOLDEN` literals]
+
+### Dismissed (noise / handled elsewhere)
+
+- TOCTOU between `_verify_one` `path.exists()` and `path.read_bytes()` — snapshots are git-tracked, not external state; race window is unrealistic.
+- `json.dumps(..., allow_nan=False)` for hypothetical future float NaN/Infinity defaults — no current contract uses float fields; speculative.
+- DN5 (pydantic version pinning) — accept minor-bump drift as deliberate maintenance event; already documented in Discipline Reminders.
+- DN7 (Item B owner ambiguity) — accept loose owner; entry exists in deferred-work.md and will be claimed when Epic 2A/3 starts.

@@ -38,17 +38,48 @@ Story 1.19's migration gate (`src/sdlc/state/reader.py:CURRENT_SCHEMA_VERSION`).
    encoded UTF-8 with a trailing `\n`. The `mode="serialization"` choice is deliberate —
    the wire format is the OUTPUT shape, not the input-validation shape.
 
+   **What is locked (canonical order — must agree in script, test, and ADR):**
+   1. `journal_entry` → `JournalEntry` (Decision B3 — append-only audit record)
+   2. `resume_token` → `ResumeToken` (mid-phase resume checkpoint)
+   3. `hook_payload` → `HookPayload` (Decision D2 — pre-write hook envelope)
+   4. `specialist_frontmatter` → `SpecialistFrontmatter` (Decision C3 — agent header)
+   5. `workflow_spec` → `WorkflowSpec` (workflow YAML definition)
+
+   The single source of truth is `sdlc.contracts._WIRE_FORMAT_REGISTRY`; both the
+   freeze script and the immutability test import from there.
+
 2. The lock is **mechanically enforced by two redundant gates**:
-   - `tests/contracts/test_wireformat_immutability.py` (pytest, `@pytest.mark.unit`) —
-     runs in the test job; catches drift even if the lint hook is bypassed.
-   - `scripts/freeze_wireformat_snapshots.py` (pre-commit hook + CI lint step) —
-     fastest feedback; fires only when a contract `.py` or snapshot `.json` is staged.
+   - `tests/contracts/test_wireformat_immutability.py` (pytest, module-level
+     `pytestmark = pytest.mark.unit`) — runs in the test job and in every matrix cell;
+     catches drift even if the lint hook is bypassed.
+   - `scripts/freeze_wireformat_snapshots.py` (pre-commit hook with `always_run: true`
+     + CI lint step in every matrix cell) — fastest feedback; runs unconditionally
+     because contract-shape edits can arrive via type-alias imports outside
+     `src/sdlc/contracts/`, and a script-itself edit never matched a path-based filter.
 
 3. Any future contract evolution is a **deliberate, version-bumped, migration-paired
-   event**: `Literal[1]` → `Literal[1, 2]` AND a sibling snapshot at
-   `tests/contract_snapshots/v2/<slug>.json` AND a migration script at
-   `src/sdlc/migrations/contracts/v2/<slug>.py` (the `migrations/contracts/` package is
-   a forward-compat seam — created on first bump, not today).
+   event**. The mutation taxonomy that triggers a snapshot diff (and therefore the
+   ceremony below):
+
+   - **`Literal[N]` widening** (`Literal[1]` → `Literal[1, 2]`, etc.) — the canonical
+     bump path. Old readers reject v2 entries; v2 readers accept both via union.
+   - **Default-value change** on `schema_version` (e.g., `= 1` → `= 2` after a widening
+     pair has shipped) — the snapshot bytes shift even when the type alone does not.
+   - **Field add / rename / remove**, **type narrowing or widening** on any non-version
+     field, **constraint drift** (regex, ge/le bounds, `extra` policy, `frozen` toggle).
+   - Any of the above MUST pair with: (a) bump the affected contract's
+     `schema_version` Literal, (b) commit a sibling snapshot at
+     `tests/contract_snapshots/v<N>/<slug>.json` (the v1 file STAYS for historical
+     migrations), (c) add a migration script at
+     `src/sdlc/migrations/contracts/v<N>/<slug>.py` (per-slug subdir; the
+     `migrations/contracts/` package is a forward-compat seam — created on first bump,
+     not today, and intentionally distinct from Story 1.19's flat
+     `src/sdlc/migrations/v<N>.py` state-migration regime).
+
+   Cosmetic schema changes (e.g., a doc-string edit that surfaces in the JSON-Schema
+   `description`) ALSO bump the snapshot bytes; they're treated as deliberate
+   wire-format changes and require an ADR amendment, even when no field semantics
+   shift. This is intentional — schema descriptions cross the wire to consumers.
 
 ## Alternatives Considered
 
@@ -83,9 +114,18 @@ Story 1.19's migration gate (`src/sdlc/state/reader.py:CURRENT_SCHEMA_VERSION`).
 - Regeneration (`scripts/freeze_wireformat_snapshots.py --write`) is a deliberate manual
   action; CI runs `--check` only.
 
-**Excluded from the lock:** `State` (process-internal projection, Decision B5),
-`AgentResult` / `_Fixture` (runtime-internal; parity enforced by
-`tests/unit/runtime/test_mock.py:test_fixture_and_agent_result_have_parity_fields`).
+**Excluded from the lock:**
+- `State` (process-internal projection, Decision B5; locked separately by Story 1.19's
+  migration discipline at `src/sdlc/state/reader.py:CURRENT_SCHEMA_VERSION`).
+- `AgentResult` / `_Fixture` (runtime-internal; parity enforced by
+  `tests/unit/runtime/test_mock.py:test_fixture_and_agent_result_have_parity_fields`,
+  which compares `(name, annotation, is_required)` field tuples — not just names —
+  so type drift fails the assertion).
+- UI render models (e.g., future `Resume*Card*` shapes for Epic 5's local dashboard).
+  No such models exist yet at v1; this is a placeholder so a future maintainer doesn't
+  accidentally lock view-layer DTOs alongside genuine wire-format contracts. View
+  models change at UI cadence; locking them would force a v2 ceremony for a CSS-class
+  rename.
 
 **Forward-compat seams:**
 - `tests/contract_snapshots/v<N>/` — sibling directories per schema version; v1 stays

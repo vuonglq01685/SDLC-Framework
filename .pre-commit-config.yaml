@@ -119,7 +119,9 @@ repos:
         entry: uv run python scripts/freeze_wireformat_snapshots.py
         language: system
         pass_filenames: false
-        files: ^(src/sdlc/contracts/.*\.py|tests/contract_snapshots/.*\.json)$
+        always_run: true   # mirror migration-registry-lint: a contract-shape edit can
+        # arrive via type-alias imports outside src/sdlc/contracts/, and a script edit
+        # never matched the old `files:` regex. Script runs in <1s; cost is negligible.
 
   # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
   - repo: local

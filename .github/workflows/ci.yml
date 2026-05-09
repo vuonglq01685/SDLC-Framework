@@ -55,7 +55,9 @@ jobs:
         run: uv run python scripts/check_migration_registry.py
 
       - name: wireformat-immutability check (Story 1.21 / Decision F3)
-        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
+        # Run in every matrix cell — pydantic JSON-Schema bytes can drift across
+        # Python micro-versions or OS, and a per-cell failure with no script output
+        # is harder to diagnose than a uniform script failure. <1s per cell.
         run: uv run python scripts/freeze_wireformat_snapshots.py
 
       - name: Unit + integration tests (pytest with coverage gate)

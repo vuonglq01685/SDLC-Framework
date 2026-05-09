@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-09 (1-21 → review; 21 new tests, 93.37% coverage, mkdocs --strict green, ruff clean, mypy strict clean)"
+last_updated: "2026-05-09 (1-21 review → done; 24 patches applied, 5 deferred, 4 dismissed; 30 wireformat-lock tests green, ruff clean, mypy strict clean)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -44,7 +44,9 @@ project: SDLC-Framework
 #   2026-05-09 dev-story 1-17 (status: ready-for-dev → in-progress)
 #   2026-05-09 dev-story 1-17-cli-sdlc-scan-status-accessibility-flags (status: in-progress → review; 816 tests pass, 94% coverage)
 #   2026-05-09 code-review 1-20-recovery-sdlc-rebuild-state (status: review → done; F1-F33 patches applied, D1-D3 deferred, 12 dismissed; 108 tests green)
-last_action: "dev-story 1-21-gate-wire-format-v1-lock-ceremony (status: ready-for-dev → review; 21 new tests, 93.37% coverage)"
+#   2026-05-09 dev-story 1-21-gate-wire-format-v1-lock-ceremony (status: ready-for-dev → review; 21 new tests, 93.37% coverage)
+#   2026-05-09 code-review 1-21-gate-wire-format-v1-lock-ceremony (status: review → done; P1-P24 patches applied, D1-D5 deferred, 4 dismissed; 30 wireformat-lock tests green)
+last_action: "code-review 1-21-gate-wire-format-v1-lock-ceremony (status: review → done; 24 patches applied + 5 deferred + 4 dismissed; 30 wireformat-lock tests green)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -75,7 +77,7 @@ development_status:
   1-18-1-cli-trace-replay-logs-quality-hardening: done
   1-19-migration-framework-major-version-refusal: done
   1-20-recovery-sdlc-rebuild-state: done
-  1-21-gate-wire-format-v1-lock-ceremony: review
+  1-21-gate-wire-format-v1-lock-ceremony: done
   epic-1-retrospective: optional
 
   # ============================================================
