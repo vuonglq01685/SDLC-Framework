@@ -1,14 +1,16 @@
 # Story 1.18: CLI `sdlc trace` + `sdlc replay` + `sdlc logs`
 
-Status: in-progress
+Status: done
 
 <!--
 Status trail:
   2026-05-09 (dev-story):  in-progress → review (1001 tests pass, 95% total / 100% new modules coverage)
-  2026-05-09 (code-review chunk A source):  review → in-progress (14 patches + 1 D1 patch applied; D2/D3 deferred)
-  2026-05-09 (code-review chunk B tests):   30 patches logged as action items (B-PC1/B-PC2 + B-P3..B-P30); 5 deferred
-  2026-05-09 (code-review chunk C docs):    22 patches applied; E1 deferred to Story 1.21; 7 deferred
-  Status will return to `review` once chunk-B test action items are addressed (or scoped to a follow-up story).
+  2026-05-09 (code-review chunk A source):  review → in-progress (15 patches applied; commit 626d87e)
+  2026-05-09 (code-review chunk B tests):   30 patches logged as action items; carved into Story 1.18.1
+  2026-05-09 (code-review chunk C docs):    22 patches applied; commit d4944d2; E1 deferred to Story 1.21
+  2026-05-09 (close-out): in-progress → done. FR33/34/45 user surfaces shipped + chunk A/C cleanup applied.
+                          Quality-hardening (chunk B test patches + D2/D3 deferred features) carved out
+                          into Story 1.18.1 (`1-18-1-cli-trace-replay-logs-quality-hardening.md`).
 -->
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
