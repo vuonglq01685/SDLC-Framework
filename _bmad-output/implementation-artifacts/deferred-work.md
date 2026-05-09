@@ -2,6 +2,10 @@
 
 Items surfaced during code review or development that are real but not actionable in the current story scope. Each entry cites the originating story and the future story or workstream that owns the eventual fix.
 
+## Deferred from: code review of 1-14-behavioral-conformance-abstraction-adequacy-ci-test (2026-05-09)
+
+- **Spec internal contradiction: AC1 narrative names the test `test_abstraction_adequacy_against_mock_runtime` (story spec line 29) but Task 3 (line 239) and AC2 (parameterized id contract `test_abstraction_adequacy_pipeline[mock_factory]`) name it `test_abstraction_adequacy_pipeline`** — dev correctly followed Task 3 / AC2 (consistent with `_RUNTIME_FACTORIES` and pytest id derivation); the AC1 narrative form is the stale variant. Not a code defect; spec hygiene. **Owner:** spec-correction follow-up; replace AC1 narrative form with Task 3's form.
+
 ## Deferred from: code review of 1-13-airuntime-abc-mock-airuntime (2026-05-09)
 
 - **`tool_calls` shallow frozen-ness — inner dicts remain mutable on a `frozen=True` model** — `src/sdlc/runtime/abc.py:29`. Outer tuple is immutable but `result.tool_calls[0]["name"] = "x"` still works because pydantic v2's `frozen=True` does not deep-freeze tuple members. Dev notes (lines 671-696) explicitly acknowledge and accept this for v1. **Owner:** future story when architecture demands deep immutability — switch to `MappingProxyType`-wrapping like `JournalEntry._freeze_payload` (Story 1.7's `src/sdlc/contracts/journal_entry.py:48`).

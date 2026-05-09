@@ -36,9 +36,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-09 (dev-story: 1-14 in-progress → review)"
+last_updated: "2026-05-09 (code-review: 1-14 in-progress → done; POSIX regen complete via Docker)"
 project: SDLC-Framework
-last_action: "dev-story 1-14-behavioral-conformance-abstraction-adequacy-ci-test (status: in-progress → review)"
+last_action: "code-review 1-14-behavioral-conformance-abstraction-adequacy-ci-test (status: in-progress → done; goldens regenerated on Linux container, verified green on both POSIX + Windows)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -61,7 +61,7 @@ development_status:
   1-11-append-only-journal-property-test: done
   1-12-state-projection-from-journal-replay-property-test: done
   1-13-airuntime-abc-mock-airuntime: done
-  1-14-behavioral-conformance-abstraction-adequacy-ci-test: review
+  1-14-behavioral-conformance-abstraction-adequacy-ci-test: done
   1-15-engine-scanner-skeleton: ready-for-dev
   1-16-cli-sdlc-init-greenfield: ready-for-dev
   1-17-cli-sdlc-scan-status-accessibility-flags: ready-for-dev
