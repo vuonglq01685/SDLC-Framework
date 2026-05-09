@@ -165,10 +165,16 @@ warn_unreachable = false
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# `--import-mode=prepend` (pytest CLI; not a tool.pytest.ini_options key in 8.x) is
+# pinned so cross-test imports (`from integration._abstraction_adequacy_helpers
+# import …`) resolve via tests/<package>/__init__.py packages on sys.path. Switching
+# to "importlib" would break Story 1.14's helper imports and any test that relies on
+# the implicit `tests/` prefix in its import path. Story 1.14 review item.
 addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "--import-mode=prepend",
     "--cov=src/sdlc",
     "--cov=scripts",
     "--cov-report=term-missing",

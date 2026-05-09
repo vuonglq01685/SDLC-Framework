@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -30,10 +31,14 @@ from typing import Final
 
 import pytest
 
+# Import via `integration.<module>` relies on pytest's `prepend` importmode
+# (pinned in pyproject.toml [tool.pytest.ini_options].importmode) putting `tests/`
+# on sys.path. tests/integration/__init__.py makes `integration` a package.
 from integration._abstraction_adequacy_helpers import (
     _SEED_CONTEXT,
     _SEED_PROMPT,
     _build_journal_entry,
+    _state_hash,
     _synthesize_hook_payload,
 )
 from sdlc.journal import append_sync
@@ -54,10 +59,12 @@ pytestmark = [
 
 _REGENERATE_GOLDENS: Final[bool] = False
 
-_GOLDEN_DIR: Final[Path] = Path(__file__).resolve().parents[1] / "fixtures" / "abstraction_adequacy"
-_MOCK_FIXTURES_DIR: Final[Path] = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "mock_responses"
-)
+# Anchored at tests/ root so directory moves trip a clear AttributeError instead of
+# silently rebinding to the wrong subdirectory.
+_TESTS_DIR: Final[Path] = Path(__file__).resolve().parent.parent
+_GOLDEN_DIR: Final[Path] = _TESTS_DIR / "fixtures" / "abstraction_adequacy"
+_SEED_FIXTURE_NAME: Final[str] = "abstraction-adequacy.yaml"
+_SOURCE_FIXTURE: Final[Path] = _TESTS_DIR / "fixtures" / "mock_responses" / _SEED_FIXTURE_NAME
 
 
 def _mock_factory(fixtures_dir: Path) -> AIRuntime:
@@ -70,13 +77,40 @@ def _mock_factory(fixtures_dir: Path) -> AIRuntime:
 _RUNTIME_FACTORIES: list[Callable[[Path], AIRuntime]] = [_mock_factory]
 
 
+@pytest.fixture
+def isolated_fixtures_dir(tmp_path: Path) -> Path:
+    """Per-test fixtures directory containing ONLY the abstraction-adequacy seed.
+
+    MockAIRuntime eager-loads every *.yaml in its fixtures_dir. Sharing the canonical
+    tests/fixtures/mock_responses/ directory means a malformed sibling YAML added by
+    a future story breaks Story 1.14's CI gate via cross-test coupling. Isolating the
+    fixture into tmp_path/fixtures/ keeps this test's blast radius local.
+    """
+    isolated = tmp_path / "fixtures"
+    isolated.mkdir(parents=True, exist_ok=False)
+    shutil.copy2(_SOURCE_FIXTURE, isolated / _SEED_FIXTURE_NAME)
+    return isolated
+
+
 @pytest.fixture(
     params=_RUNTIME_FACTORIES,
     ids=lambda factory: factory.__name__.lstrip("_"),
 )
-def runtime(request: pytest.FixtureRequest) -> AIRuntime:
+def runtime(request: pytest.FixtureRequest, isolated_fixtures_dir: Path) -> AIRuntime:
     factory: Callable[[Path], AIRuntime] = request.param
-    return factory(_MOCK_FIXTURES_DIR)
+    return factory(isolated_fixtures_dir)
+
+
+async def _dispatch_twice(rt: AIRuntime) -> tuple[object, object]:
+    """One asyncio.run, two awaited dispatches.
+
+    Two sequential `asyncio.run(...)` calls each spawn-and-tear-down a loop; under
+    pyproject's `filterwarnings = ["error"]` certain DeprecationWarnings around
+    loop closure can promote to errors. Single loop ⇒ one teardown.
+    """
+    first = await rt.dispatch(_SEED_PROMPT, _SEED_CONTEXT)
+    second = await rt.dispatch(_SEED_PROMPT, _SEED_CONTEXT)
+    return first, second
 
 
 def test_abstraction_adequacy_pipeline(tmp_path: Path, runtime: AIRuntime) -> None:
@@ -91,13 +125,15 @@ def test_abstraction_adequacy_pipeline(tmp_path: Path, runtime: AIRuntime) -> No
     # Step 2: scan stub — Story 1.15 will replace with engine.scanner.scan when the
     # scanner ships. Story 2B.3 will run the FULL pipeline (with real scan) — at that
     # point this stub disappears and the test is upgraded in lockstep.
-    _initial_state = State(schema_version=1, next_monotonic_seq=0, epics={})
+    initial_state = State(schema_version=1, next_monotonic_seq=0, epics={})
+    # Sanity: an empty journal projects to the canonical initial state (writer-side
+    # determinism is exercised below; this guards the read-side identity).
+    assert project_from_journal(journal_path) == initial_state
 
     # Step 3: dispatch x2 (same prompt+context — exercise determinism).
-    # Two dispatches give a non-trivial event sequence; one dispatch is too small to
-    # detect ordering bugs.
-    result_1 = asyncio.run(runtime.dispatch(_SEED_PROMPT, _SEED_CONTEXT))
-    result_2 = asyncio.run(runtime.dispatch(_SEED_PROMPT, _SEED_CONTEXT))
+    # Single asyncio.run avoids loop-teardown DeprecationWarning churn under
+    # pyproject filterwarnings=["error"].
+    result_1, result_2 = asyncio.run(_dispatch_twice(runtime))
     # AC1.8 sanity: dispatches must be byte-deterministic (Story 1.13 AC3)
     assert result_1.model_dump(mode="json") == result_2.model_dump(mode="json"), (
         "non-deterministic dispatch — Story 1.13 AC3 violated"
@@ -129,9 +165,22 @@ def test_abstraction_adequacy_pipeline(tmp_path: Path, runtime: AIRuntime) -> No
         agent_result=result_2,
     )
     append_sync(je_1, journal_path=journal_path)
+    # Hash chain coupling: hp_2.content_hash_before is the seed fixture's content_hash;
+    # je_1.before_hash is je_0.after_hash. They are the SAME value in v1 only because
+    # the fixture's content_hash equals the placeholder after_hash (both 0…0). Pinning
+    # the equality here means a future regen that decouples the two values fails fast
+    # rather than silently producing semantically broken goldens.
+    assert je_1.before_hash == hp_2.content_hash_before, (
+        "hash chain decoupled from synth — see _REGENERATE_GOLDENS docs"
+    )
 
     # Step 6: project final state from the journal (pure function — no I/O writes)
     final_state = project_from_journal(journal_path)
+    # _state_hash exercise: confirms the helper produces stable bytes for the
+    # actually-projected state, not just for the unit-test toy state.
+    final_hash = _state_hash(final_state)
+    assert final_hash.startswith("sha256:")
+    assert _state_hash(final_state) == final_hash, "_state_hash is non-deterministic"
 
     # Step 7: atomic state.json write
     write_state_atomic_sync(final_state, target=state_path)
@@ -171,6 +220,7 @@ def test_abstraction_adequacy_pipeline(tmp_path: Path, runtime: AIRuntime) -> No
 # To regenerate goldens (e.g., after a deliberate fixture change):
 #   1. Set _REGENERATE_GOLDENS = True at the top of this file.
 #   2. uv run pytest tests/integration/test_abstraction_adequacy.py -m integration
+#      (must run on Linux/macOS — POSIX-only; Windows skips this test)
 #   3. The test will WRITE the goldens instead of asserting; visually diff the result.
 #   4. Set _REGENERATE_GOLDENS = False; commit the new goldens with a justifying message.
 # DO NOT regenerate goldens to make a failing test pass without first auditing

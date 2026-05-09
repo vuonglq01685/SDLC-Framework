@@ -1,0 +1,13 @@
+# Force LF line endings for files where byte-equality matters.
+# Story 1.14 abstraction-adequacy goldens are compared via Path.read_bytes() against
+# bytes generated on POSIX; CRLF on Windows checkout (with core.autocrlf=true) would
+# silently break the byte-equality assertion the moment Windows CI is added.
+tests/fixtures/abstraction_adequacy/*.json text eol=lf
+tests/fixtures/abstraction_adequacy/*.yaml text eol=lf
+
+# Mock fixtures must also stay LF so MockAIRuntime's prompt_hash lookup is byte-stable
+# across Windows-checkout vs Linux-CI invocations.
+tests/fixtures/mock_responses/*.yaml text eol=lf
+
+# Python source must stay LF — many src/ tools (ruff, mypy, pre-commit) assume LF.
+*.py text eol=lf

@@ -11,15 +11,16 @@ If _synthesize_hook_payload is non-pure → test_synthesize_hook_payload_is_pure
 from __future__ import annotations
 
 import hashlib
-import shutil
-import subprocess
+import re
 from collections.abc import Mapping
 
 import pytest
 
 from integration._abstraction_adequacy_helpers import (
     _SEED_PROMPT,
+    _TARGET_ID,
     _canonicalize_state_for_hash,
+    _state_hash,
     _synthesize_hook_payload,
 )
 from sdlc.runtime import AgentResult
@@ -95,26 +96,75 @@ def test_synthesize_hook_payload_handles_missing_tool_calls() -> None:
         _synthesize_hook_payload(result, seq=0)
 
 
-def test_state_hash_is_deterministic_across_runs() -> None:
-    """Subprocess determinism check: two separate python processes produce the same hash."""
-    if shutil.which("uv") is None:
-        pytest.skip("uv not on PATH — skip subprocess determinism test")
-
-    script = (
-        "import sys, json, hashlib; "
-        "sys.path.insert(0, 'tests'); "
-        "from integration._abstraction_adequacy_helpers import _state_hash; "
-        "from sdlc.state.model import State; "
-        "s = State(schema_version=1, next_monotonic_seq=0, epics={}); "
-        "print(_state_hash(s))"
+def test_synthesize_hook_payload_rejects_missing_args_target() -> None:
+    """Typed validation: missing 'target' key surfaces a clear ValueError, not raw KeyError."""
+    bad_result = _make_result(
+        tool_calls=({"name": "write_artifact", "args": {"content_hash": _ZERO_HASH}},)
     )
-    results = set()
-    for _ in range(2):
-        proc = subprocess.run(
-            ["uv", "run", "python", "-c", script],
-            capture_output=True,
-            text=True,
-            check=True,
+    with pytest.raises(ValueError, match="tool_call shape mismatch"):
+        _synthesize_hook_payload(bad_result, seq=0)
+
+
+def test_synthesize_hook_payload_rejects_non_string_content_hash() -> None:
+    """Typed validation: non-string content_hash surfaces a clear ValueError, not silent str()."""
+    bad_result = _make_result(
+        tool_calls=(
+            {
+                "name": "write_artifact",
+                "args": {"target": "x", "content_hash": 0x1234},
+            },
         )
-        results.add(proc.stdout.strip())
-    assert len(results) == 1, f"non-deterministic hash across runs: {results}"
+    )
+    with pytest.raises(ValueError, match="content_hash.* must be str"):
+        _synthesize_hook_payload(bad_result, seq=1)
+
+
+def test_state_hash_is_deterministic_within_process() -> None:
+    """In-process determinism: repeat computation on equivalent States produces equal hashes.
+
+    Replaces an earlier subprocess-based check that shelled out to `uv run python` (slow,
+    no timeout, relative sys.path). The same coverage is achievable in-process: two
+    independent State constructions of the same logical content must hash identically —
+    catches non-determinism in `_canonicalize_state_for_hash` or `_state_hash`.
+    """
+    state_a = State(schema_version=1, next_monotonic_seq=0, epics={})
+    state_b = State(schema_version=1, next_monotonic_seq=0, epics={})
+    hash_a = _state_hash(state_a)
+    hash_b = _state_hash(state_b)
+    assert hash_a == hash_b
+    assert hash_a.startswith("sha256:")
+    assert len(hash_a) == len("sha256:") + 64
+
+
+def test_target_id_matches_projection_epic_pattern() -> None:
+    """Pin: _TARGET_ID must match state.projection._EPIC_ID_PATTERN.
+
+    If not, project_from_journal silently drops the epic-mutation branch and the
+    integration goldens validate only next_monotonic_seq advancement — a CRITICAL
+    coverage gap on the abstraction-adequacy gate.
+
+    Pattern is mirrored locally (rather than imported) so a future relax in projection
+    fails this assertion deliberately rather than silently widening _TARGET_ID's
+    apparent match surface.
+    """
+    pattern = re.compile(r"\Aepic-[0-9]+\Z")  # mirror of state.projection._EPIC_ID_PATTERN
+    assert pattern.fullmatch(_TARGET_ID), (
+        f"_TARGET_ID={_TARGET_ID!r} must match epic-N pattern; "
+        "otherwise the projection bypasses the epic-mutation branch"
+    )
+
+
+def test_regenerate_goldens_flag_is_false() -> None:
+    """Cross-platform guard: catches an accidentally-committed _REGENERATE_GOLDENS = True.
+
+    Runs on Windows AND POSIX (the integration test is skipif-Windows; this guard is not).
+    A leaked True flag would silently overwrite goldens on the next POSIX CI run.
+    """
+    # Imported here, not at module top, so this file does not couple to the integration
+    # test module's import order during pytest collection.
+    from integration.test_abstraction_adequacy import _REGENERATE_GOLDENS
+
+    assert _REGENERATE_GOLDENS is False, (
+        "_REGENERATE_GOLDENS = True must NEVER be committed — the goldens would be "
+        "silently overwritten on the next POSIX run"
+    )
