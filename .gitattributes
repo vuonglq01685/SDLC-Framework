@@ -1,3 +1,6 @@
+# Normalize all text files to LF (overrides core.autocrlf=true on Windows).
+* text=auto eol=lf
+
 # Force LF line endings for files where byte-equality matters.
 # Story 1.14 abstraction-adequacy goldens are compared via Path.read_bytes() against
 # bytes generated on POSIX; CRLF on Windows checkout (with core.autocrlf=true) would

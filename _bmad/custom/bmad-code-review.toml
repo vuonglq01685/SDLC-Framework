@@ -1,0 +1,13 @@
+# Team overrides for bmad-code-review (merged after skill defaults).
+# See: _bmad/scripts/resolve_customization.py — persistent_facts append.
+
+[workflow]
+
+persistent_facts = [
+  "file:{project-root}/graphify-out/GRAPH_REPORT.md",
+  "Review context: use the loaded graphify GRAPH_REPORT for module boundaries and relationships before judging cross-file impact; prefer graphify CLI (query/path/explain) over blind grep when tracing dependencies (see CLAUDE.md).",
+]
+
+activation_steps_prepend = [
+  "If graphify-out/GRAPH_REPORT.md is missing or stale, run `graphify update .` once before the review so the loaded graph matches the repo.",
+]
