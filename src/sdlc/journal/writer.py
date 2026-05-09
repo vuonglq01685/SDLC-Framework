@@ -25,12 +25,12 @@ import os
 from pathlib import Path
 from typing import Final
 
-# Windows-only mypy workaround: file_lock is exported from sdlc.concurrency only when
-# sys.platform != "win32" (concurrency/__init__.py:9-10). This module already raised
-# ImportError at line 15-19 BEFORE this import runs on Windows, so the symbol is always
-# present at runtime when this line executes. The type:ignore is needed for mypy-on-
-# Windows-dev-host static analysis only; runtime is unaffected. Story 1.14 review item.
-from sdlc.concurrency import file_lock  # type: ignore[attr-defined]
+# `file_lock` is exported from sdlc.concurrency only when sys.platform != "win32"
+# (concurrency/__init__.py:9-10). This module already raised ImportError at line 15-19
+# BEFORE this import runs on Windows, so the symbol is always present at runtime when
+# this line executes. mypy on POSIX dev hosts no longer needs a type:ignore here
+# (Story 1.17 review: pre-existing unused ignore removed).
+from sdlc.concurrency import file_lock
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import JournalError
 from sdlc.journal._canonical import _canonicalize_entry, _normalize_strings  # noqa: F401

@@ -1,6 +1,6 @@
 # Story 1.17: CLI `sdlc scan` + `sdlc status` + Accessibility Flags
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -1440,3 +1440,51 @@ claude-opus-4-7[1m]
 - `docs/decisions/index.md`
 - `docs/CODEMAPS/cli-module.md`
 - `README.md`
+
+### Review Findings
+
+_Code review run on 2026-05-09 against commit `22b42ec`. Reviewers: Blind Hunter, Edge Case Hunter, Acceptance Auditor. Diff snapshot: `_bmad-output/implementation-artifacts/review-diff-1-17.patch`._
+
+**Decision-Needed**
+
+- [x] [Review][Decision] `_read_state_portable` shadows `sdlc.state.read_state` — Resolved via Option 1: refactored `sdlc.state.read_state` to be cross-platform (extracted to `state/_read.py`, re-exported via `state/__init__.py`). DRY violation also resolved via `cli/_paths.py` factor-out. — `cli/scan.py` and `cli/status.py` re-implement the state read locally to bypass `read_state`'s POSIX-only fcntl path (`state/__init__.py:13-20` raises `NotImplementedError` on Windows). Three options: (a) make `sdlc.state.read_state` cross-platform (proper fix; widens substrate); (b) call `read_state` and accept Windows `NotImplementedError`; (c) factor the local helper into `cli/_paths.py` so scan + status share one definition. Choice affects DRY violation P-DRY below. [src/sdlc/cli/scan.py, src/sdlc/cli/status.py]
+
+**Patches**
+
+- [x] [Review][Patch] AC4.3 — `sdlc init --json` `created` list reports only `state.json` + `journal.log`; spec requires every created path sorted [src/sdlc/cli/init.py:255-260]
+- [x] [Review][Patch] AC3.6 / AC4 — parametrized integration test `_COMMANDS` covers only `init` + `status`; missing `scan`, `--version`, `--help` (AC3.6 explicitly enumerates all five) [tests/integration/test_no_color_every_command.py:21-24]
+- [x] [Review][Patch] AC7.1 — missing test `test_scan_scans_artifacts_when_present` (assert `EPIC-test.json` propagates into `state.epics` after scan) [tests/unit/cli/test_scan.py]
+- [x] [Review][Patch] AC7.2 — missing tests `test_status_last_updated_uses_latest_journal_ts` and `test_status_zero_args_invokes_help_or_status_per_typer_default` [tests/unit/cli/test_status.py]
+- [x] [Review][Patch] AC7.7 — missing test `test_journal_entry_referential_integrity` (chain-of-hashes invariant: each entry's `before_hash == prev.after_hash`) [tests/integration/test_scan_journal_seq_continuity.py]
+- [x] [Review][Patch] `_format_ts_local` `dt.astimezone()` is outside the try/except — naive datetime on a malformed but parseable RFC 3339 raises uncaught, breaking AC2.6 ("exit 0 regardless of state shape") [src/sdlc/cli/status.py:84-92]
+- [x] [Review][Patch] `state.phase` accessed inconsistently: `cli/scan.py` uses `new_state.phase` directly (crashes if Story 1.15's `phase` field is absent) while `cli/status.py` uses `getattr(state, "phase", 1)` [src/sdlc/cli/scan.py — `run_scan` echo line]
+- [x] [Review][Patch] AC2.1 — `tomllib` (3.11+) primary path missing in `_resolve_project_name`; only the regex fallback is implemented; spec requires `tomllib` first with regex fallback for 3.10 [src/sdlc/cli/status.py:31-33, _resolve_project_name]
+- [x] [Review][Patch] `state_to_canonical_bytes` Unicode-no-ascii-escaping is not exercised by any test (regression to `ensure_ascii=True` would not fail) [tests/unit/state/test_canonical_bytes.py]
+- [x] [Review][Patch] JSON-mode error envelope shape verified for only `ERR_NOT_INITIALIZED`; `ERR_JOURNAL_APPEND_FAILED`, `ERR_STATE_WRITE_FAILED`, `ERR_USER_INPUT`, `ERR_INFRASTRUCTURE`, `ERR_ALREADY_INITIALIZED`, `ERR_SCAN_FAILED` envelopes never asserted end-to-end [tests/unit/cli/test_output.py]
+- [x] [Review][Patch] `emit_json` / `emit_error` call `json.dumps` without `default=` — non-serializable values in `details` (`Path`, `datetime`, `set`) crash the error reporter itself; `SdlcError.details` is arbitrary [src/sdlc/cli/output.py:88-97]
+- [x] [Review][Patch] `_version_callback` builds JSON inline with its own canonical-bytes recipe — drift surface vs `emit_json`. Refactor to call `emit_json` (or share a canonical-bytes helper) [src/sdlc/cli/main.py:19-29]
+- [x] [Review][Patch] AC1.5 — tests capture journal-entry kwargs but never assert `before_hash` / `after_hash` content (e.g. `before_hash == sha256(canonical_init_bytes)` after first scan) [tests/unit/cli/test_scan.py — test_scan_appends_journal_scan_completed_entry]
+- [x] [Review][Patch] `test_scan_idempotent_state_byte_equal` asserts only that empty dicts are empty; rename to reflect actual scope or capture two byte snapshots and compare [tests/unit/cli/test_scan.py:73-91]
+- [x] [Review][Patch] `test_no_color_env_var_suppresses_ansi` checks only stdout; sibling flag-version checks both — add stderr ANSI assertion [tests/integration/test_no_color_every_command.py:60-65]
+- [x] [Review][Patch] DRY — `_get_repo_root_or_cwd` + `_read_state_portable` duplicated byte-for-byte across `cli/scan.py` and `cli/status.py`; factor into `cli/_paths.py` (depends on Decision above) [src/sdlc/cli/scan.py, src/sdlc/cli/status.py]
+- [x] [Review][Patch] Em-dash (`—`) in scan confirmation line risks `UnicodeEncodeError` on Windows `cp1252` console — replace with ASCII `-` (consistent with the cross-platform fallback work elsewhere) [src/sdlc/cli/scan.py — run_scan echo line]
+- [x] [Review][Patch] `git rev-parse` 30s timeout is excessive for a startup path (~50ms expected); reduce to 5s [src/sdlc/cli/scan.py, src/sdlc/cli/status.py — `_get_repo_root_or_cwd`]
+- [x] [Review][Patch] `except (OSError, subprocess.SubprocessError, FileNotFoundError)` — `FileNotFoundError` is already an `OSError` subclass; redundant [src/sdlc/cli/scan.py, src/sdlc/cli/status.py]
+- [x] [Review][Patch] Unused `from sdlc.cli.exit_codes import EXIT_USER_ERROR  # noqa: F401` — either re-export via `__all__` or delete [src/sdlc/cli/scan.py:14]
+- [x] [Review][Patch] Dead helper `_mock_scan` in test file (every caller uses `unittest.mock.patch` directly) [tests/unit/cli/test_scan.py:43-46]
+- [x] [Review][Patch] ADR-020 wording — "rich 14→15 has not landed; defensive guard" is factually wrong: `uv.lock` previously resolved rich to 15.0.0; this commit downgrades to 14.3.4. Either widen cap to `<16` or correct the rationale to "we pin to 14.x for stability" [docs/decisions/ADR-020-cli-scan-status-accessibility-flags.md]
+
+**Deferred (pre-existing or out-of-scope for 1.17)**
+
+- [x] [Review][Defer] State write succeeds, journal append fails → orphan mutation (state at `next_monotonic_seq+1` with no entry for that slot). AC1.7 acknowledges journal-without-state mismatch is acceptable; the inverse is unaddressed. Story 1.20 owns rebuild/recovery — deferred, pre-existing
+- [x] [Review][Defer] `cwd` outside repo_root with no git falls back to cwd → misleading "not initialized" if user is one directory above an initialized repo. Behavior inherited from Story 1.16 helper — deferred, pre-existing
+- [x] [Review][Defer] `_now_rfc3339_utc()` produces `.000Z` for whole-second timestamps; AC1.6 specifies millisecond precision, so this is to-spec. Sub-millisecond collisions handled by Lamport `monotonic_seq` — deferred, pre-existing
+- [x] [Review][Defer] `_read_state_portable` relies on `pydantic.ValidationError ⊂ ValueError`; Pydantic v3 may break this. Forward-compat concern, not actionable in 1.17 — deferred, pre-existing
+
+**Dismissed (verified non-issues / spec-approved)**
+
+- `_version_callback` reads `sys.argv` directly — spec AC6.4 explicitly authorizes the eager-callback bootstrap workaround; documented in ADR-020.
+- `cli/main.py:_root` reads `os.environ.get("NO_COLOR", "")` directly — spec AC6.2 permits direct env access in `cli/`.
+- `emit_error` / `make_console` `ctx.obj is None` defensive guards — current code is defensive enough; theoretical regression only.
+- `init_command --adopt` and `run_init` rely on `emit_error`'s `NoReturn` contract — that is the contract; defensive `return` after a `NoReturn` is noise.
+- `hasattr(state, "stories")` defensive code — acceptable while the State schema is in flux across stories 1.15 / 1.17.

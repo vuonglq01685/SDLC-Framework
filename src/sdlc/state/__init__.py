@@ -3,12 +3,14 @@ from __future__ import annotations
 import json as _json
 import sys
 
+from sdlc.state._read import read_state
 from sdlc.state.model import State
 from sdlc.state.projection import project_from_journal
 
-# atomic.py is POSIX-only; import is conditional on platform
+# atomic.py is POSIX-only; only the WRITE protocol needs fcntl + parent-dir fsync
+# (Architecture §573). read_state is cross-platform and lives in state/_read.py.
 if sys.platform != "win32":
-    from sdlc.state.atomic import read_state, write_state_atomic, write_state_atomic_sync
+    from sdlc.state.atomic import write_state_atomic, write_state_atomic_sync
 else:
 
     def write_state_atomic(*_: object, **__: object) -> None:
@@ -16,9 +18,6 @@ else:
 
     def write_state_atomic_sync(*_: object, **__: object) -> None:
         raise NotImplementedError("write_state_atomic_sync is POSIX-only — see Architecture §573")
-
-    def read_state(*_: object, **__: object) -> None:
-        raise NotImplementedError("read_state is POSIX-only — see Architecture §573")
 
 
 def state_to_canonical_bytes(state: State) -> bytes:

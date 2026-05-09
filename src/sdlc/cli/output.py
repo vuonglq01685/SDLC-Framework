@@ -19,10 +19,12 @@ Error code → exit code table (_ERR_CODE_TO_EXIT_CODE):
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
 from collections.abc import Mapping
+from pathlib import PurePath
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, NoReturn
 
@@ -39,7 +41,42 @@ __all__ = (  # noqa: RUF022
     "emit_error",
     "make_console",
     "is_no_color_active",
+    "canonical_dumps",
 )
+
+
+def _json_default(obj: object) -> object:
+    """JSON `default=` handler that coerces common non-serializable types.
+
+    Path / datetime / set / frozenset are stringified or listified so the
+    canonical JSON envelope never crashes on detail dicts that contain
+    them. Anything still unsupported raises TypeError as usual — that's
+    the right signal for a bug, not a runtime envelope failure.
+    """
+    if isinstance(obj, PurePath):
+        return obj.as_posix()
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    if isinstance(obj, (set, frozenset)):
+        return sorted(obj, key=str)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def canonical_dumps(payload: Mapping[str, object]) -> str:
+    """Canonical JSON dumps used by every CLI emitter.
+
+    sort_keys=True, ensure_ascii=False, compact separators, default= coerces
+    Path/datetime/set. One source of truth for the wire format so emit_json,
+    emit_error, and the version eager-callback cannot drift.
+    """
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=_json_default,
+    )
+
 
 _ANSI_RE: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 _NO_COLOR_ENV: Final[str] = "NO_COLOR"
@@ -90,11 +127,11 @@ def emit_json(command: str, payload: Mapping[str, object], *, ctx: typer.Context
 
     Schema: payload is augmented with command field; sorted keys, no ascii escaping,
     compact separators, trailing newline (matches state.atomic canonical-bytes contract).
+    Non-serializable values (Path, datetime, set) are coerced via canonical_dumps.
     """
     merged: dict[str, object] = dict(payload)
     merged.setdefault("command", command)
-    canonical = json.dumps(merged, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    typer.echo(canonical)
+    typer.echo(canonical_dumps(merged))
 
 
 def emit_error(
@@ -122,8 +159,7 @@ def emit_error(
                 "exit_code": exit_code,
             }
         }
-        canonical = json.dumps(envelope, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-        typer.echo(canonical, err=True)
+        typer.echo(canonical_dumps(envelope), err=True)
     else:
         text = f"sdlc: {message}"
         if is_no_color_active(ctx):

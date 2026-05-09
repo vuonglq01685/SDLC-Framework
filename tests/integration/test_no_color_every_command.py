@@ -20,7 +20,10 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 _COMMANDS: list[list[str]] = [
     ["sdlc", "init"],
+    ["sdlc", "scan"],
     ["sdlc", "status"],
+    ["sdlc", "--version"],
+    ["sdlc", "--help"],
 ]
 
 
@@ -62,4 +65,7 @@ def test_no_color_env_var_suppresses_ansi(cmd_args: list[str], tmp_path: Path) -
     )
     assert _ANSI_RE.search(result.stdout) is None, (
         f"ANSI escapes in stdout with NO_COLOR=1 for {cmd_args}: {result.stdout!r}"
+    )
+    assert _ANSI_RE.search(result.stderr) is None, (
+        f"ANSI escapes in stderr with NO_COLOR=1 for {cmd_args}: {result.stderr!r}"
     )

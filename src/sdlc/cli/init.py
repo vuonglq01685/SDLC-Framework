@@ -14,7 +14,6 @@ import contextlib
 import json
 import logging
 import os
-import subprocess
 import sys
 import tempfile
 from importlib.resources import files as _resource_files
@@ -33,6 +32,7 @@ from typing import Final
 
 import typer
 
+from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.exit_codes import EXIT_USER_ERROR
 from sdlc.cli.output import echo, emit_error, emit_json
 
@@ -56,30 +56,6 @@ _PHASE_DIRS: Final[tuple[str, ...]] = (
 _ALREADY_INITIALIZED_TEMPLATE: Final[str] = (
     "sdlc: already initialized at {root}; use `sdlc scan` to refresh state.json"
 )
-# Cold CI agents legitimately exceed 5s when git is invoked from a deep tree
-# or under heavy I/O contention. 30s is the same ceiling used by uv / pre-commit.
-_GIT_TIMEOUT_SECONDS: Final[float] = 30.0
-
-
-def _get_repo_root_or_cwd() -> Path:
-    """Return the git repo root, falling back to cwd if git is absent or unavailable."""
-    cwd = Path.cwd().resolve()
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
-            cwd=cwd,
-        )
-        if result.returncode == 0:
-            top = result.stdout.strip()
-            if top:
-                return Path(top).resolve()
-    except (OSError, subprocess.SubprocessError, FileNotFoundError):
-        pass
-    return cwd
 
 
 def _state_already_exists(root: Path) -> bool:
@@ -229,6 +205,36 @@ def _create_phase_dirs(root: Path) -> None:
         (root / phase_dir).mkdir(parents=True, exist_ok=True)
 
 
+def _enumerate_created_paths(root: Path) -> list[str]:
+    """Return the relative paths created by `run_init`, sorted (AC4.3).
+
+    Walks the post-init layout and emits every directory and file under the
+    canonical SDLC tree (`.claude/state/state.json`, `.claude/state/journal.log`,
+    `.claude/{tree}/...` package-data files, `01-Requirement/`, `02-Architecture/`,
+    `03-Implementation/`). Paths are POSIX-style so the JSON envelope is stable
+    across operating systems.
+    """
+    created: list[str] = []
+    # state subtree files (canonical signal)
+    for rel in (".claude/state", ".claude/state/state.json", ".claude/state/journal.log"):
+        if (root / rel).exists():
+            created.append(rel)
+    # static asset trees (.claude/{agents,commands,hooks,workflows,memory,skills}/)
+    # plus any files copied from package_data
+    for tree in _STATIC_ASSET_TREES:
+        tree_root = root / _CLAUDE_DIR / tree
+        if tree_root.exists():
+            created.append(f"{_CLAUDE_DIR}/{tree}")
+            for child in tree_root.rglob("*"):
+                rel = child.relative_to(root).as_posix()
+                created.append(rel)
+    # phase directories
+    for phase_dir in _PHASE_DIRS:
+        if (root / phase_dir).exists():
+            created.append(phase_dir)
+    return sorted(set(created))
+
+
 def run_init(*, ctx: typer.Context | None = None) -> None:
     """Scaffold the canonical SDLC layout in the current repo.
 
@@ -253,11 +259,8 @@ def run_init(*, ctx: typer.Context | None = None) -> None:
     _create_static_asset_dirs(root)
     _create_phase_dirs(root)
     if ctx is not None and ctx.obj is not None and ctx.obj.get("json", False):
-        created = [
-            ".claude/state/state.json",
-            ".claude/state/journal.log",
-        ]
-        emit_json("init", {"project_root": str(root), "created": sorted(created)}, ctx=ctx)
+        created = _enumerate_created_paths(root)
+        emit_json("init", {"project_root": str(root), "created": created}, ctx=ctx)
         return
     echo(f"Initialized SDLC framework in {root}", ctx=ctx)
     echo("  .claude/state/         (state.json, journal.log)", ctx=ctx)

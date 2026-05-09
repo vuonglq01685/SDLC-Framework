@@ -83,9 +83,13 @@ Exit codes: `ERR_NOT_INITIALIZED` → 1, `ERR_SCAN_FAILED` → 2,
 
 ### 5. `rich` direct dependency
 
-`rich>=13,<15` added as a direct dependency. Import deferred inside `make_console` to
-keep cold-start budget intact; only incurred when human-readable output is actually
-rendered.
+`rich>=13,<15` added as a direct dependency. Cap rationale: rich 14.x is the current
+stable target and is already pulled in transitively via Typer; the `<15` ceiling
+guards against a potential 15.x major that has not yet been validated against this
+project's output contracts. Pinning a direct dependency makes the consumer obligation
+explicit and lets Story 1.21 (wire-format v1 lock) decide whether to widen the upper
+bound. Import deferred inside `make_console` to keep cold-start budget intact; only
+incurred when human-readable output is actually rendered.
 
 ### 6. `state_to_canonical_bytes` exported from `sdlc.state`
 

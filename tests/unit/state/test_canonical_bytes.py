@@ -40,3 +40,24 @@ def test_canonical_bytes_compact_separators() -> None:
     b = state_to_canonical_bytes(State())
     text = b.decode("utf-8")
     assert ": " not in text and ",\n" not in text
+
+
+def test_canonical_bytes_no_ascii_escaping_for_unicode() -> None:
+    """Story 1.17 review: ensure_ascii=False is verified with a real Unicode payload.
+
+    Without this test, a regression to `ensure_ascii=True` would flip non-ASCII
+    characters to `\\uNNNN` escapes silently, breaking byte-equality with the
+    POSIX atomic-write protocol's canonical-bytes contract on cross-platform
+    state.json snapshots.
+    """
+    state = State(epics={"EPIC-é-中-🦀": {"id": "EPIC-é-中-🦀", "title": "café 中文 🦀"}})
+    b = state_to_canonical_bytes(state)
+    text = b.decode("utf-8")
+    # Literal Unicode codepoints must be present, NOT \uNNNN escapes.
+    assert "é" in text
+    assert "中" in text
+    assert "🦀" in text
+    assert "\\u" not in text
+    # Round-trip preserves the Unicode content.
+    parsed = json.loads(text)
+    assert "EPIC-é-中-🦀" in parsed["epics"]

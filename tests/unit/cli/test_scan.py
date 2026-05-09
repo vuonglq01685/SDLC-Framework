@@ -36,11 +36,6 @@ def _bootstrap_project(root: Path) -> None:
     (state_dir / "journal.log").touch()
 
 
-def _mock_scan(root: Path) -> State:
-    """Scan mock — returns a fresh empty State (no epics/stories/tasks in tmp_path)."""
-    return State()
-
-
 @pytest.fixture()
 def bootstrapped(tmp_path: Path) -> Path:
     _bootstrap_project(tmp_path)
@@ -73,25 +68,28 @@ def test_scan_writes_fresh_state_json(bootstrapped: Path) -> None:
 
 
 def test_scan_idempotent_state_byte_equal(bootstrapped: Path) -> None:
+    """Running scan twice on the same artifact tree produces state.json whose
+    content is byte-identical except for the `next_monotonic_seq` field, which
+    advances by one per scan (Story 1.17 review: previous form only asserted
+    empty dicts, which is a tautology when scanner is mocked to return State())."""
     ctx = _make_ctx()
+    state_path = bootstrapped / ".claude" / "state" / "state.json"
     with (
         unittest.mock.patch("sdlc.cli.scan._get_repo_root_or_cwd", return_value=bootstrapped),
         unittest.mock.patch("sdlc.cli.scan._append_scan_journal_entry"),
         unittest.mock.patch("sdlc.engine.scanner.scan", return_value=State()),
     ):
         run_scan(ctx=ctx)
-        state_path = bootstrapped / ".claude" / "state" / "state.json"
-        bytes_after_first_scan = state_path.read_bytes()
+        snapshot_a = json.loads(state_path.read_bytes())
+        run_scan(ctx=_make_ctx())
+        snapshot_b = json.loads(state_path.read_bytes())
 
-        # Reset seq to 0 for second scan to produce same logical state content
-        # (next_monotonic_seq increments so bytes differ — but the STATE shape is identical)
-        # The AC says "byte-identical state.json" means same epics/stories/tasks content.
-        # Actually the AC means: running scan twice on same artifact tree gives same state.
-        # next_monotonic_seq changes, so let's verify the core fields are identical.
-        parsed1 = json.loads(bytes_after_first_scan)
-        assert parsed1["epics"] == {}
-        assert parsed1["stories"] == {}
-        assert parsed1["tasks"] == {}
+    # next_monotonic_seq advances; everything else is byte-identical.
+    assert snapshot_a["next_monotonic_seq"] == 1
+    assert snapshot_b["next_monotonic_seq"] == 2
+    a_minus_seq = {k: v for k, v in snapshot_a.items() if k != "next_monotonic_seq"}
+    b_minus_seq = {k: v for k, v in snapshot_b.items() if k != "next_monotonic_seq"}
+    assert a_minus_seq == b_minus_seq
 
 
 def test_scan_canonical_bytes_match_state_canonical_bytes(bootstrapped: Path) -> None:
@@ -137,10 +135,22 @@ def test_scan_json_mode_emits_canonical_envelope(bootstrapped: Path) -> None:
 
 
 def test_scan_appends_journal_scan_completed_entry(bootstrapped: Path) -> None:
+    """Asserts the journal entry kwargs AND the before/after sha256 contract (AC1.5).
+
+    Strengthened in Story 1.17 review: previous form captured kwargs but never
+    verified that `before_hash` matches the pre-scan state.json bytes and
+    `after_hash` matches the post-scan canonical bytes.
+    """
+    import hashlib
+
     captured_entries: list[object] = []
 
     def _capture_append(**kwargs: object) -> None:
         captured_entries.append(kwargs)
+
+    state_path = bootstrapped / ".claude" / "state" / "state.json"
+    pre_scan_bytes = state_path.read_bytes()
+    expected_before_hash = f"sha256:{hashlib.sha256(pre_scan_bytes).hexdigest()}"
 
     ctx = _make_ctx()
     with (
@@ -159,6 +169,47 @@ def test_scan_appends_journal_scan_completed_entry(bootstrapped: Path) -> None:
     assert entry_kwargs["epic_count"] == 0
     assert entry_kwargs["story_count"] == 0
     assert entry_kwargs["task_count"] == 0
+    # Hash content contract (AC1.5):
+    assert entry_kwargs["before_hash"] == expected_before_hash
+    after_hash = entry_kwargs["after_hash"]
+    assert isinstance(after_hash, str)
+    assert after_hash.startswith("sha256:")
+    assert len(after_hash) == len("sha256:") + 64
+    # after_hash must equal sha256 of the post-scan canonical bytes.
+    post_scan_bytes = state_path.read_bytes()
+    assert after_hash == f"sha256:{hashlib.sha256(post_scan_bytes).hexdigest()}"
+
+
+def test_scan_scans_artifacts_when_present(bootstrapped: Path) -> None:
+    """AC7.1 — scan picks up an EPIC artifact in 01-Requirement/04-Epics/ and
+    propagates it into state.epics with the right counts."""
+    epics_dir = bootstrapped / "01-Requirement" / "04-Epics"
+    epics_dir.mkdir(parents=True, exist_ok=True)
+    (epics_dir / "EPIC-test.json").write_text(
+        json.dumps({"id": "EPIC-test", "title": "test"}), encoding="utf-8"
+    )
+
+    captured_entries: list[object] = []
+
+    def _capture_append(**kwargs: object) -> None:
+        captured_entries.append(kwargs)
+
+    state_path = bootstrapped / ".claude" / "state" / "state.json"
+    ctx = _make_ctx()
+    with (
+        unittest.mock.patch("sdlc.cli.scan._get_repo_root_or_cwd", return_value=bootstrapped),
+        unittest.mock.patch(
+            "sdlc.cli.scan._append_scan_journal_entry", side_effect=_capture_append
+        ),
+    ):
+        run_scan(ctx=ctx)
+
+    parsed = json.loads(state_path.read_bytes())
+    assert "EPIC-test" in parsed["epics"]
+    assert len(captured_entries) == 1
+    entry_kwargs = captured_entries[0]
+    assert isinstance(entry_kwargs, dict)
+    assert entry_kwargs["epic_count"] == 1
 
 
 def test_scan_appends_one_journal_entry_per_call(bootstrapped: Path) -> None:
@@ -183,84 +234,11 @@ def test_scan_appends_one_journal_entry_per_call(bootstrapped: Path) -> None:
     assert seqs == [0, 1]
 
 
-# ---------------------------------------------------------------------------
-# _get_repo_root_or_cwd (lines 36-52)
-# ---------------------------------------------------------------------------
-
-
-def test_scan_get_repo_root_uses_git_top_level(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Successful git rev-parse output is taken as the repo root."""
-    from sdlc.cli.scan import _get_repo_root_or_cwd
-
-    fake_root = tmp_path / "fake-repo"
-    fake_root.mkdir()
-
-    class _Result:
-        returncode = 0
-        stdout = f"{fake_root}\n"
-
-    monkeypatch.setattr("sdlc.cli.scan.subprocess.run", lambda *a, **k: _Result())
-    assert _get_repo_root_or_cwd() == fake_root.resolve()
-
-
-def test_scan_get_repo_root_falls_back_on_oserror(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """OSError from subprocess falls back to cwd."""
-    import subprocess as _sp
-
-    from sdlc.cli.scan import _get_repo_root_or_cwd
-
-    monkeypatch.chdir(tmp_path)
-
-    def _raise(*a: object, **k: object) -> object:
-        raise _sp.SubprocessError("simulated")
-
-    monkeypatch.setattr("sdlc.cli.scan.subprocess.run", _raise)
-    assert _get_repo_root_or_cwd() == tmp_path.resolve()
-
-
-def test_scan_get_repo_root_falls_back_on_empty_stdout(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Empty stdout from git (degenerate) falls back to cwd."""
-    from sdlc.cli.scan import _get_repo_root_or_cwd
-
-    monkeypatch.chdir(tmp_path)
-
-    class _Result:
-        returncode = 0
-        stdout = "\n"
-
-    monkeypatch.setattr("sdlc.cli.scan.subprocess.run", lambda *a, **k: _Result())
-    assert _get_repo_root_or_cwd() == tmp_path.resolve()
-
-
-# ---------------------------------------------------------------------------
-# _read_state_portable error branches (lines 68-74)
-# ---------------------------------------------------------------------------
-
-
-def test_read_state_portable_raises_state_error_on_invalid_json(tmp_path: Path) -> None:
-    from sdlc.cli.scan import _read_state_portable
-    from sdlc.errors import StateError
-
-    p = tmp_path / "state.json"
-    p.write_text("{ not valid json }", encoding="utf-8")
-    with pytest.raises(StateError, match="invalid JSON"):
-        _read_state_portable(p)
-
-
-def test_read_state_portable_raises_state_error_on_schema_mismatch(tmp_path: Path) -> None:
-    from sdlc.cli.scan import _read_state_portable
-    from sdlc.errors import StateError
-
-    p = tmp_path / "state.json"
-    p.write_text('{"phase": "not-an-int"}', encoding="utf-8")
-    with pytest.raises(StateError, match="schema"):
-        _read_state_portable(p)
+# Note: _get_repo_root_or_cwd helper tests live in test_paths.py (Story 1.17
+# review: factored from scan.py + status.py + init.py into cli/_paths.py).
+#
+# _read_state_portable was removed in Story 1.17 review — see
+# tests/unit/state/test_state_read.py for canonical read_state coverage.
 
 
 # ---------------------------------------------------------------------------
@@ -312,15 +290,18 @@ def test_append_scan_journal_entry_calls_append_sync(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scan_emits_error_when_state_read_raises_oserror(bootstrapped: Path) -> None:
+def test_scan_emits_error_when_state_read_raises_state_error(bootstrapped: Path) -> None:
+    """A StateError from sdlc.state.read_state surfaces as ERR_INFRASTRUCTURE (exit 3)."""
+    from sdlc.errors import StateError
+
     ctx = _make_ctx()
     with (
         unittest.mock.patch("sdlc.cli.scan._get_repo_root_or_cwd", return_value=bootstrapped),
-        unittest.mock.patch("sdlc.cli.scan._read_state_portable", side_effect=OSError("disk")),
+        unittest.mock.patch("sdlc.state.read_state", side_effect=StateError("disk failure")),
         pytest.raises(typer.Exit) as exc_info,
     ):
         run_scan(ctx=ctx)
-    assert exc_info.value.exit_code == 2
+    assert exc_info.value.exit_code == 3
 
 
 def test_scan_emits_error_when_engine_scan_raises_state_error(bootstrapped: Path) -> None:
@@ -329,9 +310,9 @@ def test_scan_emits_error_when_engine_scan_raises_state_error(bootstrapped: Path
     ctx = _make_ctx()
     with (
         unittest.mock.patch("sdlc.cli.scan._get_repo_root_or_cwd", return_value=bootstrapped),
-        unittest.mock.patch(
-            "sdlc.engine.scanner.scan", side_effect=StateError("scan exploded")
-        ),
+        # `from sdlc.engine import scan as engine_scan` binds the package-level
+        # attribute, so patch `sdlc.engine.scan` (not `sdlc.engine.scanner.scan`).
+        unittest.mock.patch("sdlc.engine.scan", side_effect=StateError("scan exploded")),
         pytest.raises(typer.Exit) as exc_info,
     ):
         run_scan(ctx=ctx)

@@ -8,16 +8,14 @@ from __future__ import annotations
 
 import datetime
 import hashlib
-import json
 import logging
-import subprocess
 import sys
 from pathlib import Path
 from typing import Final
 
 import typer
 
-from sdlc.cli.exit_codes import EXIT_USER_ERROR  # noqa: F401 — available for callers
+from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.contracts.journal_entry import JournalEntry
 
@@ -28,53 +26,6 @@ _JOURNAL_PATH_REL: Final[str] = ".claude/state/journal.log"
 _SCAN_KIND: Final[str] = "scan_completed"
 _ACTOR: Final[str] = "cli"
 _STATE_TARGET_ID: Final[str] = "state"
-_GIT_TIMEOUT_SECONDS: Final[float] = 30.0
-
-
-def _get_repo_root_or_cwd() -> Path:
-    """Return the git repo root, falling back to cwd if git is absent or unavailable."""
-    cwd = Path.cwd().resolve()
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
-            cwd=cwd,
-        )
-        if result.returncode == 0:
-            top = result.stdout.strip()
-            if top:
-                return Path(top).resolve()
-    except (OSError, subprocess.SubprocessError, FileNotFoundError):
-        pass
-    return cwd
-
-
-def _read_state_portable(state_path: Path) -> State:  # type: ignore[name-defined]  # noqa: F821
-    """Read state.json portably — works on both POSIX and Windows.
-
-    Mirrors the logic in state/atomic.py:read_state but without the fcntl dependency
-    so it works on Windows where sdlc.state.read_state is a NotImplementedError stub.
-    """
-    from sdlc.errors import StateError
-    from sdlc.state import State
-
-    try:
-        text = state_path.read_text(encoding="utf-8")
-        payload = json.loads(text)
-        return State.model_validate(payload)
-    except json.JSONDecodeError as e:
-        raise StateError(
-            f"state.json contains invalid JSON: {e}",
-            details={"path": str(state_path), "reason": "json"},
-        ) from e
-    except (ValueError, TypeError) as e:
-        raise StateError(
-            f"state.json failed schema validation: {e}",
-            details={"path": str(state_path), "reason": "schema"},
-        ) from e
 
 
 def _compute_sha256_of_file(path: Path) -> str | None:
@@ -91,7 +42,7 @@ def _now_rfc3339_utc() -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
-def _write_state_to_disk(state: State, state_path: Path) -> None:  # type: ignore[name-defined]  # noqa: F821
+def _write_state_to_disk(state, state_path: Path) -> None:  # type: ignore[no-untyped-def]
     from sdlc.state import state_to_canonical_bytes
 
     canonical = state_to_canonical_bytes(state)
@@ -141,7 +92,7 @@ def _append_scan_journal_entry(
 def run_scan(*, ctx: typer.Context) -> None:
     """Refresh state.json from the artifact tree (FR3)."""
     from sdlc.errors import JournalError, StateError
-    from sdlc.state import state_to_canonical_bytes
+    from sdlc.state import read_state, state_to_canonical_bytes
 
     root = _get_repo_root_or_cwd()
     state_path = root / _STATE_PATH_REL
@@ -158,13 +109,22 @@ def run_scan(*, ctx: typer.Context) -> None:
     before_hash = _compute_sha256_of_file(state_path)
 
     try:
-        pre_state = _read_state_portable(state_path)
-    except (OSError, StateError) as exc:
+        pre_state = read_state(state_path)
+    except StateError as exc:
         emit_error(
-            "ERR_STATE_WRITE_FAILED",
+            "ERR_INFRASTRUCTURE",
             f"failed to read existing state.json: {exc}",
             ctx=ctx,
             details={"path": str(state_path)},
+        )
+    if pre_state is None:
+        # Defensive: state_path.exists() was true above, so read_state should not return None.
+        # If it does (TOCTOU file removal between checks), treat as not initialized.
+        emit_error(
+            "ERR_NOT_INITIALIZED",
+            f"project not initialized at {root}; run `sdlc init` first",
+            ctx=ctx,
+            details={"project_root": str(root)},
         )
 
     seq = pre_state.next_monotonic_seq
@@ -216,12 +176,13 @@ def run_scan(*, ctx: typer.Context) -> None:
             details={"path": str(journal_path), "seq": seq},
         )
 
+    phase = getattr(new_state, "phase", 1)
     if ctx.obj is not None and ctx.obj.get("json", False):
         emit_json(
             "scan",
             {
                 "project_root": str(root),
-                "phase": new_state.phase,
+                "phase": phase,
                 "epic_count": len(new_state.epics),
                 "story_count": len(new_state.stories),
                 "task_count": len(new_state.tasks),
@@ -232,7 +193,7 @@ def run_scan(*, ctx: typer.Context) -> None:
         )
     else:
         echo(
-            f"sdlc scan: {root} — phase {new_state.phase}, "
+            f"sdlc scan: {root} - phase {phase}, "
             f"{len(new_state.epics)} epics, {len(new_state.stories)} stories, "
             f"{len(new_state.tasks)} tasks (state.json refreshed)",
             ctx=ctx,

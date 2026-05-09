@@ -177,6 +177,49 @@ def test_state_already_exists_detects_partial_layout(tmp_path: Path) -> None:
     assert _state_already_exists(tmp_path) is True
 
 
+# ---------------------------------------------------------------------------
+# AC4.3 — `sdlc init --json` `created` list enumerates every created path
+# (Story 1.17 review)
+# ---------------------------------------------------------------------------
+
+
+def test_init_json_created_enumerates_all_paths(tmp_path: Path) -> None:
+    """The JSON envelope's `created` list MUST include every directory and
+    file scaffolded by run_init, sorted, POSIX-style.
+    """
+    with unittest.mock.patch("sdlc.cli.init._get_repo_root_or_cwd", return_value=tmp_path):
+        result = _runner.invoke(app, ["--json", "init"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    created = payload["created"]
+    assert isinstance(created, list)
+    # Sorted
+    assert created == sorted(created)
+    # Required canonical entries
+    assert ".claude/state/state.json" in created
+    assert ".claude/state/journal.log" in created
+    assert ".claude/state" in created
+    # All static asset trees
+    for tree in ("agents", "commands", "hooks", "workflows", "memory", "skills"):
+        assert f".claude/{tree}" in created
+    # All phase directories
+    assert "01-Requirement" in created
+    assert "02-Architecture" in created
+    assert "03-Implementation" in created
+
+
+def test_enumerate_created_paths_is_idempotent(tmp_path: Path) -> None:
+    """`_enumerate_created_paths` is a pure walker; calling twice gives equal output."""
+    from sdlc.cli.init import _enumerate_created_paths
+
+    with unittest.mock.patch("sdlc.cli.init._get_repo_root_or_cwd", return_value=tmp_path):
+        run_init()
+    a = _enumerate_created_paths(tmp_path)
+    b = _enumerate_created_paths(tmp_path)
+    assert a == b
+    assert len(a) > 0
+
+
 def test_get_repo_root_uses_git_top_level_when_available(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -193,7 +236,7 @@ def test_get_repo_root_uses_git_top_level_when_available(
 
         return _Result()
 
-    monkeypatch.setattr("sdlc.cli.init.subprocess.run", _fake_run)
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", _fake_run)
     assert _get_repo_root_or_cwd() == fake_root.resolve()
 
 
@@ -209,7 +252,7 @@ def test_get_repo_root_falls_back_to_cwd_on_empty_stdout(
         returncode = 0
         stdout = "\n"  # success but blank
 
-    monkeypatch.setattr("sdlc.cli.init.subprocess.run", lambda *a, **k: _Result())
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", lambda *a, **k: _Result())
     assert _get_repo_root_or_cwd() == tmp_path.resolve()
 
 
@@ -226,7 +269,7 @@ def test_get_repo_root_falls_back_on_subprocess_oserror(
     def _raise(*_a: object, **_k: object) -> object:
         raise _sp.SubprocessError("simulated")
 
-    monkeypatch.setattr("sdlc.cli.init.subprocess.run", _raise)
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", _raise)
     assert _get_repo_root_or_cwd() == tmp_path.resolve()
 
 
@@ -309,7 +352,7 @@ def test_sdlc_init_falls_back_to_cwd_when_no_git_on_path(
     def _no_git(*_args: object, **_kwargs: object) -> object:
         raise FileNotFoundError("git: command not found")
 
-    monkeypatch.setattr("sdlc.cli.init.subprocess.run", _no_git)
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", _no_git)
     run_init()
     # Layout was scaffolded relative to cwd (the isolated dir), not via git rev-parse
     assert (isolated / ".claude" / "state" / "state.json").exists()

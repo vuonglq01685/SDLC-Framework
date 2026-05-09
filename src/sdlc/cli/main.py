@@ -7,7 +7,6 @@ module level.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 
@@ -21,13 +20,9 @@ __all__ = ("app",)
 def _version_callback(value: bool) -> None:
     if value:
         if "--json" in sys.argv:
-            payload = json.dumps(
-                {"command": "version", "version": get_version()},
-                sort_keys=True,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            typer.echo(payload)
+            from sdlc.cli.output import canonical_dumps  # deferred per Architecture §488
+
+            typer.echo(canonical_dumps({"command": "version", "version": get_version()}))
         else:
             typer.echo(f"sdlc {get_version()}")
         raise typer.Exit(code=0)
@@ -81,7 +76,7 @@ def init_command(
 
         emit_error(
             "ERR_USER_INPUT",
-            "sdlc init --adopt is not implemented in v1.16 (Story 3.1+).",
+            "sdlc init --adopt is not implemented yet (Story 3.1+).",
             ctx=ctx,
         )
     from sdlc.cli.init import run_init  # deferred per Architecture §488

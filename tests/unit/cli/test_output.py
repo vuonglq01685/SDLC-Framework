@@ -159,3 +159,84 @@ def test_err_code_to_exit_code_table() -> None:
     assert _ERR_CODE_TO_EXIT_CODE["ERR_JOURNAL_APPEND_FAILED"] == 2
     assert _ERR_CODE_TO_EXIT_CODE["ERR_STATE_WRITE_FAILED"] == 2
     assert _ERR_CODE_TO_EXIT_CODE["ERR_INFRASTRUCTURE"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Story 1.17 review additions: every ERR_* code's JSON envelope shape
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_exit"),
+    [
+        ("ERR_NOT_INITIALIZED", 1),
+        ("ERR_ALREADY_INITIALIZED", 1),
+        ("ERR_USER_INPUT", 1),
+        ("ERR_SCAN_FAILED", 2),
+        ("ERR_JOURNAL_APPEND_FAILED", 2),
+        ("ERR_STATE_WRITE_FAILED", 2),
+        ("ERR_INFRASTRUCTURE", 3),
+    ],
+)
+def test_emit_error_json_envelope_for_every_err_code(
+    code: str, expected_exit: int, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every ERR_* code emits the canonical envelope with the right exit code."""
+    ctx = _make_ctx(json_mode=True)
+    with pytest.raises(typer.Exit) as exc_info:
+        emit_error(code, f"{code} message", ctx=ctx, details={"k": "v"})
+    assert exc_info.value.exit_code == expected_exit
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.err)
+    assert envelope["error"]["code"] == code
+    assert envelope["error"]["message"] == f"{code} message"
+    assert envelope["error"]["exit_code"] == expected_exit
+    assert envelope["error"]["details"] == {"k": "v"}
+
+
+def test_emit_error_serializes_path_and_datetime_in_details(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Path / datetime / set values in details are coerced (no TypeError crash)."""
+    import datetime as _dt
+    from pathlib import Path
+
+    ctx = _make_ctx(json_mode=True)
+    with pytest.raises(typer.Exit):
+        emit_error(
+            "ERR_INFRASTRUCTURE",
+            "infra error",
+            ctx=ctx,
+            details={
+                "path": Path("/tmp/sample"),
+                "ts": _dt.datetime(2026, 5, 9, 12, 0, 0, tzinfo=_dt.timezone.utc),
+                "tags": {"a", "b"},
+            },
+        )
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.err)
+    details = envelope["error"]["details"]
+    assert details["path"] == "/tmp/sample"
+    assert details["ts"].startswith("2026-05-09T12:00:00")
+    assert details["tags"] == ["a", "b"]
+
+
+def test_emit_json_serializes_path_and_datetime() -> None:
+    """emit_json coerces non-serializable values via canonical_dumps default=."""
+    import datetime as _dt
+    from pathlib import Path
+
+    from sdlc.cli.output import canonical_dumps
+
+    out = canonical_dumps(
+        {
+            "command": "demo",
+            "p": Path("/x/y"),
+            "t": _dt.date(2026, 5, 9),
+            "s": frozenset({"b", "a"}),
+        }
+    )
+    payload = json.loads(out)
+    assert payload["p"] == "/x/y"
+    assert payload["t"] == "2026-05-09"
+    assert payload["s"] == ["a", "b"]

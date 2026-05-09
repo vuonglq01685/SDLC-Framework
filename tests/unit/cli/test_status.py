@@ -186,7 +186,7 @@ def test_status_get_repo_root_uses_git_top_level(
         returncode = 0
         stdout = f"{fake_root}\n"
 
-    monkeypatch.setattr("sdlc.cli.status.subprocess.run", lambda *a, **k: _Result())
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", lambda *a, **k: _Result())
     assert _get_repo_root_or_cwd() == fake_root.resolve()
 
 
@@ -203,7 +203,7 @@ def test_status_get_repo_root_falls_back_on_subprocess_error(
     def _raise(*a: object, **k: object) -> object:
         raise _sp.SubprocessError("simulated")
 
-    monkeypatch.setattr("sdlc.cli.status.subprocess.run", _raise)
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", _raise)
     assert _get_repo_root_or_cwd() == tmp_path.resolve()
 
 
@@ -219,7 +219,7 @@ def test_status_get_repo_root_falls_back_on_empty_stdout(
         returncode = 0
         stdout = "\n"
 
-    monkeypatch.setattr("sdlc.cli.status.subprocess.run", lambda *a, **k: _Result())
+    monkeypatch.setattr("sdlc.cli._paths.subprocess.run", lambda *a, **k: _Result())
     assert _get_repo_root_or_cwd() == tmp_path.resolve()
 
 
@@ -234,8 +234,16 @@ def test_resolve_project_name_returns_dir_name_on_oserror(tmp_path: Path) -> Non
 
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text('[project]\nname = "x"\n', encoding="utf-8")
-    with unittest.mock.patch.object(
-        type(pyproject), "read_text", side_effect=OSError("permission denied")
+    # Patch both the 3.11+ tomllib path (`Path.open`) and the 3.10 fallback
+    # (`Path.read_text`) so the test asserts the OSError fallback regardless of
+    # the runtime branch we're on.
+    with (
+        unittest.mock.patch.object(
+            type(pyproject), "open", side_effect=OSError("permission denied")
+        ),
+        unittest.mock.patch.object(
+            type(pyproject), "read_text", side_effect=OSError("permission denied")
+        ),
     ):
         result = _resolve_project_name(tmp_path)
     assert result == tmp_path.name
@@ -248,6 +256,10 @@ def test_resolve_project_name_returns_dir_name_when_no_match(tmp_path: Path) -> 
     (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n", encoding="utf-8")
     result = _resolve_project_name(tmp_path)
     assert result == tmp_path.name
+
+
+# Note: _resolve_project_name helper unit tests live in test_status_resolve.py
+# (split off in Story 1.17 review to keep this file under the 400-LOC cap).
 
 
 # ---------------------------------------------------------------------------
@@ -300,43 +312,79 @@ def test_format_ts_local_returns_raw_string_on_invalid_input() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _read_state_portable error branches in status.py (lines 104-110)
+# _read_state_portable removed in Story 1.17 review — see tests/unit/state/test_state_read.py
+# for the canonical schema-mismatch / invalid-JSON coverage on `sdlc.state.read_state`.
 # ---------------------------------------------------------------------------
 
 
-def test_status_read_state_portable_raises_on_invalid_json(tmp_path: Path) -> None:
-    from sdlc.cli.status import _read_state_portable
-    from sdlc.errors import StateError
-
-    p = tmp_path / "state.json"
-    p.write_text("{ broken json }", encoding="utf-8")
-    with pytest.raises(StateError, match="invalid JSON"):
-        _read_state_portable(p)
-
-
-def test_status_read_state_portable_raises_on_schema_mismatch(tmp_path: Path) -> None:
-    from sdlc.cli.status import _read_state_portable
-    from sdlc.errors import StateError
-
-    p = tmp_path / "state.json"
-    p.write_text('{"phase": "bad"}', encoding="utf-8")
-    with pytest.raises(StateError, match="schema"):
-        _read_state_portable(p)
-
-
 # ---------------------------------------------------------------------------
-# run_status state-read failure → exit 2 (lines 145-146)
+# run_status state-read failure → ERR_INFRASTRUCTURE (exit 3) (Story 1.17 review)
 # ---------------------------------------------------------------------------
 
 
 def test_status_emits_error_when_state_read_raises(bootstrapped: Path) -> None:
+    """A StateError from sdlc.state.read_state surfaces as ERR_INFRASTRUCTURE (exit 3)."""
+    from sdlc.errors import StateError
+
     ctx = _make_ctx()
     with (
         unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped),
-        unittest.mock.patch(
-            "sdlc.cli.status._read_state_portable", side_effect=OSError("disk error")
-        ),
+        unittest.mock.patch("sdlc.state.read_state", side_effect=StateError("disk error")),
         pytest.raises(typer.Exit) as exc_info,
     ):
         run_status(ctx=ctx)
-    assert exc_info.value.exit_code == 2
+    assert exc_info.value.exit_code == 3
+
+
+# ---------------------------------------------------------------------------
+# AC7.2 — `test_status_last_updated_uses_latest_journal_ts` (added in Story 1.17 review)
+# ---------------------------------------------------------------------------
+
+
+def test_status_last_updated_uses_latest_journal_ts(bootstrapped: Path) -> None:
+    """status renders the timestamp of the latest journal entry (AC7.2)."""
+    journal_path = bootstrapped / ".claude" / "state" / "journal.log"
+    from sdlc.contracts.journal_entry import JournalEntry
+    from sdlc.journal import append_sync
+
+    expected_ts = "2026-05-09T12:34:56.789Z"
+    entry = JournalEntry(
+        schema_version=1,
+        monotonic_seq=0,
+        ts=expected_ts,
+        actor="cli",
+        kind="scan_completed",
+        target_id="state",
+        before_hash=None,
+        after_hash="sha256:" + "c" * 64,
+        payload={"epic_count": 0, "story_count": 0, "task_count": 0},
+    )
+    append_sync(entry, journal_path=journal_path)
+
+    with unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped):
+        result = runner.invoke(app, ["--json", "status"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    # JSON mode emits the literal RFC 3339 ts.
+    assert payload["last_updated_ts"] == expected_ts
+
+
+# ---------------------------------------------------------------------------
+# AC7.2 — `test_status_zero_args_invokes_help_or_status_per_typer_default`
+# ---------------------------------------------------------------------------
+
+
+def test_status_zero_args_invokes_help_or_status_per_typer_default(bootstrapped: Path) -> None:
+    """`sdlc status` (no extra args) runs the status command, NOT Typer's auto-help.
+
+    Typer's `no_args_is_help=True` triggers help when no command is given to the root
+    app (`sdlc` alone). When a subcommand is named (`sdlc status`), that subcommand
+    runs even without further args. This test pins that behavior so a future Typer
+    setting change cannot silently swap status for help (AC7.2).
+    """
+    with unittest.mock.patch("sdlc.cli.status._get_repo_root_or_cwd", return_value=bootstrapped):
+        result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    # Help output starts with `Usage:`; status output contains the resume card header.
+    assert "Usage:" not in result.stdout
+    assert "Phase:" in result.stdout
