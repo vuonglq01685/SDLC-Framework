@@ -19,7 +19,7 @@ from sdlc.cli._event_builders import (
     journal_event_from_entry as _journal_event_from_entry,
 )
 from sdlc.cli._paths import get_repo_root_or_cwd
-from sdlc.cli.output import echo, emit_error, emit_json
+from sdlc.cli.output import emit_error, emit_json, make_console
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import IdsError, JournalError
 from sdlc.ids import parse_task_id
@@ -135,13 +135,24 @@ def _load_events(
     raise AssertionError("unreachable: emit_error did not exit")
 
 
-def _format_event_line(e: dict[str, Any]) -> str:
+def _format_event_line_rich(e: dict[str, Any]) -> str:
+    """Return a Rich markup string for one trace event."""
+    ts = e["ts"]
     if e["source"] == "journal":
-        return f"  [{e['ts']}]   kind={e['kind']:<20} target={e['target_id']}   actor={e['actor']}"
+        kind = e["kind"]
+        target = e.get("target_id", "?")
+        actor = e.get("actor", "?")
+        before_h = e.get("before_hash") or "—"
+        after_h = e.get("after_hash") or "—"
+        return (
+            f"  [dim]{ts}[/dim]   [bold]{kind:<20}[/bold]"
+            f" target={target}   actor={actor}\n"
+            f"  [dim]  before={before_h}  after={after_h}[/dim]"
+        )
     fields = "   ".join(
         f"{name}={e.get(name)}" for name in _AGENT_RUN_DISPLAY_FIELDS if name != "ts"
     )
-    return f"  [{e['ts']}]   agent_run             {fields}"
+    return f"  [dim]{ts}[/dim]   [bold]agent_run[/bold]             {fields}"
 
 
 def run_trace(*, ctx: typer.Context, task_id: str) -> None:
@@ -185,9 +196,10 @@ def run_trace(*, ctx: typer.Context, task_id: str) -> None:
         )
         return
 
-    echo(f"sdlc trace {task_id} — {len(events)} events", ctx=ctx)
+    console = make_console(ctx)
+    console.print(f"sdlc trace {task_id} — {len(events)} events")
     if not events:
-        echo("(no events recorded for this task yet)", ctx=ctx)
+        console.print("(no events recorded for this task yet)")
         return
     for e in events:
-        echo(_format_event_line(e), ctx=ctx)
+        console.print(_format_event_line_rich(e))

@@ -64,9 +64,10 @@ def _append_entry(journal: Path, entry: JournalEntry) -> None:
 
 
 def test_trace_refuses_when_state_not_initialized(tmp_path: Path) -> None:
+    """B-P9: check stderr/stdout merged output contains 'not initialized'."""
     result = runner.invoke(app, ["trace", "EPIC-foo-S01-bar-T01-baz"], catch_exceptions=False)
     assert result.exit_code == 1
-    assert "not initialized" in result.output.lower() or "not initialized" in (result.stderr or "")
+    assert "not initialized" in result.output.lower()
 
 
 def test_trace_rejects_invalid_task_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,6 +84,7 @@ def test_trace_rejects_invalid_task_id(tmp_path: Path, monkeypatch: pytest.Monke
 
 
 def test_trace_empty_journal_exits_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """B-P27: assert the exact sentinel line from AC1.10."""
     _bootstrap_project(tmp_path)
     from sdlc.cli import trace
 
@@ -94,7 +96,9 @@ def test_trace_empty_journal_exits_zero(tmp_path: Path, monkeypatch: pytest.Monk
     out = StringIO()
     with contextlib.redirect_stdout(out):
         trace.run_trace(ctx=ctx, task_id="EPIC-foo-S01-bar-T01-baz")
-    assert "0 events" in out.getvalue()
+    stdout = out.getvalue()
+    assert "0 events" in stdout
+    assert "(no events recorded for this task yet)" in stdout  # B-P27
 
 
 def test_trace_filters_by_target_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -290,3 +294,43 @@ def test_trace_json_empty_envelope(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     payload = json.loads(out.getvalue())
     assert payload["events"] == []
     assert payload["event_count"] == 0
+
+
+def test_trace_agent_run_human_row_includes_target_id_and_duration_ms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-P13: human-readable agent_run row contains target_id=... and duration_ms=...
+
+    Covers _AGENT_RUN_DISPLAY_FIELDS driving the row (AC1.6/AC1.8).
+    """
+    import contextlib
+    from io import StringIO
+
+    _bootstrap_project(tmp_path)
+    target_task = "EPIC-foo-S01-bar-T01-baz"
+    impl_dir = tmp_path / "03-Implementation"
+    impl_dir.mkdir()
+    runs = impl_dir / "agent_runs.jsonl"
+    runs.write_text(
+        json.dumps(
+            {
+                "ts": "2026-01-01T00:00:01Z",
+                "target_id": target_task,
+                "agent": "impl",
+                "stage": "code",
+                "outcome": "success",
+                "duration_ms": 3500,
+            }
+        )
+        + "\n"
+    )
+    from sdlc.cli import trace
+
+    monkeypatch.setattr(trace, "get_repo_root_or_cwd", lambda: tmp_path)
+    ctx = _make_ctx()
+    out = StringIO()
+    with contextlib.redirect_stdout(out):
+        trace.run_trace(ctx=ctx, task_id=target_task)
+    stdout = out.getvalue()
+    assert "target_id=" in stdout
+    assert "duration_ms=" in stdout

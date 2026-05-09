@@ -10,6 +10,9 @@ import typer
 from sdlc.cli.output import (
     _ANSI_RE,
     _ERR_CODE_TO_EXIT_CODE,
+    _LOGS_OUTPUT_SCHEMA,
+    _REPLAY_OUTPUT_SCHEMA,
+    _TRACE_OUTPUT_SCHEMA,
     echo,
     emit_error,
     emit_json,
@@ -173,6 +176,13 @@ def test_err_code_to_exit_code_table() -> None:
     assert _ERR_CODE_TO_EXIT_CODE["ERR_JOURNAL_APPEND_FAILED"] == 2
     assert _ERR_CODE_TO_EXIT_CODE["ERR_STATE_WRITE_FAILED"] == 2
     assert _ERR_CODE_TO_EXIT_CODE["ERR_INFRASTRUCTURE"] == 3
+
+
+def test_output_schema_constants_are_v1() -> None:
+    """B-P17: wire-format lock — all three story-1.18 schemas must be "v1"."""
+    assert _TRACE_OUTPUT_SCHEMA == "v1"
+    assert _REPLAY_OUTPUT_SCHEMA == "v1"
+    assert _LOGS_OUTPUT_SCHEMA == "v1"
 
 
 # ---------------------------------------------------------------------------

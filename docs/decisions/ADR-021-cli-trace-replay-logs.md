@@ -60,9 +60,10 @@ predicate logic and chronological sort as `trace`. Supports:
   is intersection (an entry must satisfy both to be kept).
 - `--follow`: tail-polls both files at 0.25 s intervals until `KeyboardInterrupt` →
   exit 0. `BrokenPipeError` is also suppressed so `sdlc logs --follow | head -5` exits
-  cleanly without a Python traceback when the downstream pipe closes. `--follow` does
-  NOT detect file rotation, truncation, or inode replacement in v1.18 (see
-  "Deferred to v1.18.1+" below).
+  cleanly without a Python traceback when the downstream pipe closes. Rotation
+  (inode change) and truncation (file size shrinks below `journal_pos`) are detected
+  per-poll via `os.stat`; on either event the position resets to 0 and a `WARNING` is
+  logged (shipped in Story 1.18.1).
 
 **NDJSON shape under `--follow --json`** — one JSON object per line (rather than a
 single envelope); each line is a canonical-bytes serialization (`sort_keys=True`,
@@ -139,25 +140,23 @@ $ sdlc replay 1-1001               # ERR_USER_INPUT exit 1: "replay range too la
 $ sdlc replay 1                    # before any scan: "line 1 not in journal (journal log not found at <path>)"
 ```
 
-## Deferred to v1.18.1+
+## Shipped in Story 1.18.1 (quality-hardening)
 
-Two behaviors were considered for v1.18 but explicitly deferred (decisions D2 and
-D3 from the 2026-05-09 code-review of Story 1.18; tracked in `deferred-work.md`):
+Two behaviors deferred from Story 1.18 were completed in Story 1.18.1:
 
-- **Rotation / truncation / inode-replacement under `--follow`** — `_poll_journal`
-  and `_poll_agent_runs` track a numeric `journal_pos` only. After a truncate (file
-  shrinks below `journal_pos`) the loop silently waits forever; after a rotate-replace
-  (new inode at the same path) the new file's prefix is skipped. Real `tail -F`
-  handles this; v1.18 does not. **Recommendation: avoid `logrotate` on
-  `journal.log` / `agent_runs.jsonl` in v1.18.** Revisit when Story 1.20
-  (`sdlc rebuild-state`) finalizes truncate semantics — at that point switch to
-  `(inode, size)` tracking via `os.stat`.
-- **Rich styling for human-readable trace / replay / logs output** — ACs 1.8 / 3.5 /
-  4.2 declared rich-styled output via `make_console(ctx)` (bold kind name, dim hashes,
-  rule separators, `_OUTCOME_STYLES` color mapping `success`=green / `failure`=red /
-  `partial`=yellow). v1.18 ships plain-text via `echo()` only; `make_console` is not
-  imported in `trace.py` / `replay.py` / `logs.py`. The spec self-permits this defer
-  in dev-note line 938 ("v1.18 ships the plain-text format"). Tracked for v1.18.1.
+- **D2 — Rotation / truncation detection under `--follow`** — `_poll_journal` and
+  `_poll_agent_runs` now accept an `inode: int = _NO_INODE` parameter and return
+  `(new_inode, new_pos)` tuples. On each poll, `os.stat().st_ino` is compared to the
+  previous inode; a mismatch triggers a `WARNING` and resets `pos` to 0 (rotation).
+  If `new_size < pos`, the same reset occurs with a `"truncated"` warning. `_follow_streams`
+  carries `journal_inode` / `agent_inode` state across iterations.
+- **D3 — Rich styling for human-readable output** — `trace.py`, `replay.py`, and `logs.py`
+  now import and use `make_console(ctx)` from `cli/output.py`. `trace` and `logs` use
+  bold kind names, dim timestamps, and dim hash fields. `replay` uses `console.rule()`
+  for line separators and bold kind names. `logs` adds `_OUTCOME_STYLES` color mapping
+  (`success`=green / `failure`=red / `partial`=yellow) for agent_run outcome fields.
+  `--no-color` / `NO_COLOR` still suppresses all ANSI codes via the `Console(no_color=...)`
+  constructor argument.
 
 ## Alternatives Considered
 

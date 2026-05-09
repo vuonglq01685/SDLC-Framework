@@ -14,7 +14,7 @@ from typing import Any, Final
 import typer
 
 from sdlc.cli._paths import get_repo_root_or_cwd
-from sdlc.cli.output import echo, emit_error, emit_json
+from sdlc.cli.output import emit_error, emit_json, make_console
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import JournalError
 
@@ -198,6 +198,19 @@ def run_replay(*, ctx: typer.Context, line_spec: str) -> None:
         )
         return
 
+    console = make_console(ctx)
     for ln, entry in collected:
-        for line in _format_entry_human(ln, entry):
-            echo(line, ctx=ctx)
+        console.rule(f"line {ln}")
+        console.print(f"monotonic_seq:  {entry.monotonic_seq}")
+        console.print(f"ts:             [dim]{entry.ts}[/dim]")
+        console.print(f"actor:          {entry.actor}")
+        console.print(f"[bold]kind:[/bold]           [bold]{entry.kind}[/bold]")
+        console.print(f"target_id:      {entry.target_id}")
+        console.print(f"[dim]before_hash:    {entry.before_hash}[/dim]")
+        console.print(f"[dim]after_hash:     {entry.after_hash}[/dim]")
+        console.print("payload:")
+        if entry.payload:
+            for k, v in entry.payload.items():
+                console.print(f"  {k}: {_format_payload_value(v)}")
+        else:
+            console.print("  (empty)")

@@ -1,23 +1,30 @@
-"""Unit tests for sdlc.cli.logs (Story 1.18, AC7.3)."""
+"""Unit tests for sdlc.cli.logs (Story 1.18.1 quality hardening).
+
+B-P21: time.monotonic budget replaced with sentinel monkeypatch on _follow_streams.
+B-P29: normal CliRunner import.
+B-P30: JSON envelope assertion for --filter-task invalid path.
+"""
 
 from __future__ import annotations
 
 import contextlib
 import json
-import time
 from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import pytest
 import typer
+from typer.testing import CliRunner  # B-P29: normal import
 
 from sdlc.cli.main import app
 from sdlc.contracts.journal_entry import JournalEntry
 
+from .conftest import EXIT_USER_ERROR
+
 pytestmark = pytest.mark.unit
 
-runner = __import__("typer.testing", fromlist=["CliRunner"]).CliRunner()
+runner = CliRunner()
 
 
 def _make_ctx(*, no_color: bool = False, json_mode: bool = False) -> typer.Context:
@@ -111,7 +118,39 @@ def test_logs_filter_task_invalid_id(tmp_path: Path, monkeypatch: pytest.MonkeyP
     ctx = _make_ctx()
     with pytest.raises(typer.Exit) as exc_info:
         logs.run_logs(ctx=ctx, filter_task="not-a-task-id", filter_agent=None, follow=False)
-    assert exc_info.value.exit_code == 1
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
+
+
+def test_logs_filter_task_invalid_id_json_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-P30: JSON mode for invalid --filter-task emits error.code == 'ERR_USER_INPUT' on stderr."""
+    _bootstrap_project(tmp_path)
+    from sdlc.cli import logs
+
+    monkeypatch.setattr(logs, "get_repo_root_or_cwd", lambda: tmp_path)
+    ctx = _make_ctx(json_mode=True)
+    with pytest.raises(typer.Exit) as exc_info:
+        logs.run_logs(ctx=ctx, filter_task="not-a-task-id", filter_agent=None, follow=False)
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.err)
+    assert envelope["error"]["code"] == "ERR_USER_INPUT"
+
+
+@pytest.mark.parametrize("bad_agent", ["", "   "])
+def test_logs_filter_agent_empty_rejected(
+    bad_agent: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-P3: empty or whitespace-only --filter-agent → ERR_USER_INPUT exit 1."""
+    _bootstrap_project(tmp_path)
+    from sdlc.cli import logs
+
+    monkeypatch.setattr(logs, "get_repo_root_or_cwd", lambda: tmp_path)
+    ctx = _make_ctx()
+    with pytest.raises(typer.Exit) as exc_info:
+        logs.run_logs(ctx=ctx, filter_task=None, filter_agent=bad_agent, follow=False)
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
 
 
 def test_logs_filter_agent_journal_actor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -253,15 +292,19 @@ def test_logs_json_filters_block_keys(tmp_path: Path, monkeypatch: pytest.Monkey
 def test_logs_no_follow_returns_after_streams_exhausted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """B-P21: sentinel proves no follow-mode entered — no wall-clock budget."""
     journal = _bootstrap_project(tmp_path)
     _append_entry(journal, _make_entry(0, "2026-01-01T00:00:00Z"))
     from sdlc.cli import logs
 
     monkeypatch.setattr(logs, "get_repo_root_or_cwd", lambda: tmp_path)
+    # If _follow_streams is ever called, the test fails immediately.
+    monkeypatch.setattr(
+        logs, "_follow_streams", lambda *a, **kw: pytest.fail("entered follow-mode unexpectedly")
+    )
     ctx = _make_ctx()
-    start = time.monotonic()
     out = StringIO()
     with contextlib.redirect_stdout(out):
         logs.run_logs(ctx=ctx, filter_task=None, filter_agent=None, follow=False)
-    elapsed = time.monotonic() - start
-    assert elapsed < 2.0
+    # Should have printed 1 event without entering follow mode.
+    assert "scan_completed" in out.getvalue()

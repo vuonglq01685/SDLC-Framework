@@ -163,10 +163,15 @@ def test_logs_agent_run_without_ts_skipped(tmp_path: Path, monkeypatch: pytest.M
     assert out.getvalue() == ""
 
 
-def test_logs_emit_event_json_mode_follow_ndjson(
+def test_logs_json_follow_historical_ndjson_has_command_field(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """--follow --json emits one JSON object per line (NDJSON), not a single document."""
+    """B-P6/B-P7: --follow --json historical events are NDJSON and carry command == "logs".
+
+    Each historical event line is emitted via _emit_event, which adds the
+    `command` field so consumers see one consistent shape across the
+    historical→live transition (ADR-021).
+    """
     journal = _bootstrap_project(tmp_path)
     _append_entry(journal, _make_entry(0, "2026-01-01T00:00:00Z"))
     from sdlc.cli import logs
@@ -181,6 +186,7 @@ def test_logs_emit_event_json_mode_follow_ndjson(
     assert len(lines) == 1
     obj = json.loads(lines[0])
     assert obj["source"] == "journal"
+    assert obj.get("command") == "logs"  # B-P6: consistent NDJSON shape
 
 
 def test_logs_load_events_journal_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

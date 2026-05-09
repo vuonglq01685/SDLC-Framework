@@ -1,4 +1,13 @@
-"""Unit tests for sdlc.cli.replay (Story 1.18, AC7.2)."""
+"""Unit tests for sdlc.cli.replay (Story 1.18.1 quality hardening).
+
+B-P8:  exit_code pinned to 2 for JournalError (not `in (1, 2)`).
+B-P12: missing journal test with details.exists == False.
+B-P14: nested payload rendered as JSON, not Python repr.
+B-P20: byte-equality test on canonical JSON output.
+B-P24: replay 1-1000 (exact-at-cap) passes; 1-1001 (over-cap) fails.
+B-P26: out-of-range and empty-journal tests assert "line N not in journal" substring.
+B-P29: normal `from typer.testing import CliRunner` import.
+"""
 
 from __future__ import annotations
 
@@ -10,15 +19,18 @@ from typing import Any
 
 import pytest
 import typer
+from typer.testing import CliRunner
 
 from sdlc.cli.main import app
 from sdlc.cli.replay import _parse_line_spec
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import JournalError
 
+from .conftest import EXIT_SYSTEM_ERROR, EXIT_USER_ERROR
+
 pytestmark = pytest.mark.unit
 
-runner = __import__("typer.testing", fromlist=["CliRunner"]).CliRunner()
+runner = CliRunner()  # B-P29: normal import, not __import__ reflection
 
 
 def _make_ctx(*, no_color: bool = False, json_mode: bool = False) -> typer.Context:
@@ -75,6 +87,7 @@ def _append_entry(journal: Path, entry: JournalEntry) -> None:
         ("42-50", (42, 50)),
         ("42-42", (42, 42)),
         ("1", (1, 1)),
+        ("1-1000", (1, 1000)),  # B-P24: exact-at-cap succeeds
     ],
 )
 def test_replay_parse_line_spec_valid_forms(spec: str, expected: tuple[int, int]) -> None:
@@ -90,12 +103,18 @@ def test_replay_parse_line_spec_invalid_forms(spec: str) -> None:
         _parse_line_spec(spec)
 
 
+def test_replay_parse_line_spec_over_cap_rejected() -> None:
+    """B-P24: 1-1001 (one over cap) is rejected with range_too_large."""
+    with pytest.raises(JournalError, match="range too large"):
+        _parse_line_spec("1-1001")
+
+
 # --- run_replay integration tests ---
 
 
 def test_replay_refuses_when_state_not_initialized(tmp_path: Path) -> None:
     result = runner.invoke(app, ["replay", "1"], catch_exceptions=False)
-    assert result.exit_code == 1
+    assert result.exit_code == EXIT_USER_ERROR
 
 
 def test_replay_single_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,7 +129,7 @@ def test_replay_single_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     with contextlib.redirect_stdout(out):
         replay.run_replay(ctx=ctx, line_spec="3")
     stdout = out.getvalue()
-    assert "--- line 3 ---" in stdout
+    assert "line 3" in stdout  # rule separator: ─── line 3 ───
     assert "monotonic_seq:" in stdout
 
 
@@ -126,14 +145,17 @@ def test_replay_range(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     with contextlib.redirect_stdout(out):
         replay.run_replay(ctx=ctx, line_spec="3-5")
     stdout = out.getvalue()
-    assert "--- line 3 ---" in stdout
-    assert "--- line 4 ---" in stdout
-    assert "--- line 5 ---" in stdout
-    assert "--- line 2 ---" not in stdout
-    assert "--- line 6 ---" not in stdout
+    assert "line 3" in stdout
+    assert "line 4" in stdout
+    assert "line 5" in stdout
+    assert "line 2" not in stdout
+    assert "line 6" not in stdout
 
 
-def test_replay_out_of_range_single(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_replay_out_of_range_single(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-P26: exit code is user-error and stderr contains 'line N not in journal'."""
     journal = _bootstrap_project(tmp_path)
     for i in range(3):
         _append_entry(journal, _make_entry(i, f"2026-01-01T00:00:0{i}Z"))
@@ -143,7 +165,8 @@ def test_replay_out_of_range_single(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     ctx = _make_ctx()
     with pytest.raises(typer.Exit) as exc_info:
         replay.run_replay(ctx=ctx, line_spec="42")
-    assert exc_info.value.exit_code == 1
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
+    assert "line 42 not in journal" in capsys.readouterr().err
 
 
 def test_replay_out_of_range_range_partially_past_eof(
@@ -158,12 +181,15 @@ def test_replay_out_of_range_range_partially_past_eof(
     ctx = _make_ctx()
     with pytest.raises(typer.Exit) as exc_info:
         replay.run_replay(ctx=ctx, line_spec="3-10")
-    assert exc_info.value.exit_code == 1
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
     captured = capsys.readouterr()
     assert "not in journal" in captured.err
 
 
-def test_replay_empty_journal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_replay_empty_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-P26: empty journal also emits 'line N not in journal'."""
     _bootstrap_project(tmp_path)
     from sdlc.cli import replay
 
@@ -171,7 +197,9 @@ def test_replay_empty_journal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     ctx = _make_ctx()
     with pytest.raises(typer.Exit) as exc_info:
         replay.run_replay(ctx=ctx, line_spec="1")
-    assert exc_info.value.exit_code == 1
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
+    captured = capsys.readouterr()
+    assert "line 1 not in journal" in captured.err
 
 
 def test_replay_range_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -182,7 +210,36 @@ def test_replay_range_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     ctx = _make_ctx()
     with pytest.raises(typer.Exit) as exc_info:
         replay.run_replay(ctx=ctx, line_spec="1-1001")
-    assert exc_info.value.exit_code == 1
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
+
+
+def test_replay_missing_journal_exits_with_exists_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-P12: replay against missing journal.log → error contains 'journal log not found'
+    and details.exists == False in JSON mode."""
+    state_dir = tmp_path / ".claude" / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "state.json").write_text("{}")
+    # Do NOT create journal.log — it should be missing.
+    from sdlc.cli import replay
+
+    monkeypatch.setattr(replay, "get_repo_root_or_cwd", lambda: tmp_path)
+
+    ctx = _make_ctx()
+    err_out = StringIO()
+    with pytest.raises(typer.Exit) as exc_info, contextlib.redirect_stderr(err_out):
+        replay.run_replay(ctx=ctx, line_spec="1")
+    assert exc_info.value.exit_code == EXIT_USER_ERROR
+    assert "journal log not found" in err_out.getvalue()
+
+    # JSON mode check: details.exists == False
+    ctx_json = _make_ctx(json_mode=True)
+    err_json = StringIO()
+    with pytest.raises(typer.Exit), contextlib.redirect_stderr(err_json):
+        replay.run_replay(ctx=ctx_json, line_spec="1")
+    envelope = json.loads(err_json.getvalue())
+    assert envelope["error"]["details"]["exists"] is False
 
 
 def test_replay_json_mode_envelope_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -199,6 +256,24 @@ def test_replay_json_mode_envelope_keys(tmp_path: Path, monkeypatch: pytest.Monk
     payload = json.loads(out.getvalue())
     assert set(payload.keys()) == {"command", "lines", "line_count"}
     assert len(payload["lines"]) == 3
+
+
+def test_replay_json_canonical_byte_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """B-P20: canonical JSON output has sort_keys=True byte ordering."""
+    journal = _bootstrap_project(tmp_path)
+    _append_entry(journal, _make_entry(0, "2026-01-01T00:00:00Z"))
+    from sdlc.cli import replay
+
+    monkeypatch.setattr(replay, "get_repo_root_or_cwd", lambda: tmp_path)
+    ctx = _make_ctx(json_mode=True)
+    out = StringIO()
+    with contextlib.redirect_stdout(out):
+        replay.run_replay(ctx=ctx, line_spec="1")
+    raw_output = out.getvalue().strip()
+    payload = json.loads(raw_output)
+    # Re-serialise with sort_keys to get canonical bytes
+    expected = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    assert raw_output == expected
 
 
 def test_replay_json_entry_field_shape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -271,17 +346,37 @@ def test_replay_human_readable_non_empty_payload(
     assert "agent:" in stdout
 
 
+def test_replay_nested_payload_rendered_as_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-P14: payload with nested dict/list renders as JSON, not Python repr."""
+    journal = _bootstrap_project(tmp_path)
+    _append_entry(
+        journal,
+        _make_entry(0, "2026-01-01T00:00:00Z", payload={"items": [1, 2, 3], "meta": {"k": "v"}}),
+    )
+    from sdlc.cli import replay
+
+    monkeypatch.setattr(replay, "get_repo_root_or_cwd", lambda: tmp_path)
+    ctx = _make_ctx()
+    out = StringIO()
+    with contextlib.redirect_stdout(out):
+        replay.run_replay(ctx=ctx, line_spec="1")
+    stdout = out.getvalue()
+    assert "[1, 2, 3]" in stdout or "[1,2,3]" in stdout
+    assert '"k"' in stdout or "k" in stdout
+    assert "{'k': 'v'}" not in stdout  # no Python repr, only JSON
+
+
 def test_replay_journal_error_exits_with_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """JournalError during _read_journal_range → emit_error → exit."""
-    import typing
-
+    """B-P8: JournalError during _read_journal_range → exit 2 (ERR_JOURNAL_READ_FAILED)."""
     import sdlc.journal
 
     _bootstrap_project(tmp_path)
 
-    def _raise_on_iter(*_a: typing.Any, **_kw: typing.Any) -> typing.Iterator[typing.Any]:
+    def _raise_on_iter(*_a: Any, **_kw: Any) -> Any:
         raise JournalError("corrupted journal line")
         yield  # make it a generator
 
@@ -292,4 +387,4 @@ def test_replay_journal_error_exits_with_error(
     ctx = _make_ctx()
     with pytest.raises(typer.Exit) as exc_info:
         replay.run_replay(ctx=ctx, line_spec="1")
-    assert exc_info.value.exit_code in (1, 2)
+    assert exc_info.value.exit_code == EXIT_SYSTEM_ERROR  # B-P8: pinned to 2
