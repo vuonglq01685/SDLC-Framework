@@ -57,12 +57,16 @@ def _write_approved_record(tmp_path: Path, phase: int) -> SignoffRecord:
 
 @pytest.mark.integration
 class TestSignoffReplanInvalidation:
-    def test_write_then_invalidate_then_write_again_refuses(self, tmp_path: Path) -> None:
-        """write_record → invalidate_record → write_record raises (file still present)."""
+    def test_write_then_invalidate_then_write_again_succeeds(self, tmp_path: Path) -> None:
+        """Replan flow (D4): write_record → invalidate_record → write_record SUCCEEDS.
+
+        AC5/D4 — once a record is invalidated, the post-replan re-approval flow
+        is allowed to overwrite it without an explicit unblock step. write_record
+        still refuses to clobber a non-invalidated APPROVED record.
+        """
         _write_approved_record(tmp_path, phase=1)
         invalidate_record(1, repo_root=tmp_path, reason="replan", now_utc=_TS_INVAL)
 
-        # File still exists (invalidate updates in place), so write_record raises
         phase_dir_name = _PHASE_DIR[1]
         phase_dir = tmp_path / phase_dir_name
         artifact = phase_dir / "PLACEHOLDER_V2.md"
@@ -77,6 +81,17 @@ class TestSignoffReplanInvalidation:
             drafted_at=_TS2,
             validated_at=_TS3,
         )
+        # Invalidated records are overwritable per D4 — re-approval flow lands cleanly.
+        write_record(new_record, repo_root=tmp_path)
+        from sdlc.signoff.records import read_record
+
+        roundtrip = read_record(1, repo_root=tmp_path)
+        assert roundtrip is not None
+        assert roundtrip.invalidated_at is None
+        assert roundtrip.approved_by == "bob"
+
+        # Conversely, after the new APPROVED record is in place, write_record refuses
+        # to clobber it (the original guard remains in force for live signoffs).
         with pytest.raises(SignoffError, match="cannot overwrite"):
             write_record(new_record, repo_root=tmp_path)
 

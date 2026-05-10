@@ -1,6 +1,6 @@
 # Story 2A.7: [Recovery] Signoff State Machine (4-State) + Hash-Drift Validation
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -399,7 +399,91 @@ docs/architecture-overview.md                # UPDATE — Phase-3 no-signoff not
   - [x] 11.5 Change Log fifth line: NEW debt ticket `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` opened (citation to AC6) — Story 2A.19 owner.
   - [x] 11.6 Linear-merge order: 2A.7 must be merged AFTER 2A.3 + 2A.4 + 2A.5 are all on `main` (already true at story creation time per `sprint-status.yaml`); rebase against `main` immediately before merge per CONTRIBUTING.md §3. Linear-merge order with sibling 2A.6: either order is acceptable (no shared file conflicts EXCEPT `phase_gate.py` if 2A.7 Task 6 chooses D2 and 2A.6 also touches `phase_gate.py` for the dispatcher wiring — coordinate via the worktree branch sync window).
 
-## Dev Notes
+### Review Findings
+
+> Review run: 2026-05-10 (`bmad-code-review`); branch `epic-2a/2a-7-recovery-signoff-state-machine-hash-drift-validation` vs `main`; 3 parallel adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor); 125 raw findings → 47 unique after dedupe (6 decision-needed + 32 patches + 17 deferred + 9 dismissed).
+
+#### Decision-needed (D-decisions to resolve before patches)
+
+- [x] [Review][Decision] **D1** — `phase_gate.signoff_reader` is a REQUIRED kwarg with no production wiring (AC7/A17). AC7 says `signoff_reader=signoff.compute_state` (default-arg), code requires it; dispatcher in `src/sdlc/dispatcher/core.py` does NOT inject it, so `run_hook_chain` calling bare `phase_gate` would `TypeError`. Options: (a) add `signoff_reader=signoff.compute_state` default to match AC7 verbatim; (b) keep required + tactically wire in `dispatcher/core.py` now (encroaches on 2A.6); (c) defer wiring to 2A.6 with explicit debt entry.
+- [x] [Review][Decision] **D2** — `validate_signoff` SignoffError `details` key is `"artifact_path"` (impl + tests + runbook) but AC3 spec text says `"artifact"` (`src/sdlc/signoff/validator.py:106,122,136` vs spec line 84). Options: (a) rename code+tests to `"artifact"` (matches spec); (b) amend AC3 spec line 84 + `docs/runbooks/diagnose-signoff-drift.md` to `"artifact_path"` (matches code).
+- [x] [Review][Decision] **D3** — `_write_bytes_to_disk` rolls its own tmp+replace without `fsync` and without `flock` (`src/sdlc/signoff/records.py:161-173`); AC5 mandates `state.atomic.write_atomic` (Story 1.10) which uses flock+fsync. Completion Notes line 622 says direct write was chosen because flock is POSIX-only. Options: (a) add `os.fsync(fd)` to current pattern (still no concurrency lock — Windows-friendly); (b) adopt `state.atomic.write_atomic` per AC5 with platform shim; (c) defer concurrency hardening to a debt ticket and amend AC5 to allow direct-write.
+- [x] [Review][Decision] **D4** — `write_record` refuses overwrite even when existing record is `invalidated_at != null` (`src/sdlc/signoff/records.py:219-223`). Replan flow: `invalidate_record` → operator re-drafts → `write_record(new_approved)` would now refuse because the invalidated file still exists. Options: (a) `write_record` allow overwrite when `existing.invalidated_at is not None`; (b) require explicit `unblock_record(phase)` step; (c) defer (Story 2A.19 owner).
+- [x] [Review][Decision] **D5** — `details["actual"]` for missing artifact is `""` (impl) vs `None` (spec AC3 step 4 — `"<h_current_or_None>"`). `compute_artifact_hash` returns `""` sentinel for missing files; validator forwards verbatim. Options: (a) coerce sentinel `""` → `None` in `details`; (b) amend spec to `<h_current_or_empty>`.
+- [x] [Review][Decision] **D6** — Property test strategy diverges from AC8 first-And. Spec mandated `sampled_from(["artifact_edit", "signoff_edit", "hash_record_edit", "no_mutation"])` strategy with bytes `min_size=1024, max_size=10240` and 1-5 artifacts; impl uses 4 separate `@given` test functions with `min_size=1, max_size=4096` and single artifact. Spec edge cases not exercised in property suite: 0-byte file, UTF-8 non-ASCII paths, multi-artifact path-sort. Options: (a) refactor to single property over `sampled_from` with spec-sized strategy + add edge cases; (b) accept current shape + amend AC8 to match.
+
+#### Patch (unambiguous fixes)
+
+- [x] [Review][Patch] **P1 (CRIT)** — `compute_state` swallows `SignoffError` from `read_signoff_md_draft` and demotes to `AWAITING_SIGNOFF`; AC2 final-And mandates this be re-raised as a hard error. Invert codifying test `test_compute_state_malformed_draft_falls_back_to_awaiting`. [`src/sdlc/signoff/states.py:90-97`; `tests/unit/signoff/test_states.py:274-283`]
+- [x] [Review][Patch] **P2 (CRIT)** — `write_record` does not reject `phase=3`; AC10 second-And mandates `SignoffError("phase 3 has no canonical record in v1")` unconditionally. Add guard at top of `write_record`. [`src/sdlc/signoff/records.py:212-231`]
+- [x] [Review][Patch] **P3 (HIGH)** — `EPIC-2A-DEBT-PHASE-GATE-READ` not marked RESOLVED in `_bmad-output/implementation-artifacts/deferred-work.md` despite Change Log + Task 11.4 claiming so. Edit deferred-work.md to mark RESOLVED with citation to this story's Task 6. [`_bmad-output/implementation-artifacts/deferred-work.md:313`]
+- [x] [Review][Patch] **P4 (HIGH)** — `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` debt entry never opened despite Change Log + Task 11.5 claiming so. Open new entry referencing 2A.19 as consumer; list the 3 contract obligations from AC6 (call `invalidate_record` per impacted phase; append `kind="signoff_invalidated"` journal entry; recompute downstream dirty flags). [`_bmad-output/implementation-artifacts/deferred-work.md`]
+- [x] [Review][Patch] **P5 (HIGH)** — `_RFC3339_UTC_MS` regex defined but never enforced (`src/sdlc/signoff/records.py:34`); AC2/AC3/AC5 mandate RFC 3339 UTC ms format on `approved_at`, `drafted_at`, `validated_at`, `invalidated_at`, AC3 `now_utc` parameter. Apply `Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)]` to all timestamp fields on `SignoffRecord` + `_SignoffMdDraft`; validate `now_utc` parameter in `validate_signoff` + `invalidate_record` entry. [`src/sdlc/signoff/records.py:94-103,128-135`; `src/sdlc/signoff/validator.py:51`]
+- [x] [Review][Patch] **P6 (HIGH)** — `_normalize_yaml_data` corrupts non-UTC tz datetimes by appending `Z` without converting (`src/sdlc/signoff/records.py:50-52`); a record with `approved_at: 2026-05-10T11:00:00+05:00` is silently re-emitted as `2026-05-10T11:00:00.000Z` (claims UTC, actually IST). Convert via `obj.astimezone(datetime.timezone.utc)` before formatting. Also: microsecond → millisecond truncation is silent (`obj.microsecond // 1000`) — document or reject sub-millisecond. [`src/sdlc/signoff/records.py:50-52`]
+- [x] [Review][Patch] **P7 (HIGH)** — Cross-phase artifact check accepts `phase_dir_name + "\\"` (Windows backslash) into a contract documented as POSIX-only (`src/sdlc/signoff/validator.py:97-99`); `_SignoffMdDraftArtifact._validate_path` and `ArtifactRef._validate_path` use substring checks that miss `\..\` traversal sequences. Fix: drop the `"\\"` branch in cross-phase check; reject any backslash in `_validate_path` for both classes; extract single shared `_is_safe_repo_relative_posix(p)` helper. [`src/sdlc/signoff/records.py:67-83,113-118`; `src/sdlc/signoff/validator.py:97-99`]
+- [x] [Review][Patch] **P8 (HIGH)** — `validate_signoff` does not assert `draft.phase == phase` parameter; an operator who copy-pastes `02-Architecture/SIGNOFF.md` into `01-Requirement/` and edits paths gets a happy-path validation. Add explicit check: `if draft.phase != phase: raise SignoffError("draft phase mismatch: expected <N>, draft says <M>")`. Also propagate to `compute_state`. [`src/sdlc/signoff/validator.py:83-93`; `src/sdlc/signoff/states.py:88-97`]
+- [x] [Review][Patch] **P9 (HIGH)** — `validate_signoff` builds record with `approved_by=draft.approved_by or ""` (`src/sdlc/signoff/validator.py:148`), silently coercing `null` → empty string. AC2 fifth-And tolerates `approved=true + approved_by=null` as "user-edited intermediate" — but reaching `validate_signoff` means the operator has triggered validation; an empty `approved_by` destroys audit attribution (PRD §344). Reject with `SignoffError("approved=true requires approved_by to be non-null")` at validator entry.
+- [x] [Review][Patch] **P10 (HIGH)** — `_SignoffMdDraft.artifacts` accepts empty tuple, allowing `validate_signoff` to produce a `SignoffRecord` with zero artifacts and no audit content. Add `Annotated[tuple[...], Field(min_length=1)]` on `_SignoffMdDraft.artifacts` + a defensive check in `validate_signoff`. [`src/sdlc/signoff/records.py:131`]
+- [x] [Review][Patch] **P11 (HIGH)** — `compute_artifact_hash` symlink-escape check is opt-in (`repo_root: Path | None = None`); AC4 fourth-And demands the check unconditional. Make `repo_root` a required keyword-only parameter; update call sites; update unit tests `test_hash_small_file`, `test_hash_empty_file` to pass `repo_root=tmp_path`. [`src/sdlc/signoff/hasher.py:21,34`]
+- [x] [Review][Patch] **P12 (HIGH)** — `phase_gate._get_leading_dir` allows `..` traversal and absolute paths to bypass the gate (`src/sdlc/hooks/builtin/phase_gate.py:39-44`). E.g. `target_path="/01-Requirement/foo.md"` returns `parts[0]="/"` and the gate falls through to "allow"; `target_path="../01-Requirement/foo.md"` similarly allows. Reject absolute paths and `..` segments outright (deny by default); also normalize backslash → forward slash before splitting.
+- [x] [Review][Patch] **P13 (HIGH)** — `validate_signoff` builds `artifact_refs = tuple(... for art in draft.artifacts)` from insertion order, NOT path-sorted (`src/sdlc/signoff/validator.py:148`). AC2 fifth-And mandates sorted-by-path for byte-stable round-trip. Replace with `for art in sorted_artifacts` (already computed at line 111).
+- [x] [Review][Patch] **P14 (MED)** — `docs/architecture-overview.md:113-115` advertises a `write_record(phase=3)→SignoffError` invariant that is not implemented (paired with P2). Either add the code (P2) or fix the doc; both are needed because the doc text quotes the error message.
+- [x] [Review][Patch] **P15 (MED)** — `compute_state` strict-mode error message diverges from AC1 fourth-And literal text. Code: `"phase 3 has no signoff in v1 (strict=True)"`. Spec: `"phase 3 has no signoff in v1; use per-task TDD evidence + PR merge"`. Align. [`src/sdlc/signoff/states.py:70`]
+- [x] [Review][Patch] **P16 (LOW)** — `src/sdlc/signoff/__init__.py` is 39 LOC; AC11 layout cap is ≤30 LOC. Consolidate `__all__` into a single tuple, drop blank lines.
+- [x] [Review][Patch] **P17 (LOW)** — `docs/architecture-overview.md:111` references "Architecture §95-99" for the boundary rule; spec consistently cites §1056-§1071, §1067, §1109. Fix the section number.
+- [x] [Review][Patch] **P18 (LOW)** — Story spec File List (lines 624-650) is incomplete: missing `tests/integration/test_hook_chain_smoke.py`, `tests/unit/dispatcher/test_dispatch_primary.py`, `tests/unit/hooks/test_naming_validator.py`, `tests/unit/hooks/test_phase_gate.py`, `_bmad-output/implementation-artifacts/sprint-status.yaml`; lists `_bmad-output/implementation-artifacts/deferred-work.md` which is NOT in diff (paired with P3, P4 — once those land, the file IS modified, and the line is correct).
+- [x] [Review][Patch] **P19 (MED)** — `SignoffRecord.phase: int` accepts negative, zero, 99 etc.; AC3 schema says "1 or 2". Tighten to `Literal[1, 2]` (or `Annotated[int, Field(ge=1, le=2)]`). [`src/sdlc/signoff/records.py:94`]
+- [x] [Review][Patch] **P20 (MED)** — `_SignoffMdDraft.phase: int` same issue; tighten to `Literal[1, 2]`. [`src/sdlc/signoff/records.py:130`]
+- [x] [Review][Patch] **P21 (MED)** — `list_records` lex-sorts glob results (works for ≤9 phases only), and admits `phase-99.yaml` files as valid records. Use `key=lambda p: int(p.stem.split("-")[1])` for numeric sort; filter on `phase_num in {1, 2}` after the phase-3 skip. [`src/sdlc/signoff/records.py:289-302`]
+- [x] [Review][Patch] **P22 (MED)** — `list_records` uses `print(..., file=sys.stderr)` for the phase-3 WARN, inconsistent with `compute_state` which uses `_log.warning(...)`. Use `logging` everywhere. [`src/sdlc/signoff/records.py:295-301`]
+- [x] [Review][Patch] **P23 (MED)** — `SignoffReaderType = Callable[[int, Path], str]` is a type lie because the canonical reader (`compute_state`) returns `SignoffState` enum; integration tests pass enum, unit tests pass raw strings, and the `state.value if hasattr(state, "value") else str(state)` workaround is fragile (`src/sdlc/hooks/builtin/phase_gate.py:28,74-77`). Tighten the alias to `Callable[[int, Path], SignoffState]`; remove the hasattr workaround.
+- [x] [Review][Patch] **P24 (MED)** — `_extract_yaml_payload` silently falls through to "no frontmatter or fenced signoff block found" when frontmatter is empty / `null` / non-dict / unterminated (`---` without closing) (`src/sdlc/signoff/records.py:317-345`). Six failure modes collapse into one misleading message. Distinguish: empty frontmatter, non-dict frontmatter (list/scalar), unterminated frontmatter, both shapes present.
+- [x] [Review][Patch] **P25 (MED)** — `_SignoffMdDraft.artifacts` is not enforced sorted on read (`src/sdlc/signoff/records.py:122-135`); only the validator's drift loop sorts. AC2 fifth-And mandates sorted-by-path on the read shape. Add a `model_validator(mode="after")` that asserts artifact paths are lexicographically non-decreasing.
+- [x] [Review][Patch] **P26 (LOW)** — Three identical `_PHASE_NO_SIGNOFF: int = 3` definitions across `records.py`, `states.py`, `validator.py`; same for `_PHASE_DIR_MAP` import dance. Extract to a shared `sdlc.signoff._consts` (or promote to public `PHASE_DIR_MAP`/`PHASE_NO_SIGNOFF`) — DRY + boundary cleanup.
+- [x] [Review][Patch] **P27 (LOW)** — `test_record_hash_yaml_canonicalization` (`tests/unit/signoff/test_signoff_record_hash.py:3974-3987`) asserts `canon1 == canon2` (deterministic) but does NOT verify keys are sorted. Removing `sort_keys=True` from `_canonicalize_record_bytes` would still pass. Strengthen to verify the YAML output has alphabetic key order at the top level.
+- [x] [Review][Patch] **P28 (LOW)** — `test_signoff_record_rejects_extra_fields` uses `pytest.raises(ValidationError)` with no `match=` parameter; could pass on an unrelated ValidationError if extra-field rejection regresses. Add `match=r"extra_field"` (or `match=r"Extra inputs are not permitted"`).
+- [x] [Review][Patch] **P29 (LOW)** — `_SignoffMdDraft` accepts `approved: 1` (int → bool) under `model_validate(strict=False)`; YAML scalar `1` silently truthy-coerced. Either pre-validate raw YAML token type, or upgrade to `strict=True` for the `approved` field via `Annotated[bool, Field(strict=True)]`. [`src/sdlc/signoff/records.py:381`]
+- [x] [Review][Patch] **P30 (LOW)** — `phase_gate._check_state` catches `Exception` broadly (`src/sdlc/hooks/builtin/phase_gate.py:60`), masking `TypeError`/`AttributeError` from a misbehaving DI reader. Narrow to `(SignoffError, OSError)` and let unexpected exceptions propagate.
+- [x] [Review][Patch] **P31 (LOW)** — `_phase3_warned` module-global state (`src/sdlc/signoff/states.py:27,73-75`) leaks across pytest tests in the same process; test `test_compute_state_phase3_warn_logged_once` requires manual reset. Add an autouse fixture `@pytest.fixture(autouse=True)` in `tests/unit/signoff/test_states.py` that resets the flag, OR scope dedupe per-repo_root via a `set[Path]`.
+- [x] [Review][Patch] **P32 (LOW)** — `invalidate_record` returns the in-memory `updated` object, not a re-read of the file (`src/sdlc/signoff/records.py:268`); if YAML normalization round-trip is lossy (paired with P6), the returned record differs from what `read_record` would later load. Either re-read after write, OR document non-roundtrip explicitly.
+
+#### Defer (real but not actionable now — also appended to deferred-work.md)
+
+- [x] [Review][Defer] **W1** — Post-approval phase-1 artifact tampering is undetected by `compute_state` because it only reads canonical record, never re-validates on-disk hashes. Out of v1 scope. [defer to v1.x; flag in deferred-work]
+- [x] [Review][Defer] **W2** — AC1 step 3 says `DRAFTED_NOT_APPROVED` is for `approved: false`; AC2 fifth-And + impl returns `DRAFTED_NOT_APPROVED` even for `approved: true` until `validate_signoff + write_record` runs. Internal spec contradiction; document amendment to AC1 step 3 in retrospective.
+- [x] [Review][Defer] **W3** — Cross-phase deterministic ordering is path-sorted for hash drifts but insertion-order for cross-phase rejection (`src/sdlc/signoff/validator.py:96-99` vs `:111-141`). Mixed determinism semantics; defer.
+- [x] [Review][Defer] **W4** — `tests/integration/test_signoff_replan_invalidation.py` writes a phase-2 canonical record without a phase-1 record (impossible state in real workflow). Test still verifies phase-3 deny logic but doesn't test the realistic flow.
+- [x] [Review][Defer] **W5** — `docs/runbooks/diagnose-hook-rejection.md:799` says `"reader raised: ..."` indicates a corrupt canonical record, but P1's fix would also raise on corrupt drafts; runbook table will need update once P1 lands.
+- [x] [Review][Defer] **W6** — Broken symlinks return `""` sentinel (kind="missing"), indistinguishable from a truly missing file. Different operational signal but same handling.
+- [x] [Review][Defer] **W7** — Symlink loop error doesn't include cycle path in `details`; only the entrypoint.
+- [x] [Review][Defer] **W8** — Symlink TOCTOU between cross-phase string check and `compute_artifact_hash` open. Mitigated by hash-via-target-bytes; defer.
+- [x] [Review][Defer] **W9** — `validate_signoff` artifact-sort uses default Python codepoint sort, locale-independent but not normalized for case-insensitive filesystems (Windows, macOS-default).
+- [x] [Review][Defer] **W10** — `compute_state` does not validate `repo_root.exists()` / `is_dir()`; typo'd repo_root silently returns AWAITING.
+- [x] [Review][Defer] **W11** — `_write_bytes_to_disk` uses deterministic `.tmp` suffix without PID/random component; concurrent writers can clobber tmp files (paired with D3 atomic-write decision).
+- [x] [Review][Defer] **W12** — `_normalize_yaml_data` does not handle PyYAML-loaded `set`/`frozenset`/complex types; raises confusing Pydantic error.
+- [x] [Review][Defer] **W13** — `read_record` `OSError` distinction lost (PermissionError vs FileNotFoundError TOCTOU); `details["cause"]` not populated.
+- [x] [Review][Defer] **W14** — `compute_signoff_record_hash(record: object)` uses `# type: ignore[attr-defined]`; should type as `SignoffRecord` via TYPE_CHECKING import.
+- [x] [Review][Defer] **W15** — `SignoffRecord.invalidated_reason: str | None` has no length cap; malicious YAML could store arbitrarily long strings.
+- [x] [Review][Defer] **W16** — 0-byte artifact files produce a valid SHA-256 (the well-known empty-string hash) and pass signoff; meaningless audit trail accepted as semantic.
+- [x] [Review][Defer] **W17** — `ValidatedSignoff.drift: tuple[ArtifactDrift, ...] = ()` is forward-compat dead code; document as reserved, or remove.
+- [x] [Review][Defer] **W18** — Anti-tautology receipt #1 cross-reference: Change Log cites `test_no_mutation_always_approves` (property test); commit `4e233fc` cites `test_validate_signoff_happy_path`/`test_validate_signoff_artifact_drifted_raises` (unit tests). Inconsistent narrative; receipt is otherwise present and gate satisfied.
+- [x] [Review][Defer] **W19** — TDD-first commit `8a6d93a` is "RED+GREEN combined" rather than separate red/green commits per ADR-026 §1 visible in `git log --reverse`. Soft visibility violation; raise as systemic issue in retro.
+- [x] [Review][Defer] **W20** — `invalidate_record` re-invalidating an already-invalidated record silently overwrites timestamps + reasons (no idempotency check). Edge case for replan-then-replan flows.
+- [x] [Review][Defer] **W21** — `_phase3_warned` is process-global, not per-repo_root; in a long-running daemon, only the first repo to encounter phase-3 emits the WARN.
+
+#### Dismissed (false positive / noise — not recorded as actionable)
+
+- R1 — `yaml.safe_load` already used everywhere (E6 NEGATIVE).
+- R2 — `except Exception` correctly excludes `KeyboardInterrupt`/`SystemExit` (E43 NEGATIVE).
+- R3 — `test_phase1_validate_returns_approved_state` correctly mutates state-under-test (E48 NEGATIVE).
+- R4 — Property tests use fresh tempdir per example (E50 NEGATIVE).
+- R5 — `allow_unicode=True` on yaml.safe_dump preserves emoji/UTF-8 (E61 NEGATIVE).
+- R6 — Surrogate-pair UTF-8 round-trip stable in storage layer (E62 NEGATIVE).
+- R7 — `test_signoff_state_is_str` is structurally tautological but spec-required as a marker assertion that `SignoffState` remains a str-Enum (F20 NOISE).
+- R8 — `_phase3_warned` thread-safety unguarded mutation (F33) — module is async-free per AC4; real risk negligible.
+- R9 — `compute_state` repo_root nonexistent silently AWAITING (E23) — duplicate of W10; dropped here as dismissed because it overlaps a defer.
+
+
 
 ### Critical context — DO NOT skip
 
@@ -643,11 +727,20 @@ claude-sonnet-4-6
 - docs/runbooks/diagnose-signoff-drift.md
 
 **Updated files:**
-- src/sdlc/hooks/builtin/phase_gate.py (Task 6: DI signoff_reader; removed raw yaml.safe_load reader)
-- tests/integration/test_phase_gate_signoff_read.py (Task 6.3: inject compute_state; add INVALIDATED_BY_REPLAN case)
-- _bmad-output/implementation-artifacts/deferred-work.md (Task 6.4: EPIC-2A-DEBT-PHASE-GATE-READ → RESOLVED; EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE opened)
-- docs/architecture-overview.md (Task 9.1: Hook Chain Integration Map + Phase-3 no-signoff note + DI data flow diagram)
+- src/sdlc/hooks/builtin/phase_gate.py (Task 6: DI signoff_reader; removed raw yaml.safe_load reader; review patches P12/P23/P30 — `..` + absolute-path deny, SignoffReaderType cleanup, narrow except)
+- tests/integration/test_phase_gate_signoff_read.py (Task 6.3: inject compute_state; add INVALIDATED_BY_REPLAN case; review patch P-D2 — details key rename)
+- tests/integration/test_hook_chain_smoke.py (Task 6: phase_gate DI fixture)
+- tests/unit/dispatcher/test_dispatch_primary.py (lint-only mods)
+- tests/unit/hooks/test_naming_validator.py (lint-only mods)
+- tests/unit/hooks/test_phase_gate.py (Task 6.3: DI-based parametrised cases for all 4 SignoffStates + bypass + review patch P30 narrow except)
+- _bmad-output/implementation-artifacts/deferred-work.md (Task 6.4: EPIC-2A-DEBT-PHASE-GATE-READ → RESOLVED; review patches P3/P4 + D3 — REPLAN-INVALIDATION-WIRE + SIGNOFF-FLOCK-CONCURRENCY entries)
+- _bmad-output/implementation-artifacts/sprint-status.yaml (status flip: review → done)
+- docs/architecture-overview.md (Task 9.1: Hook Chain Integration Map + Phase-3 no-signoff note + DI data flow diagram; review patches P14/P17 — accurate phase-3 enforcement claim + correct §1067/§1109 ref)
 - docs/runbooks/diagnose-hook-rejection.md (Task 9.2: 4-state post-2A.7 diagnostic table)
+- docs/runbooks/diagnose-signoff-drift.md (review patch P-D2 — details key rename; missing-actual sentinel doc)
+
+**New files (review-driven):**
+- src/sdlc/dispatcher/_hook_chain.py (Story 2A.7 D1 review decision: production-ready `build_pre_write_hook_chain(repo_root)` builder for `run_hook_chain` consumption; preserves hooks/ → signoff/ boundary)
 
 ### Change Log
 

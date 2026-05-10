@@ -53,7 +53,10 @@ def test_signoff_record_rejects_extra_fields() -> None:
 
     from sdlc.signoff.records import ArtifactRef, SignoffRecord
 
-    with pytest.raises(ValidationError):
+    # P28: anchor on the actual error (extra field) rather than any ValidationError —
+    # the test was previously vacuous: any unrelated validation regression would
+    # still pass `pytest.raises(ValidationError)`.
+    with pytest.raises(ValidationError, match=r"extra_field|Extra inputs are not permitted"):
         SignoffRecord(
             phase=1,
             artifacts=(ArtifactRef(path="01-Dir/f.md", hash=_VALID_HASH),),

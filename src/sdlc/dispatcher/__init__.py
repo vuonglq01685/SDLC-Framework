@@ -6,6 +6,7 @@ Consumers (engine, CLI) import ONLY from this module.
 
 from __future__ import annotations
 
+from sdlc.dispatcher._hook_chain import build_pre_write_hook_chain
 from sdlc.dispatcher.core import (
     DispatchOutcome,
     DispatchResult,
@@ -19,6 +20,7 @@ __all__: tuple[str, ...] = (
     "DispatchOutcome",
     "DispatchResult",
     "PanelResult",
+    "build_pre_write_hook_chain",
     "dispatch",
     "dispatch_panel",
     "with_retries",

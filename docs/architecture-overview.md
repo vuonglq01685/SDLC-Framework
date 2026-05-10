@@ -108,11 +108,18 @@ so callers can conform before 2A.6 merges.
 Story 2A.7 resolved `EPIC-2A-DEBT-PHASE-GATE-READ`: `phase_gate` no longer reads the signoff
 YAML directly. Instead the dispatcher injects `signoff_reader: Callable[[int, Path], str]`
 (wrapping `sdlc.signoff.compute_state`) at chain-construction time (AC11/D2). This preserves
-the `hooks/` → `signoff/` boundary rule (Architecture §95-99).
+the `hooks/` → `signoff/` boundary rule (Architecture §1067, §1109). Production wiring lives
+in `sdlc.dispatcher.build_pre_write_hook_chain(repo_root)` which returns a wire-ready
+`(naming_validator, phase_gate_bound_with_reader)` tuple for `run_hook_chain` consumption
+(Story 2A.7 D1 review decision).
 
 **Phase 3 has no signoff.** `phase_gate` permits Phase 3 writes IFF
 `compute_state(phase=2) == APPROVED`. Story 2A.7 enforces the no-phase-3-signoff invariant
-— attempting to write a Phase 3 canonical record raises `SignoffError`.
+end-to-end: `compute_state(phase=3, strict=True)` raises with the spec message
+`"phase 3 has no signoff in v1; use per-task TDD evidence + PR merge"`,
+`validate_signoff(phase=3, ...)` raises unconditionally, AND `write_record(record_with_phase=3, ...)`
+raises `SignoffError("phase 3 has no canonical record in v1")` regardless of how the record
+was constructed (Story 2A.7 P2 patch closes the AC10 enforcement gap).
 
 ### Data flow
 

@@ -10,28 +10,35 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from sdlc.errors import SignoffError
 
+if TYPE_CHECKING:
+    from sdlc.signoff.records import SignoffRecord
+
 _CHUNK_SIZE = 64 * 1024  # 64 KiB streaming chunks (cold-start friendliness per §488-§494)
 
 
-def compute_artifact_hash(path: Path, *, repo_root: Path | None = None) -> str:
+def compute_artifact_hash(path: Path, *, repo_root: Path) -> str:
     """Return ``sha256:<hex>`` of the file's on-disk bytes (raw; no canonicalization).
+
+    ``repo_root`` is required (kwarg-only): the symlink-escape check is a
+    defense-in-depth invariant per AC4 fourth-And and must always run.
 
     Returns the missing-file-sentinel string ``''`` if the file does not exist.
     Callers MUST handle the sentinel; validate_signoff treats it as drift.
 
     Raises ``SignoffError`` on permission denied or unreadable file, and on
-    symlink escaping the repo root.
+    symlinks whose target escapes the repo root.
     """
     if not path.exists():
         return ""
 
     # Symlink-escape check (defense-in-depth, mirrors Story 2A.5's compute_hook_hashes)
-    if repo_root is not None and path.is_symlink():
+    if path.is_symlink():
         try:
             resolved = path.resolve(strict=True)
         except (OSError, RuntimeError) as exc:
@@ -61,10 +68,10 @@ def compute_artifact_hash(path: Path, *, repo_root: Path | None = None) -> str:
     return f"sha256:{digest.hexdigest()}"
 
 
-def _canonicalize_record_bytes(record: object) -> bytes:
+def _canonicalize_record_bytes(record: SignoffRecord) -> bytes:
     """Return canonical YAML bytes for a SignoffRecord (Pattern §3 YAML equivalent)."""
     # Use model_dump(mode="json") to get JSON-compatible scalars (strings, not datetimes)
-    data = record.model_dump(mode="json")  # type: ignore[attr-defined]
+    data = record.model_dump(mode="json")
     return yaml.safe_dump(
         data,
         sort_keys=True,
@@ -73,7 +80,7 @@ def _canonicalize_record_bytes(record: object) -> bytes:
     ).encode("utf-8")
 
 
-def compute_signoff_record_hash(record: object) -> str:
+def compute_signoff_record_hash(record: SignoffRecord) -> str:
     """Return ``sha256:<hex>`` of the canonical YAML serialisation of the record.
 
     Used by Story 2A.19 sdlc replan to detect external tampering with the

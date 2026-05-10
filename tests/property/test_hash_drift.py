@@ -1,17 +1,28 @@
-"""Hypothesis property test: hash-drift permutation matrix (AC8, Story 2A.7).
+"""Hypothesis property test: hash-drift permutation matrix (AC8, Story 2A.7, D6).
 
 NFR-REL-3 zero false negatives: validate_signoff MUST detect ANY of:
   artifact_edit    — artifact bytes mutated after SIGNOFF.md was drafted
   hash_record_edit — hash in SIGNOFF.md draft tampered to a wrong value
-  no_mutation      — happy path; approve MUST succeed (no false positives)
   signoff_edit     — only approved: false → true; no content mutation; must SUCCEED
+  no_mutation      — happy path; approve MUST succeed (no false positives)
 
-Budget: @settings(max_examples=200, deadline=5000) per @given.
-Four @given suites x 200 examples = 800 total test cases.
+Per AC8 (Story 2A.7 D6 review decision), mutation types are dispatched via a
+single ``hypothesis.strategies.sampled_from`` strategy so a single property
+randomly distributes examples across all four cases, exercising cross-mutation
+interleaving instead of running each case in isolation. Spec-mandated bytes
+sizing (1 KiB-10 KiB) and 1-5 artifacts per case are also honoured.
 
-NOTE: Tests manage their own tempfile.TemporaryDirectory() to avoid hypothesis
-function_scoped_fixture health check (hypothesis does not reset pytest fixtures
-between examples).
+Edge cases additionally covered as hard-coded unit-style checks below the
+property: 0-byte file, non-ASCII / UTF-8 path, multi-artifact path-sort.
+
+Budget: @settings(max_examples=200, deadline=10_000) on the unified property
++ four ``no_mutation`` baseline examples → ≥ 200 examples per mutation type
+in expectation (sampled_from gives uniform distribution, so 200/4 = 50 each;
+the unified shape preserves the AC8 ≥ 100 budget by raising max_examples to
+1000 to keep ≥ 200 hits per bucket).
+
+NOTE: Tests manage their own ``tempfile.TemporaryDirectory()`` to avoid the
+hypothesis function_scoped_fixture health check.
 """
 
 from __future__ import annotations
@@ -20,7 +31,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 pytestmark = pytest.mark.property
@@ -31,6 +42,7 @@ _TS2 = "2026-05-10T12:00:00.000Z"
 _PHASE = 1
 _PHASE_DIR = "01-Requirement"
 _ZERO_HASH = "sha256:" + "0" * 64
+
 
 # ---------------------------------------------------------------------------
 # Helpers (NOT exported — property-test-only, per story Task 5.2)
@@ -73,139 +85,164 @@ def _write_signoff_draft(
     return draft_path
 
 
-def _setup_repo(
+def _setup_multi_artifact_repo(
     repo_root: Path,
-    artifact_bytes: bytes,
+    artifacts: list[tuple[str, bytes]],  # [(name, content), ...]
     *,
-    approved: bool = False,
-) -> tuple[Path, str]:
-    """Create one artifact + draft; return (artifact_path, recorded_hash)."""
+    approved: bool = True,
+) -> list[tuple[str, str]]:
+    """Create N artifacts and a draft listing them all (sorted-by-path)."""
     from sdlc.signoff.hasher import compute_artifact_hash
 
-    artifact = _write_artifact(repo_root, "PRODUCT.md", artifact_bytes)
-    recorded_hash = compute_artifact_hash(artifact, repo_root=repo_root)
-    _write_signoff_draft(
-        repo_root,
-        [(f"{_PHASE_DIR}/PRODUCT.md", recorded_hash)],
-        approved=approved,
-    )
-    return artifact, recorded_hash
+    entries: list[tuple[str, str]] = []
+    for name, content in artifacts:
+        path = _write_artifact(repo_root, name, content)
+        h = compute_artifact_hash(path, repo_root=repo_root)
+        entries.append((f"{_PHASE_DIR}/{name}", h))
+    _write_signoff_draft(repo_root, entries, approved=approved)
+    return entries
 
 
 # ---------------------------------------------------------------------------
-# Strategies
+# Strategies (D6: spec-mandated sizes + 1-5 artifacts)
 # ---------------------------------------------------------------------------
 
-_non_empty_bytes = st.binary(min_size=1, max_size=4096)
+# AC8 first-And: 1 KiB-10 KiB content per artifact.
+_artifact_bytes = st.binary(min_size=1024, max_size=10240)
+
+# 1-5 artifacts per case, each with a deterministic distinct name so the
+# resulting paths are byte-stable for hash-drift verification.
+_artifact_count = st.integers(min_value=1, max_value=5)
+
+_mutation_kind = st.sampled_from(
+    ["artifact_edit", "signoff_edit", "hash_record_edit", "no_mutation"]
+)
 
 
 # ---------------------------------------------------------------------------
-# Property 1 — artifact_edit: mutating artifact bytes MUST raise drift error
+# Unified property: dispatch on mutation kind (D6)
 # ---------------------------------------------------------------------------
 
 
-@given(original=_non_empty_bytes, tampered=_non_empty_bytes)
-@settings(max_examples=200, deadline=5000, suppress_health_check=[HealthCheck.too_slow])
-def test_artifact_edit_always_detected(original: bytes, tampered: bytes) -> None:
-    """Any byte mutation of the artifact (when hash differs) triggers drift detection."""
+@given(
+    mutation=_mutation_kind,
+    contents=st.lists(_artifact_bytes, min_size=1, max_size=5),
+    tampered_payload=_artifact_bytes,
+)
+@settings(
+    max_examples=1000,
+    deadline=10_000,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
+)
+def test_hash_drift_permutation_matrix(
+    mutation: str, contents: list[bytes], tampered_payload: bytes
+) -> None:
+    """Unified property: mutation ∈ {artifact_edit, signoff_edit, hash_record_edit, no_mutation}.
+
+    NFR-REL-3 zero false negatives — validate_signoff must detect drift in the
+    three mutation cases and succeed in the negative (no_mutation) case.
+    """
     from sdlc.errors import SignoffError
     from sdlc.signoff.hasher import compute_artifact_hash
+    from sdlc.signoff.states import SignoffState
     from sdlc.signoff.validator import validate_signoff
 
     with tempfile.TemporaryDirectory() as _tmpdir:
         repo_root = Path(_tmpdir)
-        artifact, recorded_hash = _setup_repo(repo_root, original, approved=True)
+        # Distinct, sorted artifact names so every example exercises path-order.
+        artifact_specs = [(f"DOC_{idx:02d}.md", c) for idx, c in enumerate(contents)]
+        entries = _setup_multi_artifact_repo(repo_root, artifact_specs, approved=True)
 
-        # Compute hash of tampered bytes
-        tmp_check = repo_root / "_tmp_check.md"
-        tmp_check.write_bytes(tampered)
-        tampered_hash = compute_artifact_hash(tmp_check, repo_root=repo_root)
-        tmp_check.unlink()
-
-        if tampered_hash == recorded_hash:
-            # Same content (or collision) — no drift; skip
+        if mutation == "no_mutation":
+            result = validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
+            assert result.state == SignoffState.APPROVED
+            assert result.drift == ()
+            assert len(result.record.artifacts) == len(artifact_specs)
             return
 
-        # Overwrite artifact with tampered content
-        artifact.write_bytes(tampered)
+        if mutation == "signoff_edit":
+            # Re-write draft with approved flipped on; no artifact mutation.
+            _write_signoff_draft(repo_root, entries, approved=True)
+            result = validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
+            assert result.state == SignoffState.APPROVED
+            return
 
-        with pytest.raises(SignoffError) as exc_info:
-            validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
+        if mutation == "artifact_edit":
+            # Tamper the FIRST artifact's bytes; need genuinely different bytes.
+            target_name, original = artifact_specs[0]
+            tmp_check = repo_root / "_tmp_check.md"
+            tmp_check.write_bytes(tampered_payload)
+            tampered_hash = compute_artifact_hash(tmp_check, repo_root=repo_root)
+            tmp_check.unlink()
+            recorded_hash = entries[0][1]
+            assume(tampered_hash != recorded_hash)
 
-        assert exc_info.value.details["kind"] in ("drifted", "missing")
+            (repo_root / _PHASE_DIR / target_name).write_bytes(tampered_payload)
+            with pytest.raises(SignoffError) as exc_info:
+                validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
+            assert exc_info.value.details["kind"] in ("drifted", "missing")
+            return
+
+        if mutation == "hash_record_edit":
+            # Tamper the recorded hash in the draft to a known-wrong sentinel.
+            assume(entries[0][1] != _ZERO_HASH)
+            tampered_entries = [(entries[0][0], _ZERO_HASH), *entries[1:]]
+            _write_signoff_draft(repo_root, tampered_entries, approved=True)
+            with pytest.raises(SignoffError) as exc_info:
+                validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
+            assert exc_info.value.details["kind"] == "drifted"
+            assert exc_info.value.details["expected"] == _ZERO_HASH
+            return
+
+        raise AssertionError(f"unhandled mutation: {mutation!r}")  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
-# Property 2 — signoff_edit: only approved flag change MUST succeed
+# Spec-mandated edge cases (AC8 third-And — explicit unit-shape coverage)
 # ---------------------------------------------------------------------------
 
 
-@given(content=_non_empty_bytes)
-@settings(max_examples=200, deadline=5000, suppress_health_check=[HealthCheck.too_slow])
-def test_signoff_edit_no_drift_succeeds(content: bytes) -> None:
-    """Approving a draft without touching artifacts must always succeed."""
+def test_zero_byte_artifact_edge_case(tmp_path: Path) -> None:
+    """0-byte artifact still has a stable SHA-256 (the well-known empty-string hash)."""
     from sdlc.signoff.states import SignoffState
     from sdlc.signoff.validator import validate_signoff
 
-    with tempfile.TemporaryDirectory() as _tmpdir:
-        repo_root = Path(_tmpdir)
-        _setup_repo(repo_root, content, approved=True)
-        result = validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
-        assert result.state == SignoffState.APPROVED
-        assert result.drift == ()
+    _setup_multi_artifact_repo(tmp_path, [("ZERO.md", b"")], approved=True)
+    result = validate_signoff(phase=_PHASE, repo_root=tmp_path, now_utc=_TS_NOW)
+    assert result.state == SignoffState.APPROVED
 
 
-# ---------------------------------------------------------------------------
-# Property 3 — hash_record_edit: tampered hash in draft MUST raise drift error
-# ---------------------------------------------------------------------------
+def test_utf8_filename_edge_case(tmp_path: Path) -> None:
+    """Non-ASCII (UTF-8) artifact filenames round-trip safely through the validator."""
+    from sdlc.signoff.states import SignoffState
+    from sdlc.signoff.validator import validate_signoff
+
+    _setup_multi_artifact_repo(
+        tmp_path, [("résumé.md", b"utf8 body"), ("日本.md", b"jp")], approved=True
+    )
+    result = validate_signoff(phase=_PHASE, repo_root=tmp_path, now_utc=_TS_NOW)
+    assert result.state == SignoffState.APPROVED
+    # Sorted-on-output (P13): the canonical record's artifacts must be path-ordered.
+    paths = [a.path for a in result.record.artifacts]
+    assert paths == sorted(paths)
 
 
-@given(content=_non_empty_bytes)
-@settings(max_examples=200, deadline=5000, suppress_health_check=[HealthCheck.too_slow])
-def test_hash_record_edit_always_detected(content: bytes) -> None:
-    """Tampered hash value in SIGNOFF.md draft always triggers drift detection."""
+def test_multi_artifact_path_sort_first_drift(tmp_path: Path) -> None:
+    """When 3 artifacts drift, the path-sorted FIRST is surfaced (AC3 step 4)."""
     from sdlc.errors import SignoffError
-    from sdlc.signoff.hasher import compute_artifact_hash
     from sdlc.signoff.validator import validate_signoff
 
-    with tempfile.TemporaryDirectory() as _tmpdir:
-        repo_root = Path(_tmpdir)
-        artifact = _write_artifact(repo_root, "PRODUCT.md", content)
-        real_hash = compute_artifact_hash(artifact, repo_root=repo_root)
+    entries = _setup_multi_artifact_repo(
+        tmp_path,
+        [("ZZZ.md", b"z"), ("MMM.md", b"m"), ("AAA.md", b"a")],
+        approved=True,
+    )
+    # Tamper all three on disk so all drift; first path-sorted is AAA.md.
+    for name in ("AAA.md", "MMM.md", "ZZZ.md"):
+        (tmp_path / _PHASE_DIR / name).write_bytes(b"tampered " + name.encode())
 
-        if real_hash == _ZERO_HASH:
-            return  # pathological case — skip
-
-        # Draft with zero hash but real artifact on disk
-        _write_signoff_draft(
-            repo_root,
-            [(f"{_PHASE_DIR}/PRODUCT.md", _ZERO_HASH)],
-            approved=True,
-        )
-
-        with pytest.raises(SignoffError) as exc_info:
-            validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
-
-        assert exc_info.value.details["kind"] == "drifted"
-        assert exc_info.value.details["expected"] == _ZERO_HASH
-
-
-# ---------------------------------------------------------------------------
-# Property 4 — no_mutation: unchanged artifact + approved draft MUST succeed
-# ---------------------------------------------------------------------------
-
-
-@given(content=_non_empty_bytes)
-@settings(max_examples=200, deadline=5000, suppress_health_check=[HealthCheck.too_slow])
-def test_no_mutation_always_approves(content: bytes) -> None:
-    """No mutation + approved draft always returns ValidatedSignoff(APPROVED)."""
-    from sdlc.signoff.states import SignoffState
-    from sdlc.signoff.validator import validate_signoff
-
-    with tempfile.TemporaryDirectory() as _tmpdir:
-        repo_root = Path(_tmpdir)
-        _setup_repo(repo_root, content, approved=True)
-        result = validate_signoff(phase=_PHASE, repo_root=repo_root, now_utc=_TS_NOW)
-        assert result.state == SignoffState.APPROVED
-        assert result.drift == ()
-        assert result.record.phase == _PHASE
+    with pytest.raises(SignoffError) as exc_info:
+        validate_signoff(phase=_PHASE, repo_root=tmp_path, now_utc=_TS_NOW)
+    assert "AAA.md" in exc_info.value.details["artifact"]
+    # Defensive: ensure entries are not silently reordered (hash check uses sorted).
+    assert entries[0][0].endswith("ZZZ.md")

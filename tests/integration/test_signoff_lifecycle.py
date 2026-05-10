@@ -157,7 +157,7 @@ class TestSignoffLifecyclePhase1:
             validate_signoff(phase=1, repo_root=tmp_path, now_utc=_TS3)
 
         assert exc_info.value.details["kind"] == "drifted"
-        assert "PRODUCT.md" in exc_info.value.details["artifact_path"]
+        assert "PRODUCT.md" in exc_info.value.details["artifact"]
 
     def test_phase1_missing_artifact_raises(self, tmp_path: Path) -> None:
         """Artifact deleted after draft → validate_signoff raises kind=missing."""

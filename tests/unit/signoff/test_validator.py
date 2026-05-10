@@ -257,7 +257,7 @@ def test_validate_signoff_first_drift_in_path_sorted_order(tmp_path: Path) -> No
         validate_signoff(phase=1, repo_root=tmp_path, now_utc=_TS_NOW)
 
     # Path-sorted first: AAA.md < ZZZ.md
-    assert "AAA.md" in exc_info.value.details["artifact_path"]
+    assert "AAA.md" in exc_info.value.details["artifact"]
 
 
 # ---------------------------------------------------------------------------

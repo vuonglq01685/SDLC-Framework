@@ -15,23 +15,58 @@ Promotion criteria documented in module docstring per AC9:
 
 from __future__ import annotations
 
+import contextlib
 import datetime
+import logging
+import os
 import re
-import sys
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import StringConstraints, model_validator
+from pydantic import Field, StringConstraints, model_validator
 
 from sdlc.contracts._strict_model import StrictModel
 from sdlc.errors import SignoffError
 
+_log = logging.getLogger(__name__)
+
 _SIGNOFF_DIR = ".claude/state/signoffs"
 _PHASE_DIR_MAP = {1: "01-Requirement", 2: "02-Architecture"}
 _PHASE_NO_SIGNOFF: int = 3
+_VALID_RECORD_PHASES = frozenset({1, 2})  # write_record/list_records scope
 _SHA256_PAT: re.Pattern[str] = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RFC3339_UTC_MS = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"
+_RFC3339_UTC_MS_RE: re.Pattern[str] = re.compile(_RFC3339_UTC_MS)
+_RFC3339_UTC_MS_OR_NULL = re.compile(rf"(?:{_RFC3339_UTC_MS}|^$)")
+
+PhaseLiteral = Literal[1, 2]
+
+
+def _is_safe_repo_relative_posix(p: str) -> bool:  # noqa: PLR0911
+    """Return True if `p` is a safe repo-relative POSIX path.
+
+    Rejects: absolute paths, any backslash (Windows separator), leading or
+    interior `..` traversal segments. Branchy by design — each early return
+    surfaces a distinct rejection reason that callers may map to error UX.
+    """
+    if not p:
+        return False
+    if "\\" in p:
+        return False
+    if p.startswith("/"):
+        return False
+    try:
+        parsed = PurePosixPath(p)
+    except Exception:
+        return False
+    if parsed.is_absolute():
+        return False
+    if p.startswith("../") or p == "..":
+        return False
+    if "/../" in p:
+        return False
+    return not p.endswith("/..")
 
 
 def _normalize_yaml_data(obj: Any) -> Any:
@@ -39,20 +74,28 @@ def _normalize_yaml_data(obj: Any) -> Any:
 
     PyYAML safe_load auto-converts ISO timestamps to datetime objects and
     sequences to lists. This function converts datetime/date → ISO string
-    and leaves all other scalars unchanged. The strict=False call in
-    model_validate handles list→tuple coercion.
+    in canonical RFC 3339 UTC ms form, converting non-UTC tz to UTC first
+    (preserves audit invariant: persisted timestamps are always UTC).
     """
     if isinstance(obj, dict):
         return {k: _normalize_yaml_data(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_normalize_yaml_data(v) for v in obj]
     if isinstance(obj, datetime.datetime):
-        # Preserve the original UTC suffix if timezone-aware
-        if obj.tzinfo is not None:
-            return obj.strftime("%Y-%m-%dT%H:%M:%S.") + f"{obj.microsecond // 1000:03d}Z"
-        return obj.isoformat()
+        if obj.tzinfo is None:
+            # Naive datetime: refuse to guess UTC (audit invariant: every
+            # canonical timestamp must declare UTC explicitly via Z suffix).
+            raise SignoffError(
+                f"datetime field is missing timezone information: {obj.isoformat()!r}; "
+                "canonical records require UTC (Z suffix)",
+                details={"step": "normalize_yaml", "value": obj.isoformat()},
+            )
+        utc = obj.astimezone(datetime.timezone.utc)
+        millis = utc.microsecond // 1000
+        return f"{utc.strftime('%Y-%m-%dT%H:%M:%S')}.{millis:03d}Z"
     if isinstance(obj, datetime.date):
-        return obj.isoformat()
+        # Plain date → midnight UTC ms (defensive; should not appear in records).
+        return f"{obj.isoformat()}T00:00:00.000Z"
     return obj
 
 
@@ -65,21 +108,10 @@ class ArtifactRef(StrictModel):
 
     @model_validator(mode="after")
     def _validate_path(self) -> ArtifactRef:
-        p = self.path
-        if p.startswith("/") or p.startswith("..") or "/../" in p or p.endswith("/.."):
+        if not _is_safe_repo_relative_posix(self.path):
             raise SignoffError(
-                f"artifact path must be repo-relative POSIX: {p}",
-                details={"path": p},
-            )
-        # Reject absolute paths on all platforms
-        try:
-            parsed = PurePosixPath(p)
-        except Exception as _exc:
-            raise SignoffError(f"artifact path must be repo-relative POSIX: {p}") from _exc
-        if parsed.is_absolute():
-            raise SignoffError(
-                f"artifact path must be repo-relative POSIX: {p}",
-                details={"path": p},
+                f"artifact path must be repo-relative POSIX: {self.path}",
+                details={"path": self.path},
             )
         return self
 
@@ -91,13 +123,13 @@ class SignoffRecord(StrictModel):
     """
 
     schema_version: Literal[1] = 1
-    phase: int
-    artifacts: tuple[ArtifactRef, ...]
-    approved_by: str
-    approved_at: str
-    drafted_at: str
-    validated_at: str
-    invalidated_at: str | None = None
+    phase: PhaseLiteral
+    artifacts: Annotated[tuple[ArtifactRef, ...], Field(min_length=1)]
+    approved_by: Annotated[str, StringConstraints(min_length=1)]
+    approved_at: Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)]
+    drafted_at: Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)]
+    validated_at: Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)]
+    invalidated_at: Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)] | None = None
     invalidated_reason: str | None = None
 
 
@@ -109,12 +141,10 @@ class _SignoffMdDraftArtifact(StrictModel):
 
     @model_validator(mode="after")
     def _validate_path(self) -> _SignoffMdDraftArtifact:
-        p = self.path
-        parsed = PurePosixPath(p)
-        if parsed.is_absolute() or p.startswith("..") or "/../" in p or p.endswith("/.."):
+        if not _is_safe_repo_relative_posix(self.path):
             raise SignoffError(
-                f"artifact path must be repo-relative POSIX: {p}",
-                details={"path": p},
+                f"artifact path must be repo-relative POSIX: {self.path}",
+                details={"path": self.path},
             )
         return self
 
@@ -124,15 +154,20 @@ class _SignoffMdDraft(StrictModel):
 
     Mirrors Story 2A.5's _HookHashStore privacy posture EXACTLY.
     Never exported from sdlc.signoff or sdlc.contracts.
+
+    Operator-written drafts MAY be in any artifact order; the canonical record
+    written by ``validate_signoff`` is always emitted in path-sorted order
+    (AC2 fifth-And) by the validator's sort + ``_canonicalize_record`` flow,
+    which guarantees byte-stable round-trip on the audit-grade artifact.
     """
 
     schema_version: Literal[1] = 1
-    phase: int
-    artifacts: tuple[_SignoffMdDraftArtifact, ...]
+    phase: PhaseLiteral
+    artifacts: Annotated[tuple[_SignoffMdDraftArtifact, ...], Field(min_length=1)]
     approved: bool
-    approved_by: str | None = None
-    approved_at: str | None = None
-    drafted_at: str
+    approved_by: Annotated[str, StringConstraints(min_length=1)] | None = None
+    approved_at: Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)] | None = None
+    drafted_at: Annotated[str, StringConstraints(pattern=_RFC3339_UTC_MS)]
 
 
 # ---------------------------------------------------------------------------
@@ -159,17 +194,30 @@ def _canonicalize_record(record: SignoffRecord) -> bytes:
 
 
 def _write_bytes_to_disk(target: Path, data: bytes) -> None:
-    """Write bytes to target using tmp+replace (atomic on POSIX via os.rename).
+    """Write bytes to target via tmp+fsync+replace (atomic on POSIX via os.rename).
 
-    On Windows, Path.replace is a two-step move (non-atomic); mirrors scan.py pattern.
+    On Windows, Path.replace is a two-step move (non-atomic); cross-platform
+    flock-based concurrency hardening is tracked under
+    EPIC-2A-DEBT-SIGNOFF-FLOCK-CONCURRENCY in deferred-work.md (Story 2A.7 D3).
+    fsync ensures the bytes are durable before the rename so a power-loss
+    cannot leave an empty/stale tmp visible after the rename succeeds.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + ".tmp")
+    fd = -1
     try:
-        tmp.write_bytes(data)
-        tmp.replace(target)
-    except Exception:
-        tmp.unlink(missing_ok=True)
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        os.write(fd, data)
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        os.replace(str(tmp), str(target))
+    except OSError:
+        if fd != -1:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
         raise
 
 
@@ -202,6 +250,8 @@ def read_record(phase: int, *, repo_root: Path) -> SignoffRecord | None:
 
     try:
         return SignoffRecord.model_validate(_normalize_yaml_data(data), strict=False)
+    except SignoffError:
+        raise
     except Exception as exc:
         raise SignoffError(
             f"canonical record at {target} is malformed: {exc}",
@@ -212,15 +262,34 @@ def read_record(phase: int, *, repo_root: Path) -> SignoffRecord | None:
 def write_record(record: SignoffRecord, *, repo_root: Path) -> None:
     """Atomically write the canonical record to .claude/state/signoffs/phase-N.yaml.
 
-    Refuses to overwrite an existing APPROVED record (raises SignoffError).
+    AC10: phase=3 records are unconditionally refused.
+    AC5: refuses to overwrite a non-invalidated APPROVED record (D4: an
+    invalidated record may be overwritten by the post-replan re-approval flow).
     The caller (Story 2A.12) is responsible for appending the journal entry.
     """
+    if record.phase == _PHASE_NO_SIGNOFF:
+        raise SignoffError(
+            "phase 3 has no canonical record in v1",
+            details={"step": "write_record", "phase": record.phase},
+        )
     target = _signoff_path(record.phase, repo_root)
     if target.exists():
-        raise SignoffError(
-            f"cannot overwrite phase-{record.phase} approved record; use invalidate_record first",
-            details={"step": "write_record", "phase": record.phase, "path": str(target)},
-        )
+        try:
+            existing = read_record(record.phase, repo_root=repo_root)
+        except SignoffError:
+            # Existing file is malformed — refuse silently to overwrite to avoid
+            # masking corruption with a fresh write.
+            raise SignoffError(
+                f"cannot overwrite phase-{record.phase} record: existing file is "
+                "malformed; inspect manually before overwriting",
+                details={"step": "write_record", "phase": record.phase, "path": str(target)},
+            ) from None
+        if existing is not None and existing.invalidated_at is None:
+            raise SignoffError(
+                f"cannot overwrite phase-{record.phase} approved record; "
+                "use invalidate_record first",
+                details={"step": "write_record", "phase": record.phase, "path": str(target)},
+            )
     canonical = _canonicalize_record(record)
     try:
         _write_bytes_to_disk(target, canonical)
@@ -242,9 +311,16 @@ def invalidate_record(
 
     Mutates the file via atomic rewrite: sets invalidated_at + invalidated_reason
     while preserving all other fields (the audit trail).
-    Returns the post-invalidation record.
-    Raises SignoffError if no canonical record exists at phase.
+    Returns the post-invalidation record (re-read from disk to guarantee
+    byte-stability with future read_record calls).
+    Raises SignoffError if no canonical record exists at phase or if `now_utc`
+    is not RFC 3339 UTC ms format.
     """
+    if not _RFC3339_UTC_MS_RE.match(now_utc):
+        raise SignoffError(
+            f"now_utc must be RFC 3339 UTC ms (e.g. 2026-05-10T12:00:00.000Z); got {now_utc!r}",
+            details={"step": "invalidate_record", "now_utc": now_utc},
+        )
     target = _signoff_path(phase, repo_root)
     existing = read_record(phase, repo_root=repo_root)
     if existing is None:
@@ -272,37 +348,55 @@ def invalidate_record(
             f"failed to write invalidated record: {exc}",
             details={"step": "invalidate_record", "path": str(target)},
         ) from exc
-    return updated
+    # Re-read from disk so the returned record matches future read_record output
+    # byte-for-byte (catches any normalization round-trip drift early).
+    refreshed = read_record(phase, repo_root=repo_root)
+    if refreshed is None:  # pragma: no cover — write succeeded means file exists
+        raise SignoffError(
+            f"phase-{phase} record vanished immediately after write",
+            details={"step": "invalidate_record", "path": str(target)},
+        )
+    return refreshed
 
 
 def list_records(repo_root: Path) -> tuple[SignoffRecord, ...]:
-    """Return all canonical records sorted by phase (1 then 2).
+    """Return all canonical records sorted by phase number (1 then 2).
 
-    Skips phase-3.yaml (phase 3 has no signoff per AC10).
+    Skips phase-3.yaml (phase 3 has no signoff per AC10) and any other
+    out-of-range phase files (e.g. phase-99.yaml is silently ignored after a WARN).
     Empty tuple if directory missing.
     """
     signoff_dir = repo_root / _SIGNOFF_DIR
     if not signoff_dir.exists():
         return ()
 
-    records: list[SignoffRecord] = []
-    for phase_file in sorted(signoff_dir.glob("phase-*.yaml")):
+    candidates: list[tuple[int, Path]] = []
+    for phase_file in signoff_dir.glob("phase-*.yaml"):
         stem = phase_file.stem  # e.g. "phase-1"
         try:
-            phase_num = int(stem.split("-")[1])
+            phase_num = int(stem.split("-", 1)[1])
         except (IndexError, ValueError):
             continue
         if phase_num == _PHASE_NO_SIGNOFF:
-            print(
-                f"[WARN] phase-3.yaml found and ignored: {phase_file}; "
-                "phase 3 has no signoff in v1",
-                file=sys.stderr,
+            _log.warning(
+                "phase-3.yaml found and ignored: %s; phase 3 has no signoff in v1",
+                phase_file,
             )
             continue
+        if phase_num not in _VALID_RECORD_PHASES:
+            _log.warning(
+                "out-of-range signoff file ignored: %s (phase %d not in {1, 2})",
+                phase_file,
+                phase_num,
+            )
+            continue
+        candidates.append((phase_num, phase_file))
+
+    records: list[SignoffRecord] = []
+    for phase_num, _ in sorted(candidates, key=lambda pair: pair[0]):
         rec = read_record(phase_num, repo_root=repo_root)
         if rec is not None:
             records.append(rec)
-
     return tuple(records)
 
 
@@ -311,38 +405,81 @@ def list_records(repo_root: Path) -> tuple[SignoffRecord, ...]:
 # ---------------------------------------------------------------------------
 
 
-def _extract_yaml_payload(text: str, path: Path) -> dict:  # type: ignore[type-arg]
-    """Extract YAML payload from SIGNOFF.md — supports frontmatter OR fenced block."""
-    # Try YAML frontmatter first (--- ... ---)
+def _extract_yaml_payload(text: str, path: Path) -> dict[str, Any]:  # noqa: C901
+    """Extract YAML payload from SIGNOFF.md — supports frontmatter OR fenced block.
+
+    Distinct, operator-actionable errors for each malformation mode (P24):
+      - both shapes present → ambiguous
+      - frontmatter delimiters present but unterminated → unterminated
+      - frontmatter parses to non-dict (list/scalar/null/empty) → wrong shape
+      - neither shape present → missing
+    """
     stripped = text.lstrip()
+    fm_data: Any = None
+    fm_present = False
+    fm_unterminated = False
+
     if stripped.startswith("---"):
         end = stripped.find("\n---", 3)
-        if end != -1:
+        if end == -1:
+            fm_unterminated = True
+        else:
+            fm_present = True
             fm_text = stripped[3:end].strip()
             try:
-                data = yaml.safe_load(fm_text)
-                if isinstance(data, dict):
-                    return data
+                fm_data = yaml.safe_load(fm_text)
             except yaml.YAMLError as exc:
                 raise SignoffError(
                     f"SIGNOFF.md at {path} is malformed: {exc}",
                     details={"step": "read_signoff_md_draft", "path": str(path)},
                 ) from exc
 
-    # Try fenced YAML code block (```signoff ... ```)
     fence_pattern = re.compile(r"```signoff\s*\n(.*?)```", re.DOTALL)
     m = fence_pattern.search(text)
-    if m:
-        block_text = m.group(1)
+    fenced_data: Any = None
+    fenced_present = m is not None
+    if m is not None:
         try:
-            data = yaml.safe_load(block_text)
-            if isinstance(data, dict):
-                return data
+            fenced_data = yaml.safe_load(m.group(1))
         except yaml.YAMLError as exc:
             raise SignoffError(
                 f"SIGNOFF.md at {path} is malformed: {exc}",
                 details={"step": "read_signoff_md_draft", "path": str(path)},
             ) from exc
+
+    if fm_unterminated:
+        raise SignoffError(
+            f"SIGNOFF.md at {path} is malformed: frontmatter has opening '---' but no "
+            "closing '---' delimiter",
+            details={"step": "read_signoff_md_draft", "path": str(path)},
+        )
+
+    if fm_present and fenced_present:
+        raise SignoffError(
+            f"SIGNOFF.md at {path} is malformed: BOTH frontmatter and fenced "
+            "```signoff block are present; only one is permitted",
+            details={"step": "read_signoff_md_draft", "path": str(path)},
+        )
+
+    if fm_present:
+        if not isinstance(fm_data, dict):
+            kind = type(fm_data).__name__ if fm_data is not None else "empty/null"
+            raise SignoffError(
+                f"SIGNOFF.md at {path} is malformed: frontmatter must be a YAML mapping; "
+                f"got {kind}",
+                details={"step": "read_signoff_md_draft", "path": str(path)},
+            )
+        return fm_data
+
+    if fenced_present:
+        if not isinstance(fenced_data, dict):
+            kind = type(fenced_data).__name__ if fenced_data is not None else "empty/null"
+            raise SignoffError(
+                f"SIGNOFF.md at {path} is malformed: fenced ```signoff block must be a "
+                f"YAML mapping; got {kind}",
+                details={"step": "read_signoff_md_draft", "path": str(path)},
+            )
+        return fenced_data
 
     raise SignoffError(
         f"SIGNOFF.md at {path} is malformed: no frontmatter or fenced signoff block found",
@@ -370,12 +507,20 @@ def read_signoff_md_draft(path: Path) -> _SignoffMdDraft:
     for art in data.get("artifacts", []):
         if isinstance(art, dict):
             p = art.get("path", "")
-            parsed = PurePosixPath(str(p))
-            if parsed.is_absolute() or str(p).startswith("..") or "/../" in str(p):
+            if not isinstance(p, str) or not _is_safe_repo_relative_posix(p):
                 raise SignoffError(
                     f"artifact path must be repo-relative POSIX: {p}",
                     details={"step": "read_signoff_md_draft", "path": str(path)},
                 )
+
+    # Reject coerced bools (P29): `approved` MUST be a true Python bool, not 0/1/string.
+    approved_raw = data.get("approved")
+    if approved_raw is not None and not isinstance(approved_raw, bool):
+        raise SignoffError(
+            f"SIGNOFF.md at {path} is malformed: 'approved' must be a YAML boolean "
+            f"(true/false); got {type(approved_raw).__name__}: {approved_raw!r}",
+            details={"step": "read_signoff_md_draft", "path": str(path)},
+        )
 
     try:
         return _SignoffMdDraft.model_validate(data, strict=False)

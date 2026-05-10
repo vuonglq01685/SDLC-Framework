@@ -84,8 +84,8 @@ def test_first_drift_is_path_sorted(tmp_path: Path) -> None:
         validate_signoff(phase=1, repo_root=tmp_path, now_utc=_TS_NOW)
 
     # Path-sorted first: AAA.md
-    assert "AAA.md" in exc1.value.details["artifact_path"]
-    assert exc1.value.details["artifact_path"] == exc2.value.details["artifact_path"]
+    assert "AAA.md" in exc1.value.details["artifact"]
+    assert exc1.value.details["artifact"] == exc2.value.details["artifact"]
 
 
 def test_first_drift_stable_across_calls(tmp_path: Path) -> None:
@@ -119,7 +119,7 @@ def test_first_drift_stable_across_calls(tmp_path: Path) -> None:
     for _ in range(3):
         with pytest.raises(SignoffError) as exc_info:
             validate_signoff(phase=1, repo_root=tmp_path, now_utc=_TS_NOW)
-        errors.append(exc_info.value.details["artifact_path"])
+        errors.append(exc_info.value.details["artifact"])
 
     # All calls surface the same (path-sorted first) artifact
     assert len(set(errors)) == 1

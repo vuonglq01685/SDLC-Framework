@@ -33,9 +33,9 @@ The exception carries a `details` dict:
 ```python
 except SignoffError as exc:
     print(exc.details["kind"])          # "drifted" | "missing"
-    print(exc.details["artifact_path"]) # relative path from repo root
+    print(exc.details["artifact"])      # relative path from repo root
     print(exc.details.get("expected"))  # expected sha256 hex (drifted only)
-    print(exc.details.get("actual"])    # actual sha256 hex   (drifted only)
+    print(exc.details.get("actual"))    # actual sha256 hex (drifted) or None (missing)
 ```
 
 Or run `sdlc signoff validate --phase <N>` and read the error output directly.

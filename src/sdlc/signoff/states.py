@@ -54,6 +54,10 @@ def compute_state(  # noqa: C901
       strict=False (default): returns AWAITING_SIGNOFF + logs WARN once per process
       strict=True: raises SignoffError
 
+    Per AC2 final-And: a malformed SIGNOFF.md draft is operator-actionable —
+    the SignoffError raised by ``read_signoff_md_draft`` is propagated, NOT
+    swallowed-and-demoted. Only a missing draft maps to AWAITING_SIGNOFF.
+
     Raises SignoffError for phase outside {1, 2, 3} or malformed canonical record.
     """
     global _phase3_warned  # noqa: PLW0603
@@ -67,7 +71,7 @@ def compute_state(  # noqa: C901
     if phase == _PHASE_NO_SIGNOFF:
         if strict:
             raise SignoffError(
-                "phase 3 has no signoff in v1 (strict=True)",
+                "phase 3 has no signoff in v1; use per-task TDD evidence + PR merge",
                 details={"phase": 3},
             )
         if not _phase3_warned:
@@ -82,18 +86,15 @@ def compute_state(  # noqa: C901
             return SignoffState.INVALIDATED_BY_REPLAN
         return SignoffState.APPROVED
 
-    # Step 3: SIGNOFF.md draft check
+    # Step 3: SIGNOFF.md draft check.
+    # Per AC2 final-And, a malformed draft is operator-actionable: the SignoffError
+    # propagates so the operator can fix the file rather than seeing the phase
+    # silently demoted to AWAITING_SIGNOFF.
     phase_dir_name = _PHASE_DIR_MAP.get(phase)
     if phase_dir_name:
         draft_path = repo_root / phase_dir_name / "SIGNOFF.md"
         if draft_path.exists():
-            try:
-                read_signoff_md_draft(draft_path)
-                # Any readable draft (approved or not) → DRAFTED_NOT_APPROVED
-                # The canonical record is what determines APPROVED (priority 2 above)
-                return SignoffState.DRAFTED_NOT_APPROVED
-            except SignoffError:
-                # Corrupt draft → fall through to AWAITING_SIGNOFF
-                pass
+            read_signoff_md_draft(draft_path)
+            return SignoffState.DRAFTED_NOT_APPROVED
 
     return SignoffState.AWAITING_SIGNOFF

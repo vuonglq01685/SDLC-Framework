@@ -38,7 +38,11 @@ def _invalidated_reader(ph: int, rr: Path) -> str:
 
 
 def _raising_reader(ph: int, rr: Path) -> str:
-    raise RuntimeError("simulated reader error")
+    # phase_gate now narrowly catches (SignoffError, OSError) per P30 — programmer
+    # errors propagate. Use SignoffError to assert the documented "reader raised → deny" path.
+    from sdlc.errors import SignoffError
+
+    raise SignoffError("simulated reader error")
 
 
 def _never_called(ph: int, rr: Path) -> str:

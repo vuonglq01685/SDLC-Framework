@@ -144,10 +144,15 @@ class TestPhaseGateSignoffRead:
         assert "invalidated by replan" in (result.reason or "")
 
     def test_reader_exception_denies(self, tmp_path) -> None:
-        """Reader that raises → fail-safe deny (mirrors old corrupted-YAML behavior)."""
+        """Reader that raises a documented failure (SignoffError/OSError) → fail-safe deny.
+
+        Per P30, programmer errors (RuntimeError, TypeError) now propagate so they
+        surface real bugs rather than masking them as gate denials.
+        """
+        from sdlc.errors import SignoffError
 
         def _bad_reader(ph: int, rr) -> str:
-            raise RuntimeError("simulated disk error")
+            raise SignoffError("simulated disk error")
 
         result = phase_gate(
             _p("02-Architecture/01-UX/01-tokens.md"),

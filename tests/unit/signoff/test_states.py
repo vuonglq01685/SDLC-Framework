@@ -9,6 +9,19 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
+@pytest.fixture(autouse=True)
+def _reset_phase3_warned() -> None:
+    """Reset the once-per-process phase-3 WARN flag before each test (P31).
+
+    Without this, test order coupling makes ``test_compute_state_phase3_warn_logged_once``
+    flaky because earlier tests that hit phase 3 leave the flag set.
+    """
+    from sdlc.signoff import states as states_mod
+
+    states_mod._phase3_warned = False
+
+
 _VALID_HASH = "sha256:" + "a" * 64
 _TS1 = "2026-05-10T11:00:00.000Z"
 _TS2 = "2026-05-10T12:00:00.000Z"
@@ -267,17 +280,20 @@ def test_compute_state_malformed_canonical_raises(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# compute_state — malformed SIGNOFF.md draft is tolerated (returns AWAITING)
+# compute_state — malformed SIGNOFF.md draft is operator-actionable (raises)
 # ---------------------------------------------------------------------------
 
 
-def test_compute_state_malformed_draft_falls_back_to_awaiting(tmp_path: Path) -> None:
-    """A corrupt SIGNOFF.md draft should fall back to AWAITING_SIGNOFF gracefully."""
-    from sdlc.signoff.states import SignoffState, compute_state
+def test_compute_state_malformed_draft_raises(tmp_path: Path) -> None:
+    """AC2 final-And: a corrupt SIGNOFF.md draft is operator-actionable; the
+    SignoffError MUST propagate rather than silently demoting to AWAITING_SIGNOFF
+    (which would mask the corruption from the operator)."""
+    from sdlc.errors import SignoffError
+    from sdlc.signoff.states import compute_state
 
     draft_dir = tmp_path / "01-Requirement"
     draft_dir.mkdir(parents=True)
     (draft_dir / "SIGNOFF.md").write_text("not yaml at all }{", encoding="utf-8")
 
-    result = compute_state(phase=1, repo_root=tmp_path)
-    assert result == SignoffState.AWAITING_SIGNOFF
+    with pytest.raises(SignoffError, match="malformed"):
+        compute_state(phase=1, repo_root=tmp_path)

@@ -61,7 +61,12 @@ def test_record_hash_changes_on_mutation() -> None:
 
 
 def test_record_hash_yaml_canonicalization() -> None:
-    """Hash is derived from sorted-keys YAML — two identical records produce byte-equal YAML."""
+    """Hash is derived from sorted-keys YAML — two identical records produce byte-equal YAML.
+
+    Strengthened per P27 — explicitly assert that top-level keys appear in
+    alphabetical order in the canonical bytes (removing ``sort_keys=True``
+    would silently break this).
+    """
     import yaml
 
     from sdlc.signoff.hasher import _canonicalize_record_bytes
@@ -74,6 +79,19 @@ def test_record_hash_yaml_canonicalization() -> None:
     # Verify it's valid YAML with sorted keys
     parsed = yaml.safe_load(canon1)
     assert isinstance(parsed, dict)
+
+    # Anti-tautology: extract the top-level scalar keys from the raw bytes and
+    # verify they are alphabetically ordered. Two consecutive non-indented lines
+    # of form ``<key>:`` are the top-level keys of a single mapping.
+    text = canon1.decode("utf-8")
+    top_level_keys = [
+        line.split(":", 1)[0]
+        for line in text.splitlines()
+        if line and not line.startswith(" ") and not line.startswith("-") and ":" in line
+    ]
+    assert top_level_keys == sorted(top_level_keys), (
+        f"canonical YAML keys must be alphabetically sorted; got {top_level_keys!r}"
+    )
 
 
 def test_record_hash_format_matches_regex() -> None:

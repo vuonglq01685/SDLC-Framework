@@ -13,7 +13,13 @@ from typing import Literal
 
 from sdlc.errors import SignoffError
 from sdlc.signoff.hasher import compute_artifact_hash
-from sdlc.signoff.records import _PHASE_DIR_MAP, ArtifactRef, SignoffRecord, read_signoff_md_draft
+from sdlc.signoff.records import (
+    _PHASE_DIR_MAP,
+    _RFC3339_UTC_MS_RE,
+    ArtifactRef,
+    SignoffRecord,
+    read_signoff_md_draft,
+)
 from sdlc.signoff.states import SignoffState
 
 _VALID_PHASES = frozenset({1, 2})  # phase 3 has no signoff (AC10)
@@ -26,7 +32,7 @@ class ArtifactDrift:
 
     path: str
     expected: str  # hash recorded in SIGNOFF.md draft
-    actual: str  # hash computed from disk ('' sentinel if file missing)
+    actual: str | None  # hash computed from disk; None if file missing (P-D5)
     kind: Literal["drifted", "missing"]
 
 
@@ -53,10 +59,13 @@ def validate_signoff(  # noqa: C901
 
     Steps (AC3):
       1. Phase 3 is unconditionally rejected (AC10).
-      2. Reads SIGNOFF.md draft; raises if approved=false.
-      3. Checks each artifact for cross-phase violation.
-      4. Recomputes hashes; raises on first path-sorted drift.
-      5. Returns ValidatedSignoff(state=APPROVED, record=<populated>).
+      2. now_utc must be RFC 3339 UTC ms format.
+      3. Reads SIGNOFF.md draft; raises if approved=false.
+      4. Asserts draft.phase matches the parameter (P8 — copy-paste defense).
+      5. Asserts approved=true implies approved_by is non-null (P9 — audit attribution).
+      6. Checks each artifact for cross-phase violation (POSIX-only paths).
+      7. Recomputes hashes; raises on first path-sorted drift.
+      8. Returns ValidatedSignoff(state=APPROVED, record=<populated>).
 
     The caller (Story 2A.12) calls records.write_record(result.record).
     """
@@ -65,10 +74,16 @@ def validate_signoff(  # noqa: C901
             "phase 3 has no signoff in v1; cannot validate",
             details={"phase": 3},
         )
-    if phase not in {1, 2}:
+    if phase not in _VALID_PHASES:
         raise SignoffError(
             f"phase out of range: must be 1 or 2 for validate_signoff; got {phase}",
             details={"phase": phase},
+        )
+
+    if not _RFC3339_UTC_MS_RE.match(now_utc):
+        raise SignoffError(
+            f"now_utc must be RFC 3339 UTC ms (e.g. 2026-05-10T12:00:00.000Z); got {now_utc!r}",
+            details={"step": "validate_signoff", "now_utc": now_utc},
         )
 
     phase_dir_name = _PHASE_DIR_MAP[phase]
@@ -92,37 +107,58 @@ def validate_signoff(  # noqa: C901
             },
         )
 
-    # Cross-phase artifact check (AC3 last-And)
+    if draft.phase != phase:
+        raise SignoffError(
+            f"draft phase mismatch: expected {phase}, draft declares phase {draft.phase}",
+            details={
+                "step": "validate_signoff",
+                "phase": phase,
+                "draft_phase": draft.phase,
+                "draft_path": str(draft_path),
+            },
+        )
+
+    if not draft.approved_by:
+        raise SignoffError(
+            f"phase {phase} draft is approved=true but approved_by is null/empty; "
+            "audit attribution is required",
+            details={
+                "step": "validate_signoff",
+                "phase": phase,
+                "draft_path": str(draft_path),
+            },
+        )
+
+    # Cross-phase artifact check (AC3 last-And) — POSIX-only paths per P7.
+    posix_prefix = phase_dir_name + "/"
     for art in draft.artifacts:
-        if not art.path.startswith(phase_dir_name + "/") and not art.path.startswith(
-            phase_dir_name + "\\"
-        ):
+        if not art.path.startswith(posix_prefix):
             raise SignoffError(
                 f"artifact {art.path!r} is outside phase-{phase} tree ({phase_dir_name}); "
                 "cross-phase signoffs are not supported in v1",
                 details={
                     "step": "validate_signoff",
                     "phase": phase,
-                    "artifact_path": art.path,
+                    "artifact": art.path,
                 },
             )
 
-    # Hash-drift check — process in path-sorted order for determinism (AC3 + AC8)
+    # Hash-drift check — process in path-sorted order for determinism (AC3 + AC8).
     sorted_artifacts = sorted(draft.artifacts, key=lambda a: a.path)
     for art in sorted_artifacts:
         artifact_abs = repo_root / art.path
         actual_hash = compute_artifact_hash(artifact_abs, repo_root=repo_root)
 
         if actual_hash == "":
-            # Sentinel: file missing
+            # Sentinel: file missing — surface as `actual=None` per AC3 step 4 (D5).
             raise SignoffError(
                 f"hash drift on artifact {art.path!r}: file is missing (deleted since draft)",
                 details={
                     "step": "validate_signoff",
                     "phase": phase,
-                    "artifact_path": art.path,
+                    "artifact": art.path,
                     "expected": art.hash,
-                    "actual": "",
+                    "actual": None,
                     "kind": "missing",
                 },
             )
@@ -133,19 +169,21 @@ def validate_signoff(  # noqa: C901
                 details={
                     "step": "validate_signoff",
                     "phase": phase,
-                    "artifact_path": art.path,
+                    "artifact": art.path,
                     "expected": art.hash,
                     "actual": actual_hash,
                     "kind": "drifted",
                 },
             )
 
-    # Build the canonical SignoffRecord (caller writes it via write_record)
-    artifact_refs = tuple(ArtifactRef(path=art.path, hash=art.hash) for art in draft.artifacts)
+    # Build the canonical SignoffRecord (caller writes it via write_record).
+    # Use sorted_artifacts so the record's artifact ordering is byte-stable
+    # regardless of draft insertion order (P13 — paired with AC2 fifth-And).
+    artifact_refs = tuple(ArtifactRef(path=art.path, hash=art.hash) for art in sorted_artifacts)
     record = SignoffRecord(
         phase=phase,
         artifacts=artifact_refs,
-        approved_by=draft.approved_by or "",
+        approved_by=draft.approved_by,
         approved_at=draft.approved_at or now_utc,
         drafted_at=draft.drafted_at,
         validated_at=now_utc,
