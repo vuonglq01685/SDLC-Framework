@@ -20,6 +20,7 @@ from sdlc.signoff.records import (
     write_record,
 )
 from sdlc.signoff.states import SignoffState, compute_state
+from sdlc.signoff.validator import ArtifactDrift, ValidatedSignoff, validate_signoff
 
 __all__ = [
     "compute_artifact_hash",
@@ -32,4 +33,7 @@ __all__ = [
     "write_record",
     "SignoffState",
     "compute_state",
+    "ArtifactDrift",
+    "ValidatedSignoff",
+    "validate_signoff",
 ]
