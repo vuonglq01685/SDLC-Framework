@@ -1,0 +1,12 @@
+schema_version: 1
+scenario: walking_skeleton
+commands:
+  - id: "01_init"
+    args: ["init"]
+    flags: []
+  - id: "02_scan"
+    args: ["scan"]
+    flags: []
+  - id: "03_status"
+    args: ["status"]
+    flags: []

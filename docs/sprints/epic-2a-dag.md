@@ -207,7 +207,7 @@ Layer-by-layer expected wall-clock (rough — assumes 1 story-day per worktree, 
 - [ ] Charlie — DAG correctness + dispatcher dependency checks
 - [ ] Alice — sprint capacity + reviewer assignment plan
 - [ ] Winston — architectural cross-reference (ADR-012 16-module DAG, ADR-024 wire-format lock)
-- [ ] Vuonglq01685 (Project Lead) — directive sign-off on parallelism plan and worktree policy
+- [x] Vuonglq01685 (Project Lead) — directive sign-off on parallelism plan and worktree policy (2026-05-10)
 
 ---
 

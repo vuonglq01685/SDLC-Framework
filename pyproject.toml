@@ -126,7 +126,7 @@ docstring-code-format = true
 [tool.mypy]
 python_version = "3.10"
 strict = true
-mypy_path = ["src"]
+mypy_path = ["src", "tests"]
 namespace_packages = true
 explicit_package_bases = true
 show_error_codes = true

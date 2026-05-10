@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-10 (sprint-planning refresh; Story 2A.0 E2E test harness precursor formally added to epics.md + sprint-status.yaml per Epic 1 retro action A3; Epic 2A: 19 → 20 stories; total: 93 → 94 stories)"
+last_updated: "2026-05-10 (code-review 2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: review → done; 28 patches applied across P1-P28, 7 deferred (W1-W7), 6 dismissed; 23 e2e tests pass, ruff + mypy --strict clean)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -48,7 +48,8 @@ project: SDLC-Framework
 #   2026-05-09 code-review 1-21-gate-wire-format-v1-lock-ceremony (status: review → done; P1-P24 patches applied, D1-D5 deferred, 4 dismissed; 30 wireformat-lock tests green)
 #   2026-05-09 retrospective epic-1 (status: optional → done; document at epic-1-retro-2026-05-09.md; 22/22 stories done, 1114 tests, 93.37% coverage; 7 process actions + 7 debt items + 4 ADRs queued for Epic 2A prep sprint)
 #   2026-05-10 sprint-planning (Story 2A.0 E2E harness precursor added to epics.md + sprint-status.yaml; Epic 2A 19 → 20 stories per retro action A3 [Dana lead + Charlie review])
-last_action: "sprint-planning 2026-05-10 (Epic 2A: +1 story 2A.0 E2E test harness precursor [Tier-1 CLI + Tier-2 pipeline MockAIRuntime] per Epic 1 retro action A3; status: backlog; total 95 stories across 6 epics)"
+#   2026-05-10 create-story 2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline (status: backlog → ready-for-dev; epic-2a: backlog → in-progress; 8 ACs, 8 tasks, anti-tautology gate, MockAIRuntime Tier-2 seed)
+last_action: "code-review 2026-05-10 (2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: review → done; 28 patches applied [P1-P28]; 7 deferred [W1-W7]; 6 dismissed; 23 e2e tests pass; D1-D5 resolved + spec amendments)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -85,8 +86,8 @@ development_status:
   # ============================================================
   # Epic 2A: Phase Orchestration Mechanics (20 stories)
   # ============================================================
-  epic-2a: backlog
-  2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: backlog
+  epic-2a: in-progress
+  2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: done
   2a-1-workflow-yaml-loader-schema-validation: backlog
   2a-2-specialist-registry-manifest-validation: backlog
   2a-3-dispatcher-primary-parallel-synthesizer-retry: backlog

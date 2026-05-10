@@ -1,0 +1,8 @@
+schema_version: 1
+scenario: happy_path_smoke
+mock_responses_dir: "./mock_responses"
+steps:
+  - id: "01_smoke_dispatch"
+    kind: "engine_dispatch_smoke"
+    workflow_step: "_smoke"
+    prompt: "smoke test prompt"

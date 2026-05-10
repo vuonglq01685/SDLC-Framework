@@ -1,0 +1,10 @@
+# Pipeline smoke fixture for Tier-2 harness (Story 2A.0).
+# workflow_step="_smoke", prompt="smoke test prompt"
+# prompt_hash = sha256("smoke test prompt".encode("utf-8"))
+#             = sha256:714377e9f6971a1110ab16e756fd3320bc1e45a46ac66e52932c7bbdb24f13a3
+# Shape mirrors tests/fixtures/mock_responses/_smoke.yaml (canonical example per AC3).
+"sha256:714377e9f6971a1110ab16e756fd3320bc1e45a46ac66e52932c7bbdb24f13a3":
+  output_text: "smoke dispatch acknowledged"
+  tool_calls: []
+  tokens_in: 3
+  tokens_out: 3

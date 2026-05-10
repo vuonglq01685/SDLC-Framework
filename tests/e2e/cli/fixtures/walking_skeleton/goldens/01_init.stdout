@@ -1,0 +1,5 @@
+Initialized SDLC framework in <TMP>
+  .claude/state/         (state.json, journal.log)
+  .claude/{agents,commands,hooks,workflows,memory,skills}/
+  01-Requirement/  02-Architecture/  03-Implementation/
+Next: sdlc status

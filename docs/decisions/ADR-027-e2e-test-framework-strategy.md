@@ -1,6 +1,6 @@
 # ADR-027: E2E Test Framework Strategy (Tier-1 / Tier-2 / Tier-3)
 
-**Status:** Proposed (2026-05-10, Epic 2A prep — Story 2A.0)
+**Status:** Accepted (2026-05-10) — Implemented by Story 2A.0; seed scenarios under tests/e2e/cli/walking_skeleton + tests/e2e/pipeline/happy_path_smoke.
 
 ## Context
 
