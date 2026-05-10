@@ -8,4 +8,4 @@ from __future__ import annotations
 
 from sdlc.telemetry.runs import record_agent_run
 
-__all__ = ["record_agent_run"]
+__all__: tuple[str, ...] = ("record_agent_run",)

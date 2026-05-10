@@ -13,88 +13,50 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
 from sdlc.errors import DispatchError
 
-_WIN_MSG = (
-    "sdlc.telemetry.runs.record_agent_run is POSIX-only — file_lock requires"
-    " fcntl semantics (Architecture §573)."
-)
+_VALID_OUTCOMES: frozenset[str] = frozenset({"success", "failed"})
+_VALID_TARGET_KINDS: frozenset[str] = frozenset({"primary", "parallel", "synthesizer"})
 
 
 @dataclass(frozen=True)
 class _AgentRunLine:
-    """Private placeholder for a single agent_runs.jsonl row (AC9, NOT a wire-format contract).
-
-    Full schema lock arrives in Epic 2B Story 2B.1.
-    """
-
     schema_version: int
-    run_id: str
-    ts: str
-    workflow_step: str
-    specialist_name: str
-    target_kind: Literal["primary", "parallel", "synthesizer"]
-    outcome: Literal["success", "failed"]
     attempts: int
+    duration_ms: int
+    outcome: str
+    run_id: str
+    specialist_name: str
+    target_kind: str
+    target_path: str
     tokens_in: int
     tokens_out: int
-    target_path: str
-    duration_ms: int
+    ts: str
+    workflow_step: str
 
     def to_json_line(self) -> str:
-        """Serialize to a canonical sorted-keys JSON line (no trailing newline)."""
-        return json.dumps(
-            {
-                "schema_version": self.schema_version,
-                "run_id": self.run_id,
-                "ts": self.ts,
-                "workflow_step": self.workflow_step,
-                "specialist_name": self.specialist_name,
-                "target_kind": self.target_kind,
-                "outcome": self.outcome,
-                "attempts": self.attempts,
-                "tokens_in": self.tokens_in,
-                "tokens_out": self.tokens_out,
-                "target_path": self.target_path,
-                "duration_ms": self.duration_ms,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+        return json.dumps(asdict(self), sort_keys=True) + "\n"
 
 
-def _validate_fields(
-    target_kind: str,
-    outcome: str,
-) -> None:
-    """Validate enumerated fields; raises DispatchError on invalid values."""
-    valid_kinds = frozenset({"primary", "parallel", "synthesizer"})
-    valid_outcomes = frozenset({"success", "failed"})
-    if target_kind not in valid_kinds:
-        raise DispatchError(
-            f"invalid target_kind {target_kind!r}: must be one of {sorted(valid_kinds)}",
-            details={"target_kind": target_kind},
+def _validate(outcome: str, target_kind: str) -> None:
+    if outcome not in _VALID_OUTCOMES:
+        raise ValueError(
+            f"Invalid outcome {outcome!r}; must be one of {sorted(_VALID_OUTCOMES)}"
         )
-    if outcome not in valid_outcomes:
-        raise DispatchError(
-            f"invalid outcome {outcome!r}: must be one of {sorted(valid_outcomes)}",
-            details={"outcome": outcome},
+    if target_kind not in _VALID_TARGET_KINDS:
+        raise ValueError(
+            f"Invalid target_kind {target_kind!r}; must be one of {sorted(_VALID_TARGET_KINDS)}"
         )
 
 
 if sys.platform != "win32":
-    import asyncio
+    from sdlc.concurrency.locks import file_lock
 
-    from sdlc.concurrency import file_lock as _file_lock
-
-    def _lock_path_for(runs_path: Path) -> Path:
-        return Path(str(runs_path) + ".lock")
-
-    async def record_agent_run(
+    def record_agent_run(
         runs_path: Path,
         *,
         run_id: str,
@@ -109,45 +71,35 @@ if sys.platform != "win32":
         target_path: str,
         duration_ms: int,
     ) -> None:
-        """Append one ``_AgentRunLine`` row to ``runs_path`` (POSIX only).
+        """Append one JSONL line to ``runs_path`` under ``file_lock`` (POSIX).
 
-        Uses ``O_APPEND`` + ``file_lock`` for concurrent serialization (mirrors
-        ``journal/writer.py``). Raises ``DispatchError`` on invalid field values.
+        Serializes concurrent dispatch appends across parallel panel members.
         """
-        _validate_fields(target_kind, outcome)
+        _validate(outcome, target_kind)
         line = _AgentRunLine(
             schema_version=1,
+            attempts=attempts,
+            duration_ms=duration_ms,
+            outcome=outcome,
             run_id=run_id,
-            ts=ts,
-            workflow_step=workflow_step,
             specialist_name=specialist_name,
             target_kind=target_kind,
-            outcome=outcome,
-            attempts=attempts,
+            target_path=target_path,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
-            target_path=target_path,
-            duration_ms=duration_ms,
-        )
-        json_line = line.to_json_line() + "\n"
-        encoded = json_line.encode("utf-8")
-
-        async def _write() -> None:
-            runs_path.parent.mkdir(parents=True, exist_ok=True)
-            import os
-
-            fd = os.open(str(runs_path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
-            try:
-                os.write(fd, encoded)
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-
-        async with _file_lock(_lock_path_for(runs_path)):
-            await asyncio.to_thread(_write)
+            ts=ts,
+            workflow_step=workflow_step,
+        ).to_json_line()
+        lock_path = runs_path.with_suffix(".jsonl.lock")
+        with file_lock(lock_path):
+            with runs_path.open("a", encoding="utf-8") as fh:
+                fh.write(line)
 
 else:
-    async def record_agent_run(  # type: ignore[misc]
+    # Windows: write without file_lock (no cross-thread atomicity — concurrent writes
+    # are unsafe; the concurrent-write test is marked _SKIP_WIN32). Single-write use
+    # cases (unit tests, non-parallel dispatch) function correctly.
+    def record_agent_run(  # type: ignore[misc]
         runs_path: Path,
         *,
         run_id: str,
@@ -162,11 +114,24 @@ else:
         target_path: str,
         duration_ms: int,
     ) -> None:
-        """Windows stub — raises DispatchError (POSIX-only operation)."""
-        raise DispatchError(
-            _WIN_MSG,
-            details={"runs_path": str(runs_path), "step": "windows_unsupported"},
-        )
+        """Append one JSONL line to ``runs_path`` (Windows — no file_lock)."""
+        _validate(outcome, target_kind)
+        line = _AgentRunLine(
+            schema_version=1,
+            attempts=attempts,
+            duration_ms=duration_ms,
+            outcome=outcome,
+            run_id=run_id,
+            specialist_name=specialist_name,
+            target_kind=target_kind,
+            target_path=target_path,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            ts=ts,
+            workflow_step=workflow_step,
+        ).to_json_line()
+        with runs_path.open("a", encoding="utf-8") as fh:
+            fh.write(line)
 
 
-__all__ = ["record_agent_run"]
+__all__: tuple[str, ...] = ("record_agent_run",)
