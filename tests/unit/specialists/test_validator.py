@@ -111,11 +111,39 @@ def test_validate_workflow_refs_multi_violation_fail_once_with_full_list() -> No
 
 
 @pytest.mark.unit
-def test_validate_internal_links_valid_does_not_raise() -> None:
-    """Registry where specialist body has valid links — must not raise."""
+def test_validate_internal_links_empty_bodies_does_not_raise() -> None:
+    """Registry where specialist bodies have NO links must not raise (degenerate happy path)."""
     reg = _make_registry()
-    # valid_agents specialists have no body links — must not raise.
+    # valid_agents specialists have no body links — degenerate case.
     validate_internal_links(reg)
+
+
+@pytest.mark.unit
+def test_validate_internal_links_resolves_valid_refs() -> None:
+    """Registry whose bodies cross-reference real specialists must not raise (P-R8).
+
+    Stronger than the empty-bodies test: this exercises the regex/match path
+    on real names that ARE in the registry, pinning the validator's loop body
+    against tautological regressions (e.g. a future bug where the loop never
+    runs would pass the empty-bodies test but fail this one).
+    """
+    from sdlc.specialists._frontmatter import Specialist
+
+    base_reg = _make_registry()
+    alpha = base_reg.get("alpha-researcher")
+    cross_ref_alpha = Specialist(
+        frontmatter=alpha.frontmatter,
+        body="See [Beta](agents/beta-analyst.md) and [[gamma-support]] for details.",
+        source_path=alpha.source_path,
+        phase=alpha.phase,
+    )
+    overlay = {
+        "alpha-researcher": cross_ref_alpha,
+        "beta-analyst": base_reg.get("beta-analyst"),
+        "gamma-support": base_reg.get("gamma-support"),
+    }
+    reg = SpecialistRegistry(_specialists=__import__("types").MappingProxyType(overlay))
+    validate_internal_links(reg)  # must not raise — alpha's body refs resolve
 
 
 # ---------------------------------------------------------------------------

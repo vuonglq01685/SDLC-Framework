@@ -34,11 +34,15 @@ def test_load_registry_loads_all_manifest_entries() -> None:
 
 
 @pytest.mark.unit
-def test_load_registry_empty_manifest_ok() -> None:
-    # src/sdlc/agents/ ships with empty manifest — must work.
-    from pathlib import Path
+def test_load_registry_empty_manifest_ok(tmp_path: Path) -> None:
+    """Empty manifest (specialists: []) loads to an empty registry (P-R17).
 
-    agents_dir = Path(__file__).resolve().parents[3] / "src" / "sdlc" / "agents"
+    Uses tmp_path instead of the live src/sdlc/agents/ tree so the test is
+    isolated from real specialist files that future stories will land.
+    """
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    (agents_dir / "index.yaml").write_text("schema_version: 1\nspecialists: []\n")
     reg = load_registry(agents_dir)
     assert reg.names() == frozenset()
 
@@ -70,7 +74,10 @@ def test_load_registry_missing_manifest_file_raises() -> None:
 
 @pytest.mark.unit
 def test_load_registry_duplicate_name_in_manifest_raises() -> None:
-    with pytest.raises(SpecialistError):
+    # P-R16: anchor on the duplicate-name message so the test fails if a
+    # future regression causes a different branch (e.g. missing-file) to fire
+    # first while the duplicate-name check silently regresses.
+    with pytest.raises(SpecialistError, match="duplicate specialist name"):
         load_registry(_DUPLICATE)
 
 
@@ -98,10 +105,13 @@ def test_registry_get_miss_raises() -> None:
 
 @pytest.mark.unit
 def test_registry_list_phase_returns_matching() -> None:
+    # P-R19: assert non-empty FIRST so an `all()` over an empty tuple cannot
+    # vacuously pass if a future regression causes the registry to lose the
+    # matching specialist.
     reg = load_registry(_VALID)
     phase1 = reg.list_phase(1)
-    assert all(s.frontmatter.name == "alpha-researcher" for s in phase1)
     assert len(phase1) == 1
+    assert all(s.frontmatter.name == "alpha-researcher" for s in phase1)
 
 
 @pytest.mark.unit

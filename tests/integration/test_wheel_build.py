@@ -69,7 +69,10 @@ _REQUIRED_CLI_FILES = frozenset(
 _CONTENT_SUFFIXES = frozenset({".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".csv"})
 
 # Files explicitly allowed by story ACs (Story 2A.2: empty manifest stub must ship).
-_ALLOWED_CONTENT_FILES = frozenset({"sdlc/agents/index.yaml"})
+# P-R18: store as POSIX-normalized strings; comparisons normalize via Path.as_posix()
+# so wheel name variants (`./sdlc/...`, backslashes on Windows builders, etc.) all
+# resolve to the canonical form before allowlist lookup.
+_ALLOWED_CONTENT_FILES = frozenset({Path("sdlc/agents/index.yaml").as_posix()})
 
 
 def _build_wheel(out_dir: Path) -> Path:
@@ -131,7 +134,7 @@ def test_wheel_does_not_ship_content_files(tmp_path: Path) -> None:
         if not n.endswith("/")
         and ".dist-info/" not in n
         and Path(n).suffix in _CONTENT_SUFFIXES
-        and n not in _ALLOWED_CONTENT_FILES
+        and Path(n).as_posix() not in _ALLOWED_CONTENT_FILES
     ]
     assert not leaks, f"Wheel ships unexpected content files outside .dist-info/: {leaks}"
 

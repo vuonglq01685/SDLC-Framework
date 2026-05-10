@@ -38,8 +38,12 @@ def test_parse_manifest_entry_phase_zero_allowed() -> None:
 
 @pytest.mark.unit
 def test_parse_manifest_unknown_top_level_key_raises() -> None:
-    with pytest.raises(SpecialistError, match="unknown_top_level"):
+    # P-R13: assert via SpecialistError.details["error"] (the wrapped pydantic
+    # message) rather than via top-level match=, which is brittle to pydantic
+    # error-rendering changes and could pass on any unrelated regression.
+    with pytest.raises(SpecialistError) as exc_info:
         _parse_manifest(_FIXTURES / "unknown_key.yaml")
+    assert "unknown_top_level" in exc_info.value.details["error"]
 
 
 @pytest.mark.unit
