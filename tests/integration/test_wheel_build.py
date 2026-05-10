@@ -64,10 +64,12 @@ _REQUIRED_CLI_FILES = frozenset(
     }
 )
 
-# Suffixes that indicate "content" — would only be legitimate in future
-# stories that actually ship runtime content under sdlc/<tree>/. v1.16 must
-# not ship any of these outside .dist-info/.
+# Suffixes that indicate "content" — must not bleed into the wheel accidentally.
+# Intentionally-shipped content files are listed in _ALLOWED_CONTENT_FILES.
 _CONTENT_SUFFIXES = frozenset({".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".csv"})
+
+# Files explicitly allowed by story ACs (Story 2A.2: empty manifest stub must ship).
+_ALLOWED_CONTENT_FILES = frozenset({"sdlc/agents/index.yaml"})
 
 
 def _build_wheel(out_dir: Path) -> Path:
@@ -114,11 +116,10 @@ def test_wheel_ships_gitkeep_markers_for_force_include_trees(tmp_path: Path) -> 
 
 @_SKIP_NO_BUILDER
 def test_wheel_does_not_ship_content_files(tmp_path: Path) -> None:
-    """AC4.4 — v1.16 ships NO content files (`.md`, `.json`, `.yaml`, …) outside `.dist-info/`.
+    """No accidental content files ship in the wheel outside of intentional allowlist.
 
-    Catches accidental leakage from future stories: if Story 2A-2 lands
-    `agents/index.yaml` and the source-tree merge bleeds into v1.16, this
-    test fails before the wheel ships.
+    Story 2A.2 explicitly ships `agents/index.yaml` (empty manifest stub, per AC1/AC3).
+    That file is in _ALLOWED_CONTENT_FILES. All other content-suffix files are leaks.
     """
     wheel = _build_wheel(tmp_path)
     with zipfile.ZipFile(wheel) as zf:
@@ -127,11 +128,12 @@ def test_wheel_does_not_ship_content_files(tmp_path: Path) -> None:
     leaks = [
         n
         for n in names
-        if not n.endswith("/") and ".dist-info/" not in n and Path(n).suffix in _CONTENT_SUFFIXES
+        if not n.endswith("/")
+        and ".dist-info/" not in n
+        and Path(n).suffix in _CONTENT_SUFFIXES
+        and n not in _ALLOWED_CONTENT_FILES
     ]
-    assert not leaks, (
-        f"AC4.4 violation — v1.16 wheel ships content files outside .dist-info/: {leaks}"
-    )
+    assert not leaks, f"Wheel ships unexpected content files outside .dist-info/: {leaks}"
 
 
 @_SKIP_NO_BUILDER
