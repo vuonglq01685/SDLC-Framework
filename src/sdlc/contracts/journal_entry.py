@@ -2,29 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Annotated, ClassVar, Literal
+from typing import Annotated, Literal
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    StringConstraints,
-    field_serializer,
-    field_validator,
-)
+from pydantic import Field, StringConstraints, field_serializer, field_validator
+
+from sdlc.contracts._strict_model import StrictModel
 
 _RFC3339_UTC = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$"
 _SHA256 = r"^sha256:[0-9a-f]{64}$"
 
 
-class JournalEntry(BaseModel):
+class JournalEntry(StrictModel):
     """Wire-format contract: append-only journal record (Architecture §595-§606, Decision B3)."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        str_strip_whitespace=False,
-    )
 
     schema_version: Literal[1] = 1
     monotonic_seq: int = Field(ge=0)
@@ -34,7 +23,7 @@ class JournalEntry(BaseModel):
     target_id: str
     before_hash: Annotated[str, StringConstraints(pattern=_SHA256)] | None
     after_hash: Annotated[str, StringConstraints(pattern=_SHA256)]
-    payload: Mapping[str, object] = Field(default_factory=dict)
+    payload: Mapping[str, object] = Field(default_factory=dict, strict=False)
 
     @field_validator("schema_version", mode="before")
     @classmethod

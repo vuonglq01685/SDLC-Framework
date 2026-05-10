@@ -1,27 +1,24 @@
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
+
+from sdlc.contracts._strict_model import StrictModel
 
 
-class SpecialistFrontmatter(BaseModel):
+class SpecialistFrontmatter(StrictModel):
     """Wire-format contract: specialist YAML frontmatter (Architecture §623-§632)."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        str_strip_whitespace=False,
-    )
 
     schema_version: Literal[1] = 1
     name: str
     title: str
     icon: str = Field(min_length=1, max_length=4)
     model: str
-    tools: tuple[str, ...] = Field(default_factory=tuple)
-    read_globs: tuple[str, ...] = Field(default_factory=tuple)
-    write_globs: tuple[str, ...] = Field(default_factory=tuple)
+    # strict=False: YAML parsers return lists; coercion to tuple is expected.
+    tools: tuple[str, ...] = Field(default_factory=tuple, strict=False)
+    read_globs: tuple[str, ...] = Field(default_factory=tuple, strict=False)
+    write_globs: tuple[str, ...] = Field(default_factory=tuple, strict=False)
     description: str
 
     @field_validator("schema_version", mode="before")

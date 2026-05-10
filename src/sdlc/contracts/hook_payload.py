@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-from typing import Annotated, ClassVar, Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
+from pydantic import StringConstraints, field_validator
+
+from sdlc.contracts._strict_model import StrictModel
 
 _SHA256 = r"^sha256:[0-9a-f]{64}$"
 
 
-class HookPayload(BaseModel):
+class HookPayload(StrictModel):
     """Wire-format contract: pre-write hook payload (Architecture §615-§621, Decision D2)."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        str_strip_whitespace=False,
-    )
 
     schema_version: Literal[1] = 1
     hook_name: str

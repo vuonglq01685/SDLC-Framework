@@ -1,6 +1,6 @@
 # ADR-025: Pydantic Strict-Mode Default
 
-**Status:** Proposed (2026-05-10, Epic 2A prep — Story 2A.1)
+**Status:** Accepted (2026-05-10, Epic 2A prep — D2 implementation)
 
 ## Context
 

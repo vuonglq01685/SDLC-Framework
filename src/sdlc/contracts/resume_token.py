@@ -2,32 +2,21 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Annotated, ClassVar, Literal
+from typing import Annotated, Literal
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    StringConstraints,
-    field_serializer,
-    field_validator,
-)
+from pydantic import Field, StringConstraints, field_serializer, field_validator
+
+from sdlc.contracts._strict_model import StrictModel
 
 _SHA256 = r"^sha256:[0-9a-f]{64}$"
 
 
-class ResumeToken(BaseModel):
+class ResumeToken(StrictModel):
     """Wire-format contract: resume-from-checkpoint token (Architecture §608-§613)."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        str_strip_whitespace=False,
-    )
 
     schema_version: Literal[1] = 1
     phase: int = Field(ge=0)
-    cursor: Mapping[str, object] = Field(default_factory=dict)
+    cursor: Mapping[str, object] = Field(default_factory=dict, strict=False)
     suggested_next_command: str
     state_hash: Annotated[str, StringConstraints(pattern=_SHA256)]
 

@@ -204,9 +204,9 @@ Layer-by-layer expected wall-clock (rough — assumes 1 story-day per worktree, 
 
 ## 8. Approvals
 
-- [ ] Charlie — DAG correctness + dispatcher dependency checks
-- [ ] Alice — sprint capacity + reviewer assignment plan
-- [ ] Winston — architectural cross-reference (ADR-012 16-module DAG, ADR-024 wire-format lock)
+- [x] Charlie — DAG correctness + dispatcher dependency checks (2026-05-10: 2A.3→2A.1+2A.2 correct; 2A.7 decoupled from 2A.6 is architecturally sound — signoff state machine does not require Claude PreToolUse hook)
+- [x] Alice — sprint capacity + reviewer assignment plan (2026-05-10: Layer 4 cap noted; worktree assignments tentative; A4 pair-mentoring must be scheduled before Layer 1 start)
+- [x] Winston — architectural cross-reference (2026-05-10: ADR-012 module mapping verified; ADR-024 frozen contracts (WorkflowSpec + HookPayload) correctly scoped; **D1 Hypothesis byte-stability MUST complete before Layer 2 start**)
 - [x] Vuonglq01685 (Project Lead) — directive sign-off on parallelism plan and worktree policy (2026-05-10)
 
 ---
@@ -216,3 +216,4 @@ Layer-by-layer expected wall-clock (rough — assumes 1 story-day per worktree, 
 | Date | Author | Change |
 |---|---|---|
 | 2026-05-10 | Charlie + Alice (drafted via sprint-planning skill) | Initial draft — DAG + 7 layers + critical path + worktree assignments |
+| 2026-05-10 | Charlie, Alice, Winston | Approval review — all three approved; Winston flags D1 as hard gate before Layer 2 |

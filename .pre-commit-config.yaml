@@ -123,6 +123,16 @@ repos:
         # arrive via type-alias imports outside src/sdlc/contracts/, and a script edit
         # never matched the old `files:` regex. Script runs in <1s; cost is negligible.
 
+  # ----- strict-model inheritance gate (ADR-025, Epic 2A prep D2) -----
+  - repo: local
+    hooks:
+      - id: strict-model-inheritance
+        name: strict-model inheritance check (ADR-025)
+        entry: uv run python scripts/check_strict_model_inheritance.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # ----- specialist-validator (placeholder; activates with Story 2A-2) -----
   - repo: local
     hooks:
