@@ -19,6 +19,7 @@ from sdlc.signoff.records import (
     read_record,
     write_record,
 )
+from sdlc.signoff.states import SignoffState, compute_state
 
 __all__ = [
     "compute_artifact_hash",
@@ -29,4 +30,6 @@ __all__ = [
     "list_records",
     "read_record",
     "write_record",
+    "SignoffState",
+    "compute_state",
 ]
