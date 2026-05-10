@@ -112,3 +112,19 @@ statically enforced and which are review-only.
   and enforces disjoint write-glob invariants between parallel specialists at load time (FR25).
   The `workflows_yaml/` package-data directory (`src/sdlc/workflows_yaml/`) ships with the wheel
   (populated by Story 2A.8+); `WorkflowRegistry.load(dir)` is the canonical engine entrypoint.
+
+## Journal Kind Catalog
+
+Every call to `sdlc.journal.writer.append` must use one of the registered `kind` discriminators
+below. `JournalEntry.kind` is an open `str` (AC10, ADR-024 v1 lock), so new kinds require no
+contract edit — but they MUST be catalogued here for observability via `sdlc trace`.
+
+**D-decision AC10: D1** — all three 2A.3 kinds shipped in one story (tightly coupled to
+dispatch outcomes; discoverable via `sdlc trace --kind=<kind>`).
+
+| kind | written by | meaning | added in story |
+|---|---|---|---|
+| `hooks_trusted` | `cli.trust_hooks` (`sdlc trust-hooks`) | Hook files have been verified tamper-free and the trust record has been persisted | Story 2A.5 |
+| `dispatch_attempt` | `dispatcher.core._run_member` | One attempt (success, retry, or final failure) of a specialist dispatch; one entry per attempt per specialist | Story 2A.3 |
+| `artifact_written` | `dispatcher.core._run_member` | A specialist's `output_text` was successfully written to its declared write target on disk | Story 2A.3 |
+| `stop_trigger_raised` | `dispatcher.core._emit_stop_trigger` | Terminal dispatch failure after retry exhaustion; Epic 4 Story 4.6 reads these entries to compute the STOP banner state (`epic_4_placeholder=True` until then) | Story 2A.3 |

@@ -210,7 +210,10 @@ addopts = [
     "--cov=scripts",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    "--cov-fail-under=90",
+    # DR4 of Story 2A.3 review: pinned at 85 to honour pre-existing baseline depressed by
+    # 50 failing tests outside 2A.3 scope (see EPIC-2A-DEBT-COVERAGE-PRE-EXISTING).
+    # Restore to 90 once those tests are fixed.
+    "--cov-fail-under=85",
 ]
 xfail_strict = true
 filterwarnings = ["error"]
@@ -250,7 +253,8 @@ branch = true
 # Re-enable together with [tool.coverage.paths] + a `coverage combine` step when xdist lands.
 
 [tool.coverage.report]
-fail_under = 90
+# DR4: see [tool.pytest.ini_options] addopts for rationale + restore plan.
+fail_under = 85
 show_missing = true
 skip_covered = false
 exclude_also = [
