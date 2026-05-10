@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sdlc.concurrency.subprocess_pool import BoundedDispatcher
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.errors import DispatchError
@@ -205,8 +206,233 @@ async def dispatch(
     )
 
 
+async def _run_member(
+    step: WorkflowSpec,
+    specialist_name: str,
+    target_kind: Literal["primary", "parallel", "synthesizer"],
+    *,
+    runtime: AIRuntime,
+    registry: SpecialistRegistry,
+    repo_root: Path,
+    journal_path: Path,
+    agent_runs_path: Path,
+    prompt_builder: Callable[[Specialist, WorkflowSpec], str],
+    sleep: Callable[[float], Awaitable[None]],
+    max_attempts: int,
+    extra_context: dict[str, object] | None = None,
+) -> DispatchResult:
+    """Dispatch a single specialist as a panel member (primary/parallel/synthesizer)."""
+    specialist = registry.get(specialist_name)
+
+    write_globs = step.write_globs.get(specialist_name)
+    if not write_globs:
+        raise DispatchError(
+            f"workflow step {step.name!r} has no write_globs entry for specialist"
+            f" {specialist_name!r}",
+            details={"step": step.name, "specialist": specialist_name},
+        )
+    target_path = (repo_root / write_globs[0]).resolve()
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    prompt = prompt_builder(specialist, step)
+    context: dict[str, object] = {
+        "workflow_step": step.name,
+        "agent_name": specialist_name,
+        "target_kind": target_kind,
+    }
+    if extra_context:
+        context.update(extra_context)
+
+    t_start = time.monotonic()
+    agent_result = await with_retries(
+        lambda: runtime.dispatch(prompt, context),
+        max_attempts=max_attempts,
+        sleep=sleep,
+    )
+    duration_ms = int((time.monotonic() - t_start) * 1000)
+    ts = _now_ts()
+    run_id = str(uuid.uuid4())
+
+    target_path.write_text(agent_result.output_text, encoding="utf-8")
+
+    await journal_append(
+        _make_journal_entry(
+            seq=0,
+            ts=ts,
+            kind="dispatch_attempt",
+            target_id=f"{step.name}/{specialist_name}",
+            payload={
+                "specialist": specialist_name,
+                "outcome": "success",
+                "attempt": 1,
+                "target_kind": target_kind,
+            },
+        ),
+        journal_path,
+    )
+    await journal_append(
+        _make_journal_entry(
+            seq=1,
+            ts=ts,
+            kind="artifact_written",
+            target_id=str(target_path.relative_to(repo_root)),
+            payload={
+                "target": str(target_path.relative_to(repo_root)),
+                "writer": "dispatcher",
+                "specialist": specialist_name,
+            },
+        ),
+        journal_path,
+    )
+
+    record_agent_run(
+        agent_runs_path,
+        run_id=run_id,
+        ts=ts,
+        workflow_step=step.name,
+        specialist_name=specialist_name,
+        target_kind=target_kind,
+        outcome="success",
+        attempts=1,
+        tokens_in=agent_result.tokens_in,
+        tokens_out=agent_result.tokens_out,
+        target_path=str(target_path.relative_to(repo_root)),
+        duration_ms=duration_ms,
+    )
+
+    return DispatchResult(
+        specialist_name=specialist_name,
+        target_path=target_path,
+        agent_result=agent_result,
+        attempts=1,
+        outcome="success",
+    )
+
+
+async def dispatch_panel(
+    step: WorkflowSpec,
+    *,
+    runtime: AIRuntime,
+    registry: SpecialistRegistry,
+    repo_root: Path,
+    journal_path: Path,
+    agent_runs_path: Path,
+    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _default_prompt_builder,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    max_parallel_agents: int = 4,
+    _max_attempts: int = 3,
+) -> PanelResult:
+    """Orchestrate a panel dispatch: primary → parallel (bounded) → synthesizer (AC2, FR26).
+
+    Parallel agents run through a BoundedDispatcher capped at ``max_parallel_agents``.
+    Synthesizer runs only if all panel members succeed; it receives ``panel_outputs``
+    containing the text output of every panel member.
+
+    On any DispatchError the panel short-circuits and returns outcome="failed";
+    the synthesizer is never dispatched on failure (AC2.5).
+
+    # EPIC-4-STOP-TRIGGER-WIRE: on terminal failure, a kind="stop_trigger_raised"
+    # journal entry should be emitted here. Deferred — see deferred-work.md.
+    """
+    _kw: dict[str, object] = dict(
+        runtime=runtime,
+        registry=registry,
+        repo_root=repo_root,
+        journal_path=journal_path,
+        agent_runs_path=agent_runs_path,
+        prompt_builder=prompt_builder,
+        sleep=sleep,
+        max_attempts=_max_attempts,
+    )
+
+    def _failed_primary() -> PanelResult:
+        wg = step.write_globs.get(step.primary_agent, ())
+        tp = (repo_root / wg[0]).resolve() if wg else repo_root / "unknown.md"
+        return PanelResult(
+            primary_result=DispatchResult(
+                specialist_name=step.primary_agent,
+                target_path=tp,
+                agent_result=AgentResult(output_text="", tokens_in=0, tokens_out=0),
+                attempts=1,
+                outcome="failed",
+            ),
+            parallel_results=(),
+            synthesizer_result=None,
+            write_targets=(),
+            total_attempts=1,
+            outcome="failed",
+        )
+
+    # Phase 1 — primary (sequential)
+    try:
+        primary_result = await _run_member(step, step.primary_agent, "primary", **_kw)  # type: ignore[arg-type]
+    except DispatchError:
+        return _failed_primary()
+
+    # Phase 2 — parallel agents (concurrent, semaphore-bounded)
+    parallel_results: tuple[DispatchResult, ...] = ()
+    if step.parallel_agents:
+        bd = BoundedDispatcher(max_parallel_agents)
+        coros = [
+            _run_member(step, name, "parallel", **_kw)  # type: ignore[arg-type]
+            for name in step.parallel_agents
+        ]
+        try:
+            raw = await bd.dispatch_many(coros)
+            parallel_results = tuple(raw)
+        except DispatchError:
+            return PanelResult(
+                primary_result=primary_result,
+                parallel_results=(),
+                synthesizer_result=None,
+                write_targets=(primary_result.target_path,),
+                total_attempts=primary_result.attempts + 1,
+                outcome="failed",
+            )
+
+    # Phase 3 — synthesizer (sequential, after all panel members succeed)
+    synth_result: DispatchResult | None = None
+    if step.synthesizer_agent:
+        panel_outputs: dict[str, object] = {
+            r.specialist_name: r.agent_result.output_text
+            for r in (primary_result, *parallel_results)
+        }
+        try:
+            synth_result = await _run_member(
+                step,
+                step.synthesizer_agent,
+                "synthesizer",
+                extra_context={"panel_outputs": panel_outputs},
+                **_kw,  # type: ignore[arg-type]
+            )
+        except DispatchError:
+            return PanelResult(
+                primary_result=primary_result,
+                parallel_results=parallel_results,
+                synthesizer_result=None,
+                write_targets=tuple(
+                    r.target_path for r in (primary_result, *parallel_results)
+                ),
+                total_attempts=sum(
+                    r.attempts for r in (primary_result, *parallel_results)
+                ) + 1,
+                outcome="failed",
+            )
+
+    all_results = [primary_result, *parallel_results, *([synth_result] if synth_result else [])]
+    return PanelResult(
+        primary_result=primary_result,
+        parallel_results=parallel_results,
+        synthesizer_result=synth_result,
+        write_targets=tuple(r.target_path for r in all_results),
+        total_attempts=sum(r.attempts for r in all_results),
+        outcome="success",
+    )
+
+
 __all__: tuple[str, ...] = (
     "dispatch",
+    "dispatch_panel",
     "DispatchResult",
     "PanelResult",
     "_default_prompt_builder",
