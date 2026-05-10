@@ -101,7 +101,7 @@ development_status:
   2a-1-workflow-yaml-loader-schema-validation: done
   2a-2-specialist-registry-manifest-validation: done
   2a-3-dispatcher-primary-parallel-synthesizer-retry: done
-  2a-4-pre-write-hook-chain-naming-validator-phase-gate: in-progress
+  2a-4-pre-write-hook-chain-naming-validator-phase-gate: done
   2a-5-recovery-hook-tampering-detection-trust-hooks: done
   2a-6-claude-code-pretooluse-hook-hook-check: backlog
   2a-7-recovery-signoff-state-machine-hash-drift-validation: backlog

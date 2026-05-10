@@ -98,6 +98,67 @@ statically enforced and which are review-only.
 8. `contracts/`, `ids/`, `config/`, `concurrency/`, `errors/` form the foundation
    layer (statically enforced).
 
+## Hook Chain Integration Map
+
+Story 2A.4 ships the pre-write hook runner (`hooks/runner.py`) and two builtin hooks:
+`naming_validator` (FR36, AC4) and `phase_gate` (FR37, AC5). The chain runs before every
+artifact write. Engine-side wiring lands in Story 2A.6; this section documents the contract
+so callers can conform before 2A.6 merges.
+
+### Data flow
+
+```
+Caller (dispatcher / CLI)
+  │
+  ├─ constructs HookPayload(hook_name, target_path, target_kind, content_hash_before, write_intent)
+  │
+  └─ await run_hook_chain(payload, hooks=(naming_validator, phase_gate), journal_path=...)
+            │
+            ├─ naming_validator(payload)
+            │     validates file stem against canonical id regex for:
+            │       01-Requirement/04-Epics/      → EPIC_ID_REGEX
+            │       01-Requirement/05-Stories/    → STORY_ID_REGEX (+ parent epic dir)
+            │       01-Requirement/06-Tasks/      → TASK_ID_REGEX (+ both ancestor dirs)
+            │     returns HookDecision.allow() | .deny(error_code="naming_violation")
+            │
+            └─ phase_gate(payload, repo_root=...)
+                  reads .claude/state/signoffs/phase-{N-1}.yaml for Phase 2/3 writes
+                  returns HookDecision.allow() | .deny(error_code="phase_gate_violation")
+            │
+            └─ HookDecision{decision, hook_name, reason, error_code}
+                  "deny"  → caller blocks write + journal.append(kind="hook_rejected", ...)
+                  "allow" → caller proceeds with write (no journal entry from the chain)
+```
+
+### Write-site integration table
+
+| Write site | Caller module | `target_kind` | Story that wires it |
+|---|---|---|---|
+| Engine pre-write (every artifact write) | `dispatcher.core` | `"write_intent"` | Story 2A.6 (engine-side wiring) |
+| Claude Code PreToolUse hook | `claude_hooks/pre_tool_use.py` | `"write_intent"` | Story 2A.6 (shells to `sdlc hook-check`) |
+| Signoff record write | `signoff.records.write_record` | `"signoff_record"` | Story 2A.12 |
+
+### Bypass policy (AC6, NFR-SEC-4)
+
+`--force-bypass-signoff "<justification>"`:
+
+- `naming_validator` is **never bypassed** — bypassing it would corrupt the artifact-id audit trail
+  that `sdlc trace` and `sdlc rebuild-state` depend on.
+- `phase_gate` is bypassed **per-dispatch** when: (a) the justification is ≥ 10 characters,
+  (b) the hook trust store is initialized (not `uninitialized` or `corrupted`).
+- Every bypass appends `kind="bypass_signoff"` to the journal (actor: `hooks.runner`).
+
+See `docs/runbooks/diagnose-hook-rejection.md` for operator resolution steps.
+
+### Journal kinds introduced by Story 2A.4
+
+| `kind` | Actor | Payload fields | When emitted |
+|---|---|---|---|
+| `hook_rejected` | `hooks.runner` | `hook`, `target`, `reason`, `error_code` | First hook in chain returns `deny` |
+| `bypass_signoff` | `hooks.runner` | `target`, `justification`, `justification_truncated`, `user`, `phase_attempted`, `missing_signoff_path` | `phase_gate` is bypassed for a Phase 2/3 write |
+
+---
+
 ## Where to Read More
 
 - **Full module table + per-module APIs**: `_bmad-output/planning-artifacts/architecture.md#Module-Specifications`.
@@ -112,6 +173,8 @@ statically enforced and which are review-only.
   and enforces disjoint write-glob invariants between parallel specialists at load time (FR25).
   The `workflows_yaml/` package-data directory (`src/sdlc/workflows_yaml/`) ships with the wheel
   (populated by Story 2A.8+); `WorkflowRegistry.load(dir)` is the canonical engine entrypoint.
+- **Hook chain runbook**: `docs/runbooks/diagnose-hook-rejection.md` — operator guide for
+  `hook_rejected` and `bypass_signoff` journal entries (Story 2A.4).
 
 ## Journal Kind Catalog
 
@@ -128,3 +191,5 @@ dispatch outcomes; discoverable via `sdlc trace --kind=<kind>`).
 | `dispatch_attempt` | `dispatcher.core._run_member` | One attempt (success, retry, or final failure) of a specialist dispatch; one entry per attempt per specialist | Story 2A.3 |
 | `artifact_written` | `dispatcher.core._run_member` | A specialist's `output_text` was successfully written to its declared write target on disk | Story 2A.3 |
 | `stop_trigger_raised` | `dispatcher.core._emit_stop_trigger` | Terminal dispatch failure after retry exhaustion; Epic 4 Story 4.6 reads these entries to compute the STOP banner state (`epic_4_placeholder=True` until then) | Story 2A.3 |
+| `hook_rejected` | `hooks.runner` | First hook in chain returns `deny`; fields: `hook`, `target`, `reason`, `error_code` | Story 2A.4 |
+| `bypass_signoff` | `hooks.runner` | `phase_gate` bypassed for a Phase 2/3 write; fields: `target`, `justification`, `user`, `phase_attempted`, `missing_signoff_path` | Story 2A.4 |

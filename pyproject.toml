@@ -29,6 +29,7 @@ dev = [
     "mkdocs>=1.6.0,<2",
     "hypothesis>=6.100,<7",
     "pytest-benchmark>=5.0.0,<6",  # floor: 4.x had pedantic(rounds=1) regressions; cap: 6.x may shift pedantic API (Story 1.15 perf gate)
+    "pytest-asyncio>=0.23",     # async test support for hooks/runner async surface (Story 2A.4)
     "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
 ]
 
@@ -217,6 +218,7 @@ addopts = [
 ]
 xfail_strict = true
 filterwarnings = ["error"]
+asyncio_mode = "auto"
 markers = [
     "unit: fast, isolated unit tests",
     "integration: multi-module or boundary-crossing tests",
@@ -267,3 +269,10 @@ partial_branches = [
     "if TYPE_CHECKING:",   # exclude_also drops the line; this drops the branch arc too
     "if sys\\.platform",   # POSIX-only guards; covered on Linux CI
 ]
+
+# =============================================================================
+# Hook registry (AC2, Story 2A.4)
+# D-decision: AC11 chose D1 — new src/sdlc/config/hooks.py for hook-registry loader
+# =============================================================================
+[tool.sdlc.hooks]
+pre_write = ["naming_validator", "phase_gate"]

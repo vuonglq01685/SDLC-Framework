@@ -70,6 +70,26 @@ sdlc trust-hooks
 
 This creates or re-creates `hook-hashes.json` from the current hook files.
 
+## Interaction with `--force-bypass-signoff`
+
+The hook trust state affects whether the `--force-bypass-signoff` flag is accepted
+(Story 2A.4 AC6, NFR-SEC-4):
+
+| Trust state | `--force-bypass-signoff` accepted? |
+|---|---|
+| `clean` | Yes |
+| `tampered` | Yes (advisory only in v1; user has seen the warning) |
+| `uninitialized` | **No** — exits with `[ERROR] cannot bypass while hook trust is unestablished; run 'sdlc trust-hooks' first` (exit 2) |
+| `corrupted` | **No** — same error; run `sdlc trust-hooks` to re-initialize |
+
+**Why `uninitialized`/`corrupted` block bypass:** If the hook-hash baseline has never
+been recorded (or is malformed), the framework cannot confirm that `naming_validator`
+and `phase_gate` have not been tampered with. Allowing bypass under these conditions
+would mean skipping phase-gate enforcement with no assurance the gate is intact.
+Run `sdlc trust-hooks` once to record the baseline; bypass then proceeds normally.
+
+---
+
 ## Notes
 
 - `sdlc trust-hooks` appends a `hooks_trusted` journal entry at the current
@@ -78,3 +98,5 @@ This creates or re-creates `hook-hashes.json` from the current hook files.
   atomically (POSIX) to prevent partial-write corruption.
 - On Windows, a non-atomic write fallback is used (best-effort).
 - See FR39 and NFR-SEC-5 in the PRD for the security rationale.
+- See `docs/runbooks/diagnose-hook-rejection.md` for the full bypass workflow
+  (`phase_gate_violation` → `--force-bypass-signoff` → `bypass_signoff` journal entry).
