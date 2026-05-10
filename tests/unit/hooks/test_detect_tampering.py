@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from sdlc.hooks.tampering import detect_tampering, record_trust
+from sdlc.cli._hook_trust_writer import write_hook_hashes_atomic
+from sdlc.hooks.tampering import detect_tampering
 
 _VALID_HASH_A = "sha256:" + "a" * 64
 _VALID_HASH_B = "sha256:" + "b" * 64
@@ -19,7 +20,7 @@ _SKIP_WIN32 = pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only wri
 
 
 def _write_store(state_root: Path, hashes: dict[str, str], ts: str = _TS) -> None:
-    record_trust(state_root.resolve(), hashes, now_utc=ts)
+    write_hook_hashes_atomic(state_root.resolve(), hashes, now_utc=ts)
 
 
 def _make_hooks(hooks_root: Path, files: dict[str, bytes]) -> None:

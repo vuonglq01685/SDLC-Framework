@@ -111,7 +111,7 @@ class TestComputeHookHashesSymlinks:
         outside.write_bytes(b"# outside\n")
         link = hooks / "escape.py"
         link.symlink_to(outside)
-        with pytest.raises(HookError, match="hook symlink escapes hooks_root"):
+        with pytest.raises(HookError, match="hook escapes hooks_root"):
             compute_hook_hashes(hooks)
 
     def test_symlink_escape_error_contains_relpath(self, tmp_path: Path) -> None:

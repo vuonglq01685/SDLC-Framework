@@ -142,24 +142,15 @@ def _normalize_paths(text: str, tmp_path: Path) -> str:
     return text
 
 
-def _hash_journal_no_ts(journal_path: Path) -> str:
-    """Compute deterministic journal hash excluding the ts field (AC5.1).
+def _hash_journal_no_ts(journal_path: Path) -> str:  # noqa: C901  # 2A.5 DR3: per-kind canonicalization branches
+    """Compute deterministic journal hash excluding ``ts`` (AC5.1).
 
-    2A.0 does NOT introduce a time-freeze hook (see tests/e2e/README.md).
-    Raw-bytes hashing of journal.log is not viable because the ts field varies
-    between runs. This function re-canonicalizes each entry without ts and hashes
-    the result, producing a stable byte-comparable value.
-
-    Sentinels (PR12 — distinct values for absent vs empty):
-      - file does not exist OR has zero bytes → ``<no-journal>``
-      - file exists but contains no non-blank JSON entries → ``<empty-journal>``
-        (preserves the "regression to empty journal" detection that the prior
-        single-sentinel design conflated with absence).
-
-    On malformed input (non-UTF-8 bytes, non-JSON line, non-dict entry), raises
-    ``AssertionError`` with an actionable hint pointing the test author at
-    journal-shape drift rather than producing a confusing JSONDecodeError /
-    AttributeError far from the call site (P16).
+    Re-canonicalizes each entry without ``ts`` (and without ``before/after_hash``
+    for ``hooks_trusted`` kind, which references the wall-clock hook-hashes.json)
+    and hashes the result. Returns ``<no-journal>`` for absent/empty file or
+    ``<empty-journal>`` when no non-blank entries exist (PR12 distinct sentinels
+    so regression-to-empty is not laundered as absence). Raises ``AssertionError``
+    on malformed input pointing at journal-shape drift (P16).
     """
     if not journal_path.exists() or journal_path.stat().st_size == 0:
         return _NO_JOURNAL_SENTINEL
@@ -192,6 +183,11 @@ def _hash_journal_no_ts(journal_path: Path) -> str:
                 f"action: investigate journal writer for shape drift."
             )
         entry.pop("ts", None)
+        if (
+            entry.get("kind") == "hooks_trusted"
+        ):  # Story 2A.5 DR3: strip refs to wall-clock hook-hashes.json
+            entry.pop("before_hash", None)
+            entry.pop("after_hash", None)
         canon = json.dumps(entry, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode(
             "utf-8"
         )

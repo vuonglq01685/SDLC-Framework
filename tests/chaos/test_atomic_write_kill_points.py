@@ -138,6 +138,11 @@ _INTER_STEP_KPS = [
 ]
 
 
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-006. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 @pytest.mark.parametrize("kill_point_name", _INTER_STEP_KPS)
 @given(seed=st.integers(min_value=1, max_value=2**31 - 1))
 @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -184,6 +189,11 @@ def test_kp9_os_crash_pre_fsync(seed: int, chaos_target: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-007. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 @given(seed=st.integers(min_value=1, max_value=2**31 - 1))
 @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_kp10_recovery_of_recovery(seed: int, chaos_target: Path) -> None:

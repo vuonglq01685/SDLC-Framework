@@ -7,8 +7,9 @@ import json
 import pytest
 from pydantic import ValidationError
 
-# _HookHashStore is private; import directly for validation tests
-from sdlc.hooks.tampering import _HookHashStore
+# _HookHashStore is private; import from its actual home module (Story 2A.5
+# DR1: tampering.py was split — model now lives in sdlc.hooks._hash_store).
+from sdlc.hooks._hash_store import _HookHashStore
 
 _VALID_HASH = "sha256:" + "a" * 64
 _TS = "2026-05-10T12:00:00.000Z"

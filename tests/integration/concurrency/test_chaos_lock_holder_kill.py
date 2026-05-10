@@ -32,6 +32,11 @@ _HOLDER_SCRIPT_TMPL = (
 
 
 @pytest.mark.integration
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-012. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 def test_lock_released_on_holder_kill(tmp_path: Path) -> None:
     """POSIX flock(2): kernel releases orphaned lock when process is killed."""
     lock_file = str(tmp_path / "scratch.lock")

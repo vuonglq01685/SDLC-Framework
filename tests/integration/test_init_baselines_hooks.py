@@ -68,3 +68,41 @@ class TestInitBaselinesHooks:
         data = json.loads(result.stdout)
         trust_state = data.get("trust_state", {})
         assert trust_state.get("status") == "clean"
+
+
+@pytest.mark.integration
+@_SKIP_WIN32
+class TestInitFailLoudFixtureCheck:
+    """P17: every test must assert init returncode==0 before relying on its output."""
+
+    def test_init_returncode_is_zero_in_clean_workspace(self, tmp_path: Path) -> None:
+        result = _run(["init"], cwd=tmp_path)
+        assert result.returncode == 0, (
+            f"sdlc init must succeed cleanly in empty tmp_path; "
+            f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+
+
+@pytest.mark.integration
+@_SKIP_WIN32
+class TestInitHashContentBehavior:
+    """P10: assert that recorded hashes match real files, not just shape."""
+
+    def test_recorded_hashes_match_actual_hook_file_contents(self, tmp_path: Path) -> None:
+        import hashlib
+
+        result = _run(["init"], cwd=tmp_path)
+        assert result.returncode == 0
+        store = tmp_path / ".claude" / "state" / "hook-hashes.json"
+        data = json.loads(store.read_text())
+        hooks_root = tmp_path / ".claude" / "hooks"
+        # For every hook file under .claude/hooks/, verify the recorded hash
+        # matches the actual sha256 of the file's bytes-on-disk.
+        for relpath, recorded_hash in data["hashes"].items():
+            actual_file = hooks_root / relpath
+            assert actual_file.exists(), f"hash entry for {relpath} but file is missing"
+            actual_hash = "sha256:" + hashlib.sha256(actual_file.read_bytes()).hexdigest()
+            assert recorded_hash == actual_hash, (
+                f"recorded hash for {relpath} does not match file contents: "
+                f"recorded={recorded_hash} actual={actual_hash}"
+            )

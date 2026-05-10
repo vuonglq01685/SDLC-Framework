@@ -119,9 +119,8 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         # layered DAG (`dashboard` sits below the upper stack, not parallel).
         forbidden_from=frozenset({"cli", "dashboard"}),
     ),
-    # Known widening vs. Architecture §1069: adopt/ may only use cli/git
-    # sub-import, but at module-level granularity we grant adopt→cli (recorded
-    # in ADR-010 Consequences as a known gap).
+    # Known widening vs. Architecture §1069: adopt/ may only use cli/git sub-import,
+    # but at module-level granularity we grant adopt→cli (ADR-010 Consequences).
     "adopt": ModuleSpec(
         depends_on=frozenset({"errors", "state", "journal", "signoff", "config"}),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime"}),
@@ -150,8 +149,9 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
                 "journal",  # cli/init.py creates empty journal.log; cli/scan.py appends
                 "contracts",  # JournalEntry / State pydantic contracts used by cli
                 "ids",  # cli/init.py + cli/scan.py validate canonical IDs
-                "migrations",  # cli/migrate.py dispatches migration scripts (Story 1.19)
-                "hooks",  # cli/{init,scan,trust_hooks}.py: FR39 tampering baseline/detect/trust
+                "migrations",  # cli/migrate.py: migration scripts (Story 1.19)
+                "hooks",  # cli/{init,scan,trust_hooks}.py: FR39 tampering surface
+                "concurrency",  # 2A.5 DR1+P9: trust_hooks file_lock RMW
             }
         ),
         forbidden_from=frozenset(),

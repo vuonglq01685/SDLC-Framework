@@ -116,3 +116,40 @@ class TestTrustHooksCmdJsonOutput:
         result = _run(["--json", "trust-hooks"], cwd=tmp_path)
         data = json.loads(result.stdout)
         assert isinstance(data["file_count"], int)
+
+
+@pytest.mark.integration
+@_SKIP_WIN32
+class TestTrustHooksZeroHooks:
+    """P20: trust-hooks must succeed when ``.claude/hooks/`` contains no .py files."""
+
+    def test_trust_hooks_with_no_hook_files_exits_zero(self, tmp_path: Path) -> None:
+        # Sequence: init creates the workspace; then we wipe .claude/hooks/.
+        # Note that DR4 transactional init refuses to overwrite an existing
+        # hook-hashes.json, so trust-hooks (not a second init) is the right
+        # re-baseline path.
+        init_result = _run(["init"], cwd=tmp_path)
+        assert init_result.returncode == 0, init_result.stderr
+
+        hooks_dir = tmp_path / ".claude" / "hooks"
+        for child in list(hooks_dir.rglob("*")):
+            if child.is_file() or child.is_symlink():
+                child.unlink()
+
+        result = _run(["trust-hooks"], cwd=tmp_path)
+        assert result.returncode == 0, (
+            f"trust-hooks must succeed with empty .claude/hooks/; "
+            f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+
+    def test_trust_hooks_with_no_hooks_writes_empty_hashes(self, tmp_path: Path) -> None:
+        init_result = _run(["init"], cwd=tmp_path)
+        assert init_result.returncode == 0
+        hooks_dir = tmp_path / ".claude" / "hooks"
+        for child in list(hooks_dir.rglob("*")):
+            if child.is_file() or child.is_symlink():
+                child.unlink()
+        _run(["trust-hooks"], cwd=tmp_path)
+        store = tmp_path / ".claude" / "state" / "hook-hashes.json"
+        data = json.loads(store.read_text())
+        assert data["hashes"] == {}

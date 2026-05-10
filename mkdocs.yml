@@ -69,6 +69,8 @@ nav:
       - "ADR template": decisions/adr-template.md
   - Sprints:
       - "Epic 2A — story DAG & parallelism plan": sprints/epic-2a-dag.md
+  - Runbooks:
+      - "Handle hook hash drift (FR39 / NFR-SEC-5)": runbooks/handle-hash-drift.md
   - Code Maps:
       - CODEMAPS/cli-module.md
       - CODEMAPS/engine-module.md
