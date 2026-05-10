@@ -18,7 +18,6 @@ import pytest
 
 from sdlc.errors import SignoffError
 from sdlc.signoff import (
-    ArtifactRef,
     SignoffRecord,
     SignoffState,
     compute_state,

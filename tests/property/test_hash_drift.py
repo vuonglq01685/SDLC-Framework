@@ -7,7 +7,7 @@ NFR-REL-3 zero false negatives: validate_signoff MUST detect ANY of:
   signoff_edit     — only approved: false → true; no content mutation; must SUCCEED
 
 Budget: @settings(max_examples=200, deadline=5000) per @given.
-Four @given suites × 200 examples = 800 total test cases.
+Four @given suites x 200 examples = 800 total test cases.
 
 NOTE: Tests manage their own tempfile.TemporaryDirectory() to avoid hypothesis
 function_scoped_fixture health check (hypothesis does not reset pytest fixtures

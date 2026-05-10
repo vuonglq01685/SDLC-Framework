@@ -13,10 +13,11 @@ from typing import Literal
 
 from sdlc.errors import SignoffError
 from sdlc.signoff.hasher import compute_artifact_hash
-from sdlc.signoff.records import ArtifactRef, SignoffRecord, _PHASE_DIR_MAP, read_signoff_md_draft
+from sdlc.signoff.records import _PHASE_DIR_MAP, ArtifactRef, SignoffRecord, read_signoff_md_draft
 from sdlc.signoff.states import SignoffState
 
 _VALID_PHASES = frozenset({1, 2})  # phase 3 has no signoff (AC10)
+_PHASE_NO_SIGNOFF: int = 3
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class ArtifactDrift:
 
     path: str
     expected: str  # hash recorded in SIGNOFF.md draft
-    actual: str    # hash computed from disk ('' sentinel if file missing)
+    actual: str  # hash computed from disk ('' sentinel if file missing)
     kind: Literal["drifted", "missing"]
 
 
@@ -42,7 +43,7 @@ class ValidatedSignoff:
     drift: tuple[ArtifactDrift, ...] = field(default_factory=tuple)
 
 
-def validate_signoff(
+def validate_signoff(  # noqa: C901
     phase: int,
     *,
     repo_root: Path,
@@ -59,7 +60,7 @@ def validate_signoff(
 
     The caller (Story 2A.12) calls records.write_record(result.record).
     """
-    if phase == 3:
+    if phase == _PHASE_NO_SIGNOFF:
         raise SignoffError(
             "phase 3 has no signoff in v1; cannot validate",
             details={"phase": 3},
@@ -128,8 +129,7 @@ def validate_signoff(
 
         if actual_hash != art.hash:
             raise SignoffError(
-                f"hash drift on artifact {art.path!r}: "
-                f"expected {art.hash!r}, got {actual_hash!r}",
+                f"hash drift on artifact {art.path!r}: expected {art.hash!r}, got {actual_hash!r}",
                 details={
                     "step": "validate_signoff",
                     "phase": phase,
@@ -141,9 +141,7 @@ def validate_signoff(
             )
 
     # Build the canonical SignoffRecord (caller writes it via write_record)
-    artifact_refs = tuple(
-        ArtifactRef(path=art.path, hash=art.hash) for art in draft.artifacts
-    )
+    artifact_refs = tuple(ArtifactRef(path=art.path, hash=art.hash) for art in draft.artifacts)
     record = SignoffRecord(
         phase=phase,
         artifacts=artifact_refs,

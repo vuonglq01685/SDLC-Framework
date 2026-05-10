@@ -64,7 +64,7 @@ def compute_artifact_hash(path: Path, *, repo_root: Path | None = None) -> str:
 def _canonicalize_record_bytes(record: object) -> bytes:
     """Return canonical YAML bytes for a SignoffRecord (Pattern §3 YAML equivalent)."""
     # Use model_dump(mode="json") to get JSON-compatible scalars (strings, not datetimes)
-    data = record.model_dump(mode="json")  # type: ignore[union-attr]
+    data = record.model_dump(mode="json")  # type: ignore[attr-defined]
     return yaml.safe_dump(
         data,
         sort_keys=True,

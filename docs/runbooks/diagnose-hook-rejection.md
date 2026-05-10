@@ -51,29 +51,55 @@ All other paths are **always allowed** — `naming_validator` only applies to th
 
 ### `phase_gate_violation` (hook: `phase_gate`)
 
-A write to a Phase 2 or Phase 3 path was attempted without the required prior-phase signoff.
-
-| Target path prefix | Required signoff |
-|---|---|
-| `02-Architecture/` | `.claude/state/signoffs/phase-1.yaml` with `approved: true` |
-| `03-Implementation/` | `.claude/state/signoffs/phase-2.yaml` with `approved: true` |
+A write to a Phase 2 or Phase 3 path was blocked because the required prior-phase signoff
+is not in state `approved`. Since Story 2A.7, `phase_gate` reads signoff state via an injected
+`compute_state` reader (AC11/D2) that returns one of four canonical states.
 
 **Phase 1 paths (`01-Requirement/`) and all other paths (`.claude/`, `tests/`, etc.) are always allowed.**
 
-**Resolution — normal path:**
+#### Diagnosing the denial reason (post-Story 2A.7)
 
-1. Ensure the previous phase's work is reviewed and approved.
-2. Create the signoff file:
+Check `payload.reason` from the journal entry:
 
-   ```yaml
-   # .claude/state/signoffs/phase-1.yaml
-   approved: true
-   phase: 1
-   approved_by: "your.email@example.com"
-   approved_at: "2026-05-10T12:00:00.000Z"
-   ```
+| Reason fragment | State | Meaning |
+|---|---|---|
+| `"not found"` | `awaiting-signoff` | No signoff draft or record exists for the prior phase |
+| `"drafted but not yet approved"` | `drafted-not-approved` | `SIGNOFF.md` draft exists but `approved: false` |
+| `"invalidated by replan"` | `invalidated-by-replan` | Prior signoff was approved then invalidated by a sprint replan |
+| `"reader raised: ..."` | *(record corrupt)* | The canonical signoff record exists but could not be parsed |
 
-3. Retry the write.
+#### Resolution by state
+
+**`awaiting-signoff` — prior phase not signed off:**
+
+1. Complete and review the prior phase's work.
+2. Draft the signoff file at `<phase-dir>/SIGNOFF.md` with `approved: true`.
+3. Run `sdlc signoff validate --phase <N>` to confirm hash integrity.
+4. Run `sdlc signoff write --phase <N>` to write the canonical record.
+5. Retry the write.
+
+**`drafted-not-approved` — draft exists, not yet approved:**
+
+1. The draft at `<phase-dir>/SIGNOFF.md` has `approved: false` — get the required approval.
+2. Update `approved: true`, `approved_by`, and `approved_at` in the draft.
+3. Re-run `sdlc signoff validate --phase <N>` and `sdlc signoff write --phase <N>`.
+4. Retry the write.
+
+**`invalidated-by-replan` — signoff was revoked:**
+
+1. The prior phase was replanned after signoff — all downstream writes are blocked until it is re-signed.
+2. Complete the replan work for the prior phase.
+3. Draft a new `SIGNOFF.md`, validate, and write the canonical record again.
+4. Retry the write.
+
+> Invalidation is permanent until a new canonical record is written. You cannot un-invalidate
+> without completing the replan work.
+
+**`reader raised` — corrupt canonical record:**
+
+1. Inspect `.claude/state/signoffs/phase-<N>.yaml` for YAML/schema errors.
+2. See `docs/runbooks/diagnose-signoff-drift.md` for full recovery steps.
+3. Fix the record, then retry.
 
 **Resolution — emergency bypass:**
 
@@ -88,22 +114,9 @@ Bypass requirements:
 - The hook trust store must be **initialized and not uninitialized**. Run `sdlc trust-hooks` first if needed.
 - Bypass journals a `bypass_signoff` entry (actor: `hooks.runner`) with your identity, the justification, and the phase that was bypassed.
 - Bypass is **per-dispatch** — it does not persist across writes.
+- `naming_validator` is **still enforced** even with `--force-bypass-signoff`.
 
-> `naming_validator` is **still enforced** even with `--force-bypass-signoff`.
-
----
-
-### `phase_gate_violation` (sub-case: corrupted signoff)
-
-The signoff file exists but contains invalid YAML.
-
-**Symptom:** `payload.reason` contains `"is corrupted (YAML parse error)"`.
-
-**Resolution:**
-
-1. Open `.claude/state/signoffs/phase-N.yaml` and fix the YAML syntax.
-2. Validate with `python -c "import yaml; yaml.safe_load(open('.claude/state/signoffs/phase-N.yaml').read())"`.
-3. Retry the write.
+> Bypass is a last resort. Prefer completing and re-signing the prior phase over bypassing.
 
 ---
 

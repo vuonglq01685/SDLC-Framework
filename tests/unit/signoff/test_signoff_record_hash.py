@@ -64,7 +64,7 @@ def test_record_hash_yaml_canonicalization() -> None:
     """Hash is derived from sorted-keys YAML — two identical records produce byte-equal YAML."""
     import yaml
 
-    from sdlc.signoff.hasher import compute_signoff_record_hash, _canonicalize_record_bytes
+    from sdlc.signoff.hasher import _canonicalize_record_bytes
 
     record = _make_record()
     canon1 = _canonicalize_record_bytes(record)  # type: ignore[arg-type]

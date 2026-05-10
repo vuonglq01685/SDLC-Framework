@@ -105,6 +105,15 @@ Story 2A.4 ships the pre-write hook runner (`hooks/runner.py`) and two builtin h
 artifact write. Engine-side wiring lands in Story 2A.6; this section documents the contract
 so callers can conform before 2A.6 merges.
 
+Story 2A.7 resolved `EPIC-2A-DEBT-PHASE-GATE-READ`: `phase_gate` no longer reads the signoff
+YAML directly. Instead the dispatcher injects `signoff_reader: Callable[[int, Path], str]`
+(wrapping `sdlc.signoff.compute_state`) at chain-construction time (AC11/D2). This preserves
+the `hooks/` → `signoff/` boundary rule (Architecture §95-99).
+
+**Phase 3 has no signoff.** `phase_gate` permits Phase 3 writes IFF
+`compute_state(phase=2) == APPROVED`. Story 2A.7 enforces the no-phase-3-signoff invariant
+— attempting to write a Phase 3 canonical record raises `SignoffError`.
+
 ### Data flow
 
 ```
@@ -112,7 +121,11 @@ Caller (dispatcher / CLI)
   │
   ├─ constructs HookPayload(hook_name, target_path, target_kind, content_hash_before, write_intent)
   │
-  └─ await run_hook_chain(payload, hooks=(naming_validator, phase_gate), journal_path=...)
+  ├─ constructs signoff_reader = lambda ph, rr: sdlc.signoff.compute_state(ph, repo_root=rr)
+  │     returns one of: "approved" | "awaiting-signoff" | "drafted-not-approved" |
+  │                     "invalidated-by-replan"
+  │
+  └─ await run_hook_chain(payload, hooks=(naming_validator, phase_gate_with_reader), journal_path=...)
             │
             ├─ naming_validator(payload)
             │     validates file stem against canonical id regex for:
@@ -121,8 +134,16 @@ Caller (dispatcher / CLI)
             │       01-Requirement/06-Tasks/      → TASK_ID_REGEX (+ both ancestor dirs)
             │     returns HookDecision.allow() | .deny(error_code="naming_violation")
             │
-            └─ phase_gate(payload, repo_root=...)
-                  reads .claude/state/signoffs/phase-{N-1}.yaml for Phase 2/3 writes
+            └─ phase_gate(payload, repo_root=..., signoff_reader=<injected>)
+                  Phase 1 paths   → always allow (reader never called)
+                  Phase 2 paths   → calls signoff_reader(phase=1, repo_root)
+                  Phase 3 paths   → calls signoff_reader(phase=2, repo_root)
+                  Other paths     → always allow (reader never called)
+                  "approved"              → allow
+                  "awaiting-signoff"      → deny  (reason: "not found")
+                  "drafted-not-approved"  → deny  (reason: "drafted but not yet approved")
+                  "invalidated-by-replan" → deny  (reason: "invalidated by replan")
+                  reader raises           → deny  (reason: "reader raised: ...")  [fail-safe]
                   returns HookDecision.allow() | .deny(error_code="phase_gate_violation")
             │
             └─ HookDecision{decision, hook_name, reason, error_code}

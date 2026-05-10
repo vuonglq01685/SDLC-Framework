@@ -70,7 +70,8 @@ def _write_canonical(
     )
     # write_record refuses overwrite; use _write_bytes_to_disk directly for invalidated records
     if invalidated_at is not None:
-        from sdlc.signoff.records import _canonicalize_record, _write_bytes_to_disk, _signoff_path
+        from sdlc.signoff.records import _canonicalize_record, _signoff_path, _write_bytes_to_disk
+
         target = _signoff_path(phase, repo_root)
         _write_bytes_to_disk(target, _canonicalize_record(record))
     else:

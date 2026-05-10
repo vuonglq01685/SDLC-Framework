@@ -1,12 +1,10 @@
-"""Unit tests for signoff/records.py — SignoffRecord, ArtifactRef, read/write/invalidate (AC5, Story 2A.7)."""
+"""Unit tests for signoff/records.py — SignoffRecord, ArtifactRef, read/write/invalidate."""
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 pytestmark = pytest.mark.unit
 
@@ -97,7 +95,7 @@ def test_read_record_returns_none_when_absent(tmp_path: Path) -> None:
 
 
 def test_read_record_returns_record_when_present(tmp_path: Path) -> None:
-    from sdlc.signoff.records import SignoffRecord, write_record, read_record
+    from sdlc.signoff.records import read_record, write_record
 
     record = _make_record(phase=1)
     write_record(record, repo_root=tmp_path)  # type: ignore[arg-type]
@@ -194,7 +192,7 @@ def test_write_record_trailing_newline(tmp_path: Path) -> None:
 
 
 def test_invalidate_record_sets_fields(tmp_path: Path) -> None:
-    from sdlc.signoff.records import invalidate_record, read_record, write_record
+    from sdlc.signoff.records import invalidate_record, write_record
 
     record = _make_record(phase=1)
     write_record(record, repo_root=tmp_path)  # type: ignore[arg-type]

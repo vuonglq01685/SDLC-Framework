@@ -233,19 +233,19 @@ def test_validate_signoff_first_drift_in_path_sorted_order(tmp_path: Path) -> No
 
     draft = phase_dir / "SIGNOFF.md"
     draft.write_text(
-        f'---\n'
-        f'schema_version: 1\n'
-        f'phase: 1\n'
-        f'artifacts:\n'
+        f"---\n"
+        f"schema_version: 1\n"
+        f"phase: 1\n"
+        f"artifacts:\n"
         f'  - path: "01-Requirement/ZZZ.md"\n'
         f'    hash: "{b_hash}"\n'
         f'  - path: "01-Requirement/AAA.md"\n'
         f'    hash: "{a_hash}"\n'
-        f'approved: true\n'
+        f"approved: true\n"
         f'approved_by: "alice"\n'
-        f'approved_at: null\n'
+        f"approved_at: null\n"
         f'drafted_at: "{_TS1}"\n'
-        f'---\n',
+        f"---\n",
         encoding="utf-8",
     )
 
@@ -313,9 +313,9 @@ def test_validate_signoff_missing_draft_raises(tmp_path: Path) -> None:
 
 
 def test_validated_signoff_is_frozen() -> None:
-    from sdlc.signoff.validator import ArtifactDrift, ValidatedSignoff
-    from sdlc.signoff.states import SignoffState
     from sdlc.signoff.records import ArtifactRef, SignoffRecord
+    from sdlc.signoff.states import SignoffState
+    from sdlc.signoff.validator import ValidatedSignoff
 
     record = SignoffRecord(
         phase=1,

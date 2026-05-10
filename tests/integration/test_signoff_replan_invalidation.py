@@ -22,7 +22,6 @@ from sdlc.signoff import (
     compute_state,
     invalidate_record,
     read_record,
-    validate_signoff,
     write_record,
 )
 from sdlc.signoff.hasher import compute_artifact_hash

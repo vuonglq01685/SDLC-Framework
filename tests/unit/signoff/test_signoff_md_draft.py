@@ -162,6 +162,9 @@ def test_draft_is_private_model() -> None:
 
     try:
         import sdlc.contracts as contracts_pkg
-        assert not hasattr(contracts_pkg, "_SignoffMdDraft"), "_SignoffMdDraft must not be in contracts"
+
+        assert not hasattr(contracts_pkg, "_SignoffMdDraft"), (
+            "_SignoffMdDraft must not be in contracts"
+        )
     except ImportError:
         pass

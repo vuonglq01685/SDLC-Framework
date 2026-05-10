@@ -34,7 +34,7 @@ def _write_multi_artifact_draft(
         "phase: 1",
         "artifacts:",
     ]
-    for name, h in zip(artifact_names, hashes):
+    for name, h in zip(artifact_names, hashes, strict=False):
         lines.append(f'  - path: "{_PHASE_DIR}/{name}"')
         lines.append(f'    hash: "{h}"')
     lines += [

@@ -145,6 +145,7 @@ class TestPhaseGateSignoffRead:
 
     def test_reader_exception_denies(self, tmp_path) -> None:
         """Reader that raises → fail-safe deny (mirrors old corrupted-YAML behavior)."""
+
         def _bad_reader(ph: int, rr) -> str:
             raise RuntimeError("simulated disk error")
 

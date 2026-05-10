@@ -90,9 +90,7 @@ class TestNamingValidatorTaskDir:
     def test_task_dir_invalid_task_stem_denies(self) -> None:
         """Valid epic + story ancestors but invalid task stem → deny (lines 94-95 coverage)."""
         result = naming_validator(
-            _p(
-                "01-Requirement/06-Tasks/EPIC-foo/EPIC-foo-S01-story/BAD_TASK.json"
-            )
+            _p("01-Requirement/06-Tasks/EPIC-foo/EPIC-foo-S01-story/BAD_TASK.json")
         )
         assert result.decision == "deny"
         assert result.error_code == "naming_violation"

@@ -16,11 +16,12 @@ from enum import Enum
 from pathlib import Path
 
 from sdlc.errors import SignoffError
-from sdlc.signoff.records import _PHASE_DIR_MAP, _SIGNOFF_DIR, read_record, read_signoff_md_draft
+from sdlc.signoff.records import _PHASE_DIR_MAP, read_record, read_signoff_md_draft
 
 _log = logging.getLogger(__name__)
 
 _VALID_PHASES = frozenset({1, 2, 3})
+_PHASE_NO_SIGNOFF: int = 3
 
 # Once-per-process warning flag for phase 3 (AC10)
 _phase3_warned: bool = False
@@ -35,7 +36,7 @@ class SignoffState(str, Enum):
     INVALIDATED_BY_REPLAN = "invalidated-by-replan"
 
 
-def compute_state(
+def compute_state(  # noqa: C901
     phase: int,
     *,
     repo_root: Path,
@@ -63,16 +64,14 @@ def compute_state(
             details={"phase": phase},
         )
 
-    if phase == 3:
+    if phase == _PHASE_NO_SIGNOFF:
         if strict:
             raise SignoffError(
                 "phase 3 has no signoff in v1 (strict=True)",
                 details={"phase": 3},
             )
         if not _phase3_warned:
-            _log.warning(
-                "phase 3 has no signoff in v1; treating as awaiting-signoff"
-            )
+            _log.warning("phase 3 has no signoff in v1; treating as awaiting-signoff")
             _phase3_warned = True
         return SignoffState.AWAITING_SIGNOFF
 

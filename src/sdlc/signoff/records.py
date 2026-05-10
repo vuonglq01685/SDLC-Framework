@@ -18,18 +18,18 @@ from __future__ import annotations
 import datetime
 import re
 import sys
-import textwrap
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import StringConstraints, field_validator, model_validator
+from pydantic import StringConstraints, model_validator
 
 from sdlc.contracts._strict_model import StrictModel
 from sdlc.errors import SignoffError
 
 _SIGNOFF_DIR = ".claude/state/signoffs"
 _PHASE_DIR_MAP = {1: "01-Requirement", 2: "02-Architecture"}
+_PHASE_NO_SIGNOFF: int = 3
 _SHA256_PAT: re.Pattern[str] = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RFC3339_UTC_MS = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"
 
@@ -64,7 +64,7 @@ class ArtifactRef(StrictModel):
     hash: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
 
     @model_validator(mode="after")
-    def _validate_path(self) -> "ArtifactRef":
+    def _validate_path(self) -> ArtifactRef:
         p = self.path
         if p.startswith("/") or p.startswith("..") or "/../" in p or p.endswith("/.."):
             raise SignoffError(
@@ -74,8 +74,8 @@ class ArtifactRef(StrictModel):
         # Reject absolute paths on all platforms
         try:
             parsed = PurePosixPath(p)
-        except Exception:
-            raise SignoffError(f"artifact path must be repo-relative POSIX: {p}")
+        except Exception as _exc:
+            raise SignoffError(f"artifact path must be repo-relative POSIX: {p}") from _exc
         if parsed.is_absolute():
             raise SignoffError(
                 f"artifact path must be repo-relative POSIX: {p}",
@@ -108,7 +108,7 @@ class _SignoffMdDraftArtifact(StrictModel):
     hash: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
 
     @model_validator(mode="after")
-    def _validate_path(self) -> "_SignoffMdDraftArtifact":
+    def _validate_path(self) -> _SignoffMdDraftArtifact:
         p = self.path
         parsed = PurePosixPath(p)
         if parsed.is_absolute() or p.startswith("..") or "/../" in p or p.endswith("/.."):
@@ -218,8 +218,7 @@ def write_record(record: SignoffRecord, *, repo_root: Path) -> None:
     target = _signoff_path(record.phase, repo_root)
     if target.exists():
         raise SignoffError(
-            f"cannot overwrite phase-{record.phase} approved record; "
-            "use invalidate_record first",
+            f"cannot overwrite phase-{record.phase} approved record; use invalidate_record first",
             details={"step": "write_record", "phase": record.phase, "path": str(target)},
         )
     canonical = _canonicalize_record(record)
@@ -293,12 +292,11 @@ def list_records(repo_root: Path) -> tuple[SignoffRecord, ...]:
             phase_num = int(stem.split("-")[1])
         except (IndexError, ValueError):
             continue
-        if phase_num == 3:
-            import sys as _sys
+        if phase_num == _PHASE_NO_SIGNOFF:
             print(
                 f"[WARN] phase-3.yaml found and ignored: {phase_file}; "
                 "phase 3 has no signoff in v1",
-                file=_sys.stderr,
+                file=sys.stderr,
             )
             continue
         rec = read_record(phase_num, repo_root=repo_root)
@@ -324,7 +322,7 @@ def _extract_yaml_payload(text: str, path: Path) -> dict:  # type: ignore[type-a
             try:
                 data = yaml.safe_load(fm_text)
                 if isinstance(data, dict):
-                    return data  # type: ignore[return-value]
+                    return data
             except yaml.YAMLError as exc:
                 raise SignoffError(
                     f"SIGNOFF.md at {path} is malformed: {exc}",
@@ -339,7 +337,7 @@ def _extract_yaml_payload(text: str, path: Path) -> dict:  # type: ignore[type-a
         try:
             data = yaml.safe_load(block_text)
             if isinstance(data, dict):
-                return data  # type: ignore[return-value]
+                return data
         except yaml.YAMLError as exc:
             raise SignoffError(
                 f"SIGNOFF.md at {path} is malformed: {exc}",

@@ -13,8 +13,9 @@ Boundary (AC9): this module imports only stdlib + sdlc.contracts + sdlc.hooks.ru
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
-from typing import Callable, Final
+from typing import Final
 
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.hooks.runner import HookDecision
@@ -56,7 +57,7 @@ def _check_state(
     """
     try:
         state = signoff_reader(required_phase, repo_root)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return _deny_gate(
             f"phase-gate violation: Phase {gate_phase} path requires Phase "
             f"{required_phase} signoff; reader raised: {exc}"
