@@ -65,9 +65,7 @@ def _make_registry(*specs: Specialist) -> SpecialistRegistry:
 
 
 class TestDispatchPanelBoundedDispatcher:
-    def test_bounded_dispatcher_semaphore_matches_max_parallel_agents(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bounded_dispatcher_semaphore_matches_max_parallel_agents(self, tmp_path: Path) -> None:
         """dispatch_panel passes max_parallel_agents as semaphore_size to BoundedDispatcher."""
         from sdlc.concurrency.subprocess_pool import BoundedDispatcher
         from sdlc.dispatcher.core import dispatch_panel
@@ -85,9 +83,7 @@ class TestDispatchPanelBoundedDispatcher:
             real_init(self_, semaphore_size)
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="out", tokens_in=5, tokens_out=10
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=5, tokens_out=10)
 
         with (
             patch.object(BoundedDispatcher, "__init__", _capturing_init),
@@ -128,9 +124,7 @@ class TestDispatchPanelBoundedDispatcher:
             real_init(self_, semaphore_size)
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="out", tokens_in=5, tokens_out=10
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=5, tokens_out=10)
 
         with (
             patch.object(BoundedDispatcher, "__init__", _capturing_init),
@@ -206,9 +200,7 @@ class TestDispatchPanelConcurrencyBound:
         step = _make_parallel_step(())  # no parallel agents
         registry = _make_registry(_PRIMARY_SPEC)
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="out", tokens_in=5, tokens_out=10
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=5, tokens_out=10)
 
         with (
             patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
@@ -268,9 +260,7 @@ class TestDispatchPanelResultOrder:
             )
 
         actual_order = tuple(r.specialist_name for r in result.parallel_results)
-        assert actual_order == parallel, (
-            f"Expected order {parallel!r}, got {actual_order!r}"
-        )
+        assert actual_order == parallel, f"Expected order {parallel!r}, got {actual_order!r}"
 
     def test_single_parallel_agent_result_order(self, tmp_path: Path) -> None:
         """Single parallel agent produces parallel_results with exactly that agent."""
@@ -281,9 +271,7 @@ class TestDispatchPanelResultOrder:
         step = _make_parallel_step(parallel)
         registry = _make_registry(_PRIMARY_SPEC, *specs)
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="out", tokens_in=1, tokens_out=1
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=1, tokens_out=1)
 
         with (
             patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),

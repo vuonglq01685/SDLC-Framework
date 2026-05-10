@@ -84,20 +84,20 @@ class TestDispatchRetryJournalEntries:
         with (
             patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
             patch("sdlc.dispatcher.core.record_agent_run"),
+            pytest.raises(DispatchError),
         ):
-            with pytest.raises(DispatchError):
-                asyncio.run(
-                    dispatch(
-                        _STEP,
-                        runtime=runtime,
-                        registry=registry,
-                        repo_root=tmp_path,
-                        journal_path=tmp_path / "journal.log",
-                        agent_runs_path=tmp_path / "agent_runs.jsonl",
-                        sleep=_instant_sleep,
-                        _max_attempts=3,
-                    )
+            asyncio.run(
+                dispatch(
+                    _STEP,
+                    runtime=runtime,
+                    registry=registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
+                    sleep=_instant_sleep,
+                    _max_attempts=3,
                 )
+            )
 
         rows = [e for e in captured if e.kind == "dispatch_attempt"]
         assert len(rows) == 3, f"Expected 3 dispatch_attempt rows, got {len(rows)}"
@@ -147,16 +147,12 @@ class TestDispatchRetryJournalEntries:
         attempt_nums = [e.payload["attempt"] for e in rows]
         assert attempt_nums == [1, 2, 3]
 
-    def test_first_attempt_success_produces_one_dispatch_attempt_row(
-        self, tmp_path: Path
-    ) -> None:
+    def test_first_attempt_success_produces_one_dispatch_attempt_row(self, tmp_path: Path) -> None:
         """Single-attempt success → 1 dispatch_attempt row with outcome=success."""
         from sdlc.dispatcher.core import dispatch
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="done", tokens_in=5, tokens_out=10
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="done", tokens_in=5, tokens_out=10)
         registry = _make_registry(_SPECIALIST)
         captured: list = []
 
@@ -224,9 +220,7 @@ class TestDispatchRetryAttemptCount:
         from sdlc.dispatcher.core import dispatch
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="done", tokens_in=5, tokens_out=10
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="done", tokens_in=5, tokens_out=10)
         registry = _make_registry(_SPECIALIST)
 
         with (

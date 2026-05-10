@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -22,7 +21,7 @@ from sdlc.errors import (
 pytestmark = pytest.mark.unit
 
 
-def _make_mock_sleep() -> tuple[list[float], Callable[[float], "asyncio.coroutine"]]:
+def _make_mock_sleep() -> tuple[list[float], Callable[[float], asyncio.coroutine]]:
     """Return (recorded_delays, mock_sleep) — mock_sleep records calls without sleeping."""
     delays: list[float] = []
 
@@ -32,7 +31,7 @@ def _make_mock_sleep() -> tuple[list[float], Callable[[float], "asyncio.coroutin
     return delays, _mock_sleep
 
 
-def _succeeds(result: object) -> Callable[[], "asyncio.coroutine"]:
+def _succeeds(result: object) -> Callable[[], asyncio.coroutine]:
     """Return a coro_factory that always succeeds."""
 
     async def _coro() -> object:
@@ -43,11 +42,11 @@ def _succeeds(result: object) -> Callable[[], "asyncio.coroutine"]:
 
 def _fails_n_then_succeeds(
     n: int, exc: BaseException, result: object = "ok"
-) -> Callable[[], "asyncio.coroutine"]:
+) -> Callable[[], asyncio.coroutine]:
     """Return a coro_factory that raises exc for the first n attempts, then returns result."""
     state = {"count": 0}
 
-    def _factory() -> "asyncio.coroutine":
+    def _factory() -> asyncio.coroutine:
         async def _coro() -> object:
             if state["count"] < n:
                 state["count"] += 1
@@ -59,10 +58,10 @@ def _fails_n_then_succeeds(
     return _factory
 
 
-def _always_fails(exc: BaseException) -> Callable[[], "asyncio.coroutine"]:
+def _always_fails(exc: BaseException) -> Callable[[], asyncio.coroutine]:
     """Return a coro_factory that always raises exc."""
 
-    def _factory() -> "asyncio.coroutine":
+    def _factory() -> asyncio.coroutine:
         async def _coro() -> object:
             raise exc
 
@@ -75,10 +74,8 @@ class TestWithRetriesFirstAttemptSuccess:
     def test_returns_result_on_first_success(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
-        delays, mock_sleep = _make_mock_sleep()
-        result = asyncio.run(
-            with_retries(_succeeds("value"), sleep=mock_sleep)
-        )
+        _, mock_sleep = _make_mock_sleep()
+        result = asyncio.run(with_retries(_succeeds("value"), sleep=mock_sleep))
         assert result == "value"
 
     def test_no_sleep_on_first_success(self) -> None:
@@ -93,7 +90,7 @@ class TestWithRetriesFirstAttemptSuccess:
 
         calls: list[int] = []
 
-        def _factory() -> "asyncio.coroutine":
+        def _factory() -> asyncio.coroutine:
             async def _coro() -> str:
                 calls.append(1)
                 return "ok"
@@ -108,7 +105,7 @@ class TestWithRetriesOneFailThenSuccess:
     def test_returns_result_after_one_retry(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
-        delays, mock_sleep = _make_mock_sleep()
+        _, mock_sleep = _make_mock_sleep()
         result = asyncio.run(
             with_retries(
                 _fails_n_then_succeeds(1, DispatchError("transient")),
@@ -135,7 +132,7 @@ class TestWithRetriesOneFailThenSuccess:
         calls: list[int] = []
         exc = DispatchError("transient")
 
-        def _factory() -> "asyncio.coroutine":
+        def _factory() -> asyncio.coroutine:
             async def _coro() -> str:
                 calls.append(1)
                 if len(calls) == 1:
@@ -152,7 +149,7 @@ class TestWithRetriesTwoFailsThenSuccess:
     def test_returns_result_after_two_retries(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
-        delays, mock_sleep = _make_mock_sleep()
+        _, mock_sleep = _make_mock_sleep()
         result = asyncio.run(
             with_retries(
                 _fails_n_then_succeeds(2, DispatchError("transient")),
@@ -178,7 +175,7 @@ class TestWithRetriesTwoFailsThenSuccess:
 
         calls: list[int] = []
 
-        def _factory() -> "asyncio.coroutine":
+        def _factory() -> asyncio.coroutine:
             async def _coro() -> str:
                 calls.append(1)
                 if len(calls) <= 2:
@@ -195,23 +192,19 @@ class TestWithRetriesAllFail:
     def test_raises_dispatch_error_after_3_attempts(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
-        delays, mock_sleep = _make_mock_sleep()
+        _, mock_sleep = _make_mock_sleep()
         original = DispatchError("original failure")
         with pytest.raises(DispatchError) as exc_info:
-            asyncio.run(
-                with_retries(_always_fails(original), sleep=mock_sleep)
-            )
+            asyncio.run(with_retries(_always_fails(original), sleep=mock_sleep))
         assert "3 attempts" in str(exc_info.value)
 
     def test_raises_with_cause_set_to_last_exception(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
-        delays, mock_sleep = _make_mock_sleep()
+        _, mock_sleep = _make_mock_sleep()
         original = DispatchError("original failure")
         with pytest.raises(DispatchError) as exc_info:
-            asyncio.run(
-                with_retries(_always_fails(original), sleep=mock_sleep)
-            )
+            asyncio.run(with_retries(_always_fails(original), sleep=mock_sleep))
         assert exc_info.value.__cause__ is original
 
     def test_sleeps_twice_on_3_failures(self) -> None:
@@ -219,9 +212,7 @@ class TestWithRetriesAllFail:
 
         delays, mock_sleep = _make_mock_sleep()
         with pytest.raises(DispatchError):
-            asyncio.run(
-                with_retries(_always_fails(DispatchError("fail")), sleep=mock_sleep)
-            )
+            asyncio.run(with_retries(_always_fails(DispatchError("fail")), sleep=mock_sleep))
         assert delays == [1.0, 4.0]
 
     def test_coro_factory_called_exactly_three_times(self) -> None:
@@ -229,7 +220,7 @@ class TestWithRetriesAllFail:
 
         calls: list[int] = []
 
-        def _factory() -> "asyncio.coroutine":
+        def _factory() -> asyncio.coroutine:
             async def _coro() -> str:
                 calls.append(1)
                 raise DispatchError("fail")
@@ -251,9 +242,7 @@ class TestWithRetriesNonRetryableErrors:
             ConfigError("bad config"),
         ],
     )
-    def test_sdlc_error_non_dispatch_propagates_immediately(
-        self, exc: BaseException
-    ) -> None:
+    def test_sdlc_error_non_dispatch_propagates_immediately(self, exc: BaseException) -> None:
         from sdlc.dispatcher.retry import with_retries
 
         delays, mock_sleep = _make_mock_sleep()
@@ -279,9 +268,7 @@ class TestWithRetriesNonRetryableErrors:
 
         delays, mock_sleep = _make_mock_sleep()
         with pytest.raises(RuntimeError):
-            asyncio.run(
-                with_retries(_always_fails(RuntimeError("bug")), sleep=mock_sleep)
-            )
+            asyncio.run(with_retries(_always_fails(RuntimeError("bug")), sleep=mock_sleep))
         assert delays == []
 
 
@@ -292,7 +279,7 @@ class TestWithRetriesCoroFactoryCalledFresh:
 
         created: list[object] = []
 
-        def _factory() -> "asyncio.coroutine":
+        def _factory() -> asyncio.coroutine:
             async def _coro() -> str:
                 if len(created) < 3:
                     raise DispatchError("transient")
@@ -312,11 +299,11 @@ class TestWithRetriesCoroFactoryCalledFresh:
 class TestWithRetriesSubclassOfDispatchError:
     def test_subclass_of_dispatch_error_is_retryable(self) -> None:
         """MockMissError is a subclass of DispatchError and MUST trigger retry."""
-        from sdlc.errors import MockMissError
         from sdlc.dispatcher.retry import with_retries
+        from sdlc.errors import MockMissError
 
         delays, mock_sleep = _make_mock_sleep()
-        with pytest.raises(DispatchError) as exc_info:
+        with pytest.raises(DispatchError):
             asyncio.run(
                 with_retries(
                     _always_fails(MockMissError("fixture missing")),

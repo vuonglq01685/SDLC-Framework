@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from types import MappingProxyType
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -35,7 +35,11 @@ _FRONTMATTER = SpecialistFrontmatter(
     description="Writes product requirements.",
     write_globs=(_TARGET_REL,),
 )
-_SPECIALIST = Specialist(frontmatter=_FRONTMATTER, body="You are a product strategist.", source_path=Path("specialists/product-strategist.md"))
+_SPECIALIST = Specialist(
+    frontmatter=_FRONTMATTER,
+    body="You are a product strategist.",
+    source_path=Path("specialists/product-strategist.md"),
+)
 
 _STEP = WorkflowSpec(
     schema_version=1,
@@ -104,10 +108,6 @@ class TestDispatchPrimaryHappyPath:
             )
 
         assert runtime.dispatch.call_count == 1
-        call_args = runtime.dispatch.call_args
-        _, kwargs = call_args
-        context = call_args[0][1] if len(call_args[0]) > 1 else kwargs.get("context", call_args[0][1])
-        # context is second positional arg: (prompt, context)
         ctx = runtime.dispatch.call_args[0][1]
         assert ctx["workflow_step"] == "requirements"
         assert ctx["agent_name"] == _SPECIALIST_NAME
@@ -278,18 +278,18 @@ class TestDispatchPrimaryErrorPaths:
         with (
             patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
             patch("sdlc.dispatcher.core.record_agent_run"),
+            pytest.raises(SpecialistError),
         ):
-            with pytest.raises(SpecialistError):
-                asyncio.run(
-                    dispatch(
-                        _STEP,
-                        runtime=runtime,
-                        registry=registry,
-                        repo_root=tmp_path,
-                        journal_path=tmp_path / "journal.log",
-                        agent_runs_path=tmp_path / "agent_runs.jsonl",
-                    )
+            asyncio.run(
+                dispatch(
+                    _STEP,
+                    runtime=runtime,
+                    registry=registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
                 )
+            )
 
     def test_missing_specialist_error_is_not_wrapped_in_dispatch_error(
         self, tmp_path: Path
@@ -302,20 +302,21 @@ class TestDispatchPrimaryErrorPaths:
         with (
             patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
             patch("sdlc.dispatcher.core.record_agent_run"),
+            pytest.raises(SpecialistError) as exc_info,
         ):
-            with pytest.raises(SpecialistError) as exc_info:
-                asyncio.run(
-                    dispatch(
-                        _STEP,
-                        runtime=runtime,
-                        registry=registry,
-                        repo_root=tmp_path,
-                        journal_path=tmp_path / "journal.log",
-                        agent_runs_path=tmp_path / "agent_runs.jsonl",
-                    )
+            asyncio.run(
+                dispatch(
+                    _STEP,
+                    runtime=runtime,
+                    registry=registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
                 )
-        assert not isinstance(exc_info.value.__cause__, DispatchError), \
+            )
+        assert not isinstance(exc_info.value.__cause__, DispatchError), (
             "SpecialistError must NOT be wrapped in DispatchError"
+        )
 
     def test_missing_write_globs_raises_dispatch_error(self, tmp_path: Path) -> None:
         from sdlc.dispatcher.core import dispatch
@@ -335,15 +336,15 @@ class TestDispatchPrimaryErrorPaths:
         with (
             patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
             patch("sdlc.dispatcher.core.record_agent_run"),
+            pytest.raises(DispatchError, match="write_globs"),
         ):
-            with pytest.raises(DispatchError, match="write_globs"):
-                asyncio.run(
-                    dispatch(
-                        step_no_write_globs,
-                        runtime=runtime,
-                        registry=registry,
-                        repo_root=tmp_path,
-                        journal_path=tmp_path / "journal.log",
-                        agent_runs_path=tmp_path / "agent_runs.jsonl",
-                    )
+            asyncio.run(
+                dispatch(
+                    step_no_write_globs,
+                    runtime=runtime,
+                    registry=registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
                 )
+            )

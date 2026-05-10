@@ -28,10 +28,10 @@ from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 from sdlc.workflows.registry import WorkflowRegistry
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _write_yaml(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
@@ -58,12 +58,11 @@ def _make_registry(*specs: Specialist) -> SpecialistRegistry:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestDisjointWritesGating:
     """AC3: WorkflowRegistry gates dispatch; dispatcher trusts loaded spec."""
 
-    def test_registry_rejects_parallel_agents_with_shared_glob(
-        self, tmp_path: Path
-    ) -> None:
+    def test_registry_rejects_parallel_agents_with_shared_glob(self, tmp_path: Path) -> None:
         """A YAML spec where two parallel agents share a write glob never loads.
 
         validate_workflow raises WorkflowError so the spec never reaches dispatch.
@@ -93,9 +92,7 @@ write_globs:
         with pytest.raises(WorkflowError, match="disjoint-writes violation"):
             WorkflowRegistry.load(yaml_dir)
 
-    def test_valid_spec_loads_and_reaches_dispatch_panel(
-        self, tmp_path: Path
-    ) -> None:
+    def test_valid_spec_loads_and_reaches_dispatch_panel(self, tmp_path: Path) -> None:
         """A spec with non-overlapping write_globs loads and dispatch_panel succeeds."""
         yaml_dir = tmp_path / "workflows"
         yaml_dir.mkdir()
@@ -119,9 +116,7 @@ write_globs:
         spec = registry.get("/sdlc-start")
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(
-            output_text="done", tokens_in=5, tokens_out=10
-        )
+        runtime.dispatch.return_value = AgentResult(output_text="done", tokens_in=5, tokens_out=10)
         specialist_registry = _make_registry(
             _make_specialist("primary-agent", "docs/primary.md"),
             _make_specialist("researcher", "docs/research.md"),
@@ -147,9 +142,7 @@ write_globs:
 
         assert result.outcome == "success"
 
-    def test_dispatcher_trusts_spec_no_static_check(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dispatcher_trusts_spec_no_static_check(self, tmp_path: Path) -> None:
         """dispatch_panel trusts the WorkflowSpec as pre-validated (D3 trust posture).
 
         A WorkflowSpec constructed directly (bypassing validate_workflow) with

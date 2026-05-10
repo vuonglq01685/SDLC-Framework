@@ -17,8 +17,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
-from sdlc.errors import DispatchError
-
 _VALID_OUTCOMES: frozenset[str] = frozenset({"success", "failed"})
 _VALID_TARGET_KINDS: frozenset[str] = frozenset({"primary", "parallel", "synthesizer"})
 
@@ -44,9 +42,7 @@ class _AgentRunLine:
 
 def _validate(outcome: str, target_kind: str) -> None:
     if outcome not in _VALID_OUTCOMES:
-        raise ValueError(
-            f"Invalid outcome {outcome!r}; must be one of {sorted(_VALID_OUTCOMES)}"
-        )
+        raise ValueError(f"Invalid outcome {outcome!r}; must be one of {sorted(_VALID_OUTCOMES)}")
     if target_kind not in _VALID_TARGET_KINDS:
         raise ValueError(
             f"Invalid target_kind {target_kind!r}; must be one of {sorted(_VALID_TARGET_KINDS)}"
@@ -91,15 +87,14 @@ if sys.platform != "win32":
             workflow_step=workflow_step,
         ).to_json_line()
         lock_path = runs_path.with_suffix(".jsonl.lock")
-        with file_lock(lock_path):
-            with runs_path.open("a", encoding="utf-8") as fh:
-                fh.write(line)
+        with file_lock(lock_path), runs_path.open("a", encoding="utf-8") as fh:
+            fh.write(line)
 
 else:
     # Windows: write without file_lock (no cross-thread atomicity — concurrent writes
     # are unsafe; the concurrent-write test is marked _SKIP_WIN32). Single-write use
     # cases (unit tests, non-parallel dispatch) function correctly.
-    def record_agent_run(  # type: ignore[misc]
+    def record_agent_run(
         runs_path: Path,
         *,
         run_id: str,
