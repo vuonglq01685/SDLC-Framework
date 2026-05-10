@@ -117,9 +117,8 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
                 "config",
             }
         ),
-        # `dashboard` is forbidden so §1103-#4 cites cleanly — dashboard is
-        # read-only re state/journal; engine importing dashboard inverts the
-        # layered DAG (`dashboard` sits below the upper stack, not parallel).
+        # dashboard forbidden: read-only re state/journal; importing it inverts
+        # the layered DAG (sits below upper stack, not parallel). §1103-#4
         forbidden_from=frozenset({"cli", "dashboard"}),
     ),
     # Known widening vs. Architecture §1069: adopt/ may only use cli/git sub-import,
@@ -159,9 +158,8 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         ),
         forbidden_from=frozenset(),
     ),
-    # Provisional v0.2 entry: agents/ holds the specialist registry (markdown +
-    # frontmatter today; will gain Python with Story 2A-2). Conservative leaf
-    # profile prevents silent bypass when the first .py lands here.
+    # Provisional v0.2: agents/ holds specialist registry (markdown today; will gain
+    # Python with Story 2A-2). Conservative leaf profile prevents silent bypass.
     # TODO Story 2A-2: revise based on actual specialist runtime requirements.
     "agents": ModuleSpec(
         depends_on=frozenset({"errors", "contracts", "workflows", "specialists"}),
@@ -341,8 +339,7 @@ def check_imports(src_module: str, imports: list[Import]) -> list[str]:
 
 
 LOC_CAP = 400
-# Path-prefix exemptions, expressed as `Path.parts` tuples so matching works
-# correctly for absolute paths and on Windows (where str(Path) uses '\').
+# Path-prefix exemptions as Path.parts tuples; Windows-safe (no str(Path) '\' issues).
 LOC_EXEMPT_PATH_PREFIX_PARTS: tuple[tuple[str, ...], ...] = (("tests", "fixtures"),)
 
 
