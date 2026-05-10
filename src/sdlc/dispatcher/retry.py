@@ -33,15 +33,19 @@ async def with_retries(
     backoff_schedule: tuple[float, ...] = _DEFAULT_BACKOFF,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     retryable: Callable[[BaseException], bool] = _is_retryable,
+    on_attempt: Callable[[int, str], Awaitable[None]] | None = None,
 ) -> T:
     """Await ``coro_factory()`` up to ``max_attempts`` times with exponential backoff.
 
     ``coro_factory`` is called fresh on each attempt (coroutines are single-shot).
     ``sleep`` is dependency-injected for test reproducibility.
+    ``on_attempt(attempt_num, outcome)`` is called after each attempt if provided;
+    outcome is "success", "retry" (not the last failure), or "failed" (last failure).
 
     Retry contract:
-    - Attempt 1: call coro_factory(); on success return immediately.
-    - On ``retryable`` exception: sleep ``backoff_schedule[attempt-1]`` then retry.
+    - Attempt 1: call coro_factory(); on success: call on_attempt(1, "success"), return.
+    - On ``retryable`` exception: call on_attempt(attempt, "retry"|"failed"), then sleep
+      ``backoff_schedule[attempt-1]`` and retry.
     - After ``max_attempts`` failures: raise ``DispatchError("dispatch failed after N
       attempts: <last_message>")`` with ``__cause__`` set to the final exception.
     - Non-retryable exceptions (including ``asyncio.CancelledError``,
@@ -50,12 +54,18 @@ async def with_retries(
     last_exc: BaseException | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            return await coro_factory()
+            result = await coro_factory()
+            if on_attempt is not None:
+                await on_attempt(attempt, "success")
+            return result
         except BaseException as exc:
             if not retryable(exc):
                 raise
             last_exc = exc
-            if attempt < max_attempts:
+            is_last = attempt >= max_attempts
+            if on_attempt is not None:
+                await on_attempt(attempt, "failed" if is_last else "retry")
+            if not is_last:
                 backoff_idx = attempt - 1
                 delay = (
                     backoff_schedule[backoff_idx]
