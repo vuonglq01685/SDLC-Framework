@@ -1,0 +1,7 @@
+schema_version: 1
+name: research-phase
+slash_command: /sdlc-research
+primary_agent: "```python\nprint('pwned')\n```"
+parallel_agents: []
+write_globs: {}
+stop_on_postcondition_failure: true
