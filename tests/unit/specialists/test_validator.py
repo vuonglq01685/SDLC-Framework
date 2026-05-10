@@ -181,3 +181,93 @@ def test_wikilink_re_matches_wikilink() -> None:
 def test_link_re_does_not_match_non_agent_links() -> None:
     body = "See [External](https://example.com) for info."
     assert _LINK_RE.search(body) is None
+
+
+# ---------------------------------------------------------------------------
+# P-R4: validate_internal_links must skip fenced code blocks, HTML comments,
+# and inline code spans. Documentation snippets with dangling refs must not
+# surface as false-positive orphan errors.
+# ---------------------------------------------------------------------------
+
+
+def _single_specialist_registry(fixture_filename: str) -> SpecialistRegistry:
+    """Build a one-specialist registry from a fixture file (test helper)."""
+    from sdlc.specialists._frontmatter import load_specialist
+
+    s = load_specialist(_LINKS / fixture_filename)
+    return SpecialistRegistry(
+        _specialists=__import__("types").MappingProxyType({s.frontmatter.name: s})
+    )
+
+
+@pytest.mark.unit
+def test_validate_internal_links_skips_fenced_code_block() -> None:
+    reg = _single_specialist_registry("dangling-in-code-block.md")
+    validate_internal_links(reg)  # must not raise
+
+
+@pytest.mark.unit
+def test_validate_internal_links_skips_html_comment() -> None:
+    reg = _single_specialist_registry("dangling-in-html-comment.md")
+    validate_internal_links(reg)
+
+
+@pytest.mark.unit
+def test_validate_internal_links_skips_inline_code_span() -> None:
+    reg = _single_specialist_registry("dangling-in-inline-code.md")
+    validate_internal_links(reg)
+
+
+# ---------------------------------------------------------------------------
+# P-R23 (D-R3 option b): unsupported link forms are intentional no-ops.
+# Documents the AC6 scope decision via a runtime test.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_validate_internal_links_unsupported_forms_are_noops() -> None:
+    """./agents/, ../agents/, link-with-title, padded wikilinks — all out of AC6 scope."""
+    reg = _single_specialist_registry("unsupported-forms.md")
+    validate_internal_links(reg)
+
+
+# ---------------------------------------------------------------------------
+# P-R24 (D-R4 option a): self-reference is intentionally allowed.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_validate_internal_links_self_reference_allowed() -> None:
+    reg = _single_specialist_registry("self-reference.md")
+    validate_internal_links(reg)  # self-link must not raise
+
+
+# ---------------------------------------------------------------------------
+# P-R6: violations are deduplicated; len(unique) reflects unique offending
+# refs, not call counts.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_validate_workflow_refs_dedupes_repeated_violations() -> None:
+    """parallel_agents=['x','x'] for unknown 'x' should report once."""
+    spec = WorkflowSpec.model_validate(
+        {
+            "schema_version": 1,
+            "name": "dup-test-workflow",
+            "slash_command": "/dup-test",
+            "primary_agent": "alpha-researcher",
+            "parallel_agents": ["unknown-x", "unknown-x"],
+            "synthesizer_agent": None,
+            "postconditions": [],
+            "write_globs": {},
+            "stop_on_postcondition_failure": True,
+        }
+    )
+    reg = _make_registry()
+    with pytest.raises(SpecialistError) as exc_info:
+        validate_workflow_refs(spec, reg)
+    violations = exc_info.value.details["violations"]
+    assert isinstance(violations, list)
+    assert len(violations) == len(set(violations))  # all unique
+    assert sum(1 for v in violations if "unknown-x" in v) == 1

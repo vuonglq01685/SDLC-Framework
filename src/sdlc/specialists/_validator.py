@@ -1,8 +1,18 @@
 """Cross-reference validators for specialists (AC5, AC6, Story 2A.2).
 
-Scope (AC6): agents/<name>.md links and [[<name>]] wikilinks only.
-Broader cross-refs (skills/, commands/, workflows_yaml/) are out of scope —
-tracked as a debt entry alongside Story 2B.8.
+Scope (AC6) is intentionally narrow: only `agents/<name>.md` markdown links
+and `[[<name>]]` wikilinks are validated. The following forms are
+**intentionally not validated** (out of AC6 scope; track-able for 2B.8):
+
+  - Relative-prefixed links: `[text](./agents/x.md)`, `[text](../agents/x.md)`
+  - Markdown links with title attributes: `[text](agents/x.md "title")`
+  - Whitespace-padded wikilinks: `[[ name ]]` or `[[\nname\n]]`
+  - Unicode names (the `[a-z0-9-]+` regex restricts to ASCII kebab-case)
+  - References inside fenced code blocks, HTML comments, or inline code
+    spans (treated as documentation, not real cross-refs)
+  - Broader cross-refs to skills/, commands/, workflows_yaml/ (deferred to 2B.8)
+
+Self-references — a specialist linking to itself — are intentionally allowed.
 """
 
 from __future__ import annotations
@@ -20,12 +30,35 @@ _LINK_RE: Final[re.Pattern[str]] = re.compile(
 )
 _WIKILINK_RE: Final[re.Pattern[str]] = re.compile(r"\[\[(?P<name>[a-z0-9-]+)\]\]")
 
+# P-R4: pre-mask fenced code blocks, HTML comments, and inline code spans before
+# regex matching so documentation snippets do not trigger false-positive
+# dangling-link errors when specialists author docs that reference unbuilt names.
+_FENCED_BLOCK_RE: Final[re.Pattern[str]] = re.compile(r"```.*?```", re.DOTALL)
+_INLINE_CODE_RE: Final[re.Pattern[str]] = re.compile(r"`[^`\n]*`")
+_HTML_COMMENT_RE: Final[re.Pattern[str]] = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _replace_with_spaces(match: re.Match[str]) -> str:
+    """Substitute the matched span with whitespace of equal length.
+
+    Preserves byte offsets so future patches that surface offsets in
+    diagnostics see consistent positions.
+    """
+    return " " * len(match.group(0))
+
+
+def _strip_non_link_contexts(body: str) -> str:
+    """Remove markdown contexts where references are not real links."""
+    for pattern in (_FENCED_BLOCK_RE, _HTML_COMMENT_RE, _INLINE_CODE_RE):
+        body = pattern.sub(_replace_with_spaces, body)
+    return body
+
 
 def validate_workflow_refs(spec: WorkflowSpec, registry: SpecialistRegistry) -> None:
     """Validate all specialist cross-references in a WorkflowSpec (AC5).
 
-    Collects ALL violations and raises a single SpecialistError with the full list
-    (fail-once-with-full-list pattern, mirrors Story 1.21 review-finding shape).
+    Collects ALL violations and raises a single SpecialistError with the full
+    list (fail-once-with-full-list pattern, mirrors Story 1.21).
     """
     names = registry.names()
     violations: list[str] = []
@@ -55,22 +88,28 @@ def validate_workflow_refs(spec: WorkflowSpec, registry: SpecialistRegistry) -> 
             )
 
     if violations:
+        # P-R6: dedupe while preserving insertion order so len(unique) reflects
+        # unique offending refs, not call counts (e.g. parallel_agents=["x","x"]
+        # for unknown 'x' should report once, not twice).
+        unique = list(dict.fromkeys(violations))
         raise SpecialistError(
-            f"workflow {spec.name!r} has {len(violations)} unresolved specialist reference(s)",
-            details={"violations": violations, "workflow": spec.name},
+            f"workflow {spec.name!r} has {len(unique)} unresolved specialist reference(s)",
+            details={"violations": unique, "workflow": spec.name},
         )
 
 
 def validate_internal_links(registry: SpecialistRegistry) -> None:
-    """Validate agents/<name>.md and [[<name>]] cross-references across all specialist bodies (AC6).
+    """Validate `agents/<name>.md` and `[[<name>]]` cross-refs across all bodies (AC6).
 
-    Raises SpecialistError listing all dangling references (fail-loud).
+    Strips fenced code blocks, HTML comments, and inline code spans before
+    matching so documentation does not surface false-positive dangling errors.
+    Self-references are allowed. See module docstring for the full scope.
     """
     names = registry.names()
     all_dangling: list[str] = []
 
     for specialist in registry.list():
-        body = specialist.body
+        body = _strip_non_link_contexts(specialist.body)
         dangling: list[str] = []
 
         for m in _LINK_RE.finditer(body):
@@ -84,9 +123,10 @@ def validate_internal_links(registry: SpecialistRegistry) -> None:
                 dangling.append(ref)
 
         if dangling:
+            unique = list(dict.fromkeys(dangling))
             all_dangling.append(
                 f"specialist {specialist.frontmatter.name!r} has dangling references: "
-                + ", ".join(repr(r) for r in dangling)
+                + ", ".join(repr(r) for r in unique)
             )
 
     if all_dangling:
