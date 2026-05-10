@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-10 (code-review 2a-1: review → done; 31 patches applied [3 decision-needed resolved + 29 review patches + 2 spec amends]; 1 deferred + 1 dismissed; 100% coverage on all 5 workflows/ modules; quality gate green; TDD-first 6-commit ceremony per CONTRIBUTING §2 + ADR-026)"
+last_updated: "2026-05-10 (code-review 2a-2: review → done; 25 patches applied [P-R1..P-R25], 5 D-decisions all resolved, 2 dismissed; TDD-first commit ordering retrofitted into 8 task-ordered commits; quality gate green: ruff + mypy --strict src + boundary + wireformat-immutability + strict-model + hygiene; rebased onto 2a-1-merged main)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -96,7 +96,7 @@ development_status:
   epic-2a: in-progress
   2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: done
   2a-1-workflow-yaml-loader-schema-validation: done
-  2a-2-specialist-registry-manifest-validation: review
+  2a-2-specialist-registry-manifest-validation: done
   2a-3-dispatcher-primary-parallel-synthesizer-retry: backlog
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: backlog
   2a-5-recovery-hook-tampering-detection-trust-hooks: ready-for-dev
