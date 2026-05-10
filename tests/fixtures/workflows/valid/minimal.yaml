@@ -1,0 +1,21 @@
+schema_version: 1
+name: research-phase
+slash_command: /sdlc-research
+primary_agent: research-specialist
+parallel_agents:
+  - lit-review-agent
+  - market-scan-agent
+synthesizer_agent: synthesis-specialist
+postconditions:
+  - research_report_exists
+  - sources_validated
+write_globs:
+  research-specialist:
+    - "01-Research/*.md"
+  lit-review-agent:
+    - "01-Research/lit-review/*.md"
+  market-scan-agent:
+    - "01-Research/market/*.md"
+  synthesis-specialist:
+    - "01-Research/synthesis/*.md"
+stop_on_postcondition_failure: true
