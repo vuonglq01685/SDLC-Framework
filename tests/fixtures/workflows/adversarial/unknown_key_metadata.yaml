@@ -1,0 +1,11 @@
+schema_version: 1
+name: research-phase
+slash_command: /sdlc-research
+primary_agent: research-specialist
+parallel_agents: []
+write_globs: {}
+stop_on_postcondition_failure: true
+metadata:
+  author: attacker
+  version: "1.0"
+  description: "Injected metadata field"
