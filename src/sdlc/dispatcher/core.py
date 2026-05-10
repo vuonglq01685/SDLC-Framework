@@ -7,9 +7,10 @@ Boundary rules (Architecture §1106, §1109):
 - Forbidden from importing ``engine/`` or ``cli/``.
 - ``repo_root`` is accepted as a ``Path`` parameter; ``cli._paths`` stays in CLI.
 
-# TODO(epic-4): STOP-trigger placeholder (kind="stop_trigger_raised") is emitted
-# on terminal failure; Epic 4 Story 4.6 reads these journal entries to surface
-# the actual STOP banner. See ``deferred-work.md`` EPIC-4-STOP-TRIGGER-WIRE.
+# TODO(epic-4): STOP-trigger placeholder — ``kind="stop_trigger_raised"`` entries
+# are written by ``_emit_stop_trigger()`` on terminal dispatch failure (AC5).
+# Epic 4 Story 4.6 reads these journal entries to surface the actual STOP banner.
+# See ``deferred-work.md`` EPIC-4-STOP-TRIGGER-WIRE.
 """
 
 from __future__ import annotations
@@ -66,6 +67,29 @@ class PanelResult:
     write_targets: tuple[Path, ...]
     total_attempts: int
     outcome: Literal["success", "failed"]
+
+
+async def _emit_stop_trigger(
+    specialist_name: str,
+    step_name: str,
+    journal_path: Path,
+) -> None:
+    """Append a stop_trigger_raised placeholder entry (AC5, TODO(epic-4))."""
+    await journal_append(
+        _make_journal_entry(
+            seq=0,
+            ts=_now_ts(),
+            kind="stop_trigger_raised",
+            target_id=f"{step_name}/{specialist_name}",
+            payload={
+                "trigger": "agent_failure_after_retries",
+                "specialist": specialist_name,
+                "step": step_name,
+                "epic_4_placeholder": True,
+            },
+        ),
+        journal_path,
+    )
 
 
 def _default_prompt_builder(specialist: Specialist, step: WorkflowSpec) -> str:
@@ -261,11 +285,10 @@ async def dispatch_panel(
     Synthesizer runs only if all panel members succeed; it receives ``panel_outputs``
     containing the text output of every panel member.
 
-    On any DispatchError the panel short-circuits and returns outcome="failed";
+    On any DispatchError the panel short-circuits, emits a ``stop_trigger_raised``
+    journal placeholder (AC5, TODO(epic-4)), and returns outcome="failed";
     the synthesizer is never dispatched on failure (AC2.5).
-
-    # EPIC-4-STOP-TRIGGER-WIRE: on terminal failure, a kind="stop_trigger_raised"
-    # journal entry should be emitted here. Deferred — see deferred-work.md.
+    Epic 4 Story 4.6 reads the stop_trigger_raised entries to surface the STOP banner.
     """
     _kw: dict[str, object] = dict(
         runtime=runtime,
@@ -300,6 +323,7 @@ async def dispatch_panel(
     try:
         primary_result = await _run_member(step, step.primary_agent, "primary", **_kw)  # type: ignore[arg-type]
     except DispatchError:
+        await _emit_stop_trigger(step.primary_agent, step.name, journal_path)
         return _failed_primary()
 
     # Phase 2 — parallel agents (concurrent, semaphore-bounded)
@@ -314,6 +338,7 @@ async def dispatch_panel(
             raw = await bd.dispatch_many(coros)
             parallel_results = tuple(raw)
         except DispatchError:
+            await _emit_stop_trigger("parallel_agents", step.name, journal_path)
             return PanelResult(
                 primary_result=primary_result,
                 parallel_results=(),
@@ -339,6 +364,8 @@ async def dispatch_panel(
                 **_kw,  # type: ignore[arg-type]
             )
         except DispatchError:
+            assert step.synthesizer_agent is not None
+            await _emit_stop_trigger(step.synthesizer_agent, step.name, journal_path)
             return PanelResult(
                 primary_result=primary_result,
                 parallel_results=parallel_results,

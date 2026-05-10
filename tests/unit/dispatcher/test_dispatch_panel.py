@@ -396,3 +396,76 @@ class TestDispatchPanelMemberFailure:
             )
 
         assert _SYNTH not in dispatched_agents
+
+    def test_primary_failure_emits_stop_trigger_raised(self, tmp_path: Path) -> None:
+        """Terminal primary failure → stop_trigger_raised journal entry (AC5)."""
+        from sdlc.dispatcher.core import dispatch_panel
+
+        step = _make_step()
+        runtime = AsyncMock()
+        runtime.dispatch.side_effect = DispatchError("primary failed")
+        registry = _make_registry(_PRIMARY_SPEC)
+        captured: list = []
+
+        async def _capture(entry, path) -> None:
+            captured.append(entry)
+
+        with (
+            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher.core.record_agent_run"),
+        ):
+            asyncio.run(
+                dispatch_panel(
+                    step, runtime=runtime, registry=registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
+                    max_parallel_agents=4,
+                    _max_attempts=1,
+                )
+            )
+
+        stop_entries = [e for e in captured if e.kind == "stop_trigger_raised"]
+        assert len(stop_entries) == 1
+        assert stop_entries[0].payload["trigger"] == "agent_failure_after_retries"
+        assert stop_entries[0].payload["epic_4_placeholder"] is True
+        assert stop_entries[0].payload["specialist"] == _PRIMARY
+
+    def test_synth_failure_emits_stop_trigger_raised(self, tmp_path: Path) -> None:
+        """Terminal synthesizer failure → stop_trigger_raised journal entry (AC5)."""
+        from sdlc.dispatcher.core import dispatch_panel
+
+        step = _make_step(synth=_SYNTH)
+
+        async def _dispatch(prompt: str, context: dict) -> AgentResult:
+            if context.get("agent_name") == _SYNTH:
+                raise DispatchError("synth failed")
+            return AgentResult(output_text="ok", tokens_in=1, tokens_out=1)
+
+        runtime = AsyncMock()
+        runtime.dispatch.side_effect = _dispatch
+        registry = _make_registry(_PRIMARY_SPEC, _SYNTH_SPEC)
+        captured: list = []
+
+        async def _capture(entry, path) -> None:
+            captured.append(entry)
+
+        with (
+            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher.core.record_agent_run"),
+        ):
+            asyncio.run(
+                dispatch_panel(
+                    step, runtime=runtime, registry=registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
+                    max_parallel_agents=4,
+                    _max_attempts=1,
+                )
+            )
+
+        stop_entries = [e for e in captured if e.kind == "stop_trigger_raised"]
+        assert len(stop_entries) == 1
+        assert stop_entries[0].payload["specialist"] == _SYNTH
+        assert stop_entries[0].payload["epic_4_placeholder"] is True

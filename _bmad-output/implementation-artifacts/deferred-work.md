@@ -2,6 +2,10 @@
 
 Items surfaced during code review or development that are real but not actionable in the current story scope. Each entry cites the originating story and the future story or workstream that owns the eventual fix.
 
+## Deferred from: Story 2A.3 (dispatcher-primary-parallel-synthesizer-retry — 2026-05-10)
+
+- **EPIC-4-STOP-TRIGGER-WIRE** — `dispatcher.core._emit_stop_trigger()` writes `kind="stop_trigger_raised"` journal entries (with `epic_4_placeholder=True`) on every terminal dispatch failure. The entries are written but never consumed in Epic 2A. Epic 4 Story 4.6 is responsible for reading these entries from `journal.log` and computing the actual STOP banner state for the CLI. The `dispatcher/core.py` module docstring carries a `# TODO(epic-4)` marker pointing here. **Owner:** Epic 4 Story 4.6 — wire `iter_entries(kind="stop_trigger_raised")` into the STOP-banner resolution logic.
+
 ## Deferred from: code review of 2a-1-workflow-yaml-loader-schema-validation (2026-05-10)
 
 - **W1 — Quality-gate execution and "18+1 pre-existing failures" baseline unpinned** — Story Completion Notes (line 359) and `sprint-status.yaml` line 204 narrate "1263 passed, 18 pre-existing failures (verified pre-existing via git stash); pytest -m e2e: 38 passed, 1 pre-existing failure". The pre-existing-failure baseline is asserted in narrative form — no machine-readable pin against `main` exists, so any review or CI run cannot independently confirm "no new regressions in 2A.1". **Owner:** orchestrator-level test-baseline pinning (a one-line `tests/baseline/main_failure_count.json` snapshot regenerated after each clean `main` push), or fold into Epic 2A retro action items.
