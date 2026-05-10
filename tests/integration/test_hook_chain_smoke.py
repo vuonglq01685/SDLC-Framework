@@ -20,7 +20,12 @@ from sdlc.hooks.runner import HookDecision, run_hook_chain
 
 def _make_phase_gate(repo_root: Path):
     def _hook(p: HookPayload) -> HookDecision:
-        return phase_gate(p, repo_root=repo_root)
+        # Smoke tests only exercise Phase-1 paths or bypass; reader is never called.
+        return phase_gate(
+            p,
+            repo_root=repo_root,
+            signoff_reader=lambda ph, rr: "awaiting-signoff",
+        )
 
     return _hook
 
