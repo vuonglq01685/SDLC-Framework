@@ -123,8 +123,8 @@ write_globs:
         )
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             from sdlc.dispatcher.core import dispatch_panel
 
@@ -181,28 +181,28 @@ write_globs:
             _make_specialist("synthesizer", "docs/primary.md"),
         )
 
-        # dispatch_panel must NOT raise WorkflowError — it trusts the spec
-        # and never calls validate_workflow.
-        raised_workflow_error = False
-        try:
-            with (
-                patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-                patch("sdlc.dispatcher.core.record_agent_run"),
-            ):
-                asyncio.run(
-                    dispatch_panel(
-                        spec,
-                        runtime=runtime,
-                        registry=specialist_registry,
-                        repo_root=tmp_path,
-                        journal_path=tmp_path / "journal.log",
-                        agent_runs_path=tmp_path / "agent_runs.jsonl",
-                        max_parallel_agents=4,
-                    )
+        # P20: assert via mock that ``validate_workflow`` is NEVER invoked from the
+        # dispatcher path (Blind Hunter caught the original test as tautological:
+        # absence-of-raise does not prove absence-of-call). dispatch_panel must trust
+        # the loaded spec per AC3 / ADR-013 D3 trust posture.
+        with (
+            patch(
+                "sdlc.workflows.static_check.validate_workflow",
+                wraps=validate_workflow,
+            ) as validate_spy,
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
+        ):
+            asyncio.run(
+                dispatch_panel(
+                    spec,
+                    runtime=runtime,
+                    registry=specialist_registry,
+                    repo_root=tmp_path,
+                    journal_path=tmp_path / "journal.log",
+                    agent_runs_path=tmp_path / "agent_runs.jsonl",
+                    max_parallel_agents=4,
                 )
-        except WorkflowError:
-            raised_workflow_error = True
+            )
 
-        assert not raised_workflow_error, (
-            "dispatch_panel raised WorkflowError — it must not call validate_workflow"
-        )
+        validate_spy.assert_not_called()

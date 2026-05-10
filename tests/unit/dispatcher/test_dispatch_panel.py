@@ -91,8 +91,8 @@ class TestDispatchPanelPrimaryOnly:
         registry = _make_registry(_PRIMARY_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(
@@ -122,8 +122,8 @@ class TestDispatchPanelPrimaryOnly:
         registry = _make_registry(_PRIMARY_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -152,8 +152,8 @@ class TestDispatchPanelWithParallel:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _PAR_B_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -180,8 +180,8 @@ class TestDispatchPanelWithParallel:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _PAR_B_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(
@@ -211,8 +211,8 @@ class TestDispatchPanelWithParallel:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -251,8 +251,8 @@ class TestDispatchPanelWithSynthesizer:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _PAR_B_SPEC, _SYNTH_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(
@@ -286,8 +286,8 @@ class TestDispatchPanelWithSynthesizer:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _SYNTH_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -320,8 +320,8 @@ class TestDispatchPanelWithSynthesizer:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _SYNTH_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -348,8 +348,8 @@ class TestDispatchPanelWithSynthesizer:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _PAR_B_SPEC, _SYNTH_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run") as mock_run,
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run") as mock_run,
         ):
             asyncio.run(
                 dispatch_panel(

@@ -67,8 +67,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch(
@@ -93,8 +93,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch(
@@ -121,8 +121,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch(
@@ -147,8 +147,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch(
@@ -172,8 +172,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock) as mock_append,
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock) as mock_append,  # noqa: E501
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch(
@@ -196,8 +196,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock) as mock_append,
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock) as mock_append,  # noqa: E501
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch(
@@ -221,8 +221,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock) as mock_append,
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock) as mock_append,  # noqa: E501
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch(
@@ -246,8 +246,8 @@ class TestDispatchPrimaryHappyPath:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run") as mock_run,
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run") as mock_run,
         ):
             asyncio.run(
                 dispatch(
@@ -276,8 +276,8 @@ class TestDispatchPrimaryErrorPaths:
         registry = _make_registry()  # empty — no specialists
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
             pytest.raises(SpecialistError),
         ):
             asyncio.run(
@@ -300,8 +300,8 @@ class TestDispatchPrimaryErrorPaths:
         registry = _make_registry()
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
             pytest.raises(SpecialistError) as exc_info,
         ):
             asyncio.run(
@@ -334,8 +334,8 @@ class TestDispatchPrimaryErrorPaths:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
             pytest.raises(DispatchError, match="write_globs"),
         ):
             asyncio.run(

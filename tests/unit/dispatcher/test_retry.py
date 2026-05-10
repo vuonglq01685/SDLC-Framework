@@ -14,7 +14,10 @@ from sdlc.errors import (
     ConfigError,
     DispatchError,
     HookError,
+    JournalError,
+    SignoffError,
     SpecialistError,
+    StateError,
     WorkflowError,
 )
 
@@ -129,6 +132,7 @@ class TestWithRetriesOneFailThenSuccess:
     def test_coro_factory_called_twice(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
+        _, mock_sleep = _make_mock_sleep()
         calls: list[int] = []
         exc = DispatchError("transient")
 
@@ -141,7 +145,7 @@ class TestWithRetriesOneFailThenSuccess:
 
             return _coro()
 
-        asyncio.run(with_retries(_factory))
+        asyncio.run(with_retries(_factory, sleep=mock_sleep))
         assert len(calls) == 2
 
 
@@ -173,6 +177,7 @@ class TestWithRetriesTwoFailsThenSuccess:
     def test_coro_factory_called_three_times(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
+        _, mock_sleep = _make_mock_sleep()
         calls: list[int] = []
 
         def _factory() -> asyncio.coroutine:
@@ -184,7 +189,7 @@ class TestWithRetriesTwoFailsThenSuccess:
 
             return _coro()
 
-        asyncio.run(with_retries(_factory))
+        asyncio.run(with_retries(_factory, sleep=mock_sleep))
         assert len(calls) == 3
 
 
@@ -218,6 +223,7 @@ class TestWithRetriesAllFail:
     def test_coro_factory_called_exactly_three_times(self) -> None:
         from sdlc.dispatcher.retry import with_retries
 
+        _, mock_sleep = _make_mock_sleep()
         calls: list[int] = []
 
         def _factory() -> asyncio.coroutine:
@@ -228,7 +234,7 @@ class TestWithRetriesAllFail:
             return _coro()
 
         with pytest.raises(DispatchError):
-            asyncio.run(with_retries(_factory))
+            asyncio.run(with_retries(_factory, sleep=mock_sleep))
         assert len(calls) == 3
 
 
@@ -240,6 +246,10 @@ class TestWithRetriesNonRetryableErrors:
             SpecialistError("specialist not found"),
             HookError("hook failed"),
             ConfigError("bad config"),
+            # P25: extend coverage to remaining SdlcError subclasses listed in AC4 last bullet.
+            JournalError("journal failed"),
+            StateError("state corruption"),
+            SignoffError("signoff missing"),
         ],
     )
     def test_sdlc_error_non_dispatch_propagates_immediately(self, exc: BaseException) -> None:

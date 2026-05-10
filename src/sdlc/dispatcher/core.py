@@ -11,39 +11,35 @@ Boundary rules (Architecture §1106, §1109):
 # are written by ``_emit_stop_trigger()`` on terminal dispatch failure (AC5).
 # Epic 4 Story 4.6 reads these journal entries to surface the actual STOP banner.
 # See ``deferred-work.md`` EPIC-4-STOP-TRIGGER-WIRE.
+
+DR2 — ``_run_member``, ``_emit_stop_trigger``, ``_make_journal_entry``, ``_now_ts``,
+``_default_prompt_builder`` extracted to ``dispatcher/_panel_helpers.py`` to keep
+this file under the AC6 350-LOC cap. Public API (``dispatch``, ``dispatch_panel``,
+``DispatchResult``, ``PanelResult``, ``DispatchOutcome``) lives here.
 """
 
 from __future__ import annotations
 
 import asyncio
-import datetime
-import time
-import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeAlias
 
-from sdlc.concurrency.subprocess_pool import BoundedDispatcher
-from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
-from sdlc.dispatcher.retry import with_retries
+from sdlc.dispatcher._panel_helpers import (
+    DispatchMemberResult,
+    _default_prompt_builder,
+    _emit_stop_trigger,
+    _run_member,
+    _validate_target_path,
+)
 from sdlc.errors import DispatchError
-from sdlc.journal import append as journal_append
 from sdlc.runtime import AgentResult, AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
-from sdlc.telemetry.runs import record_agent_run
 
-_ACTOR = "dispatcher"
-_NULL_HASH = "sha256:" + "0" * 64
-
-
-# EPIC-2A-DEBT-SHARED-TIME: cli/_time.py is the canonical ts source but dispatcher
-# cannot import from cli (boundary §1106). Inline here until a shared util is created.
-def _now_ts() -> str:
-    now = datetime.datetime.now(datetime.timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+DispatchOutcome: TypeAlias = Literal["success", "failed"]
 
 
 @dataclass(frozen=True)
@@ -54,7 +50,7 @@ class DispatchResult:
     target_path: Path
     agent_result: AgentResult
     attempts: int
-    outcome: Literal["success", "failed"]
+    outcome: DispatchOutcome
 
 
 @dataclass(frozen=True)
@@ -66,170 +62,30 @@ class PanelResult:
     synthesizer_result: DispatchResult | None
     write_targets: tuple[Path, ...]
     total_attempts: int
-    outcome: Literal["success", "failed"]
+    outcome: DispatchOutcome
 
 
-async def _emit_stop_trigger(
-    specialist_name: str,
-    step_name: str,
-    journal_path: Path,
-) -> None:
-    """Append a stop_trigger_raised placeholder entry (AC5, TODO(epic-4))."""
-    await journal_append(
-        _make_journal_entry(
-            seq=0,
-            ts=_now_ts(),
-            kind="stop_trigger_raised",
-            target_id=f"{step_name}/{specialist_name}",
-            payload={
-                "trigger": "agent_failure_after_retries",
-                "specialist": specialist_name,
-                "step": step_name,
-                "epic_4_placeholder": True,
-            },
-        ),
-        journal_path,
+def _to_public(member: DispatchMemberResult) -> DispatchResult:
+    return DispatchResult(
+        specialist_name=member.specialist_name,
+        target_path=member.target_path,
+        agent_result=member.agent_result,
+        attempts=member.attempts,
+        outcome=member.outcome,
     )
 
 
-def _default_prompt_builder(specialist: Specialist, step: WorkflowSpec) -> str:
-    """Minimal prompt scaffold — Story 2A.8 will replace with full context (FR25)."""
-    return specialist.body
-
-
-def _make_journal_entry(
-    *,
-    seq: int,
-    ts: str,
-    kind: str,
-    target_id: str,
-    payload: dict[str, object],
-) -> JournalEntry:
-    return JournalEntry(
-        schema_version=1,
-        monotonic_seq=seq,
-        ts=ts,
-        actor=_ACTOR,
-        kind=kind,
-        target_id=target_id,
-        before_hash=None,
-        after_hash=_NULL_HASH,
-        payload=payload,
-    )
-
-
-async def _run_member(
-    step: WorkflowSpec,
+def _failed_result(
     specialist_name: str,
-    target_kind: Literal["primary", "parallel", "synthesizer"],
-    *,
-    runtime: AIRuntime,
-    registry: SpecialistRegistry,
-    repo_root: Path,
-    journal_path: Path,
-    agent_runs_path: Path,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str],
-    sleep: Callable[[float], Awaitable[None]],
-    max_attempts: int,
-    extra_context: dict[str, object] | None = None,
+    target_path: Path,
+    attempts: int = 1,
 ) -> DispatchResult:
-    """Dispatch a single specialist as a panel member (primary/parallel/synthesizer).
-
-    # EPIC-2A-DEBT-WRITE-PRIMITIVE: output write uses Path.write_text() (plain).
-    # write_state_raw_atomic_sync is JSON-only and POSIX-only; a raw-text atomic
-    # primitive is needed for arbitrary specialist artifacts. Deferred to Epic 2B.
-    """
-    specialist = registry.get(specialist_name)
-
-    write_globs = step.write_globs.get(specialist_name)
-    if not write_globs:
-        raise DispatchError(
-            f"workflow step {step.name!r} has no write_globs entry for specialist"
-            f" {specialist_name!r}",
-            details={"step": step.name, "specialist": specialist_name},
-        )
-    target_path = (repo_root / write_globs[0]).resolve()
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-
-    prompt = prompt_builder(specialist, step)
-    context: dict[str, object] = {
-        "workflow_step": step.name,
-        "agent_name": specialist_name,
-        "target_kind": target_kind,
-    }
-    if extra_context:
-        context.update(extra_context)
-
-    actual_attempts = 0
-
-    async def _on_attempt(attempt_num: int, outcome: str) -> None:
-        nonlocal actual_attempts
-        actual_attempts = attempt_num
-        await journal_append(
-            _make_journal_entry(
-                seq=attempt_num - 1,
-                ts=_now_ts(),
-                kind="dispatch_attempt",
-                target_id=f"{step.name}/{specialist_name}",
-                payload={
-                    "specialist": specialist_name,
-                    "outcome": outcome,
-                    "attempt": attempt_num,
-                    "target_kind": target_kind,
-                },
-            ),
-            journal_path,
-        )
-
-    t_start = time.monotonic()
-    agent_result = await with_retries(
-        lambda: runtime.dispatch(prompt, context),
-        max_attempts=max_attempts,
-        sleep=sleep,
-        on_attempt=_on_attempt,
-    )
-    duration_ms = int((time.monotonic() - t_start) * 1000)
-    ts = _now_ts()
-    run_id = str(uuid.uuid4())
-
-    target_path.write_text(agent_result.output_text, encoding="utf-8")
-
-    await journal_append(
-        _make_journal_entry(
-            seq=actual_attempts,
-            ts=ts,
-            kind="artifact_written",
-            target_id=str(target_path.relative_to(repo_root)),
-            payload={
-                "target": str(target_path.relative_to(repo_root)),
-                "writer": "dispatcher",
-                "specialist": specialist_name,
-            },
-        ),
-        journal_path,
-    )
-
-    record_agent_run(
-        agent_runs_path,
-        run_id=run_id,
-        ts=ts,
-        workflow_step=step.name,
-        specialist_name=specialist_name,
-        target_kind=target_kind,
-        outcome="success",
-        attempts=actual_attempts,
-        tokens_in=agent_result.tokens_in,
-        tokens_out=agent_result.tokens_out,
-        target_path=str(target_path.relative_to(repo_root)),
-        duration_ms=duration_ms,
-    )
-
     return DispatchResult(
         specialist_name=specialist_name,
         target_path=target_path,
-        agent_result=agent_result,
-        attempts=actual_attempts,
-        outcome="success",
+        agent_result=AgentResult(output_text="", tokens_in=0, tokens_out=0),
+        attempts=attempts,
+        outcome="failed",
     )
 
 
@@ -247,26 +103,59 @@ async def dispatch(
 ) -> DispatchResult:
     """Dispatch the primary specialist for a workflow step (AC1, FR25).
 
-    Delegates to ``_run_member`` with target_kind="primary".
     Per-attempt journal entries are written via the ``on_attempt`` hook in
     ``with_retries``; ``artifact_written`` is written on success only.
+
+    P18: emits STOP-trigger placeholder on terminal failure (parity with dispatch_panel).
     """
-    return await _run_member(
-        step,
-        step.primary_agent,
-        "primary",
-        runtime=runtime,
-        registry=registry,
-        repo_root=repo_root,
-        journal_path=journal_path,
-        agent_runs_path=agent_runs_path,
-        prompt_builder=prompt_builder,
-        sleep=sleep,
-        max_attempts=_max_attempts,
-    )
+    try:
+        member = await _run_member(
+            step,
+            step.primary_agent,
+            "primary",
+            runtime=runtime,
+            registry=registry,
+            repo_root=repo_root,
+            journal_path=journal_path,
+            agent_runs_path=agent_runs_path,
+            prompt_builder=prompt_builder,
+            sleep=sleep,
+            max_attempts=_max_attempts,
+        )
+    except DispatchError as exc:
+        await _emit_stop_trigger(
+            step.primary_agent,
+            step.name,
+            journal_path,
+            last_error=str(exc),
+        )
+        raise
+    return _to_public(member)
 
 
-async def dispatch_panel(
+async def _gather_with_semaphore(
+    coros: list[Awaitable[DispatchMemberResult]],
+    *,
+    max_parallel_agents: int,
+) -> list[DispatchMemberResult | BaseException]:
+    """Run ``coros`` under a Semaphore(max_parallel_agents); collect every outcome.
+
+    P4: uses ``gather(return_exceptions=True)`` so that a single member's failure
+    does NOT leave its siblings as orphan coroutines (the ``BoundedDispatcher.dispatch_many``
+    contract uses ``return_exceptions=False`` which leaves siblings running per the
+    Python asyncio gather docs — discovered by Edge Case Hunter). Throttling pattern
+    preserves the BoundedDispatcher mandate; the API call is replaced for safety.
+    """
+    sem = asyncio.Semaphore(max_parallel_agents)
+
+    async def _acquire(coro: Awaitable[DispatchMemberResult]) -> DispatchMemberResult:
+        async with sem:
+            return await coro
+
+    return list(await asyncio.gather(*(_acquire(c) for c in coros), return_exceptions=True))
+
+
+async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestration; complexity is intrinsic to AC2
     step: WorkflowSpec,
     *,
     runtime: AIRuntime,
@@ -281,15 +170,42 @@ async def dispatch_panel(
 ) -> PanelResult:
     """Orchestrate a panel dispatch: primary → parallel (bounded) → synthesizer (AC2, FR26).
 
-    Parallel agents run through a BoundedDispatcher capped at ``max_parallel_agents``.
-    Synthesizer runs only if all panel members succeed; it receives ``panel_outputs``
-    containing the text output of every panel member.
+    Phase 0 — Pre-resolve every member via ``registry.get(...)`` so a missing parallel
+    or synthesizer specialist does NOT leave the primary already written (AC2 step 1
+    atomicity, P7+P8).
+
+    Parallel agents run under a semaphore; ``gather(return_exceptions=True)`` collects
+    every outcome to prevent orphan coroutines on first failure (P4).
+
+    Synthesizer overwrites the primary's first write_globs entry per AC2.4 wording (DR5);
+    the synthesizer's ``dispatch_attempt`` journal payload includes ``panel_size`` (P6).
 
     On any DispatchError the panel short-circuits, emits a ``stop_trigger_raised``
-    journal placeholder (AC5, TODO(epic-4)), and returns outcome="failed";
+    journal placeholder (AC5, TODO(epic-4)), and returns ``outcome="failed"``;
     the synthesizer is never dispatched on failure (AC2.5).
-    Epic 4 Story 4.6 reads the stop_trigger_raised entries to surface the STOP banner.
     """
+    if max_parallel_agents < 1:
+        raise DispatchError(
+            f"max_parallel_agents must be >= 1, got {max_parallel_agents}",
+            details={"max_parallel_agents": max_parallel_agents},
+        )
+
+    # Phase 0 — atomicity pre-resolution (P7+P8) and primary target derivation (DR5).
+    members_to_resolve: list[str] = [step.primary_agent, *step.parallel_agents]
+    if step.synthesizer_agent:
+        members_to_resolve.append(step.synthesizer_agent)
+    for name in members_to_resolve:
+        registry.get(name)  # propagates SpecialistError on miss
+
+    primary_globs = step.write_globs.get(step.primary_agent)
+    if not primary_globs:
+        raise DispatchError(
+            f"workflow step {step.name!r} has no write_globs entry for primary"
+            f" specialist {step.primary_agent!r}",
+            details={"step": step.name, "specialist": step.primary_agent},
+        )
+    primary_target = _validate_target_path(repo_root, primary_globs[0])
+
     _kw: dict[str, object] = dict(
         runtime=runtime,
         registry=registry,
@@ -301,17 +217,13 @@ async def dispatch_panel(
         max_attempts=_max_attempts,
     )
 
-    def _failed_primary() -> PanelResult:
-        wg = step.write_globs.get(step.primary_agent, ())
-        tp = (repo_root / wg[0]).resolve() if wg else repo_root / "unknown.md"
+    # Phase 1 — primary (sequential)
+    try:
+        primary_member = await _run_member(step, step.primary_agent, "primary", **_kw)  # type: ignore[arg-type]
+    except DispatchError as exc:
+        await _emit_stop_trigger(step.primary_agent, step.name, journal_path, last_error=str(exc))
         return PanelResult(
-            primary_result=DispatchResult(
-                specialist_name=step.primary_agent,
-                target_path=tp,
-                agent_result=AgentResult(output_text="", tokens_in=0, tokens_out=0),
-                attempts=1,
-                outcome="failed",
-            ),
+            primary_result=_failed_result(step.primary_agent, primary_target),
             parallel_results=(),
             synthesizer_result=None,
             write_targets=(),
@@ -319,67 +231,78 @@ async def dispatch_panel(
             outcome="failed",
         )
 
-    # Phase 1 — primary (sequential)
-    try:
-        primary_result = await _run_member(step, step.primary_agent, "primary", **_kw)  # type: ignore[arg-type]
-    except DispatchError:
-        await _emit_stop_trigger(step.primary_agent, step.name, journal_path)
-        return _failed_primary()
+    primary_pub = _to_public(primary_member)
 
-    # Phase 2 — parallel agents (concurrent, semaphore-bounded)
-    parallel_results: tuple[DispatchResult, ...] = ()
+    # Phase 2 — parallel agents (concurrent under semaphore; P4 collect-all)
+    parallel_pub: tuple[DispatchResult, ...] = ()
     if step.parallel_agents:
-        bd = BoundedDispatcher(max_parallel_agents)
-        coros = [
+        coros: list[Awaitable[DispatchMemberResult]] = [
             _run_member(step, name, "parallel", **_kw)  # type: ignore[arg-type]
             for name in step.parallel_agents
         ]
-        try:
-            raw = await bd.dispatch_many(coros)
-            parallel_results = tuple(raw)
-        except DispatchError:
-            await _emit_stop_trigger("parallel_agents", step.name, journal_path)
+        outcomes = await _gather_with_semaphore(coros, max_parallel_agents=max_parallel_agents)
+        successes: list[DispatchMemberResult] = []
+        first_exc: BaseException | None = None
+        for outcome in outcomes:
+            if isinstance(outcome, BaseException):
+                if first_exc is None:
+                    first_exc = outcome
+            else:
+                successes.append(outcome)
+        parallel_pub = tuple(_to_public(m) for m in successes)
+        if first_exc is not None:
+            err_msg = str(first_exc)
+            await _emit_stop_trigger("parallel_agents", step.name, journal_path, last_error=err_msg)
             return PanelResult(
-                primary_result=primary_result,
-                parallel_results=(),
+                primary_result=primary_pub,
+                parallel_results=parallel_pub,
                 synthesizer_result=None,
-                write_targets=(primary_result.target_path,),
-                total_attempts=primary_result.attempts + 1,
+                write_targets=tuple(
+                    [primary_pub.target_path] + [p.target_path for p in parallel_pub]
+                ),
+                total_attempts=primary_pub.attempts + sum(p.attempts for p in parallel_pub),
                 outcome="failed",
             )
 
-    # Phase 3 — synthesizer (sequential, after all panel members succeed)
-    synth_result: DispatchResult | None = None
-    if step.synthesizer_agent:
+    # Phase 3 — synthesizer (sequential, target overrides primary's per AC2.4 / DR5)
+    synth_pub: DispatchResult | None = None
+    synth_name = step.synthesizer_agent
+    if synth_name:
+        panel_size = 1 + len(parallel_pub) + 1  # primary + parallel + synth
         panel_outputs: dict[str, object] = {
-            r.specialist_name: r.agent_result.output_text
-            for r in (primary_result, *parallel_results)
+            r.specialist_name: r.agent_result.output_text for r in (primary_pub, *parallel_pub)
         }
         try:
-            synth_result = await _run_member(
+            synth_member = await _run_member(
                 step,
-                step.synthesizer_agent,
+                synth_name,
                 "synthesizer",
                 extra_context={"panel_outputs": panel_outputs},
+                extra_journal_payload={"panel_size": panel_size},
+                target_path_override=primary_target,
                 **_kw,  # type: ignore[arg-type]
             )
-        except DispatchError:
-            assert step.synthesizer_agent is not None
-            await _emit_stop_trigger(step.synthesizer_agent, step.name, journal_path)
+        except DispatchError as exc:
+            synth_attempts_raw = exc.details.get("attempts", 1) if exc.details else 1
+            synth_attempts = synth_attempts_raw if isinstance(synth_attempts_raw, int) else 1
+            err_msg = str(exc)
+            await _emit_stop_trigger(synth_name, step.name, journal_path, last_error=err_msg)
             return PanelResult(
-                primary_result=primary_result,
-                parallel_results=parallel_results,
+                primary_result=primary_pub,
+                parallel_results=parallel_pub,
                 synthesizer_result=None,
-                write_targets=tuple(r.target_path for r in (primary_result, *parallel_results)),
-                total_attempts=sum(r.attempts for r in (primary_result, *parallel_results)) + 1,
+                write_targets=tuple([r.target_path for r in (primary_pub, *parallel_pub)]),
+                total_attempts=sum(r.attempts for r in (primary_pub, *parallel_pub))
+                + synth_attempts,
                 outcome="failed",
             )
+        synth_pub = _to_public(synth_member)
 
-    all_results = [primary_result, *parallel_results, *([synth_result] if synth_result else [])]
+    all_results = [primary_pub, *parallel_pub, *([synth_pub] if synth_pub else [])]
     return PanelResult(
-        primary_result=primary_result,
-        parallel_results=parallel_results,
-        synthesizer_result=synth_result,
+        primary_result=primary_pub,
+        parallel_results=parallel_pub,
+        synthesizer_result=synth_pub,
         write_targets=tuple(r.target_path for r in all_results),
         total_attempts=sum(r.attempts for r in all_results),
         outcome="success",
@@ -387,9 +310,9 @@ async def dispatch_panel(
 
 
 __all__: tuple[str, ...] = (
+    "DispatchOutcome",
     "DispatchResult",
     "PanelResult",
-    "_default_prompt_builder",
     "dispatch",
     "dispatch_panel",
 )

@@ -82,8 +82,8 @@ class TestDispatchRetryJournalEntries:
             captured.append(entry)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
             pytest.raises(DispatchError),
         ):
             asyncio.run(
@@ -123,8 +123,8 @@ class TestDispatchRetryJournalEntries:
             captured.append(entry)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch(
@@ -160,8 +160,8 @@ class TestDispatchRetryJournalEntries:
             captured.append(entry)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch(
@@ -197,8 +197,8 @@ class TestDispatchRetryAttemptCount:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch(
@@ -224,8 +224,8 @@ class TestDispatchRetryAttemptCount:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch(
@@ -253,8 +253,8 @@ class TestDispatchRetryAttemptCount:
         registry = _make_registry(_SPECIALIST)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run") as mock_record,
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run") as mock_record,
         ):
             asyncio.run(
                 dispatch(

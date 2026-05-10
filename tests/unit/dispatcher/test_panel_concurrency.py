@@ -64,31 +64,39 @@ def _make_registry(*specs: Specialist) -> SpecialistRegistry:
     return SpecialistRegistry(MappingProxyType({s.frontmatter.name: s for s in specs}))
 
 
-class TestDispatchPanelBoundedDispatcher:
-    def test_bounded_dispatcher_semaphore_matches_max_parallel_agents(self, tmp_path: Path) -> None:
-        """dispatch_panel passes max_parallel_agents as semaphore_size to BoundedDispatcher."""
-        from sdlc.concurrency.subprocess_pool import BoundedDispatcher
+class TestDispatchPanelSemaphoreBound:
+    """P4 + P28: dispatch_panel uses inline asyncio.Semaphore (not BoundedDispatcher.dispatch_many)
+    to prevent orphan coroutines on first failure. These observation-based tests assert the
+    semaphore actually bounds concurrency rather than monkey-patching internal class init."""
+
+    def test_semaphore_bounds_to_max_parallel_agents_three(self, tmp_path: Path) -> None:
+        """With 4 parallel agents and max_parallel_agents=3, peak in-flight <= 3."""
         from sdlc.dispatcher.core import dispatch_panel
 
-        parallel = ("par-a", "par-b")
+        parallel = ("par-a", "par-b", "par-c", "par-d")
         specs = [_make_spec(n, f"docs/{n}.md") for n in parallel]
         step = _make_parallel_step(parallel)
         registry = _make_registry(_PRIMARY_SPEC, *specs)
 
-        captured_sizes: list[int] = []
-        real_init = BoundedDispatcher.__init__
+        peak_in_flight = 0
+        in_flight = 0
 
-        def _capturing_init(self_: BoundedDispatcher, semaphore_size: int) -> None:
-            captured_sizes.append(semaphore_size)
-            real_init(self_, semaphore_size)
+        async def _slow_dispatch(prompt: str, context: dict) -> AgentResult:
+            nonlocal in_flight, peak_in_flight
+            if context.get("target_kind") == "parallel":
+                in_flight += 1
+                peak_in_flight = max(peak_in_flight, in_flight)
+                for _ in range(5):
+                    await asyncio.sleep(0)
+                in_flight -= 1
+            return AgentResult(output_text="out", tokens_in=5, tokens_out=10)
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=5, tokens_out=10)
+        runtime.dispatch.side_effect = _slow_dispatch
 
         with (
-            patch.object(BoundedDispatcher, "__init__", _capturing_init),
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -102,13 +110,12 @@ class TestDispatchPanelBoundedDispatcher:
                 )
             )
 
-        assert 3 in captured_sizes, (
-            f"BoundedDispatcher not created with semaphore_size=3; captured: {captured_sizes}"
+        assert peak_in_flight <= 3, (
+            f"peak_in_flight={peak_in_flight} exceeded max_parallel_agents=3"
         )
 
-    def test_semaphore_size_one_still_works(self, tmp_path: Path) -> None:
-        """max_parallel_agents=1 serialises all parallel dispatches."""
-        from sdlc.concurrency.subprocess_pool import BoundedDispatcher
+    def test_semaphore_size_one_serialises_all_dispatches(self, tmp_path: Path) -> None:
+        """max_parallel_agents=1 forces strictly serial parallel dispatch (peak <= 1)."""
         from sdlc.dispatcher.core import dispatch_panel
 
         parallel = ("par-a", "par-b", "par-c")
@@ -116,20 +123,25 @@ class TestDispatchPanelBoundedDispatcher:
         step = _make_parallel_step(parallel)
         registry = _make_registry(_PRIMARY_SPEC, *specs)
 
-        captured_sizes: list[int] = []
-        real_init = BoundedDispatcher.__init__
+        peak_in_flight = 0
+        in_flight = 0
 
-        def _capturing_init(self_: BoundedDispatcher, semaphore_size: int) -> None:
-            captured_sizes.append(semaphore_size)
-            real_init(self_, semaphore_size)
+        async def _slow_dispatch(prompt: str, context: dict) -> AgentResult:
+            nonlocal in_flight, peak_in_flight
+            if context.get("target_kind") == "parallel":
+                in_flight += 1
+                peak_in_flight = max(peak_in_flight, in_flight)
+                for _ in range(5):
+                    await asyncio.sleep(0)
+                in_flight -= 1
+            return AgentResult(output_text="out", tokens_in=5, tokens_out=10)
 
         runtime = AsyncMock()
-        runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=5, tokens_out=10)
+        runtime.dispatch.side_effect = _slow_dispatch
 
         with (
-            patch.object(BoundedDispatcher, "__init__", _capturing_init),
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -143,7 +155,9 @@ class TestDispatchPanelBoundedDispatcher:
                 )
             )
 
-        assert 1 in captured_sizes
+        assert peak_in_flight <= 1, (
+            f"peak_in_flight={peak_in_flight} exceeded max_parallel_agents=1"
+        )
 
 
 class TestDispatchPanelConcurrencyBound:
@@ -174,8 +188,8 @@ class TestDispatchPanelConcurrencyBound:
         runtime.dispatch.side_effect = _slow_dispatch
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -203,8 +217,8 @@ class TestDispatchPanelConcurrencyBound:
         runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=5, tokens_out=10)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(
@@ -244,8 +258,8 @@ class TestDispatchPanelResultOrder:
         runtime.dispatch.side_effect = _dispatch_with_name
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(
@@ -274,8 +288,8 @@ class TestDispatchPanelResultOrder:
         runtime.dispatch.return_value = AgentResult(output_text="out", tokens_in=1, tokens_out=1)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(

@@ -90,8 +90,8 @@ class TestDispatchPanelMemberFailure:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             result = asyncio.run(
                 dispatch_panel(
@@ -102,6 +102,7 @@ class TestDispatchPanelMemberFailure:
                     journal_path=tmp_path / "journal.log",
                     agent_runs_path=tmp_path / "agent_runs.jsonl",
                     max_parallel_agents=4,
+                    _max_attempts=1,
                 )
             )
 
@@ -125,8 +126,8 @@ class TestDispatchPanelMemberFailure:
         registry = _make_registry(_PRIMARY_SPEC, _PAR_A_SPEC, _SYNTH_SPEC)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", new_callable=AsyncMock),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -137,6 +138,7 @@ class TestDispatchPanelMemberFailure:
                     journal_path=tmp_path / "journal.log",
                     agent_runs_path=tmp_path / "agent_runs.jsonl",
                     max_parallel_agents=4,
+                    _max_attempts=1,
                 )
             )
 
@@ -156,8 +158,8 @@ class TestDispatchPanelMemberFailure:
             captured.append(entry)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -198,8 +200,8 @@ class TestDispatchPanelMemberFailure:
             captured.append(entry)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
@@ -239,8 +241,8 @@ class TestDispatchPanelMemberFailure:
             captured.append(entry)
 
         with (
-            patch("sdlc.dispatcher.core.journal_append", side_effect=_capture),
-            patch("sdlc.dispatcher.core.record_agent_run"),
+            patch("sdlc.dispatcher._panel_helpers.journal_append", side_effect=_capture),
+            patch("sdlc.dispatcher._panel_helpers.record_agent_run"),
         ):
             asyncio.run(
                 dispatch_panel(
