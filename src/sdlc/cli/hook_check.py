@@ -1,5 +1,13 @@
 """``sdlc hook-check`` — engine-side parity oracle for the Claude Code PreToolUse hook.
 
+Implements:
+  - FR40 (Claude PreToolUse hook), Decision D2 (one HookPayload contract, two callers).
+  - ADR-013 (advisory v1 trust posture; engine-side is authoritative).
+  - ADR-024 (HookPayload v1 wire-format lock — REUSED unchanged here).
+  - ADR-025 (Pydantic strict-mode for HookPayload — inherited).
+  - ADR-026 §1 (TDD-first commit ordering for the public ``run_hook_check`` entry).
+  - Architecture §796 (file location), §488-§494 (cold-start budget).
+
 Machine-only subcommand (AC2, Story 2A.6): reads a HookPayload JSON from stdin
 (canonical form) or ``argv[1]`` (TTY fallback for interactive testing), runs the
 engine's ``naming_validator + phase_gate`` chain via ``run_hook_chain``, emits a
@@ -122,12 +130,26 @@ def run_hook_check(*, ctx: typer.Context) -> None:
         "naming_validator": naming_validator,
         "phase_gate": _make_phase_gate_hook(repo_root),
     }
-    hooks = tuple(_builtins[n] for n in hook_names if n in _builtins)
+    # F16: unknown hook names → registry_error (was silently filtered → all-allow).
+    unknown = [n for n in hook_names if n not in _builtins]
+    if unknown:
+        _emit(
+            {
+                "decision": "deny",
+                "error_code": "registry_error",
+                "hook_name": None,
+                "reason": f"unknown hook(s) in registry: {sorted(unknown)!r}",
+            }
+        )
+        raise typer.Exit(code=2)
+    hooks = tuple(_builtins[n] for n in hook_names)
 
     # ── 5. Resolve journal path ───────────────────────────────────────────────
-    # Gate on the journal file existing, not just the state dir — avoids
-    # POSIX-only journal write in parity tests (tmp_path has signoffs but no
-    # journal.log) and on Windows dev hosts without a full sdlc init.
+    # AC2.5: journal IS appended when reachable. The `sdlc.journal.append`
+    # primitive is POSIX-only (Architecture §573 — fcntl/O_APPEND atomicity);
+    # on Windows or pre-init workspaces the file may not exist. Gate on the
+    # journal file existing so we never crash on an unreachable journal —
+    # document this as F4-defer (see deferred-work.md W9).
     _journal_file = repo_root / _JOURNAL_REL
     journal_path: Path | None = _journal_file if _journal_file.exists() else None
 

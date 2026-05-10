@@ -122,7 +122,7 @@ class TestDispatcherAllowPath:
                     journal_path=tmp_path / "journal.log",
                     agent_runs_path=tmp_path / "agent_runs.jsonl",
                     sleep=_instant_sleep,
-                    hooks=hooks,  # RED: dispatch() does not yet accept hooks=
+                    hooks=hooks,
                 )
             )
 
@@ -207,7 +207,7 @@ class TestDispatcherDenyNamingViolation:
                 )
             )
 
-        # RED: dispatch() currently always writes; this will fail until Task 3.2
+        # Deny path: dispatcher must NOT write the file when hook chain denies.
         assert not target_file.exists()
 
     def test_deny_journal_hook_rejected_and_dispatch_attempt_hook_rejected(
@@ -303,7 +303,7 @@ class TestDispatcherDenyPhaseGate:
                 )
             )
 
-        # RED: dispatch() currently always writes; this will fail until Task 3.2
+        # Deny path: dispatcher must NOT write the file when hook chain denies.
         assert not target_file.exists()
 
     def test_deny_phase2_journal_has_hook_rejected_phase_gate(self, tmp_path: Path) -> None:
@@ -380,7 +380,7 @@ class TestDispatcherBypassPhaseGate:
                     agent_runs_path=tmp_path / "agent_runs.jsonl",
                     sleep=_instant_sleep,
                     hooks=hooks,
-                    bypass=bypass,  # RED: dispatch() does not yet accept bypass=
+                    bypass=bypass,
                 )
             )
 

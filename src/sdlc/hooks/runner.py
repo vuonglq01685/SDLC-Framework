@@ -69,10 +69,28 @@ class BypassRequest:
 
     bypass_phase_gate: when True, phase_gate is skipped for Phase 2/3 paths.
     justification: required when bypass_phase_gate=True (min 10 chars).
+
+    Canonical creation entry point is ``cli/_bypass.py:validate_bypass_request`` —
+    it adds trust-store checks on top of the length validation here. This dataclass
+    is also defensively self-validating so callers cannot construct an invalid
+    instance and only fail later inside ``run_hook_chain`` (DR5 → D1 fix).
     """
 
     bypass_phase_gate: bool = False
     justification: str | None = None
+
+    def __post_init__(self) -> None:
+        # Defense-in-depth: cli/_bypass.validate_bypass_request is the canonical
+        # gate (incl. trust-store checks); but BypassRequest may also be created by
+        # tests / future internal callers. Mirror the ≥10-char rule here.
+        if self.bypass_phase_gate:
+            text = (self.justification or "").strip()
+            if len(text) < _BYPASS_MIN_JUSTIFICATION_LEN:
+                raise ValueError(
+                    f"bypass_phase_gate=True requires a justification of at least "
+                    f"{_BYPASS_MIN_JUSTIFICATION_LEN} non-whitespace characters; "
+                    f"got {len(text)}"
+                )
 
 
 def _resolve_user() -> str:

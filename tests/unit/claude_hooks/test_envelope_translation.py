@@ -27,12 +27,16 @@ class TestToClaudeEnvelopeAllow:
         result = _to_claude_envelope(engine)
         assert result.get("reason") is None
 
-    def test_allow_envelope_has_no_error_code(self) -> None:
+    def test_allow_envelope_error_code_is_none(self) -> None:
+        """DR3 → D1: AC2 canonical 4-key shape — allow envelope includes error_code=None."""
         from sdlc.claude_hooks.pre_tool_use import _to_claude_envelope
 
         engine = {"decision": "allow", "hook_name": None, "reason": None, "error_code": None}
         result = _to_claude_envelope(engine)
-        assert "error_code" not in result
+        assert "error_code" in result
+        assert result["error_code"] is None
+        # All 4 canonical keys present.
+        assert set(result.keys()) == {"decision", "hook_name", "reason", "error_code"}
 
 
 @pytest.mark.unit

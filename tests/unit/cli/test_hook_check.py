@@ -153,7 +153,16 @@ class TestHookCheckDenyPath:
 @pytest.mark.unit
 class TestHookCheckArgvFallback:
     def test_argv_used_when_stdin_is_tty(self, tmp_path: Path) -> None:
-        """When stdin.isatty() is True, argv[1] is used as the payload."""
+        """When stdin.isatty() is True, argv[1] is used as the payload.
+
+        F19 note: this guards the **programmatic** TTY fallback. In real ``sdlc
+        hook-check`` invocation Typer parses subcommand argv before reaching this
+        function (so sys.argv[1] would be 'hook-check', not the payload); the
+        production CLI always pipes payloads via stdin per AC2 line 33. This test
+        therefore verifies the fallback for direct programmatic callers — e.g.,
+        ``run_hook_check(ctx)`` invoked from a REPL or test harness with sys.argv
+        set externally — not for ``sdlc hook-check '<payload>'`` shell invocation.
+        """
         from sdlc.cli.hook_check import run_hook_check
 
         tty_stdin = io.StringIO("")

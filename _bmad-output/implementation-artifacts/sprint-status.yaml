@@ -1,5 +1,5 @@
 # generated: 2026-05-07
-# last_updated: 2026-05-10 (sprint-planning refresh; Story 2A.0 E2E harness precursor added to epics.md + sprint-status.yaml per Epic 1 retro action A3; Epic 2A story count 19 → 20)
+# last_updated: 2026-05-10 (code-review 2a-6 closed: 5 D-decisions resolved [DR1-DR5 → recommended options], 23 patches applied incl 5 CRITICAL fixes, 4 reclassified to defer W8/W9/W10/dismissed F18; 91 in-scope tests pass + 267 broader-scope; ruff + mypy --strict clean on patched files; story status review → done)
 # project: SDLC-Framework
 # project_key: NOKEY
 # tracking_system: file-system
@@ -105,7 +105,7 @@ development_status:
   2a-3-dispatcher-primary-parallel-synthesizer-retry: done
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: done
   2a-5-recovery-hook-tampering-detection-trust-hooks: done
-  2a-6-claude-code-pretooluse-hook-hook-check: review
+  2a-6-claude-code-pretooluse-hook-hook-check: done
   2a-7-recovery-signoff-state-machine-hash-drift-validation: review
   2a-8-sdlc-start-phase-1-entry: backlog
   2a-9-sdlc-research: backlog

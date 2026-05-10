@@ -140,7 +140,7 @@ expect, follow these five steps:
 sdlc trace --kind hook_rejected | grep claude_pretooluse
 ```
 
-Claude-side rejections carry `write_intent` values like `"write"` or `"edit"` (raw tool name).
+Claude-side rejections carry `write_intent` values like `"claude_pretooluse_write"`, `"claude_pretooluse_edit"`, or `"claude_pretooluse_multiedit"` (AC10 discriminator).
 Engine-side rejections carry `write_intent="dispatcher_artifact_write"`.
 
 **Step 2 — Confirm the hook is installed.**
@@ -154,7 +154,7 @@ If absent, run `sdlc init` (or copy `src/sdlc/claude_hooks/pre_tool_use.py` manu
 **Step 3 — Reproduce out of Claude using `sdlc hook-check`.**
 
 ```bash
-echo '{"schema_version":1,"hook_name":"pre_write","target_path":"02-Architecture/01-UX/tokens.md","target_kind":"file","content_hash_before":null,"write_intent":"write"}' \
+echo '{"schema_version":1,"hook_name":"pre_write","target_path":"02-Architecture/01-UX/tokens.md","target_kind":"write_intent","content_hash_before":null,"write_intent":"claude_pretooluse_write"}' \
   | sdlc hook-check
 ```
 

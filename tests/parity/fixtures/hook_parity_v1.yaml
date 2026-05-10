@@ -171,6 +171,11 @@
   repo_setup_steps: []
 
 - name: path_absolute_outside_repo_write
+  # F21: Intentionally claude-only. The engine-side hook chain runs INSIDE the repo
+  # (dispatcher only writes via _validate_target_path which already rejects out-of-repo
+  # paths via DispatchError BEFORE the hook chain — see _panel_helpers._validate_target_path).
+  # Claude-side defends-in-depth against tool_input.file_path traversal payloads;
+  # there is no symmetric engine-side surface to test parity against.
   tool_name: Write
   target_path: "evil-file.txt"
   expected_decision: deny

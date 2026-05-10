@@ -1,12 +1,8 @@
 """Module boundary + LOC cap enforcement for src/sdlc/ (ADR-010, Story 1.4).
 
-Encodes Architecture §1052-§1112 dependency table as MODULE_DEPS and the
-8 §1103 rules as SPECIFIC_RULE_MAP. Walks Python files passed on argv,
-AST-parses imports, asserts each import target is allowed given the source
-module, and asserts file LOC ≤ 400.
-
-Exit codes: 0 = clean, 1 = boundary/LOC violation. Syntax errors are silently
-skipped (ruff gates syntax separately).
+Encodes MODULE_DEPS (Architecture §1052-§1112) + 8 SPECIFIC_RULE_MAP rules
+(§1103). Walks Python files, AST-parses imports, asserts LOC ≤ 400.
+Exit codes: 0 = clean, 1 = violation. Syntax errors silently skipped.
 """
 
 from __future__ import annotations
@@ -164,6 +160,10 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
     "agents": ModuleSpec(
         depends_on=frozenset({"errors", "contracts", "workflows", "specialists"}),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli", "state", "journal"}),
+    ),
+    "claude_hooks": ModuleSpec(  # 2A.6: stdlib-only content tree, not an importable sdlc module
+        depends_on=frozenset(),
+        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "state", "journal", "hooks", "cli"}),
     ),
 }
 

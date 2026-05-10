@@ -19,7 +19,7 @@ import check_module_boundaries as mb
 
 
 @pytest.mark.unit
-def test_module_deps_contains_all_18_modules() -> None:
+def test_module_deps_contains_all_21_modules() -> None:
     expected = {
         "errors",
         "ids",
@@ -41,6 +41,7 @@ def test_module_deps_contains_all_18_modules() -> None:
         "dashboard",
         "cli",
         "agents",
+        "claude_hooks",
     }
     assert set(mb.MODULE_DEPS.keys()) == expected
 

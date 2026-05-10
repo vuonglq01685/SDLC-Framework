@@ -185,7 +185,7 @@ async def _emit_hook_rejected(
     journal_path: Path,
     decision: HookDecision,
 ) -> DispatchMemberResult:
-    """Append dispatch_attempt(outcome=hook_rejected) and return without writing the file."""
+    """Append dispatch_attempt(outcome=hook_rejected); skip write (DR4→D1: attempt=0)."""
     seq = await _allocate_seq(journal_path)
     await journal_append(
         _make_journal_entry(
@@ -223,9 +223,14 @@ async def _run_pre_write_hooks(
     """Run hook chain before write; return deny decision or None if allowed."""
     if not hooks:
         return None
+    # F3: symmetric .resolve() (macOS tmp_path → /private/var/ symlink edge case).
+    try:
+        rel_target = target_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel_target = target_path.as_posix()
     hook_payload = build_write_intent_payload(
         hook_name="pre_write",
-        target_path=target_path.relative_to(repo_root.resolve()).as_posix(),
+        target_path=rel_target,
         write_intent="dispatcher_artifact_write",
     )
     decision = await run_hook_chain(
@@ -384,14 +389,7 @@ async def _run_member(
 
 
 __all__: tuple[str, ...] = (
-    "DispatchMemberResult",
-    "_allocate_seq",
-    "_default_prompt_builder",
-    "_emit_hook_rejected",
-    "_emit_stop_trigger",
-    "_make_journal_entry",
-    "_now_ts",
-    "_reset_seq_cache_for_test",
-    "_run_member",
-    "_validate_target_path",
+    "DispatchMemberResult", "_allocate_seq", "_default_prompt_builder",
+    "_emit_hook_rejected", "_emit_stop_trigger", "_make_journal_entry",
+    "_now_ts", "_reset_seq_cache_for_test", "_run_member", "_validate_target_path",
 )
