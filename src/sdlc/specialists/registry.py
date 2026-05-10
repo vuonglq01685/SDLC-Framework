@@ -69,6 +69,62 @@ class SpecialistRegistry:
         return frozenset(self._specialists)
 
 
+def _check_duplicate_names(manifest: _SpecialistManifest, manifest_path: Path) -> None:
+    """Reject manifests with duplicate specialist names. Runs BEFORE any file I/O
+    so dup-name fires consistently regardless of file-existence state."""
+    seen: set[str] = set()
+    for entry in manifest.specialists:
+        if entry.name in seen:
+            raise SpecialistError(
+                f"duplicate specialist name {entry.name!r} in manifest {manifest_path}",
+                details={"name": entry.name, "manifest": str(manifest_path)},
+            )
+        seen.add(entry.name)
+
+
+def _validate_entry_path(
+    entry_name: str,
+    entry_file: str,
+    file_path: Path,
+    agents_root: Path,
+    seen_files: set[Path],
+    manifest_path: Path,
+) -> None:
+    """Reject path-traversal / symlink-escape, duplicate file: aliasing, and missing files."""
+    # P-R1 + P-R2: path-traversal + symlink-escape boundary.
+    try:
+        file_path.relative_to(agents_root)
+    except ValueError as exc:
+        raise SpecialistError(
+            f"manifest entry escapes agents directory: {entry_name} → {entry_file}",
+            details={
+                "name": entry_name,
+                "file": str(file_path),
+                "agents_dir": str(agents_root),
+                "hint": "manifest 'file' (or its symlink target) must stay under agents/",
+            },
+        ) from exc
+    # P-R3: detect distinct manifest entries aliasing the same file path.
+    if file_path in seen_files:
+        raise SpecialistError(
+            f"duplicate file path in manifest: {entry_file} referenced by multiple entries",
+            details={
+                "name": entry_name,
+                "file": str(file_path),
+                "manifest": str(manifest_path),
+            },
+        )
+    if not file_path.exists():
+        raise SpecialistError(
+            f"manifest entry refers to missing file: {entry_name} → {entry_file}",
+            details={
+                "name": entry_name,
+                "file": str(file_path),
+                "manifest": str(manifest_path),
+            },
+        )
+
+
 def _validate_manifest_entries(
     manifest: _SpecialistManifest,
     agents_dir: Path,
@@ -78,53 +134,19 @@ def _validate_manifest_entries(
     """Validate manifest entries; return resolved file paths.
 
     Raises SpecialistError on: duplicate name, path traversal / symlink escape,
-    duplicate file: alias, or missing-on-disk file. Used internally by
-    load_registry; extracted to keep load_registry under McCabe cap.
+    duplicate file: alias, or missing-on-disk file. Two passes: name uniqueness
+    (no I/O) BEFORE filesystem checks, so dup-name fires first regardless of
+    whether the missing-file branch would otherwise fire on entry 1.
     """
-    seen_names: set[str] = set()
+    _check_duplicate_names(manifest, manifest_path)
+
     seen_files: set[Path] = set()
     for entry in manifest.specialists:
-        if entry.name in seen_names:
-            raise SpecialistError(
-                f"duplicate specialist name {entry.name!r} in manifest {manifest_path}",
-                details={"name": entry.name, "manifest": str(manifest_path)},
-            )
-        seen_names.add(entry.name)
-
         file_path = (agents_dir / entry.file).resolve()
-        # P-R1 + P-R2: enforce path-traversal + symlink-escape boundary.
-        try:
-            file_path.relative_to(agents_root)
-        except ValueError as exc:
-            raise SpecialistError(
-                f"manifest entry escapes agents directory: {entry.name} → {entry.file}",
-                details={
-                    "name": entry.name,
-                    "file": str(file_path),
-                    "agents_dir": str(agents_root),
-                    "hint": "manifest 'file' (or its symlink target) must stay under agents/",
-                },
-            ) from exc
-        # P-R3: detect distinct manifest entries aliasing the same file path.
-        if file_path in seen_files:
-            raise SpecialistError(
-                f"duplicate file path in manifest: {entry.file} referenced by multiple entries",
-                details={
-                    "name": entry.name,
-                    "file": str(file_path),
-                    "manifest": str(manifest_path),
-                },
-            )
+        _validate_entry_path(
+            entry.name, entry.file, file_path, agents_root, seen_files, manifest_path
+        )
         seen_files.add(file_path)
-        if not file_path.exists():
-            raise SpecialistError(
-                f"manifest entry refers to missing file: {entry.name} → {entry.file}",
-                details={
-                    "name": entry.name,
-                    "file": str(file_path),
-                    "manifest": str(manifest_path),
-                },
-            )
     return seen_files
 
 
