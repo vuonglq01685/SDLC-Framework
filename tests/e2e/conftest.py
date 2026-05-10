@@ -1,8 +1,8 @@
 """Shared pytest configuration for the tests/e2e/ tier (AC4 — shared plumbing).
 
 Defines: --update-goldens flag, update_goldens fixture, e2e_repo_root fixture,
-cli_runner fixture (available to all e2e sub-tiers), _strip_uv_preamble helper,
-and _normalize_timestamps helper.
+cli_runner fixture (available to all e2e sub-tiers), CliRunner Protocol,
+_strip_uv_preamble helper, and _normalize_timestamps helper.
 
 2A.0 time-freeze policy: no SDLC_FAKE_NOW hook is introduced here. Journal golden
 comparisons in cli/conftest.py exclude the `ts` field via ts-excluded
@@ -18,12 +18,12 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 
-# Default subprocess hang guard (P6). Callers may override per-invocation if needed.
+# Default subprocess hang guard (P6/PR13). Callers may override per-invocation if needed.
 _DEFAULT_SUBPROCESS_TIMEOUT_SECONDS: float = 60.0
 
 
@@ -91,14 +91,13 @@ _ENV_ALLOWLIST: frozenset[str] = (
 def _resolve_locale() -> str:
     """Return a UTF-8 locale supported by the current platform.
 
-    macOS commonly lacks ``C.UTF-8``; falls back to ``en_US.UTF-8``. Linux/Windows
-    keep ``C.UTF-8``. (P23 macOS-locale fallback.)
+    macOS commonly lacks ``C.UTF-8`` and falls back to ``en_US.UTF-8``;
+    Linux/Windows ship ``C.UTF-8``. Implemented as a runtime branch on
+    ``sys.platform`` so the function works under cross-platform CI without
+    needing per-platform conditional imports. (PR23: removed the
+    ``# type: ignore[unreachable]`` mypy escape hatch.)
     """
-    # mypy infers ``sys.platform`` as a constant per host, marking the alternate
-    # branch unreachable. The branch is intentional cross-platform code; suppress.
-    if sys.platform == "darwin":
-        return "en_US.UTF-8"
-    return "C.UTF-8"  # type: ignore[unreachable]
+    return "en_US.UTF-8" if sys.platform == "darwin" else "C.UTF-8"
 
 
 def _build_sanitized_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -121,10 +120,29 @@ def _build_sanitized_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
+# ---------------------------------------------------------------------------
+# CliRunner Protocol (PR9/PR21 — typed cli_runner signature)
+# ---------------------------------------------------------------------------
+
+
+class CliRunner(Protocol):
+    """Type contract for the ``cli_runner`` fixture.
+
+    Promotes a typed callable for callers so mypy --strict catches misuse without
+    requiring ``# type: ignore[operator]`` at every callsite (PR9).
+    """
+
+    def __call__(
+        self,
+        args: list[str],
+        cwd: Path,
+        env: dict[str, str] | None = ...,
+        timeout: float = ...,
+    ) -> subprocess.CompletedProcess[str]: ...
+
+
 @pytest.fixture
-def cli_runner(
-    e2e_repo_root: Path,
-) -> Callable[..., subprocess.CompletedProcess[str]]:
+def cli_runner(e2e_repo_root: Path) -> CliRunner:
     """Return a callable that invokes ``uv run --project=<repo_root> sdlc --no-color <args>``.
 
     - ``--no-color`` is unconditional so ANSI escapes never enter goldens.
@@ -132,11 +150,13 @@ def cli_runner(
       regardless of subprocess cwd, so tests can run sdlc inside an arbitrary
       tmp_path without uv walking parent dirs (P10).
     - Env is sanitized to the AC5.2 allow-list + UV_* vars.
-    - Subprocess uses a 60s default timeout (P6); raises ``TimeoutExpired`` with
-      the original error preserved.
+    - Subprocess uses a 60s default timeout (P6/PR13); on timeout, wraps the
+      bare ``TimeoutExpired`` with an actionable message naming command + cwd.
     - ``errors="replace"`` defends against undecodable bytes in CLI output (P7).
 
-    Available to all tests under tests/e2e/ (Tier-1 and anti-tautology).
+    Available to all tests under tests/e2e/ (Tier-1 and anti-tautology). Sanctioned
+    in parent conftest by AC4 (PR-DR2): cross-tier shared fixture so parent-level
+    anti-tautology tests don't need to import via the cli package.
     """
 
     def _run(
@@ -145,24 +165,38 @@ def cli_runner(
         env: dict[str, str] | None = None,
         timeout: float = _DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [
-                "uv",
-                "run",
-                "--project",
-                str(e2e_repo_root),
-                "sdlc",
-                "--no-color",
-                *args,
-            ],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            check=False,
-            env=_build_sanitized_env(env),
-            timeout=timeout,
-        )
+        cmd = [
+            "uv",
+            "run",
+            "--project",
+            str(e2e_repo_root),
+            "sdlc",
+            "--no-color",
+            *args,
+        ]
+        try:
+            return subprocess.run(
+                cmd,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                check=False,
+                env=_build_sanitized_env(env),
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            # PR13: wrap bare TimeoutExpired with an actionable message naming
+            # the command and cwd so test failures don't dump opaque tracebacks.
+            raise AssertionError(
+                f"cli_runner subprocess timed out after {timeout}s.\n"
+                f"  command: {' '.join(cmd)}\n"
+                f"  cwd:     {cwd}\n"
+                f"  stdout (partial): {exc.stdout!r}\n"
+                f"  stderr (partial): {exc.stderr!r}\n"
+                f"action: investigate hung sdlc command, OR raise the per-test "
+                f"timeout via cli_runner(..., timeout=N)."
+            ) from exc
 
     return _run
 
@@ -172,11 +206,18 @@ def cli_runner(
 # ---------------------------------------------------------------------------
 
 
-# Anchored uv preamble patterns (P8). Each regex requires uv-specific shape so
-# sdlc-emitted lines starting with the same word ("Built …", "Resolved …") are
-# never silently dropped. Update only when uv changes its preamble format.
+# Anchored uv preamble patterns (P8/PR15). Each regex requires a uv-specific
+# shape so sdlc-emitted lines starting with the same word (``Built …``,
+# ``Resolved …``) are never silently dropped. Update only when uv changes its
+# preamble format.
 _UV_RESOLVED_RE = re.compile(r"^Resolved \d+ packages? in \S+\s*$")
-_UV_BUILT_RE = re.compile(r"^Built \S+ @ \S+\s*$")
+# PR15: tighten ``Built`` regex from ``\S+ @ \S+`` to ``\S+ @ <url-shaped>``.
+# Accepts uv 0.5+ source variants: file://, https://, git+<scheme>://,
+# direct_url, and registry-cached package builds (e.g. ``Built X==1.0 @ X (cached)``).
+_UV_BUILT_URL_RE = re.compile(
+    r"^Built \S+ @ "
+    r"(?:https?|file|git\+\S+?|ssh|svn|bzr|hg)://\S+\s*$"
+)
 _UV_AUDIT_RE = re.compile(r"^Audited \d+ packages? in \S+\s*$")  # uv 0.5+
 
 
@@ -185,7 +226,7 @@ def _strip_uv_preamble(stderr: str) -> str:
 
     Strips:
       ``Resolved N packages in Xms``
-      ``Built <pkg> @ <url>``      — requires `@ <url-like>` so sdlc output is safe
+      ``Built <pkg> @ <url-shaped>``  — URL-anchored so sdlc output is safe (PR15)
       ``Audited N packages in Xms``
 
     These are uv-emitted, not sdlc-emitted, and vary across environments and
@@ -196,20 +237,25 @@ def _strip_uv_preamble(stderr: str) -> str:
         line
         for line in lines
         if not _UV_RESOLVED_RE.match(line)
-        and not _UV_BUILT_RE.match(line)
+        and not _UV_BUILT_URL_RE.match(line)
         and not _UV_AUDIT_RE.match(line)
     )
 
 
 # Anchored timestamp regex — sanctioned by the 2026-05-10 spec amendment (P24/D1).
 # Requires both a date and a time component, so isolated dates in epic titles or
-# isolated times don't match. Covers:
+# isolated times don't match. PR19: negative-lookbehind anchored — the date must
+# NOT be preceded by a word character (letter/digit/underscore) or a hyphen, so
+# embedded substrings like ``epic-2026-05-10T00:00:00-launch`` are left alone
+# while ``Last updated: 2026-05-10 14:23:45`` is normalized.
+# Covers:
 #   2026-05-10 14:23:45                  (space-separated, AC2.3 original)
 #   2026-05-10T14:23:45                  (ISO-T)
 #   2026-05-10 14:23:45.123456           (fractional seconds)
 #   2026-05-10T14:23:45.123Z             (UTC marker)
 #   2026-05-10 14:23:45 +0700            (offset, ±HHMM or ±HH:MM)
 _TIMESTAMP_RE = re.compile(
+    r"(?<![\w-])"  # PR19: not preceded by word-char or hyphen — keeps identifiers intact
     r"\d{4}-\d{2}-\d{2}"  # YYYY-MM-DD
     r"[T ]"  # 'T' or space separator (required)
     r"\d{2}:\d{2}:\d{2}"  # HH:MM:SS
@@ -225,5 +271,7 @@ def _normalize_timestamps(text: str) -> str:
 
     Handles ISO-8601-like timestamps emitted by ``sdlc status`` and similar
     commands. Sanctioned by the 2026-05-10 P24/D1 spec amendment to AC2.3/AC5.1.
+    PR19: anchored via negative lookbehind so a timestamp embedded in an
+    identifier like ``epic-2026-05-10T00:00:00-launch`` is left alone.
     """
     return _TIMESTAMP_RE.sub("<TIMESTAMP>", text)

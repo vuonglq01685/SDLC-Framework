@@ -17,6 +17,7 @@ from e2e.cli.conftest import (
     assert_goldens,
     load_commands_yaml,
 )
+from e2e.conftest import CliRunner
 
 pytestmark = pytest.mark.e2e
 
@@ -39,7 +40,7 @@ _SCENARIO_DIR = Path(__file__).parent / "fixtures" / "walking_skeleton"
 @_SKIP_WIN32
 def test_walking_skeleton_goldens(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
     update_goldens: bool,
 ) -> None:
     """Full walking skeleton: init → scan → status with byte-stable golden verification.
@@ -51,7 +52,7 @@ def test_walking_skeleton_goldens(
     spec = load_commands_yaml(_SCENARIO_DIR / "commands.yaml")
 
     for cmd in cast(list[dict[str, object]], spec["commands"]):
-        result = cli_runner(cmd["args"], tmp_path)  # type: ignore[operator]
+        result = cli_runner(cast(list[str], cmd["args"]), tmp_path)
         assert_goldens(
             _SCENARIO_DIR,
             str(cmd["id"]),
@@ -65,7 +66,7 @@ def test_walking_skeleton_goldens(
 @_SKIP_NO_UV
 def test_walking_skeleton_init_only_no_win32_skip(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
     update_goldens: bool,
 ) -> None:
     """Verify the harness correctly asserts the 01_init golden on all platforms.
@@ -75,5 +76,5 @@ def test_walking_skeleton_init_only_no_win32_skip(
     tests must agree on the expected output.
     """
     sdlc_dir = tmp_path / ".claude"
-    result = cli_runner(["init"], tmp_path)  # type: ignore[operator]
+    result = cli_runner(["init"], tmp_path)
     assert_goldens(_SCENARIO_DIR, "01_init", result, sdlc_dir, tmp_path, update_goldens)

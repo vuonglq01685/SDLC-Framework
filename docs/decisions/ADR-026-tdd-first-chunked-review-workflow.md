@@ -1,6 +1,6 @@
 # ADR-026: TDD-First + Chunked-Review Workflow
 
-**Status:** Proposed (2026-05-10, Epic 2A prep — process foundation)
+**Status:** Accepted (2026-05-10, Epic 2A prep — process foundation; codified in CONTRIBUTING.md §2/§4/§5; validated by Story 2A.0 review chunked workflow per sprint-status.yaml `code-review 2026-05-10` audit row)
 
 ## Context
 

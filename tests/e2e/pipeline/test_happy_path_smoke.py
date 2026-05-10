@@ -8,6 +8,7 @@ asyncio is encapsulated by pipeline_runner (AC4 runner-fixture pattern).
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -22,20 +23,23 @@ pytestmark = pytest.mark.e2e
 
 _SCENARIO_DIR = Path(__file__).parent / "fixtures" / "happy_path_smoke"
 
+# Type alias for the pipeline_runner fixture's return type.
+_PipelineRunner = Callable[[Path, Path], PipelineObservation]
+
 
 def test_happy_path_smoke_goldens(
     tmp_path: Path,
-    pipeline_runner: object,
+    pipeline_runner: _PipelineRunner,
     update_goldens: bool,
 ) -> None:
     """Smoke scenario: single MockAIRuntime dispatch with four byte-stable goldens."""
-    observation = pipeline_runner(_SCENARIO_DIR, tmp_path)  # type: ignore[operator]
+    observation = pipeline_runner(_SCENARIO_DIR, tmp_path)
     assert_pipeline_goldens(_SCENARIO_DIR, observation, update_goldens)
 
 
 def test_happy_path_smoke_deterministic_replay(
     tmp_path: Path,
-    pipeline_runner: object,
+    pipeline_runner: _PipelineRunner,
 ) -> None:
     """Replay-determinism invariant: same scenario run twice produces byte-identical
     observations.
@@ -51,8 +55,8 @@ def test_happy_path_smoke_deterministic_replay(
     tmp_path2 = tmp_path / "run2"
     tmp_path2.mkdir()
 
-    obs_run1: PipelineObservation = pipeline_runner(_SCENARIO_DIR, tmp_path1)  # type: ignore[operator]
-    obs_run2: PipelineObservation = pipeline_runner(_SCENARIO_DIR, tmp_path2)  # type: ignore[operator]
+    obs_run1 = pipeline_runner(_SCENARIO_DIR, tmp_path1)
+    obs_run2 = pipeline_runner(_SCENARIO_DIR, tmp_path2)
 
     # In-memory observation equality (cheap pre-check).
     assert obs_run1.specialist_invocations == obs_run2.specialist_invocations, (
@@ -67,8 +71,8 @@ def test_happy_path_smoke_deterministic_replay(
     # across runs for every observation field. (Catches non-determinism that
     # ``==`` would miss, e.g., dict iteration order leaking into JSON.)
     for field_name in ("specialist_invocations", "signoff_hashes", "hook_chain"):
-        bytes1 = _canon_json(list(getattr(obs_run1, field_name)))
-        bytes2 = _canon_json(list(getattr(obs_run2, field_name)))
+        bytes1 = _canon_json([dict(r) for r in getattr(obs_run1, field_name)])
+        bytes2 = _canon_json([dict(r) for r in getattr(obs_run2, field_name)])
         assert bytes1 == bytes2, (
             f"{field_name} canonical JSON differed between runs:\n"
             f"  run1: {bytes1!r}\n"

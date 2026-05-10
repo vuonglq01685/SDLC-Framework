@@ -1,6 +1,7 @@
 # ADR-027: E2E Test Framework Strategy (Tier-1 / Tier-2 / Tier-3)
 
 **Status:** Accepted (2026-05-10) — Implemented by Story 2A.0; seed scenarios under tests/e2e/cli/walking_skeleton + tests/e2e/pipeline/happy_path_smoke.
+**Amended (2026-05-10, Round 2 review, PR-DR6):** added §"Golden canonicalization carve-out" sanctioning indent=2 for human-reviewable Tier-2 goldens.
 
 ## Context
 
@@ -119,6 +120,27 @@ are ready.
 - **−** Mock/real divergence risk — Tier-2 cannot detect bugs that only manifest with real
   Claude. ADR-016 abstraction-adequacy contract is the structural guard; Tier-3 in Epic 2B is
   the empirical guard.
+
+## Golden canonicalization carve-out (PR-DR6 amendment, 2026-05-10)
+
+The journal byte-stability rule in `src/sdlc/journal/_canonical.py` uses
+no-indent compact JSON (`json.dumps(..., separators=(",", ":"))` with no
+`indent`) so journal entries are byte-stable across runs. **Tier-2 goldens
+deviate from this rule**: they use `indent=2` for human-reviewable diff
+legibility in PR review.
+
+The deviation is sanctioned because:
+1. Goldens are diffed in PR review by humans, not replayed by code; legibility
+   matters more than minimal byte count.
+2. Determinism is preserved by the same `sort_keys=True` + `separators=(",", ":")`
+   plus a deterministic `indent=2` — no run-to-run variance.
+3. The journal canonicalization rule applies to journal entries (and `state.json`
+   per ADR-024); goldens are test artifacts, not wire-format.
+
+The `_canon_json` helper at `tests/e2e/pipeline/conftest.py` is the single
+source of truth for Tier-2 golden canonicalization. Architecture §496–§515
+is re-anchored to "applies to journal canonicalization; Tier-2 goldens use the
+indent=2 variant per this ADR amendment".
 
 ## Revisit-by
 

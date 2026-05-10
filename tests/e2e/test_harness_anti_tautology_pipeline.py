@@ -1,20 +1,22 @@
 """Anti-tautology tests — Tier-2 pipeline harness + mock-miss (AC6).
 
-These are THE MOST IMPORTANT tests in Story 2A.0.  Split from
+These are THE MOST IMPORTANT tests in Story 2A.0. Split from
 ``test_harness_anti_tautology.py`` to stay under the 400-line LOC cap
-(Architecture §765 + NFR-MAINT-3).
+(Architecture §765 + NFR-MAINT-3). PR8: spec File List + AC6 wording amended
+to acknowledge the split.
 
 Invariant classes tested here:
   1. Mutation receipt — harness fails when a pipeline golden is corrupted (AC6.1 Tier-2).
   2. Mock-miss surfaces clearly — MockMissError names step and prompt_hash (AC6.2).
 
-Tier-1 CLI + CI anti-leakage + _safe_corrupt sanity tests live in
+Tier-1 CLI + CI anti-leakage + ``_safe_corrupt`` sanity tests live in
 ``test_harness_anti_tautology.py``.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -131,7 +133,11 @@ def test_mutation_pipeline_golden_deletion_detected(
 
 
 def test_mock_miss_raises_with_step_and_hash(tmp_path: Path) -> None:
-    """MockMissError is raised with (step, prompt_hash) when fixture key is absent."""
+    """MockMissError is raised with (step, prompt_hash) when fixture key is absent.
+
+    PR31: prompt hash is now computed via ``hashlib.sha256`` instead of
+    hardcoded — if ``_hash_prompt`` ever changes encoding, the test self-detects.
+    """
     mock_dir = tmp_path / "mock_responses"
     mock_dir.mkdir()
     wrong_hash = "sha256:" + "0" * 64
@@ -146,17 +152,20 @@ def test_mock_miss_raises_with_step_and_hash(tmp_path: Path) -> None:
 
     mock_runtime = MockAIRuntime(fixtures_dir=mock_dir)
 
+    prompt = "smoke test prompt"
     with pytest.raises(MockMissError) as exc_info:
         asyncio.run(
             mock_runtime.dispatch(
-                prompt="smoke test prompt",
+                prompt=prompt,
                 context={"workflow_step": "_smoke"},
             )
         )
 
     error_msg = str(exc_info.value)
     assert "_smoke" in error_msg, f"Expected '_smoke' in MockMissError; got:\n{error_msg}"
-    expected_hash = "714377e9f6971a1110ab16e756fd3320bc1e45a46ac66e52932c7bbdb24f13a3"
+    # PR31: compute the expected hash so the assertion self-validates against
+    # any future change to MockAIRuntime's prompt-hash encoding.
+    expected_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
     assert expected_hash in error_msg, (
         f"Expected prompt hash {expected_hash!r} in MockMissError; got:\n{error_msg}"
     )

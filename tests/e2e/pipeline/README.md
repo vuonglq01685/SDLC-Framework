@@ -33,12 +33,18 @@ All under `fixtures/<scenario>/goldens/`:
 
 | File | Content |
 |------|---------|
-| `final_journal_sha256` | raw-bytes sha256 of `journal.jsonl` or `<no-journal>` |
+| `final_journal_sha256` | ts-excluded sha256 of `.claude/state/journal.log` or sentinel (PR3, PR14) |
 | `signoff_hashes.json` | canonical JSON array of `{"phase": N, "hash": "sha256:<hex>"}` |
 | `hook_chain_order.json` | canonical JSON array of `{"hook": ..., "command": ..., "arg_summary": ...}` |
 | `specialist_invocations.json` | canonical JSON array of `{"specialist_id": ..., "kind": ..., "write_glob_set": [...]}` |
 
+Sentinels for `final_journal_sha256` (PR12 — distinct values for absent vs empty):
+  - `<no-journal>`  — journal.log file is absent or zero-byte.
+  - `<empty-journal>` — file present but contains no non-blank JSON entries.
+
 JSON canonicalization: `json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), indent=2)` + `\n`.
+PR-DR6 sanctions the `indent=2` deviation from `src/sdlc/journal/_canonical.py`'s
+no-indent form for human-reviewable goldens (see ADR-027 amendment).
 
 For 2A.0 seed: `signoff_hashes.json` = `[]`, `hook_chain_order.json` = `[]`
 (hooks arrive in 2A.4; signoffs arrive in 2A.12).

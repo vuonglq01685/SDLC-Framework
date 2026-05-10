@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f tests/e2e/cli/fixtures/walking_skeleton/goldens/*)",
+      "Bash(uv run *)"
+    ]
+  }
+}

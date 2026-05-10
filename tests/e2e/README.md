@@ -20,8 +20,14 @@ deterministic `MockAIRuntime` fixtures. No outbound network calls ever.
 
 No `SDLC_FAKE_NOW` hook is introduced in 2A.0. Journal golden comparisons therefore
 use **ts-excluded re-canonicalization** (see `cli/conftest._hash_journal_no_ts`) instead
-of raw-bytes hashing. State (`active.json`) is hashed raw because it contains no timestamps.
+of raw-bytes hashing. State (`state.json` — path corrected by P26 / PR14 from prior
+`active.json`) is hashed raw because it contains no timestamps. The actual state writer
+emits `.claude/state/state.json` and `.claude/state/journal.log`.
 Time-freezing is tracked as a separate debt item.
+
+Tier-2 journal goldens use the same ts-excluded re-canonicalization as Tier-1
+(PR3 — was previously raw bytes, which would have diverged the moment Story
+2A.3's real dispatcher started writing wall-clock `ts` fields).
 
 ## Relationship to existing integration tests
 

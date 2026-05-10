@@ -18,6 +18,7 @@ import difflib
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,6 +39,15 @@ _SKIP_WIN32 = pytest.mark.skipif(
     sys.platform == "win32",
     reason="journal.append_sync is POSIX-only; scan e2e skipped on Windows",
 )
+
+
+# ---------------------------------------------------------------------------
+# Sentinels (PR12 — distinct sentinels for absent vs empty journals)
+# ---------------------------------------------------------------------------
+
+_NO_JOURNAL_SENTINEL: str = "<no-journal>\n"
+_EMPTY_JOURNAL_SENTINEL: str = "<empty-journal>\n"
+_NO_STATE_SENTINEL: str = "<no-state>\n"
 
 
 # ---------------------------------------------------------------------------
@@ -95,23 +105,41 @@ _NoDuplicateKeysLoader.add_constructor(
 # ---------------------------------------------------------------------------
 
 
-def _normalize_paths(text: str, tmp_path: Path) -> str:
-    """Replace absolute tmp_path with ``<TMP>`` sentinel to prevent path leakage (AC5.3).
+_PROJECT_BASENAME_SENTINEL: str = "<PROJECT>"
 
-    Replaces BOTH the literal ``tmp_path`` and its resolved form
-    (``tmp_path.resolve()``) so paths emitted via ``os.path.realpath`` (e.g., on
-    macOS where ``/var/folders/...`` resolves to ``/private/var/folders/...``)
-    are normalized too. (P5: previous single-form replace silently corrupted
-    goldens when the CLI emitted resolved paths.)
+
+def _normalize_paths(text: str, tmp_path: Path) -> str:
+    """Replace absolute tmp_path with ``<TMP>`` sentinel and pytest-derived basename
+    with ``<PROJECT>`` sentinel (AC5.3, PR1).
+
+    Replaces:
+      - ``str(tmp_path.resolve())`` → ``<TMP>`` (handles macOS ``/private/var/...``).
+      - ``str(tmp_path)`` → ``<TMP>`` (literal form).
+      - ``tmp_path.name`` → ``<PROJECT>`` (PR1: pytest's tmp_path basename derives
+        from the test function name, so ``sdlc status`` echoing the project name
+        — via ``Path(cwd).name`` — would otherwise lock the golden to that test's
+        identity).
 
     Order matters: resolved form is replaced first because it is typically a
-    superstring of the literal form, preventing partial-match corruption.
+    superstring of the literal form. Basename is replaced LAST so it doesn't
+    shadow longer path matches.
+
+    Basename normalization is gated by ``\\b`` word-boundary regex so an
+    incidental substring inside another identifier is left alone.
     """
+    import re
+
     resolved = str(tmp_path.resolve())
     literal = str(tmp_path)
     if resolved != literal:
         text = text.replace(resolved, "<TMP>")
-    return text.replace(literal, "<TMP>")
+    text = text.replace(literal, "<TMP>")
+    # PR1: replace the bare basename only at word boundaries so partial matches
+    # in unrelated identifiers are not corrupted.
+    basename = tmp_path.name
+    if basename:
+        text = re.sub(rf"\b{re.escape(basename)}\b", _PROJECT_BASENAME_SENTINEL, text)
+    return text
 
 
 def _hash_journal_no_ts(journal_path: Path) -> str:
@@ -122,11 +150,19 @@ def _hash_journal_no_ts(journal_path: Path) -> str:
     between runs. This function re-canonicalizes each entry without ts and hashes
     the result, producing a stable byte-comparable value.
 
+    Sentinels (PR12 — distinct values for absent vs empty):
+      - file does not exist OR has zero bytes → ``<no-journal>``
+      - file exists but contains no non-blank JSON entries → ``<empty-journal>``
+        (preserves the "regression to empty journal" detection that the prior
+        single-sentinel design conflated with absence).
+
     On malformed input (non-UTF-8 bytes, non-JSON line, non-dict entry), raises
     ``AssertionError`` with an actionable hint pointing the test author at
     journal-shape drift rather than producing a confusing JSONDecodeError /
     AttributeError far from the call site (P16).
     """
+    if not journal_path.exists() or journal_path.stat().st_size == 0:
+        return _NO_JOURNAL_SENTINEL
     raw_lines = journal_path.read_bytes().splitlines()
     canon_lines: list[bytes] = []
     for lineno, line in enumerate(raw_lines, start=1):
@@ -161,10 +197,10 @@ def _hash_journal_no_ts(journal_path: Path) -> str:
         )
         canon_lines.append(canon)
 
-    # P14: if the journal exists but contains no non-blank JSON entries, treat
-    # as <no-journal> for consistency with assert_goldens' missing-journal sentinel.
+    # PR12: file present but no canonical entries → distinct ``<empty-journal>``
+    # sentinel so empty-journal regressions are not laundered as "no journal".
     if not canon_lines:
-        return "<no-journal>\n"
+        return _EMPTY_JOURNAL_SENTINEL
 
     combined = b"\n".join(canon_lines)
     return hashlib.sha256(combined).hexdigest() + "\n"
@@ -175,12 +211,16 @@ def _validate_commands_entry(
     idx: int,
     cmd: object,
 ) -> None:
-    """Validate a single commands.yaml entry. Raises AssertionError on shape drift."""
+    """Validate a single commands.yaml entry. Raises AssertionError on shape drift.
+
+    Required keys: ``id``, ``args``, ``flags`` (PR30 — was previously a dead-schema
+    field; now required so a typo like ``flgs:`` is caught at load time).
+    """
     if not isinstance(cmd, dict):
         raise AssertionError(
             f"{commands_yaml_path}: commands[{idx}] must be a mapping, got {type(cmd).__name__}"
         )
-    for key in ("id", "args"):
+    for key in ("id", "args", "flags"):
         if key not in cmd:
             raise AssertionError(
                 f"{commands_yaml_path}: commands[{idx}] missing required key {key!r}"
@@ -189,6 +229,11 @@ def _validate_commands_entry(
         raise AssertionError(
             f"{commands_yaml_path}: commands[{idx}].args must be a list, "
             f"got {type(cmd['args']).__name__}"
+        )
+    if not isinstance(cmd["flags"], list):
+        raise AssertionError(
+            f"{commands_yaml_path}: commands[{idx}].flags must be a list, "
+            f"got {type(cmd['flags']).__name__}"
         )
 
 
@@ -231,49 +276,11 @@ def load_commands_yaml(commands_yaml_path: Path) -> dict[str, object]:
 
 
 # ---------------------------------------------------------------------------
-# golden_dir fixture — parametrized scenario resolution (P11, P20)
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def golden_dir(request: pytest.FixtureRequest) -> Path:
-    """Return the goldens/ directory for the test's scenario.
-
-    Resolves from the test's parametrized ``scenario`` value (per spec AC4
-    line 172). Tests must declare the scenario via either direct parametrize
-    (``@pytest.mark.parametrize("scenario", ["walking_skeleton"])``) or indirect
-    parametrize (``@pytest.mark.parametrize("golden_dir", ["walking_skeleton"],
-    indirect=True)``).
-
-    Tests like ``test_walking_skeleton_goldens.py`` that compute the scenario
-    path inline (via a module-level constant) do not need this fixture.
-
-    P11/P20: previous implementation hard-coded ``walking_skeleton`` and used
-    deprecated ``request.fspath``; both are fixed here.
-    """
-    # Indirect parametrize provides a value via request.param.
-    scenario = getattr(request, "param", None)
-    if scenario is None:
-        # Direct parametrize: read from callspec.
-        callspec = getattr(request.node, "callspec", None)
-        if callspec is not None and "scenario" in callspec.params:
-            scenario = callspec.params["scenario"]
-    if scenario is None:
-        raise pytest.UsageError(
-            "golden_dir fixture requires the test to be parametrized with "
-            "a 'scenario' value (the scenario folder name under fixtures/), "
-            "either directly via parametrize('scenario', [...]) or indirectly "
-            "via parametrize('golden_dir', [...], indirect=True)."
-        )
-    if not isinstance(scenario, str) or not scenario:
-        raise pytest.UsageError(f"golden_dir fixture got non-string/empty scenario: {scenario!r}")
-    test_dir = Path(request.node.path).parent  # request.path replaces deprecated fspath
-    return test_dir / "fixtures" / scenario / "goldens"
-
-
-# ---------------------------------------------------------------------------
 # Central assertion helper
 # ---------------------------------------------------------------------------
+# PR24: ``golden_dir`` fixture removed — no test consumed it (P11's "OR remove"
+# branch was the YAGNI choice). Reintroduce when a second scenario actually
+# needs nodeid-based scenario resolution.
 
 
 def _compare_one_golden(
@@ -317,7 +324,7 @@ def _compare_one_golden(
 def assert_goldens(
     scenario_dir: Path,
     command_id: str,
-    result: object,
+    result: subprocess.CompletedProcess[str],
     sdlc_dir: Path,
     tmp_path: Path,
     update: bool,
@@ -336,11 +343,10 @@ def assert_goldens(
 
     Path conventions reflect the actual state writer (per the 2026-05-10 P26/D3
     spec amendment): ``<sdlc_dir>/state/journal.log`` + ``state.json``.
+
+    PR21: ``result`` is now typed as ``subprocess.CompletedProcess[str]`` (was
+    ``object``) so callers receive proper mypy --strict feedback.
     """
-    import subprocess
-
-    assert isinstance(result, subprocess.CompletedProcess)
-
     goldens_dir = scenario_dir / "goldens"
     goldens_dir.mkdir(parents=True, exist_ok=True)
 
@@ -357,18 +363,13 @@ def assert_goldens(
     journal_path = sdlc_dir / "state" / "journal.log"
     state_path = sdlc_dir / "state" / "state.json"
 
-    # P14: a present-but-zero-byte journal is equivalent to "no journal" — both
-    # take the sentinel. The non-empty-but-blank case is handled inside
-    # _hash_journal_no_ts, which also returns the sentinel for empty canonical
-    # output.
-    _journal_has_content = journal_path.exists() and journal_path.stat().st_size > 0
-    actual_journal_hash = (
-        _hash_journal_no_ts(journal_path) if _journal_has_content else "<no-journal>\n"
-    )
+    # PR12: distinct sentinels — _hash_journal_no_ts handles both absent and
+    # whitespace-only-content cases internally.
+    actual_journal_hash = _hash_journal_no_ts(journal_path)
     actual_state_hash = (
         hashlib.sha256(state_path.read_bytes()).hexdigest() + "\n"
         if state_path.exists()
-        else "<no-state>\n"
+        else _NO_STATE_SENTINEL
     )
 
     goldens: dict[str, str] = {

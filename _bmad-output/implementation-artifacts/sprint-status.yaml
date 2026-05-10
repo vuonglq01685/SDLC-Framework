@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-10 (code-review 2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: review → done; 28 patches applied across P1-P28, 7 deferred (W1-W7), 6 dismissed; 23 e2e tests pass, ruff + mypy --strict clean)"
+last_updated: "2026-05-10 (code-review-round-2 2a-0: review → done; 39 patches applied [PR-DR1..6 + PR1-PR33], 10 deferred [WR1-WR10]; 6 D-decisions all resolved → recommended options; quality gate green: ruff + mypy --strict + 28 e2e tests + 1190 total tests + 92.53% coverage + wireformat byte-stable)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -49,7 +49,12 @@ project: SDLC-Framework
 #   2026-05-09 retrospective epic-1 (status: optional → done; document at epic-1-retro-2026-05-09.md; 22/22 stories done, 1114 tests, 93.37% coverage; 7 process actions + 7 debt items + 4 ADRs queued for Epic 2A prep sprint)
 #   2026-05-10 sprint-planning (Story 2A.0 E2E harness precursor added to epics.md + sprint-status.yaml; Epic 2A 19 → 20 stories per retro action A3 [Dana lead + Charlie review])
 #   2026-05-10 create-story 2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline (status: backlog → ready-for-dev; epic-2a: backlog → in-progress; 8 ACs, 8 tasks, anti-tautology gate, MockAIRuntime Tier-2 seed)
-last_action: "code-review 2026-05-10 (2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: review → done; 28 patches applied [P1-P28]; 7 deferred [W1-W7]; 6 dismissed; 23 e2e tests pass; D1-D5 resolved + spec amendments)"
+#   2026-05-10 create-story 2a-1-workflow-yaml-loader-schema-validation (status: backlog → ready-for-dev; §7.4 gate audit: ADR-026 promoted Proposed→Accepted to clear DOC2 row; 10 ACs, 10 tasks, TDD-first ordered for AC7/AC1/AC2; anti-tautology receipt mandated for NFR-SEC-7 heuristics; wire-format WorkflowSpec frozen-reminder explicit)
+#   2026-05-10 create-story 2a-2-specialist-registry-manifest-validation (status: backlog → ready-for-dev; same §7.4 gate clearance as 2a-1; 11 ACs + 9 tasks; SpecialistFrontmatter frozen-reminder explicit; _SpecialistManifest is private/non-snapshot; AC7 D-decision-deferred for scripts/validate_specialists.py wiring; SpecialistError added to errors hierarchy)
+#   2026-05-10 create-story 2a-5-recovery-hook-tampering-detection-trust-hooks (status: backlog → ready-for-dev; same §7.4 gate clearance as 2a-1; 12 ACs + 11 tasks; FR39+NFR-SEC-5; advisory-only v1 posture explicit; _HookHashStore is private/non-snapshot per AC8; AC11 D-decision-deferred for Tier-1 hook_trust scenario; AC6 flags JournalEntry.kind contract-edit risk for new kind=hooks_trusted; reuses existing HookError, no new error class)
+#   2026-05-10 status-correction 2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline (status: done → review; reason: original commit 1edc2e9 conflated implementation + inline review + status flip into single commit, skipping the dedicated review state required by CONTRIBUTING.md §4 chunked-review and the sprint workflow note "Dev moves story to review, then runs code-review (fresh context, different LLM recommended)"; bmad-code-review will now run as a separate session)
+#   2026-05-10 code-review-round-2 2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline (status: review → done; bmad-code-review re-run after Round 1 was inline with implementation; 6 decision-needed resolved [DR1-DR6 → recommended options], 39 patches applied [PR-DR1..6 + PR1-PR33], 10 deferred [WR1-WR10], ~10 dismissed; quality gate green: ruff clean, mypy --strict no issues, 28 e2e tests pass, 1190 total tests pass excluding 18 pre-existing failures on main, coverage 92.53%, wireformat snapshots byte-stable)
+last_action: "code-review-round-2 2026-05-10 (2a-0: review → done; 39 patches applied [PR-DR1..6 + PR1-PR33], 10 deferred [WR1-WR10]; 6 D-decisions all resolved → recommended options; quality gate green)"
 project_key: NOKEY
 tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
@@ -88,11 +93,11 @@ development_status:
   # ============================================================
   epic-2a: in-progress
   2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: done
-  2a-1-workflow-yaml-loader-schema-validation: backlog
-  2a-2-specialist-registry-manifest-validation: backlog
+  2a-1-workflow-yaml-loader-schema-validation: ready-for-dev
+  2a-2-specialist-registry-manifest-validation: ready-for-dev
   2a-3-dispatcher-primary-parallel-synthesizer-retry: backlog
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: backlog
-  2a-5-recovery-hook-tampering-detection-trust-hooks: backlog
+  2a-5-recovery-hook-tampering-detection-trust-hooks: ready-for-dev
   2a-6-claude-code-pretooluse-hook-hook-check: backlog
   2a-7-recovery-signoff-state-machine-hash-drift-validation: backlog
   2a-8-sdlc-start-phase-1-entry: backlog

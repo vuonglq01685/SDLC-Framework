@@ -1,28 +1,34 @@
 """Anti-tautology tests — Tier-1 CLI harness (AC6).
 
-These are THE MOST IMPORTANT tests in Story 2A.0.  Without them the harness is
+These are THE MOST IMPORTANT tests in Story 2A.0. Without them the harness is
 just another way to ship Pattern 1 (tautological/placebo) defects from the
-Epic 1 retro (§3).  Each test deliberately breaks an invariant and asserts the
+Epic 1 retro (§3). Each test deliberately breaks an invariant and asserts the
 harness FAILS with a clear, actionable error message.
 
 Invariant classes tested here:
   1. Mutation receipt — harness fails when a CLI golden is corrupted (Tier-1).
-  2. --update-goldens cannot mask a real bug (AC6.3).
-  3. CI-anti-leakage — ``--update-goldens`` MUST NOT appear in CI (AC2.5).
-  4. Sanity asserts for _safe_corrupt itself.
+  2. ``--update-goldens`` cannot mask a real bug (AC6.3).
+  3. Runtime divergence — harness fails when subprocess output changes vs.
+     captured golden, proving production-code regressions are caught (PR-DR5).
+  4. CI-anti-leakage — ``--update-goldens`` MUST NOT appear in any CI workflow
+     (AC2.5, PR17 — scans all ``.github/workflows/*.yml``).
 
+Schema-version drift + ``_safe_corrupt`` sanity tests live in
+``test_harness_anti_tautology_schema.py`` (LOC-cap split, NFR-MAINT-3).
 Tier-2 pipeline + mock-miss tests live in
 ``test_harness_anti_tautology_pipeline.py``.
 
-Import resolution note (P15):
+Import resolution note (P15 / PR2):
   ``from e2e.cli.conftest import ...`` resolves because pytest's
   ``--import-mode=prepend`` (configured in pyproject.toml) prepends ``tests/``
-  to sys.path.  Do NOT add ``tests/__init__.py`` — it breaks rootdir detection.
+  to sys.path. Do NOT add ``tests/__init__.py`` — it breaks rootdir detection.
+  PR2: the prior P15 description ("add tests/__init__.py") is misleading; the
+  real fix relies on rootdir conftest path resolution as documented above.
 """
 
 from __future__ import annotations
 
-import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -36,7 +42,7 @@ from e2e.cli.conftest import (
     _SKIP_WIN32,
     assert_goldens,
 )
-from e2e.pipeline.conftest import _canon_json
+from e2e.conftest import CliRunner
 
 pytestmark = pytest.mark.e2e
 
@@ -53,7 +59,7 @@ _WALKING_SKELETON_SCENARIO = Path(__file__).parent / "cli" / "fixtures" / "walki
 @_SKIP_WIN32
 def test_mutation_stdout_byte_flip_detected(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """Harness fails when 01_init.stdout golden has a single byte flipped."""
     scenario_dir, _ = _bootstrap_cli_scenario(tmp_path, cli_runner, _WALKING_SKELETON_SCENARIO)
@@ -65,7 +71,7 @@ def test_mutation_stdout_byte_flip_detected(
     project_dir2 = tmp_path / "project2"
     project_dir2.mkdir()
     sdlc_dir2 = project_dir2 / ".claude"
-    result = cli_runner(["init"], project_dir2)  # type: ignore[operator]
+    result = cli_runner(["init"], project_dir2)
 
     with pytest.raises(AssertionError) as exc_info:
         assert_goldens(scenario_dir, "01_init", result, sdlc_dir2, project_dir2, update=False)
@@ -79,7 +85,7 @@ def test_mutation_stdout_byte_flip_detected(
 @_SKIP_WIN32
 def test_mutation_exit_code_bump_detected(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """Harness fails when 01_init.exit golden is bumped from 0 to 1."""
     scenario_dir, _ = _bootstrap_cli_scenario(tmp_path, cli_runner, _WALKING_SKELETON_SCENARIO)
@@ -90,7 +96,7 @@ def test_mutation_exit_code_bump_detected(
     project_dir2 = tmp_path / "project2"
     project_dir2.mkdir()
     sdlc_dir2 = project_dir2 / ".claude"
-    result = cli_runner(["init"], project_dir2)  # type: ignore[operator]
+    result = cli_runner(["init"], project_dir2)
 
     with pytest.raises(AssertionError) as exc_info:
         assert_goldens(scenario_dir, "01_init", result, sdlc_dir2, project_dir2, update=False)
@@ -104,7 +110,7 @@ def test_mutation_exit_code_bump_detected(
 @_SKIP_WIN32
 def test_mutation_journal_hash_corruption_detected(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """Harness fails when 02_scan.journal_sha256 golden contains a wrong hex."""
     scenario_dir, _ = _bootstrap_cli_scenario(tmp_path, cli_runner, _WALKING_SKELETON_SCENARIO)
@@ -116,10 +122,10 @@ def test_mutation_journal_hash_corruption_detected(
     project_dir2.mkdir()
     sdlc_dir2 = project_dir2 / ".claude"
 
-    result_init = cli_runner(["init"], project_dir2)  # type: ignore[operator]
+    result_init = cli_runner(["init"], project_dir2)
     assert_goldens(scenario_dir, "01_init", result_init, sdlc_dir2, project_dir2, update=True)
 
-    result_scan = cli_runner(["scan"], project_dir2)  # type: ignore[operator]
+    result_scan = cli_runner(["scan"], project_dir2)
 
     with pytest.raises(AssertionError) as exc_info:
         assert_goldens(scenario_dir, "02_scan", result_scan, sdlc_dir2, project_dir2, update=False)
@@ -133,7 +139,7 @@ def test_mutation_journal_hash_corruption_detected(
 @_SKIP_WIN32
 def test_mutation_state_hash_corruption_detected(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """P13 — Harness fails when 01_init.state_sha256 golden contains a wrong hex."""
     scenario_dir, _ = _bootstrap_cli_scenario(tmp_path, cli_runner, _WALKING_SKELETON_SCENARIO)
@@ -144,7 +150,7 @@ def test_mutation_state_hash_corruption_detected(
     project_dir2 = tmp_path / "project2"
     project_dir2.mkdir()
     sdlc_dir2 = project_dir2 / ".claude"
-    result = cli_runner(["init"], project_dir2)  # type: ignore[operator]
+    result = cli_runner(["init"], project_dir2)
 
     with pytest.raises(AssertionError) as exc_info:
         assert_goldens(scenario_dir, "01_init", result, sdlc_dir2, project_dir2, update=False)
@@ -158,7 +164,7 @@ def test_mutation_state_hash_corruption_detected(
 @_SKIP_WIN32
 def test_mutation_stderr_corruption_detected(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """P13 — Harness fails when 01_init.stderr golden has unexpected content injected.
 
@@ -173,7 +179,7 @@ def test_mutation_stderr_corruption_detected(
     project_dir2 = tmp_path / "project2"
     project_dir2.mkdir()
     sdlc_dir2 = project_dir2 / ".claude"
-    result = cli_runner(["init"], project_dir2)  # type: ignore[operator]
+    result = cli_runner(["init"], project_dir2)
 
     with pytest.raises(AssertionError) as exc_info:
         assert_goldens(scenario_dir, "01_init", result, sdlc_dir2, project_dir2, update=False)
@@ -187,7 +193,7 @@ def test_mutation_stderr_corruption_detected(
 @_SKIP_WIN32
 def test_mutation_golden_deletion_detected(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """P13 — Harness fails with 'Golden file missing' when a golden is deleted."""
     scenario_dir, _ = _bootstrap_cli_scenario(tmp_path, cli_runner, _WALKING_SKELETON_SCENARIO)
@@ -198,7 +204,7 @@ def test_mutation_golden_deletion_detected(
     project_dir2 = tmp_path / "project2"
     project_dir2.mkdir()
     sdlc_dir2 = project_dir2 / ".claude"
-    result = cli_runner(["init"], project_dir2)  # type: ignore[operator]
+    result = cli_runner(["init"], project_dir2)
 
     with pytest.raises(AssertionError) as exc_info:
         assert_goldens(scenario_dir, "01_init", result, sdlc_dir2, project_dir2, update=False)
@@ -216,14 +222,14 @@ def test_mutation_golden_deletion_detected(
 @_SKIP_NO_UV
 def test_update_goldens_cannot_mask_semantic_regression(
     tmp_path: Path,
-    cli_runner: object,
+    cli_runner: CliRunner,
 ) -> None:
     """--update-goldens regenerates goldens but cannot hide manual post-update corruption.
 
     Simulates a developer captures output via --update-goldens, then someone
     edits the golden after the fact; a subsequent non-update run correctly fails.
-    The deterministic-replay variant lives in
-    ``test_update_goldens_replay_disagreement_detected`` (P25).
+    The runtime-divergence variant lives in
+    ``test_assert_goldens_catches_runtime_divergence`` (PR-DR5).
     """
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -232,7 +238,7 @@ def test_update_goldens_cannot_mask_semantic_regression(
     scenario_dir.mkdir()
     (scenario_dir / "goldens").mkdir()
 
-    result = cli_runner(["init"], project_dir)  # type: ignore[operator]
+    result = cli_runner(["init"], project_dir)
     assert_goldens(scenario_dir, "01_init", result, sdlc_dir, project_dir, update=True)
 
     stdout_golden = scenario_dir / "goldens" / "01_init.stdout"
@@ -254,111 +260,89 @@ def test_update_goldens_cannot_mask_semantic_regression(
     )
 
 
-@_SKIP_NO_UV
-@_SKIP_WIN32
-def test_update_goldens_replay_disagreement_detected(
-    tmp_path: Path,
-    cli_runner: object,
-) -> None:
-    """P25 / AC6.3 — harness catches production code that disagrees with itself.
+def test_assert_goldens_catches_runtime_divergence(tmp_path: Path) -> None:
+    """PR-DR5 / AC6.3 — harness fires when SUBPROCESS OUTPUT changes vs captured golden.
 
-    Spec scenario: developer runs ``--update-goldens`` once (captures output A),
-    then production-code non-determinism causes the next run to produce output B
-    (different from A).  The harness MUST detect the disagreement on the next
-    non-update run.
+    Distinct from ``test_update_goldens_cannot_mask_semantic_regression`` (which
+    edits the on-disk golden): this test holds the golden constant and synthesizes
+    two ``CompletedProcess`` objects with different stdout, proving the harness
+    compares **runtime-fresh subprocess output** to the captured golden — i.e.,
+    that a production-code regression that emits divergent output is caught.
 
-    Simulation: drive ``--update-goldens`` against a fresh project_dir, capture
-    the golden bytes, then mutate them to simulate a SECOND ``--update-goldens``
-    run that produced DIFFERENT bytes.  A final non-update run against the
-    mutated golden MUST fail and name the offending artifact.
+    Pattern-1 closure: previous ``test_update_goldens_replay_disagreement_detected``
+    was a tautological clone (corrupt-then-rerun pattern, identical to the
+    semantic-regression test). This test substitutes a synthesized result so the
+    "runtime output" lane is exercised independently of subprocess + filesystem.
     """
-    project_dir1 = tmp_path / "project1"
-    project_dir1.mkdir()
-    sdlc_dir1 = project_dir1 / ".claude"
     scenario_dir = tmp_path / "scenario"
     scenario_dir.mkdir()
     (scenario_dir / "goldens").mkdir()
+    sdlc_dir = tmp_path / ".claude"
 
-    # Run #1 with --update-goldens — captures golden A.
-    result1 = cli_runner(["init"], project_dir1)  # type: ignore[operator]
-    assert_goldens(scenario_dir, "01_init", result1, sdlc_dir1, project_dir1, update=True)
-    golden_a_bytes = (scenario_dir / "goldens" / "01_init.stdout").read_bytes()
-    assert golden_a_bytes, "Run #1 should have captured non-empty golden"
+    # Synthesize two CompletedProcess objects representing two runs of the same
+    # command, where production code regressed between runs to emit different
+    # stdout.
+    fake_args: list[str] = ["uv", "run", "sdlc", "--no-color", "init"]
+    result_a: subprocess.CompletedProcess[str] = subprocess.CompletedProcess(
+        fake_args,
+        returncode=0,
+        stdout="Initialized SDLC framework in <TMP>\n",
+        stderr="",
+    )
+    result_b: subprocess.CompletedProcess[str] = subprocess.CompletedProcess(
+        fake_args,
+        returncode=0,
+        stdout="REGRESSED_PRODUCTION_OUTPUT — DIFFERENT FROM RUN A\n",
+        stderr="",
+    )
 
-    # Simulate run #2 producing DIFFERENT bytes (non-determinism failure mode).
-    golden_b_bytes = _safe_corrupt(golden_a_bytes)
-    (scenario_dir / "goldens" / "01_init.stdout").write_bytes(golden_b_bytes)
+    # Capture golden from result_a via update=True.
+    assert_goldens(scenario_dir, "fake_cmd", result_a, sdlc_dir, tmp_path, update=True)
+    captured = (scenario_dir / "goldens" / "fake_cmd.stdout").read_text(encoding="utf-8")
+    assert "Initialized" in captured, (
+        f"--update-goldens should have captured result_a.stdout; got: {captured!r}"
+    )
 
-    # Run #3 (no --update-goldens) re-executes the SAME command.  Production
-    # output matches golden A but on-disk golden is B — harness MUST fail.
-    project_dir2 = tmp_path / "project2"
-    project_dir2.mkdir()
-    sdlc_dir2 = project_dir2 / ".claude"
-    result2 = cli_runner(["init"], project_dir2)  # type: ignore[operator]
-
+    # Now run with result_b (DIFFERENT stdout) and update=False.
+    # The harness MUST detect that runtime output diverges from on-disk golden.
     with pytest.raises(AssertionError) as exc_info:
-        assert_goldens(scenario_dir, "01_init", result2, sdlc_dir2, project_dir2, update=False)
+        assert_goldens(scenario_dir, "fake_cmd", result_b, sdlc_dir, tmp_path, update=False)
 
-    error_msg = str(exc_info.value)
-    assert "01_init.stdout" in error_msg, (
-        f"Expected '01_init.stdout' in disagreement-detection error; got:\n{error_msg}"
+    error = str(exc_info.value)
+    assert "fake_cmd.stdout" in error, (
+        f"Expected runtime-divergence error to name 'fake_cmd.stdout'; got:\n{error}"
     )
-    assert "action: review the diff" in error_msg, (
-        f"Expected action hint in disagreement-detection error; got:\n{error_msg}"
+    assert "REGRESSED" in error or "GOLDEN MISMATCH" in error, (
+        f"Expected divergence detail in error; got:\n{error}"
     )
 
 
 # ===========================================================================
-# AC2.5 — CI never passes --update-goldens (P1)
+# AC2.5 — CI never passes --update-goldens (P1, PR17 — all workflow files)
 # ===========================================================================
 
 
-def test_ci_workflow_does_not_pass_update_goldens() -> None:
-    """P1 / AC2.5 — ``--update-goldens`` MUST NOT appear in ``.github/workflows/ci.yml``.
+def test_ci_workflows_do_not_pass_update_goldens() -> None:
+    """P1 / AC2.5 / PR17 — ``--update-goldens`` MUST NOT appear in any CI workflow.
 
-    The flag is a developer regeneration tool only; CI must NEVER run with it,
-    or every regression would self-heal silently.
+    Scans ALL ``.github/workflows/*.{yml,yaml}`` files (was previously only
+    ``ci.yml``). A contributor adding the flag to ``e2e.yml`` or any other
+    workflow would otherwise launder real regressions silently.
+
+    The flag is a developer regeneration tool only; CI must NEVER run with it.
     """
-    ci_yml = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
-    assert ci_yml.is_file(), f"CI workflow not found at {ci_yml}"
-    contents = ci_yml.read_text(encoding="utf-8")
-    assert "--update-goldens" not in contents, (
-        f"CI MUST NOT pass --update-goldens (found in {ci_yml}). "
-        f"Regenerating goldens in CI would silently launder real regressions."
+    workflows_dir = _REPO_ROOT / ".github" / "workflows"
+    assert workflows_dir.is_dir(), f"CI workflows dir not found at {workflows_dir}"
+    workflow_files = sorted(workflows_dir.glob("*.yml")) + sorted(workflows_dir.glob("*.yaml"))
+    assert workflow_files, f"No CI workflow files found under {workflows_dir}"
+
+    offenders: list[str] = []
+    for wf in workflow_files:
+        if "--update-goldens" in wf.read_text(encoding="utf-8"):
+            offenders.append(str(wf.relative_to(_REPO_ROOT)))
+
+    assert not offenders, (
+        "--update-goldens MUST NOT appear in CI workflows. Found in:\n"
+        + "\n".join(f"  - {f}" for f in offenders)
+        + "\nRegenerating goldens in CI would silently launder real regressions."
     )
-
-
-# ===========================================================================
-# Sanity asserts for the safe-corruption helper itself (defense in depth).
-# ===========================================================================
-
-
-def test_safe_corrupt_rejects_empty() -> None:
-    """P4 — _safe_corrupt MUST reject empty input rather than write a sentinel."""
-    with pytest.raises(AssertionError):
-        _safe_corrupt(b"")
-
-
-def test_safe_corrupt_changes_input() -> None:
-    """P4 — _safe_corrupt always returns a different byte sequence (UTF-8 valid)."""
-    for sample in (b"hello", b"a", b"x\n", b"012345", b'{"k":"v"}'):
-        corrupted = _safe_corrupt(sample)
-        assert corrupted != sample, f"Failed to corrupt {sample!r}"
-        corrupted.decode("utf-8")
-
-
-def test_safe_corrupt_handles_non_ascii() -> None:
-    """P4 — _safe_corrupt falls back to suffix append when no printable-ASCII byte exists."""
-    sample = bytes([0xFF, 0xFE, 0xFD])
-    corrupted = _safe_corrupt(sample)
-    assert corrupted != sample
-    assert corrupted.endswith(b"<<CORRUPTED>>")
-
-
-def test_canon_json_is_deterministic_across_calls() -> None:
-    """Sanity — _canon_json must produce identical bytes for identical inputs."""
-    sample = [{"b": 2, "a": 1}, {"y": "z", "x": "w"}]
-    runs = [_canon_json(sample) for _ in range(5)]
-    assert all(r == runs[0] for r in runs), f"Canonicalization not deterministic: {runs!r}"
-    parsed = json.loads(runs[0])
-    assert list(parsed[0].keys()) == ["a", "b"], "sort_keys did not reorder map keys"
