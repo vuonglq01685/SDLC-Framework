@@ -38,3 +38,4 @@ graphify-out/
 # Override user-global *.md exclusion (re-include Markdown docs for this project)
 !*.md
 !**/*.md
+.worktrees/
