@@ -97,7 +97,7 @@ development_status:
   2a-2-specialist-registry-manifest-validation: ready-for-dev
   2a-3-dispatcher-primary-parallel-synthesizer-retry: backlog
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: backlog
-  2a-5-recovery-hook-tampering-detection-trust-hooks: ready-for-dev
+  2a-5-recovery-hook-tampering-detection-trust-hooks: review
   2a-6-claude-code-pretooluse-hook-hook-check: backlog
   2a-7-recovery-signoff-state-machine-hash-drift-validation: backlog
   2a-8-sdlc-start-phase-1-entry: backlog
