@@ -15,249 +15,81 @@ Boundary rules (Architecture §1106, §1109):
 from __future__ import annotations
 
 import asyncio
+import datetime
+import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from sdlc.cli._time import now_rfc3339_utc_ms
-from sdlc.concurrency import BoundedDispatcher
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.errors import DispatchError
-from sdlc.journal import append as _journal_append
+from sdlc.journal import append as journal_append
 from sdlc.runtime.abc import AgentResult, AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
+from sdlc.telemetry.runs import record_agent_run
 
-DispatchOutcome = Literal["success", "failed"]
+from sdlc.dispatcher.retry import with_retries
+
+_ACTOR = "dispatcher"
+_NULL_HASH = "sha256:" + "0" * 64
+
+# EPIC-2A-DEBT-SHARED-TIME: cli/_time.py is the canonical ts source but dispatcher
+# cannot import from cli (boundary §1106). Inline here until a shared util is created.
+def _now_ts() -> str:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
 @dataclass(frozen=True)
 class DispatchResult:
-    """Result of a single specialist dispatch (AC1)."""
+    """Immutable result of a single-specialist dispatch (AC1, FR25)."""
 
     specialist_name: str
-    target_path: str
+    target_path: Path
     agent_result: AgentResult
     attempts: int
-    outcome: DispatchOutcome
+    outcome: Literal["success", "failed"]
 
 
 @dataclass(frozen=True)
 class PanelResult:
-    """Result of a panel dispatch (primary + parallel + optional synthesizer) (AC2)."""
+    """Immutable result of a panel dispatch (AC2, FR25+FR26)."""
 
     primary_result: DispatchResult
     parallel_results: tuple[DispatchResult, ...]
     synthesizer_result: DispatchResult | None
-    write_targets: tuple[str, ...]
+    write_targets: tuple[Path, ...]
     total_attempts: int
-    outcome: DispatchOutcome
+    outcome: Literal["success", "failed"]
 
 
 def _default_prompt_builder(specialist: Specialist, step: WorkflowSpec) -> str:
-    """Scaffold prompt builder: returns specialist body (Story 2A.8 will replace)."""
+    """Minimal prompt scaffold — Story 2A.8 will replace with full context (FR25)."""
     return specialist.body
 
 
-def _build_journal_entry(
-    kind: str,
-    payload: dict[str, object],
+def _make_journal_entry(
+    *,
     seq: int,
-    actor: str,
+    ts: str,
+    kind: str,
     target_id: str,
+    payload: dict[str, object],
 ) -> JournalEntry:
     return JournalEntry(
+        schema_version=1,
         monotonic_seq=seq,
-        ts=now_rfc3339_utc_ms(),
-        actor=actor,
+        ts=ts,
+        actor=_ACTOR,
         kind=kind,
         target_id=target_id,
         before_hash=None,
-        after_hash="sha256:" + "0" * 64,
+        after_hash=_NULL_HASH,
         payload=payload,
-    )
-
-
-async def _write_artifact(
-    content: str,
-    target_path: Path,
-    repo_root: Path,
-) -> None:
-    """Write a text artifact to disk.
-
-    Uses a simple async write (via asyncio.to_thread) since state.atomic
-    is JSON-canonicalized and unsuitable for raw markdown text (AC8 escape hatch).
-    Debt ticket: EPIC-2A-DEBT-WRITE-PRIMITIVE — replace with a proper raw-text
-    atomic write primitive when one is available.
-    """
-    abs_path = repo_root / target_path if not Path(target_path).is_absolute() else Path(target_path)
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    await asyncio.to_thread(abs_path.write_text, content, "utf-8")
-
-
-async def _dispatch_single(
-    specialist: Specialist,
-    step: WorkflowSpec,
-    target_kind: Literal["primary", "parallel", "synthesizer"],
-    runtime: AIRuntime,
-    repo_root: Path,
-    journal_path: Path,
-    agent_runs_path: Path,
-    seq_counter: list[int],
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str],
-    sleep: Callable[[float], "asyncio.coroutines.CoroType[None]"] | None = None,
-    panel_outputs: dict[str, str] | None = None,
-) -> DispatchResult:
-    """Dispatch one specialist; write artifact; record telemetry + journal.
-
-    ``seq_counter`` is a shared mutable list[int] so callers can hand a
-    reference without Python's lack of pass-by-reference for ints.
-    """
-    from sdlc.dispatcher.retry import with_retries
-    from sdlc.telemetry.runs import record_agent_run
-
-    import time
-
-    specialist_name = specialist.frontmatter.name
-    target_glob_list = step.write_globs.get(specialist_name)
-    if not target_glob_list:
-        raise DispatchError(
-            f"workflow step {step.name!r} has no write_globs entry for specialist"
-            f" {specialist_name!r}",
-            details={"specialist": specialist_name, "step": step.name},
-        )
-    target_path_str = target_glob_list[0]
-
-    # Build context dict for dispatch.
-    context: dict[str, object] = {
-        "workflow_step": step.name,
-        "agent_name": specialist_name,
-        "target_kind": target_kind,
-    }
-    if panel_outputs is not None:
-        context["panel_outputs"] = dict(panel_outputs)
-
-    prompt = prompt_builder(specialist, step)
-    attempts = 0
-    start_ms = int(time.monotonic() * 1000)
-
-    async def _attempt() -> AgentResult:
-        nonlocal attempts
-        attempts += 1
-        seq = seq_counter[0]
-        seq_counter[0] += 1
-        await _journal_append(
-            _build_journal_entry(
-                kind="dispatch_attempt",
-                payload={
-                    "specialist": specialist_name,
-                    "outcome": "retry" if attempts > 1 else "pending",
-                    "attempt": attempts,
-                    "target_kind": target_kind,
-                },
-                seq=seq,
-                actor="dispatcher",
-                target_id=step.name,
-            ),
-            journal_path,
-        )
-        return await runtime.dispatch(prompt, context)
-
-    import asyncio as _asyncio
-
-    _sleep = sleep if sleep is not None else _asyncio.sleep
-
-    try:
-        agent_result = await with_retries(
-            _attempt,
-            sleep=_sleep,
-        )
-    except DispatchError as exc:
-        # Terminal failure — record STOP-trigger placeholder (AC5).
-        seq = seq_counter[0]
-        seq_counter[0] += 1
-        await _journal_append(
-            _build_journal_entry(
-                kind="dispatch_attempt",
-                payload={
-                    "specialist": specialist_name,
-                    "outcome": "failed",
-                    "attempt": attempts,
-                    "target_kind": target_kind,
-                },
-                seq=seq,
-                actor="dispatcher",
-                target_id=step.name,
-            ),
-            journal_path,
-        )
-        seq = seq_counter[0]
-        seq_counter[0] += 1
-        await _journal_append(
-            _build_journal_entry(
-                kind="stop_trigger_raised",
-                payload={
-                    "trigger": "agent_failure_after_retries",
-                    "specialist": specialist_name,
-                    "step": step.name,
-                    "epic_4_placeholder": True,  # TODO(epic-4)
-                },
-                seq=seq,
-                actor="dispatcher",
-                target_id=step.name,
-            ),
-            journal_path,
-        )
-        raise
-
-    duration_ms = int(time.monotonic() * 1000) - start_ms
-
-    # Write artifact (AC8).
-    await _write_artifact(agent_result.output_text, Path(target_path_str), repo_root)
-
-    # Record success journal entry (artifact_written).
-    seq = seq_counter[0]
-    seq_counter[0] += 1
-    await _journal_append(
-        _build_journal_entry(
-            kind="artifact_written",
-            payload={
-                "target": target_path_str,
-                "writer": "dispatcher",
-                "specialist": specialist_name,
-            },
-            seq=seq,
-            actor="dispatcher",
-            target_id=step.name,
-        ),
-        journal_path,
-    )
-
-    # Overwrite the dispatch_attempt entry outcome to "success" in telemetry.
-    await record_agent_run(
-        agent_runs_path,
-        run_id=str(uuid.uuid4()),
-        ts=now_rfc3339_utc_ms(),
-        workflow_step=step.name,
-        specialist_name=specialist_name,
-        target_kind=target_kind,
-        outcome="success",
-        attempts=attempts,
-        tokens_in=agent_result.tokens_in,
-        tokens_out=agent_result.tokens_out,
-        target_path=target_path_str,
-        duration_ms=duration_ms,
-    )
-
-    return DispatchResult(
-        specialist_name=specialist_name,
-        target_path=target_path_str,
-        agent_result=agent_result,
-        attempts=attempts,
-        outcome="success",
     )
 
 
@@ -270,158 +102,112 @@ async def dispatch(
     journal_path: Path,
     agent_runs_path: Path,
     prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _default_prompt_builder,
-    sleep: Callable[[float], "asyncio.coroutines.CoroType[None]"] | None = None,
-    _seq_start: int = 1,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    _max_attempts: int = 3,
 ) -> DispatchResult:
-    """Dispatch the primary specialist for ``step`` (AC1, FR25, NFR-OBS-2).
+    """Dispatch the primary specialist for a workflow step (AC1, FR25).
 
-    Resolves the primary specialist via registry, awaits runtime dispatch,
-    writes the output artifact, records telemetry and journal entries.
+    Writes output to ``step.write_globs[primary_agent][0]`` relative to ``repo_root``.
+    Appends ``dispatch_attempt`` + ``artifact_written`` journal entries and one
+    ``agent_runs.jsonl`` line.
 
-    Raises:
-        SpecialistError: if the primary specialist is not in the registry.
-        DispatchError: after retry exhaustion or write target missing.
+    # EPIC-2A-DEBT-WRITE-PRIMITIVE: output write uses Path.write_text() (plain).
+    # write_state_raw_atomic_sync is JSON-only and POSIX-only; a raw-text atomic
+    # primitive is needed for arbitrary specialist artifacts. Deferred to Epic 2B.
     """
     specialist = registry.get(step.primary_agent)
-    seq_counter = [_seq_start]
-    return await _dispatch_single(
-        specialist=specialist,
-        step=step,
-        target_kind="primary",
-        runtime=runtime,
-        repo_root=repo_root,
-        journal_path=journal_path,
-        agent_runs_path=agent_runs_path,
-        seq_counter=seq_counter,
-        prompt_builder=prompt_builder,
+
+    write_globs = step.write_globs.get(step.primary_agent)
+    if not write_globs:
+        raise DispatchError(
+            f"workflow step {step.name!r} has no write_globs entry for specialist"
+            f" {step.primary_agent!r}",
+            details={"step": step.name, "specialist": step.primary_agent},
+        )
+    target_path = (repo_root / write_globs[0]).resolve()
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    prompt = prompt_builder(specialist, step)
+    context: dict[str, object] = {
+        "workflow_step": step.name,
+        "agent_name": step.primary_agent,
+        "target_kind": "primary",
+    }
+
+    t_start = time.monotonic()
+    agent_result = await with_retries(
+        lambda: runtime.dispatch(prompt, context),
+        max_attempts=_max_attempts,
         sleep=sleep,
     )
+    duration_ms = int((time.monotonic() - t_start) * 1000)
+    ts = _now_ts()
+    run_id = str(uuid.uuid4())
 
+    # Write artifact — plain write (see EPIC-2A-DEBT-WRITE-PRIMITIVE above).
+    target_path.write_text(agent_result.output_text, encoding="utf-8")
 
-async def dispatch_panel(
-    step: WorkflowSpec,
-    *,
-    runtime: AIRuntime,
-    registry: SpecialistRegistry,
-    repo_root: Path,
-    journal_path: Path,
-    agent_runs_path: Path,
-    max_parallel_agents: int = 4,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _default_prompt_builder,
-    sleep: Callable[[float], "asyncio.coroutines.CoroType[None]"] | None = None,
-    _seq_start: int = 1,
-) -> PanelResult:
-    """Dispatch primary + parallel specialists, then optional synthesizer (AC2, FR25-FR26).
+    # Journal: dispatch_attempt
+    await journal_append(
+        _make_journal_entry(
+            seq=0,
+            ts=ts,
+            kind="dispatch_attempt",
+            target_id=f"{step.name}/{step.primary_agent}",
+            payload={
+                "specialist": step.primary_agent,
+                "outcome": "success",
+                "attempt": 1,
+                "target_kind": "primary",
+            },
+        ),
+        journal_path,
+    )
 
-    All specialists are resolved upfront (atomic fail-fast on first miss).
-    Panel members run concurrently up to ``max_parallel_agents``.
-    Synthesizer is dispatched AFTER the panel completes (FR26).
-    If any panel member fails, the entire panel outcome is "failed" and the
-    synthesizer is NOT dispatched.
+    # Journal: artifact_written
+    await journal_append(
+        _make_journal_entry(
+            seq=1,
+            ts=ts,
+            kind="artifact_written",
+            target_id=str(target_path.relative_to(repo_root)),
+            payload={
+                "target": str(target_path.relative_to(repo_root)),
+                "writer": "dispatcher",
+                "specialist": step.primary_agent,
+            },
+        ),
+        journal_path,
+    )
 
-    Raises:
-        SpecialistError: if any specialist is not in the registry (propagated as-is).
-        DispatchError: after retry exhaustion for a panel member.
-    """
-    seq_counter = [_seq_start]
+    # Telemetry
+    record_agent_run(
+        agent_runs_path,
+        run_id=run_id,
+        ts=ts,
+        workflow_step=step.name,
+        specialist_name=step.primary_agent,
+        target_kind="primary",
+        outcome="success",
+        attempts=1,
+        tokens_in=agent_result.tokens_in,
+        tokens_out=agent_result.tokens_out,
+        target_path=str(target_path.relative_to(repo_root)),
+        duration_ms=duration_ms,
+    )
 
-    # Resolve all specialists upfront (atomic fail-fast on first miss).
-    primary_spec = registry.get(step.primary_agent)
-    parallel_specs = [registry.get(name) for name in step.parallel_agents]
-    synth_spec = registry.get(step.synthesizer_agent) if step.synthesizer_agent else None
-
-    # Build panel member coroutines.
-    all_panel_specs: list[tuple[Specialist, Literal["primary", "parallel"]]] = [
-        (primary_spec, "primary"),
-        *[(s, "parallel") for s in parallel_specs],
-    ]
-
-    import asyncio as _asyncio
-
-    bounded = BoundedDispatcher(semaphore_size=max_parallel_agents)
-
-    async def _dispatch_member(
-        spec: Specialist,
-        kind: Literal["primary", "parallel"],
-    ) -> DispatchResult:
-        return await _dispatch_single(
-            specialist=spec,
-            step=step,
-            target_kind=kind,
-            runtime=runtime,
-            repo_root=repo_root,
-            journal_path=journal_path,
-            agent_runs_path=agent_runs_path,
-            seq_counter=seq_counter,
-            prompt_builder=prompt_builder,
-            sleep=sleep,
-        )
-
-    coros = [_dispatch_member(spec, kind) for spec, kind in all_panel_specs]
-
-    try:
-        panel_results: list[DispatchResult] = await bounded.dispatch_many(coros)
-    except DispatchError:
-        # Panel member failed — return failed PanelResult; synthesizer NOT dispatched.
-        return PanelResult(
-            primary_result=DispatchResult(
-                specialist_name=primary_spec.frontmatter.name,
-                target_path="",
-                agent_result=AgentResult(output_text="", tokens_in=0, tokens_out=0),
-                attempts=0,
-                outcome="failed",
-            ),
-            parallel_results=(),
-            synthesizer_result=None,
-            write_targets=(),
-            total_attempts=0,
-            outcome="failed",
-        )
-
-    primary_result = panel_results[0]
-    parallel_results = tuple(panel_results[1:])
-
-    # Collect per-member outputs for synthesizer context.
-    panel_outputs: dict[str, str] = {}
-    for result in panel_results:
-        panel_outputs[result.specialist_name] = result.agent_result.output_text
-
-    # Dispatch synthesizer if present (FR26).
-    synth_result: DispatchResult | None = None
-    if synth_spec is not None:
-        synth_result = await _dispatch_single(
-            specialist=synth_spec,
-            step=step,
-            target_kind="synthesizer",
-            runtime=runtime,
-            repo_root=repo_root,
-            journal_path=journal_path,
-            agent_runs_path=agent_runs_path,
-            seq_counter=seq_counter,
-            prompt_builder=prompt_builder,
-            sleep=sleep,
-            panel_outputs=panel_outputs,
-        )
-
-    all_results = panel_results + ([synth_result] if synth_result else [])
-    total_attempts = sum(r.attempts for r in all_results)
-    write_targets = tuple(r.target_path for r in all_results)
-
-    return PanelResult(
-        primary_result=primary_result,
-        parallel_results=parallel_results,
-        synthesizer_result=synth_result,
-        write_targets=write_targets,
-        total_attempts=total_attempts,
+    return DispatchResult(
+        specialist_name=step.primary_agent,
+        target_path=target_path,
+        agent_result=agent_result,
+        attempts=1,
         outcome="success",
     )
 
 
-__all__ = [
+__all__: tuple[str, ...] = (
     "dispatch",
-    "dispatch_panel",
     "DispatchResult",
     "PanelResult",
-    "DispatchOutcome",
     "_default_prompt_builder",
-]
+)
