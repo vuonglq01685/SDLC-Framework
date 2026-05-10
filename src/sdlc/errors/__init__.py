@@ -15,6 +15,7 @@ from sdlc.errors.base import (
     SchemaError,
     SdlcError,
     SignoffError,
+    SpecialistError,
     StateError,
     WorkflowError,
 )
@@ -36,5 +37,6 @@ __all__ = (  # noqa: RUF022
     "IdsError",
     "MockMissError",
     "WorkflowError",
+    "SpecialistError",
     "EXIT_CODE_MAP",
 )

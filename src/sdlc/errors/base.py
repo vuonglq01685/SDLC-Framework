@@ -86,3 +86,9 @@ class MockMissError(DispatchError):
     Inherits ERR_DISPATCH code so abstraction-adequacy tests propagate it
     identically to a real Claude dispatch failure.
     """
+
+
+class SpecialistError(SdlcError):
+    """Specialist registry / manifest / frontmatter validation error (Story 2A.2)."""
+
+    code: ClassVar[str] = "ERR_SPECIALIST"
