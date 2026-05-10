@@ -19,7 +19,7 @@ from sdlc.errors import SpecialistError
 # Mirror the slug validator from ids/parsers.py — do NOT roll a separate regex.
 _KEBAB_RE: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 
-# P-R14: canonical phase enumeration. _registry._VALID_PHASES derives from this
+# P-R14: canonical phase enumeration. registry._VALID_PHASES derives from this
 # via typing.get_args() so the two locations cannot drift.
 _PHASE_LITERAL: TypeAlias = Literal[0, 1, 2, 3]
 

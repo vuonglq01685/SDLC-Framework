@@ -18,9 +18,9 @@ See _bmad-output/implementation-artifacts/deferred-work.md for the debt entry.
 
 from __future__ import annotations
 
-from sdlc.specialists._frontmatter import Specialist, load_specialist
-from sdlc.specialists._registry import SpecialistRegistry, load_registry
-from sdlc.specialists._validator import validate_internal_links, validate_workflow_refs
+from sdlc.specialists.frontmatter import Specialist, load_specialist
+from sdlc.specialists.registry import SpecialistRegistry, load_registry
+from sdlc.specialists.validator import validate_internal_links, validate_workflow_refs
 
 __all__ = [
     "Specialist",

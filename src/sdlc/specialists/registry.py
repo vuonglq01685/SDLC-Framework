@@ -13,10 +13,10 @@ from types import MappingProxyType
 from typing import get_args
 
 from sdlc.errors import SpecialistError
-from sdlc.specialists._frontmatter import Specialist, load_specialist
-from sdlc.specialists._manifest import _PHASE_LITERAL, _parse_manifest, _SpecialistManifest
+from sdlc.specialists.frontmatter import Specialist, load_specialist
+from sdlc.specialists.manifest import _PHASE_LITERAL, _parse_manifest, _SpecialistManifest
 
-# P-R14: derive from the canonical Literal in _manifest so the two locations
+# P-R14: derive from the canonical Literal in manifest so the two locations
 # cannot drift. tuple → frozenset for O(1) membership.
 _VALID_PHASES = frozenset(get_args(_PHASE_LITERAL))
 _INDEX_YAML = "index.yaml"

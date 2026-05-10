@@ -22,7 +22,7 @@ from typing import Final
 
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.errors import SpecialistError
-from sdlc.specialists._registry import SpecialistRegistry
+from sdlc.specialists.registry import SpecialistRegistry
 
 # Exported constants (AC6): tested directly by tests importing via _LINK_RE / _WIKILINK_RE.
 _LINK_RE: Final[re.Pattern[str]] = re.compile(

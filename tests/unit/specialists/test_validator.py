@@ -15,7 +15,7 @@ from sdlc.specialists import (
     validate_internal_links,
     validate_workflow_refs,
 )
-from sdlc.specialists._validator import _LINK_RE, _WIKILINK_RE
+from sdlc.specialists.validator import _LINK_RE, _WIKILINK_RE
 
 _VALIDATOR_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "specialists" / "validator"
 _WF_REFS = _VALIDATOR_FIXTURES / "workflow_refs"
@@ -127,7 +127,7 @@ def test_validate_internal_links_resolves_valid_refs() -> None:
     against tautological regressions (e.g. a future bug where the loop never
     runs would pass the empty-bodies test but fail this one).
     """
-    from sdlc.specialists._frontmatter import Specialist
+    from sdlc.specialists.frontmatter import Specialist
 
     base_reg = _make_registry()
     alpha = base_reg.get("alpha-researcher")
@@ -153,7 +153,7 @@ def test_validate_internal_links_resolves_valid_refs() -> None:
 
 @pytest.mark.unit
 def test_validate_internal_links_dangling_link_raises() -> None:
-    from sdlc.specialists._frontmatter import load_specialist
+    from sdlc.specialists.frontmatter import load_specialist
 
     dangling = load_specialist(_LINKS / "dangling-link.md")
     reg = SpecialistRegistry(
@@ -166,7 +166,7 @@ def test_validate_internal_links_dangling_link_raises() -> None:
 @pytest.mark.unit
 def test_validate_internal_links_dangling_wikilink_raises() -> None:
 
-    from sdlc.specialists._frontmatter import load_specialist
+    from sdlc.specialists.frontmatter import load_specialist
 
     dangling = load_specialist(_LINKS / "dangling-wikilink.md")
     reg = SpecialistRegistry(
@@ -220,7 +220,7 @@ def test_link_re_does_not_match_non_agent_links() -> None:
 
 def _single_specialist_registry(fixture_filename: str) -> SpecialistRegistry:
     """Build a one-specialist registry from a fixture file (test helper)."""
-    from sdlc.specialists._frontmatter import load_specialist
+    from sdlc.specialists.frontmatter import load_specialist
 
     s = load_specialist(_LINKS / fixture_filename)
     return SpecialistRegistry(

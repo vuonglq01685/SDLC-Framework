@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sdlc.errors import SpecialistError
-from sdlc.specialists._manifest import _ManifestEntry, _parse_manifest, _SpecialistManifest
+from sdlc.specialists.manifest import _ManifestEntry, _parse_manifest, _SpecialistManifest
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "specialists" / "manifest"
 

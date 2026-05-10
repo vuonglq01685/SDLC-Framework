@@ -226,8 +226,8 @@ def test_load_registry_skips_dotfile_markdown_in_orphan_check(tmp_path: Path) ->
 def test_valid_phases_derives_from_manifest_phase_literal() -> None:
     from typing import get_args
 
-    from sdlc.specialists._manifest import _PHASE_LITERAL
-    from sdlc.specialists._registry import _VALID_PHASES
+    from sdlc.specialists.manifest import _PHASE_LITERAL
+    from sdlc.specialists.registry import _VALID_PHASES
 
     assert frozenset(get_args(_PHASE_LITERAL)) == _VALID_PHASES
     assert frozenset({0, 1, 2, 3}) == _VALID_PHASES
@@ -244,7 +244,7 @@ def test_valid_phases_derives_from_manifest_phase_literal() -> None:
 def test_registry_post_init_defensively_copies_specialists() -> None:
     from types import MappingProxyType
 
-    from sdlc.specialists._frontmatter import load_specialist
+    from sdlc.specialists.frontmatter import load_specialist
 
     md_dir = (
         Path(__file__).resolve().parents[2]
