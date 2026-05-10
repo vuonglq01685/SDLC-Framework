@@ -89,6 +89,38 @@ def _append_scan_journal_entry(
     append_sync(entry, journal_path=journal_path)
 
 
+def _check_hook_trust(root: Path, ctx: typer.Context) -> None:
+    """Emit advisory hook-tampering warnings to stderr (AC5, advisory-only v1)."""
+    from sdlc.errors import HookError
+    from sdlc.hooks.tampering import detect_tampering, render_warning
+
+    state_root = root / ".claude" / "state"
+    hooks_root = root / ".claude" / "hooks"
+    try:
+        report = detect_tampering(state_root, hooks_root)
+    except HookError as exc:
+        _logger.warning("hook trust check failed: %s", exc)
+        return
+    if report.status != "clean":
+        warning = render_warning(report)
+        _logger.warning("%s", warning)
+        typer.echo(warning, err=True)
+
+
+def _trust_state_dict(root: Path) -> dict[str, object]:
+    """Return trust_state dict for --json output (AC7)."""
+    from sdlc.errors import HookError
+    from sdlc.hooks.tampering import detect_tampering
+
+    state_root = root / ".claude" / "state"
+    hooks_root = root / ".claude" / "hooks"
+    try:
+        report = detect_tampering(state_root, hooks_root)
+        return {"status": report.status, "drift_count": len(report.drift)}
+    except HookError:
+        return {"status": "error", "drift_count": 0}
+
+
 def run_scan(*, ctx: typer.Context) -> None:
     """Refresh state.json from the artifact tree (FR3)."""
     from sdlc.errors import JournalError, StateError
@@ -177,6 +209,9 @@ def run_scan(*, ctx: typer.Context) -> None:
             details={"path": str(journal_path), "seq": seq},
         )
 
+    # --- Hook tampering detection (FR39, NFR-SEC-5, AC5, AC7 — advisory-only v1) ---
+    _check_hook_trust(root, ctx)
+
     phase = getattr(new_state, "phase", 1)
     if ctx.obj is not None and ctx.obj.get("json", False):
         emit_json(
@@ -189,6 +224,7 @@ def run_scan(*, ctx: typer.Context) -> None:
                 "task_count": len(new_state.tasks),
                 "next_monotonic_seq": new_state.next_monotonic_seq,
                 "journal_entry_seq": seq,
+                "trust_state": _trust_state_dict(root),
             },
             ctx=ctx,
         )

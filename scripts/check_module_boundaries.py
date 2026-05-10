@@ -145,13 +145,13 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
                 "runtime",
                 "config",
                 "errors",
-                # Story 1.16 widening: cli/init.py + cli/scan.py (Story 1.17) +
-                # cli/rebuild_state.py (Story 1.20) need direct state/journal I/O.
+                # Stories 1.16-2A.5 widening: cli/ submodules need state/journal/hooks I/O.
                 "state",  # cli/init.py writes state.json via write_state_atomic_sync
                 "journal",  # cli/init.py creates empty journal.log; cli/scan.py appends
                 "contracts",  # JournalEntry / State pydantic contracts used by cli
                 "ids",  # cli/init.py + cli/scan.py validate canonical IDs
                 "migrations",  # cli/migrate.py dispatches migration scripts (Story 1.19)
+                "hooks",  # cli/{init,scan,trust_hooks}.py: FR39 tampering baseline/detect/trust
             }
         ),
         forbidden_from=frozenset(),

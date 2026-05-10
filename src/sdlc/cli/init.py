@@ -205,6 +205,102 @@ def _create_phase_dirs(root: Path) -> None:
         (root / phase_dir).mkdir(parents=True, exist_ok=True)
 
 
+def _sha256_file_or_none(path: Path) -> str | None:
+    import hashlib
+
+    if not path.exists():
+        return None
+    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+
+
+def _now_rfc3339_utc_init() -> str:
+    import datetime
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+
+
+def _baseline_hook_trust(root: Path) -> None:
+    """Compute and record hook hashes after sdlc init installs hook files (AC7).
+
+    Appends a hooks_trusted journal entry with via='sdlc init' and advances
+    state.json's next_monotonic_seq so subsequent sdlc scan can append at seq+1.
+    POSIX-only; Windows path falls back to non-atomic write (matches scan.py pattern).
+    """
+    from sdlc.contracts.journal_entry import JournalEntry
+    from sdlc.errors import HookError
+    from sdlc.hooks.tampering import compute_hook_hashes, record_trust
+    from sdlc.journal import append_sync
+    from sdlc.state import State, read_state_or_recover
+
+    hooks_root = root / ".claude" / "hooks"
+    state_root = root / ".claude" / "state"
+    state_path = state_root / "state.json"
+    journal_path = state_root / "journal.log"
+    store_path = state_root / "hook-hashes.json"
+
+    try:
+        hashes = compute_hook_hashes(hooks_root)
+    except HookError:
+        hashes = {}  # hooks_root may be empty on first init
+
+    now = _now_rfc3339_utc_init()
+    before_hash = _sha256_file_or_none(store_path)
+
+    try:
+        record_trust(state_root.resolve(), hashes, now_utc=now)
+    except HookError as exc:
+        _logger.warning("sdlc init: hook trust baseline failed: %s", exc)
+        return
+
+    after_hash = _sha256_file_or_none(store_path)
+    if after_hash is None:
+        return
+
+    try:
+        state = read_state_or_recover(state_path.resolve(), journal_path.resolve())
+    except Exception as exc:
+        _logger.warning("sdlc init: could not read state for hook trust journal: %s", exc)
+        state = State()
+
+    seq = 0 if state is None else state.next_monotonic_seq
+    entry = JournalEntry(
+        schema_version=1,
+        monotonic_seq=seq,
+        ts=now,
+        actor="cli",
+        kind="hooks_trusted",
+        target_id="hook-hashes",
+        before_hash=before_hash,
+        after_hash=after_hash,
+        payload={"files": sorted(hashes.keys()), "via": "sdlc init"},
+    )
+
+    try:
+        append_sync(entry, journal_path=journal_path.resolve())
+    except Exception as exc:
+        _logger.warning("sdlc init: journal append for hook trust failed: %s", exc)
+        return
+
+    new_state = (State() if state is None else state).model_copy(
+        update={"next_monotonic_seq": seq + 1}
+    )
+    if sys.platform == "win32":
+        state_path.write_bytes(  # noqa: state-write -- Windows non-atomic fallback in _baseline_hook_trust
+            json.dumps(
+                new_state.model_dump(mode="json"),
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            + b"\n"
+        )
+    else:
+        from sdlc.state import write_state_atomic_sync  # deferred POSIX-only
+
+        write_state_atomic_sync(new_state, state_path.resolve())
+
+
 def _enumerate_created_paths(root: Path) -> list[str]:
     """Return the relative paths created by `run_init`, sorted (AC4.3).
 
@@ -258,6 +354,7 @@ def run_init(*, ctx: typer.Context | None = None) -> None:
     _create_state_subtree(root)
     _create_static_asset_dirs(root)
     _create_phase_dirs(root)
+    _baseline_hook_trust(root)
     if ctx is not None and ctx.obj is not None and ctx.obj.get("json", False):
         created = _enumerate_created_paths(root)
         emit_json("init", {"project_root": str(root), "created": created}, ctx=ctx)
