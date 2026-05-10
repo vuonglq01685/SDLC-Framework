@@ -1,0 +1,11 @@
+schema_version: 1
+specialists:
+  - name: alpha-researcher
+    phase: 1
+    file: "phase1/alpha-researcher.md"
+  - name: beta-analyst
+    phase: 2
+    file: "phase1/beta-analyst.md"
+  - name: gamma-support
+    phase: 0
+    file: "phase1/gamma-support.md"

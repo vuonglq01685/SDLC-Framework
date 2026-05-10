@@ -1,0 +1,5 @@
+schema_version: 1
+specialists:
+  - name: alpha-researcher
+    phase: 1
+    file: "phase1/alpha-researcher.md"
