@@ -214,3 +214,52 @@ def test_load_registry_skips_dotfile_markdown_in_orphan_check(tmp_path: Path) ->
     (agents_dir / ".template.md").write_text("---\nname: ignored\n---\nbody\n")
     reg = load_registry(agents_dir)
     assert reg.names() == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# P-R14: _VALID_PHASES must derive from the canonical _PHASE_LITERAL in
+# _manifest — invariant test pinning that the two locations cannot drift.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_valid_phases_derives_from_manifest_phase_literal() -> None:
+    from typing import get_args
+
+    from sdlc.specialists._manifest import _PHASE_LITERAL
+    from sdlc.specialists._registry import _VALID_PHASES
+
+    assert frozenset(get_args(_PHASE_LITERAL)) == _VALID_PHASES
+    assert frozenset({0, 1, 2, 3}) == _VALID_PHASES
+
+
+# ---------------------------------------------------------------------------
+# P-R9: SpecialistRegistry's MappingProxyType must defensively copy in
+# __post_init__ — even if a caller retains a reference to the underlying
+# dict and mutates it, the registry's view stays isolated.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_registry_post_init_defensively_copies_specialists() -> None:
+    from types import MappingProxyType
+
+    from sdlc.specialists._frontmatter import load_specialist
+
+    md_dir = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures"
+        / "specialists"
+        / "registry"
+        / "valid_agents"
+        / "phase1"
+    )
+    s = load_specialist(md_dir / "alpha-researcher.md")
+    backing = {"alpha-researcher": s}
+    reg = SpecialistRegistry(_specialists=MappingProxyType(backing))
+
+    # Mutate the original dict — registry must NOT reflect the mutation.
+    backing.clear()
+    backing["surprise"] = s
+    assert reg.names() == frozenset({"alpha-researcher"})
+    assert "surprise" not in reg.names()

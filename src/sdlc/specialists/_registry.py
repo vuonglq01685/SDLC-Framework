@@ -10,12 +10,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
+from typing import get_args
 
 from sdlc.errors import SpecialistError
 from sdlc.specialists._frontmatter import Specialist, load_specialist
-from sdlc.specialists._manifest import _parse_manifest, _SpecialistManifest
+from sdlc.specialists._manifest import _PHASE_LITERAL, _parse_manifest, _SpecialistManifest
 
-_VALID_PHASES = frozenset({0, 1, 2, 3})
+# P-R14: derive from the canonical Literal in _manifest so the two locations
+# cannot drift. tuple → frozenset for O(1) membership.
+_VALID_PHASES = frozenset(get_args(_PHASE_LITERAL))
 _INDEX_YAML = "index.yaml"
 
 
@@ -26,6 +29,12 @@ class SpecialistRegistry:
     _specialists: MappingProxyType[str, Specialist] = field(
         default_factory=lambda: MappingProxyType({})
     )
+
+    def __post_init__(self) -> None:
+        # P-R9: defensive copy so callers passing a MappingProxyType wrapping a
+        # dict they retain a reference to cannot mutate the registry's view.
+        # `object.__setattr__` is required because the dataclass is frozen.
+        object.__setattr__(self, "_specialists", MappingProxyType(dict(self._specialists)))
 
     def get(self, name: str) -> Specialist:
         """Return the specialist with the given name; raises SpecialistError on miss."""

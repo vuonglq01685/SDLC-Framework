@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Literal, TypeAlias
 
 import yaml
 from pydantic import Field, ValidationError, field_validator
@@ -19,13 +19,13 @@ from sdlc.errors import SpecialistError
 # Mirror the slug validator from ids/parsers.py — do NOT roll a separate regex.
 _KEBAB_RE: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 
+# P-R14: canonical phase enumeration. _registry._VALID_PHASES derives from this
+# via typing.get_args() so the two locations cannot drift.
+_PHASE_LITERAL: TypeAlias = Literal[0, 1, 2, 3]
+
 
 class _NoDuplicateKeysLoader(yaml.SafeLoader):
-    """SafeLoader that fails-loud on duplicate mapping keys.
-
-    Copied verbatim from src/sdlc/runtime/mock.py:68-103 (AC2 mandate).
-    Consolidation of this helper is a future debt item.
-    """
+    """Verbatim copy of mock.py:68-103 — fails on duplicate mapping keys (AC2)."""
 
 
 def _construct_unique_mapping(
@@ -56,7 +56,7 @@ _NoDuplicateKeysLoader.add_constructor(
 
 class _ManifestEntry(StrictModel):
     name: str
-    phase: Literal[0, 1, 2, 3]
+    phase: _PHASE_LITERAL
     file: str = Field(min_length=1)
 
     @field_validator("name", mode="after")
@@ -70,8 +70,7 @@ class _ManifestEntry(StrictModel):
     @classmethod
     def _validate_relative_path(cls, v: str) -> str:
         # P-R1 + P-R10: defense-in-depth against path traversal, absolute paths,
-        # and Windows-style backslashes. The registry also re-checks via
-        # resolve+relative_to to catch symlinks pointing outside agents_dir.
+        # and Windows-style backslashes. The registry re-checks via resolve().
         if "\\" in v:
             raise ValueError(f"manifest 'file' must use forward slashes, got {v!r}")
         pp = PurePosixPath(v)
@@ -87,13 +86,6 @@ class _SpecialistManifest(StrictModel):
 
     schema_version: Literal[1] = 1
     specialists: tuple[_ManifestEntry, ...] = Field(default_factory=tuple, strict=False)
-
-    @field_validator("schema_version", mode="before")
-    @classmethod
-    def _strict_schema_version(cls, v: object) -> object:
-        if type(v) is not int:
-            raise ValueError(f"schema_version must be a strict int, got {type(v).__name__}")
-        return v
 
 
 def _parse_manifest(path: Path) -> _SpecialistManifest:

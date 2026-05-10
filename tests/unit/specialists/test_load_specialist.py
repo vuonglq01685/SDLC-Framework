@@ -92,3 +92,16 @@ def test_load_specialist_non_utf8_raises_specialist_error(tmp_path: Path) -> Non
     bad.write_bytes(b"---\nname: non-utf8-specialist\nbad-byte: \xff\xfe\n---\nbody\n")
     with pytest.raises(SpecialistError, match="UTF-8"):
         load_specialist(bad)
+
+
+# ---------------------------------------------------------------------------
+# P-R25: standalone-loaded Specialist has phase=None (not 0); load_registry
+# overrides with the manifest entry's int phase. Distinguishability test.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_load_specialist_standalone_has_phase_none() -> None:
+    """A Specialist loaded outside a registry context carries phase=None."""
+    s = load_specialist(_FIXTURES / "valid-minimal.md")
+    assert s.phase is None

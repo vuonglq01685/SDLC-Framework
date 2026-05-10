@@ -50,13 +50,18 @@ _NoDuplicateKeysLoader.add_constructor(
 
 @dataclass(frozen=True)
 class Specialist:
-    """Loaded specialist: frontmatter + body + source path + manifest phase."""
+    """Loaded specialist: frontmatter + body + source path + manifest phase.
+
+    P-R25: `phase` defaults to None (not 0) so a Specialist returned by
+    `load_specialist()` directly is distinguishable from a phase-0 specialist
+    registered via `load_registry()`. The registry overrides with the manifest
+    entry's int phase; standalone callers see None.
+    """
 
     frontmatter: SpecialistFrontmatter
     body: str
     source_path: Path
-    # Phase comes from agents/index.yaml manifest (Decision C3); not from frontmatter.
-    phase: int = 0
+    phase: int | None = None
 
 
 def _split_frontmatter(text: str, path: Path) -> tuple[str, str]:
