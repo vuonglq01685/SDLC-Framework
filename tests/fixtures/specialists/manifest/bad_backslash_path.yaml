@@ -1,0 +1,5 @@
+schema_version: 1
+specialists:
+  - name: backslash
+    phase: 1
+    file: "phase1\\foo.md"

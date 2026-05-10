@@ -1,0 +1,5 @@
+schema_version: 1
+specialists:
+  - name: absolute
+    phase: 1
+    file: "/etc/passwd"

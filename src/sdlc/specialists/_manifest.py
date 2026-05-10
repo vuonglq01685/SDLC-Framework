@@ -7,11 +7,11 @@ contracts, NOT snapshotted in tests/contract_snapshots/v1/ (ADR-024 v1 out-of-sc
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 import yaml
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationError, field_validator
 
 from sdlc.contracts._strict_model import StrictModel
 from sdlc.errors import SpecialistError
@@ -66,6 +66,21 @@ class _ManifestEntry(StrictModel):
             raise ValueError(f"specialist name must be kebab-case, got {v!r}")
         return v
 
+    @field_validator("file", mode="after")
+    @classmethod
+    def _validate_relative_path(cls, v: str) -> str:
+        # P-R1 + P-R10: defense-in-depth against path traversal, absolute paths,
+        # and Windows-style backslashes. The registry also re-checks via
+        # resolve+relative_to to catch symlinks pointing outside agents_dir.
+        if "\\" in v:
+            raise ValueError(f"manifest 'file' must use forward slashes, got {v!r}")
+        pp = PurePosixPath(v)
+        if pp.is_absolute():
+            raise ValueError(f"manifest 'file' must be a relative path, got {v!r}")
+        if ".." in pp.parts:
+            raise ValueError(f"manifest 'file' must not contain '..' segments, got {v!r}")
+        return v
+
 
 class _SpecialistManifest(StrictModel):
     """Internal manifest schema — private, not snapshotted (ADR-024 v1 out-of-scope)."""
@@ -89,7 +104,19 @@ def _parse_manifest(path: Path) -> _SpecialistManifest:
             details={"path": str(path), "hint": "ensure agents/index.yaml exists"},
         )
     try:
-        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDuplicateKeysLoader)
+        raw_text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SpecialistError(
+            f"cannot read manifest {path}: {exc}",
+            details={"path": str(path), "hint": "check file permissions"},
+        ) from exc
+    except UnicodeDecodeError as exc:
+        raise SpecialistError(
+            f"manifest {path} is not valid UTF-8: {exc}",
+            details={"path": str(path), "hint": "save the file as UTF-8 (no BOM)"},
+        ) from exc
+    try:
+        data = yaml.load(raw_text, Loader=_NoDuplicateKeysLoader)
     except yaml.YAMLError as exc:
         raise SpecialistError(
             f"manifest YAML parse error: {path}", details={"path": str(path)}
@@ -101,7 +128,7 @@ def _parse_manifest(path: Path) -> _SpecialistManifest:
         )
     try:
         return _SpecialistManifest.model_validate(data)
-    except Exception as exc:
+    except ValidationError as exc:
         raise SpecialistError(
             f"manifest validation error in {path}: {exc}",
             details={"path": str(path), "error": str(exc)},

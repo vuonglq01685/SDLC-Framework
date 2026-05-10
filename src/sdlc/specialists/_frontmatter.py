@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
 from sdlc.contracts.specialist_frontmatter import SpecialistFrontmatter
 from sdlc.errors import SpecialistError
@@ -88,6 +89,14 @@ def load_specialist(path: Path) -> Specialist:
             f"cannot read specialist file {path}: {exc}",
             details={"path": str(path), "hint": "check file exists and is readable"},
         ) from exc
+    except UnicodeDecodeError as exc:
+        # P-R5: UnicodeDecodeError is a ValueError subclass (not OSError) — wrap
+        # explicitly so non-UTF-8 / BOM-prefixed files surface a SpecialistError
+        # with a clear remediation hint instead of a raw decode error.
+        raise SpecialistError(
+            f"specialist file {path} is not valid UTF-8: {exc}",
+            details={"path": str(path), "hint": "save the file as UTF-8 (no BOM)"},
+        ) from exc
 
     fm_yaml, body = _split_frontmatter(text, path)
 
@@ -101,7 +110,10 @@ def load_specialist(path: Path) -> Specialist:
 
     try:
         fm = SpecialistFrontmatter.model_validate(raw)
-    except Exception as exc:
+    except ValidationError as exc:
+        # P-R12: narrow from `except Exception` so MemoryError / RecursionError /
+        # programmer errors inside pydantic surface as themselves rather than as
+        # a misleading "frontmatter validation failed" SpecialistError.
         raise SpecialistError(
             f"frontmatter validation failed in {path}: {exc}",
             details={"path": str(path), "error": str(exc)},

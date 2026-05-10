@@ -149,3 +149,58 @@ def test_registry_is_frozen() -> None:
     reg = load_registry(_VALID)
     with pytest.raises(FrozenInstanceError):
         reg._specialists = {}  # type: ignore[misc,assignment]
+
+
+# ---------------------------------------------------------------------------
+# P-R2: symlink-escape boundary — a manifest entry pointing to a file that
+# resolves outside agents_dir (via symlink) must be rejected with a clear
+# diagnostic, not silently followed.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_load_registry_rejects_symlink_escaping_agents_dir(tmp_path: Path) -> None:
+    agents_dir = tmp_path / "agents"
+    (agents_dir / "phase1").mkdir(parents=True)
+    (agents_dir / "index.yaml").write_text(
+        "schema_version: 1\nspecialists:\n  - name: trav\n    phase: 1\n    file: phase1/trav.md\n"
+    )
+    outside = tmp_path / "outside.md"
+    outside.write_text("---\nname: trav\n---\nbody\n")
+    (agents_dir / "phase1" / "trav.md").symlink_to(outside)
+
+    with pytest.raises(SpecialistError, match="escapes agents directory"):
+        load_registry(agents_dir)
+
+
+# ---------------------------------------------------------------------------
+# P-R3: duplicate file: paths across distinct manifest entries are rejected
+# (Decision-C3 1:1 file-stem ↔ name invariant).
+# ---------------------------------------------------------------------------
+
+
+_DUPLICATE_FILE = _REGISTRY_FIXTURES / "duplicate_file_agents"
+
+
+@pytest.mark.unit
+def test_load_registry_rejects_duplicate_file_path() -> None:
+    with pytest.raises(SpecialistError, match="duplicate file path"):
+        load_registry(_DUPLICATE_FILE)
+
+
+# ---------------------------------------------------------------------------
+# P-R11: hidden/dotted .md files (e.g. .template.md, editor swap files) are
+# explicitly skipped during orphan detection and do NOT trigger
+# "orphan specialist" errors.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_load_registry_skips_dotfile_markdown_in_orphan_check(tmp_path: Path) -> None:
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    (agents_dir / "index.yaml").write_text("schema_version: 1\nspecialists: []\n")
+    # Drop a dotfile-prefixed markdown into the tree — must NOT trigger orphan.
+    (agents_dir / ".template.md").write_text("---\nname: ignored\n---\nbody\n")
+    reg = load_registry(agents_dir)
+    assert reg.names() == frozenset()

@@ -82,3 +82,41 @@ def test_specialist_manifest_is_frozen() -> None:
     manifest = _SpecialistManifest(schema_version=1, specialists=())
     with pytest.raises(ValidationError):
         manifest.schema_version = 2  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# P-R1 + P-R10: file path validation — defense-in-depth against traversal,
+# absolute paths, and Windows-style backslashes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_parse_manifest_rejects_path_traversal() -> None:
+    with pytest.raises(SpecialistError, match=r"\.\."):
+        _parse_manifest(_FIXTURES / "bad_path_traversal.yaml")
+
+
+@pytest.mark.unit
+def test_parse_manifest_rejects_absolute_path() -> None:
+    with pytest.raises(SpecialistError, match="relative"):
+        _parse_manifest(_FIXTURES / "bad_absolute_path.yaml")
+
+
+@pytest.mark.unit
+def test_parse_manifest_rejects_backslash_separator() -> None:
+    with pytest.raises(SpecialistError, match="forward slashes"):
+        _parse_manifest(_FIXTURES / "bad_backslash_path.yaml")
+
+
+# ---------------------------------------------------------------------------
+# P-R5: encoding errors wrapped as SpecialistError (PermissionError +
+# UnicodeDecodeError must NOT bubble raw to callers)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_parse_manifest_non_utf8_raises_specialist_error(tmp_path: Path) -> None:
+    bad = tmp_path / "index.yaml"
+    bad.write_bytes(b"\xff\xfe\x00schema_version: 1\n")  # invalid UTF-8 prefix
+    with pytest.raises(SpecialistError, match="UTF-8"):
+        _parse_manifest(bad)

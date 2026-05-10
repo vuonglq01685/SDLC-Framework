@@ -1,0 +1,5 @@
+schema_version: 1
+specialists:
+  - name: traversal
+    phase: 1
+    file: "../../etc/passwd"

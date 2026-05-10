@@ -13,7 +13,7 @@ from types import MappingProxyType
 
 from sdlc.errors import SpecialistError
 from sdlc.specialists._frontmatter import Specialist, load_specialist
-from sdlc.specialists._manifest import _parse_manifest
+from sdlc.specialists._manifest import _parse_manifest, _SpecialistManifest
 
 _VALID_PHASES = frozenset({0, 1, 2, 3})
 _INDEX_YAML = "index.yaml"
@@ -60,16 +60,20 @@ class SpecialistRegistry:
         return frozenset(self._specialists)
 
 
-def load_registry(agents_dir: Path) -> SpecialistRegistry:
-    """Build a SpecialistRegistry from agents_dir (Decision C3 manifest-enforced).
+def _validate_manifest_entries(
+    manifest: _SpecialistManifest,
+    agents_dir: Path,
+    agents_root: Path,
+    manifest_path: Path,
+) -> set[Path]:
+    """Validate manifest entries; return resolved file paths.
 
-    Raises SpecialistError on any failure; never returns a partial registry.
+    Raises SpecialistError on: duplicate name, path traversal / symlink escape,
+    duplicate file: alias, or missing-on-disk file. Used internally by
+    load_registry; extracted to keep load_registry under McCabe cap.
     """
-    manifest_path = agents_dir / _INDEX_YAML
-    manifest = _parse_manifest(manifest_path)
-
-    # Check for duplicate names in manifest (before any file I/O).
     seen_names: set[str] = set()
+    seen_files: set[Path] = set()
     for entry in manifest.specialists:
         if entry.name in seen_names:
             raise SpecialistError(
@@ -78,9 +82,31 @@ def load_registry(agents_dir: Path) -> SpecialistRegistry:
             )
         seen_names.add(entry.name)
 
-    # Check for manifest entries pointing to missing files.
-    for entry in manifest.specialists:
-        file_path = agents_dir / entry.file
+        file_path = (agents_dir / entry.file).resolve()
+        # P-R1 + P-R2: enforce path-traversal + symlink-escape boundary.
+        try:
+            file_path.relative_to(agents_root)
+        except ValueError as exc:
+            raise SpecialistError(
+                f"manifest entry escapes agents directory: {entry.name} → {entry.file}",
+                details={
+                    "name": entry.name,
+                    "file": str(file_path),
+                    "agents_dir": str(agents_root),
+                    "hint": "manifest 'file' (or its symlink target) must stay under agents/",
+                },
+            ) from exc
+        # P-R3: detect distinct manifest entries aliasing the same file path.
+        if file_path in seen_files:
+            raise SpecialistError(
+                f"duplicate file path in manifest: {entry.file} referenced by multiple entries",
+                details={
+                    "name": entry.name,
+                    "file": str(file_path),
+                    "manifest": str(manifest_path),
+                },
+            )
+        seen_files.add(file_path)
         if not file_path.exists():
             raise SpecialistError(
                 f"manifest entry refers to missing file: {entry.name} → {entry.file}",
@@ -90,12 +116,24 @@ def load_registry(agents_dir: Path) -> SpecialistRegistry:
                     "manifest": str(manifest_path),
                 },
             )
+    return seen_files
 
-    # Load all specialists from manifest; attach phase from manifest entry (Decision C3).
+
+def load_registry(agents_dir: Path) -> SpecialistRegistry:
+    """Build a SpecialistRegistry from agents_dir (Decision C3 manifest-enforced).
+
+    Raises SpecialistError on any failure; never returns a partial registry.
+    """
+    agents_root = agents_dir.resolve()
+    manifest_path = agents_dir / _INDEX_YAML
+    manifest = _parse_manifest(manifest_path)
+
+    seen_files = _validate_manifest_entries(manifest, agents_dir, agents_root, manifest_path)
+
+    # Load all specialists; attach phase from manifest entry (Decision C3).
     specialists: dict[str, Specialist] = {}
     for entry in manifest.specialists:
         loaded = load_specialist(agents_dir / entry.file)
-        # Replace with phase from manifest (frontmatter has no phase field).
         specialists[entry.name] = Specialist(
             frontmatter=loaded.frontmatter,
             body=loaded.body,
@@ -103,10 +141,12 @@ def load_registry(agents_dir: Path) -> SpecialistRegistry:
             phase=entry.phase,
         )
 
-    # Detect orphan markdown files (files under agents_dir not listed in manifest).
-    manifest_files = {(agents_dir / e.file).resolve() for e in manifest.specialists}
+    # P-R11: skip dotfile markdown during orphan detection (defense-in-depth;
+    # pathlib.rglob with "*.md" already excludes leading-dot names by default).
     for md_path in agents_dir.rglob("*.md"):
-        if md_path.resolve() not in manifest_files:
+        if md_path.name.startswith("."):
+            continue
+        if md_path.resolve() not in seen_files:
             raise SpecialistError(
                 f"orphan specialist: {md_path.relative_to(agents_dir)} not in manifest",
                 details={"path": str(md_path), "manifest": str(manifest_path)},

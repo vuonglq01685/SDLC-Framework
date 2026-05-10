@@ -78,3 +78,17 @@ def test_load_specialist_name_mismatch_raises() -> None:
 def test_load_specialist_io_error_raises() -> None:
     with pytest.raises(SpecialistError):
         load_specialist(Path("/nonexistent/path/missing.md"))
+
+
+# ---------------------------------------------------------------------------
+# P-R5: non-UTF-8 specialist files surface SpecialistError with a clear hint
+# (UnicodeDecodeError is a ValueError subclass, NOT OSError — must be wrapped).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_load_specialist_non_utf8_raises_specialist_error(tmp_path: Path) -> None:
+    bad = tmp_path / "non-utf8-specialist.md"
+    bad.write_bytes(b"---\nname: non-utf8-specialist\nbad-byte: \xff\xfe\n---\nbody\n")
+    with pytest.raises(SpecialistError, match="UTF-8"):
+        load_specialist(bad)
