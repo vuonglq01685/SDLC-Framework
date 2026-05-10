@@ -71,6 +71,7 @@ nav:
       - "Epic 2A — story DAG & parallelism plan": sprints/epic-2a-dag.md
   - Runbooks:
       - "Handle hook hash drift (FR39 / NFR-SEC-5)": runbooks/handle-hash-drift.md
+      - "Diagnose hook rejection (Story 2A.4)": runbooks/diagnose-hook-rejection.md
   - Code Maps:
       - CODEMAPS/cli-module.md
       - CODEMAPS/engine-module.md
