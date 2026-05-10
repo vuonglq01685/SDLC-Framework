@@ -1,0 +1,5 @@
+schema_version: 1
+specialists:
+  - name: technical-researcher
+    phase: 5
+    file: "phase1/technical-researcher.md"

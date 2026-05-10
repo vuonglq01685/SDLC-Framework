@@ -1,0 +1,8 @@
+schema_version: 1
+specialists:
+  - name: technical-researcher
+    phase: 1
+    file: "phase1/technical-researcher.md"
+  - name: support-agent
+    phase: 0
+    file: "support/support-agent.md"

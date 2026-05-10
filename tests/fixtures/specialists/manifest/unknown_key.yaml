@@ -1,0 +1,6 @@
+schema_version: 1
+specialists:
+  - name: technical-researcher
+    phase: 1
+    file: "phase1/technical-researcher.md"
+unknown_top_level: bad
