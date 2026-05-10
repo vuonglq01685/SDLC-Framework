@@ -1,0 +1,12 @@
+schema_version: 1
+name: test-workflow
+slash_command: /test
+primary_agent: alpha-researcher
+parallel_agents:
+  - beta-analyst
+synthesizer_agent: null
+postconditions: []
+write_globs:
+  nonexistent-in-globs:
+    - "src/**/*.py"
+stop_on_postcondition_failure: true

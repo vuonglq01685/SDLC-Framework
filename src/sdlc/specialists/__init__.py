@@ -1,12 +1,12 @@
 """Specialist registry + manifest validation (Story 2A.2, Architecture §836-§839).
 
-Public surface (built up across Tasks 2-5; current commit lands Task 4 — registry):
-  load_registry(agents_dir) -> SpecialistRegistry        [Task 4, this commit]
-  load_specialist(path)     -> Specialist                [Task 3]
-  validate_workflow_refs(spec, registry) -> None         [Task 5]
-  validate_internal_links(registry)      -> None         [Task 5]
-  SpecialistRegistry                                     [Task 4, this commit]
-  Specialist                                             [Task 3]
+Public surface:
+  load_registry(agents_dir) -> SpecialistRegistry
+  load_specialist(path)     -> Specialist
+  validate_workflow_refs(spec, registry) -> None
+  validate_internal_links(registry)      -> None
+  SpecialistRegistry
+  Specialist
 
 NOTE: SpecialistRegistry is the ONLY public way to enumerate specialists.
 Direct calls to load_specialist outside specialists/ and tests are a
@@ -20,10 +20,13 @@ from __future__ import annotations
 
 from sdlc.specialists._frontmatter import Specialist, load_specialist
 from sdlc.specialists._registry import SpecialistRegistry, load_registry
+from sdlc.specialists._validator import validate_internal_links, validate_workflow_refs
 
 __all__ = [
     "Specialist",
     "SpecialistRegistry",
     "load_registry",
     "load_specialist",
+    "validate_internal_links",
+    "validate_workflow_refs",
 ]

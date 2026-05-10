@@ -1,0 +1,12 @@
+schema_version: 1
+name: test-workflow
+slash_command: /test
+primary_agent: nonexistent-primary
+parallel_agents:
+  - nonexistent-parallel
+synthesizer_agent: nonexistent-synthesizer
+postconditions: []
+write_globs:
+  nonexistent-globs:
+    - "src/**/*.py"
+stop_on_postcondition_failure: true

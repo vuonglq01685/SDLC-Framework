@@ -1,0 +1,9 @@
+schema_version: 1
+name: test-workflow
+slash_command: /test
+primary_agent: alpha-researcher
+parallel_agents: []
+synthesizer_agent: nonexistent-synthesizer
+postconditions: []
+write_globs: {}
+stop_on_postcondition_failure: true
