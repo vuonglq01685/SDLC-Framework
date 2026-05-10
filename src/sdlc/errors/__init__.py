@@ -16,6 +16,7 @@ from sdlc.errors.base import (
     SdlcError,
     SignoffError,
     StateError,
+    WorkflowError,
 )
 
 EXIT_CODE_MAP: Final[Mapping[str, int]] = MappingProxyType(SdlcError.EXIT_CODE_MAP)
@@ -34,5 +35,6 @@ __all__ = (  # noqa: RUF022
     "ConfigError",
     "IdsError",
     "MockMissError",
+    "WorkflowError",
     "EXIT_CODE_MAP",
 )

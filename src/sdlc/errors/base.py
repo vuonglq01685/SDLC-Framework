@@ -74,6 +74,10 @@ class IdsError(SdlcError):
     code: ClassVar[str] = "ERR_IDS"
 
 
+class WorkflowError(SdlcError):
+    code: ClassVar[str] = "ERR_WORKFLOW"
+
+
 class MockMissError(DispatchError):
     """MockAIRuntime missing-fixture or malformed-fixture error.
 
