@@ -2,6 +2,10 @@
 
 Items surfaced during code review or development that are real but not actionable in the current story scope. Each entry cites the originating story and the future story or workstream that owns the eventual fix.
 
+## Deferred from: code review of 2a-1-workflow-yaml-loader-schema-validation (2026-05-10)
+
+- **W1 — Quality-gate execution and "18+1 pre-existing failures" baseline unpinned** — Story Completion Notes (line 359) and `sprint-status.yaml` line 204 narrate "1263 passed, 18 pre-existing failures (verified pre-existing via git stash); pytest -m e2e: 38 passed, 1 pre-existing failure". The pre-existing-failure baseline is asserted in narrative form — no machine-readable pin against `main` exists, so any review or CI run cannot independently confirm "no new regressions in 2A.1". **Owner:** orchestrator-level test-baseline pinning (a one-line `tests/baseline/main_failure_count.json` snapshot regenerated after each clean `main` push), or fold into Epic 2A retro action items.
+
 ## Deferred from: Story 1.21 (wire-format v1 lock ceremony — 2026-05-09)
 
 - **Hypothesis property tests for wire-format canonicalization byte-stability** — Byte-stability of `_canonical_schema_bytes(model_cls)` across arbitrary valid inputs for all 5 wire-format contracts. Per-contract `@given` strategies are non-trivial (RFC3339 timestamps, sha256 strings, nested mappings). Story 1.21 LOC budget and per-contract strategy complexity made inline implementation disproportionate. **Owner:** dedicated property-hardening story in Epic 2A or Epic 3 — create `tests/property/test_wireformat_canonicalization.py` with 5 strategies + 5 byte-stability property tests (≤100 LOC); adapt strategy patterns from `tests/property/test_replay_invariant.py:monotonic_sequence_strategy`.

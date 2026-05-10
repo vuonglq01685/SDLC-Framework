@@ -105,3 +105,10 @@ statically enforced and which are review-only.
 - **The validator script**: `scripts/check_module_boundaries.py` (Story 1.4).
 - **The pre-commit configuration**: [ADR-010](decisions/ADR-010-pre-commit-config.md).
 - **The 16-module layout decision**: [ADR-012](decisions/ADR-012-module-layout.md).
+- **Workflow YAML loader and static checker** (`src/sdlc/workflows/`): implemented in Story 2A.1.
+  Provides `load_workflow(path) → WorkflowSpec`, `validate_workflow(spec) → None`, and
+  `WorkflowRegistry`. The module validates workflow YAML against the frozen `WorkflowSpec` v1
+  contract (ADR-024), rejects unknown fields and instruction-shaped strings (NFR-SEC-7, ADR-013),
+  and enforces disjoint write-glob invariants between parallel specialists at load time (FR25).
+  The `workflows_yaml/` package-data directory (`src/sdlc/workflows_yaml/`) ships with the wheel
+  (populated by Story 2A.8+); `WorkflowRegistry.load(dir)` is the canonical engine entrypoint.
