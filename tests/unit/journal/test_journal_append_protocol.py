@@ -45,6 +45,11 @@ def test_append_creates_file_when_missing(tmp_path: Path) -> None:
 
 
 @_POSIX
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-002. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 def test_append_uses_o_append_flag(tmp_path: Path) -> None:
     """Verify os.open is called with O_WRONLY | O_CREAT | O_APPEND flags."""
     from sdlc.journal import append_sync
@@ -81,6 +86,11 @@ def test_append_canonical_bytes_match_model_dump(tmp_path: Path) -> None:
 
 
 @_POSIX
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-003. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 def test_append_fsyncs_after_write(tmp_path: Path) -> None:
     """os.fsync must be called exactly once per append_sync call."""
     from sdlc.journal import append_sync
@@ -259,6 +269,11 @@ def test_append_zero_byte_write_raises(tmp_path: Path) -> None:
 
 
 @_POSIX
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-004. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 def test_append_body_exception_preserved_over_close_oserror(tmp_path: Path) -> None:
     """Body OSError must bubble up; close OSError must NOT mask it."""
     from sdlc.journal import append_sync

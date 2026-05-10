@@ -157,6 +157,14 @@ def _rebuild_state_cmd(ctx: typer.Context) -> None:
     run_rebuild_state(ctx=ctx)
 
 
+@app.command(name="trust-hooks")
+def trust_hooks_command(ctx: typer.Context) -> None:
+    """Record current hook file hashes to establish trust baseline (FR39)."""
+    from sdlc.cli.trust_hooks import run_trust_hooks  # deferred per Architecture §488
+
+    run_trust_hooks(ctx=ctx)
+
+
 def _register_migrate_commands(app: typer.Typer) -> None:
     """Register one Typer command per discovered migration script.
 

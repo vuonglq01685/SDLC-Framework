@@ -58,7 +58,9 @@ def test_sdlc_status_json_after_init(tmp_path: Path) -> None:
     assert payload["command"] == "status"
     assert payload["phase"] == 1
     assert payload["phase_name"] == "Requirement"
-    assert payload["last_updated_ts"] is None
+    # Story 2A.5: init now appends hooks_trusted journal entry, so last_updated_ts is set.
+    assert payload["last_updated_ts"] is not None
+    assert payload["last_updated_ts"].endswith("Z")
 
 
 @_SKIP_NO_UV

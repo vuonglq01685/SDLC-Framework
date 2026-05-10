@@ -32,7 +32,8 @@ def test_sdlc_init_creates_canonical_state_subtree(tmp_path: Path) -> None:
         run_init()
     assert (tmp_path / ".claude" / "state" / "state.json").exists()
     assert (tmp_path / ".claude" / "state" / "journal.log").exists()
-    assert (tmp_path / ".claude" / "state" / "journal.log").stat().st_size == 0
+    # Story 2A.5: init now writes a hooks_trusted journal entry, so journal is non-empty.
+    assert (tmp_path / ".claude" / "state" / "hook-hashes.json").exists()
 
 
 def test_sdlc_init_state_json_is_empty_canonical_state(tmp_path: Path) -> None:
@@ -40,8 +41,10 @@ def test_sdlc_init_state_json_is_empty_canonical_state(tmp_path: Path) -> None:
         run_init()
     raw = (tmp_path / ".claude" / "state" / "state.json").read_bytes()
     parsed = json.loads(raw)
-    assert parsed == _expected_initial_state_payload()
-    # Also validates through pydantic
+    # Story 2A.5: init records hook trust baseline → advances seq to 1.
+    expected = _expected_initial_state_payload()
+    expected["next_monotonic_seq"] = 1
+    assert parsed == expected
     State.model_validate(parsed)
 
 

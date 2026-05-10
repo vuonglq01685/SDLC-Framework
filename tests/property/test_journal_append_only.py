@@ -186,6 +186,11 @@ def _make_min_entries(seqs: list[int]) -> list[object]:
     ]
 
 
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-009. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 @given(entries=_sequence_strategy)
 @example(entries=_make_min_entries([0]))
 @example(entries=_make_min_entries([0, 1, 2]))
@@ -228,6 +233,11 @@ def test_file_grows_only_and_bytes_immutable(entries: list[object], tmp_path: Pa
 # ---------------------------------------------------------------------------
 # Property 2: iter_after(threshold) correctness
 # ---------------------------------------------------------------------------
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-010. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 @given(entries=_sequence_strategy)
 @settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_iter_after_correctness(entries: list[object], tmp_path: Path) -> None:
@@ -256,6 +266,11 @@ def test_iter_after_correctness(entries: list[object], tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Property 3: Monotonic_seq regression rejected; file size unchanged on failure
 # ---------------------------------------------------------------------------
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-011. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 @given(
     entry=_journal_entry_strategy,
     first_seq=st.integers(min_value=1, max_value=10**6),

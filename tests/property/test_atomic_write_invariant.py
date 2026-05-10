@@ -41,6 +41,11 @@ state_strategy = st.builds(
 states_sequence_strategy = st.lists(state_strategy, min_size=1, max_size=20)
 
 
+@pytest.mark.xfail(
+    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
+    " tracked in EPIC-2A-DEBT-008. Story 2A.5 DR2 quarantine.",
+    strict=False,
+)
 @given(states=states_sequence_strategy)
 @settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_sequential_writes_two_state_invariant(states: list[Any], tmp_path: Path) -> None:

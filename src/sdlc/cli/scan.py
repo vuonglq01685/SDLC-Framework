@@ -6,7 +6,7 @@ Write order: state.json FIRST, then journal append (Architecture §573-§583 ste
 
 from __future__ import annotations
 
-import datetime
+import contextlib
 import hashlib
 import logging
 import sys
@@ -15,7 +15,9 @@ from typing import Final
 
 import typer
 
+from sdlc.cli._fs import sha256_file_or_none
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.contracts.journal_entry import JournalEntry
 
@@ -29,17 +31,13 @@ _STATE_TARGET_ID: Final[str] = "state"
 
 
 def _compute_sha256_of_file(path: Path) -> str | None:
-    """Return 'sha256:<hex>' or None if the file does not exist."""
-    if not path.exists():
-        return None
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return f"sha256:{digest}"
+    """Return 'sha256:<hex>' or None if the file does not exist (delegates to shared helper)."""
+    return sha256_file_or_none(path)
 
 
 def _now_rfc3339_utc() -> str:
-    """RFC 3339 UTC with millisecond precision matching JournalEntry _RFC3339_UTC regex."""
-    now = datetime.datetime.now(datetime.timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+    """RFC 3339 UTC with millisecond precision (delegates to shared helper)."""
+    return now_rfc3339_utc_ms()
 
 
 def _write_state_to_disk(state, state_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -87,6 +85,43 @@ def _append_scan_journal_entry(
         },
     )
     append_sync(entry, journal_path=journal_path)
+
+
+def _evaluate_hook_trust(root: Path) -> tuple[str, int, str | None]:
+    """Single detect_tampering call shared by warning emit + JSON envelope (F7).
+
+    Returns (status, drift_count, warning_text). On any unexpected exception
+    (advisory-only v1 contract per AC5), coerces to ``status="uninitialized"``
+    so consumers see a documented enum value (P6).
+    """
+    from sdlc.hooks.tampering import detect_tampering, render_warning
+
+    state_root = root / ".claude" / "state"
+    hooks_root = root / ".claude" / "hooks"
+    try:
+        report = detect_tampering(state_root, hooks_root)
+    except Exception as exc:  # P2: advisory-only — broaden from HookError-only
+        _logger.warning("hook trust check failed (advisory): %s", exc)
+        return ("uninitialized", 0, None)  # P6: coerce to documented enum
+
+    if report.status == "clean":
+        return ("clean", 0, None)
+
+    warning = render_warning(report)
+    return (report.status, len(report.drift), warning)
+
+
+def _emit_trust_warning(warning: str | None) -> None:
+    """Emit warning to stderr exactly once (P11)."""
+    if warning is None:
+        return
+    # P11: pick stderr via typer.echo (the user-facing channel). Drop the
+    # parallel _logger.warning call that produced duplicate output when the
+    # logger handler was also stderr.
+    # P22: BrokenPipeError on closed-stderr (e.g. piped to `head`) must not
+    # crash a successful scan post-state.json-commit.
+    with contextlib.suppress(BrokenPipeError, OSError):
+        typer.echo(warning, err=True)
 
 
 def run_scan(*, ctx: typer.Context) -> None:
@@ -177,6 +212,12 @@ def run_scan(*, ctx: typer.Context) -> None:
             details={"path": str(journal_path), "seq": seq},
         )
 
+    # --- Hook tampering detection (FR39, NFR-SEC-5, AC5, AC7 — advisory-only v1) ---
+    # F7: single detect_tampering call shared by stderr warning + --json envelope
+    # so they cannot disagree under TOCTOU between two separate calls.
+    trust_status, trust_drift_count, trust_warning = _evaluate_hook_trust(root)
+    _emit_trust_warning(trust_warning)
+
     phase = getattr(new_state, "phase", 1)
     if ctx.obj is not None and ctx.obj.get("json", False):
         emit_json(
@@ -189,6 +230,7 @@ def run_scan(*, ctx: typer.Context) -> None:
                 "task_count": len(new_state.tasks),
                 "next_monotonic_seq": new_state.next_monotonic_seq,
                 "journal_entry_seq": seq,
+                "trust_state": {"status": trust_status, "drift_count": trust_drift_count},
             },
             ctx=ctx,
         )

@@ -205,6 +205,16 @@ def _create_phase_dirs(root: Path) -> None:
         (root / phase_dir).mkdir(parents=True, exist_ok=True)
 
 
+def _baseline_hook_trust(root: Path) -> None:
+    """Delegate to ``sdlc.cli._init_hook_baseline.baseline_hook_trust`` (Story 2A.5 DR4).
+
+    Extracted out of init.py to satisfy the 400-LOC cap per NFR-MAINT-3.
+    """
+    from sdlc.cli._init_hook_baseline import baseline_hook_trust  # deferred
+
+    baseline_hook_trust(root)
+
+
 def _enumerate_created_paths(root: Path) -> list[str]:
     """Return the relative paths created by `run_init`, sorted (AC4.3).
 
@@ -258,6 +268,20 @@ def run_init(*, ctx: typer.Context | None = None) -> None:
     _create_state_subtree(root)
     _create_static_asset_dirs(root)
     _create_phase_dirs(root)
+    try:
+        _baseline_hook_trust(root)
+    except Exception as exc:
+        # DR4: hook-trust baseline failure is fatal for init — surface a
+        # typed error envelope so callers see why init aborted.
+        if ctx is not None:
+            emit_error(
+                "ERR_INIT_BASELINE_FAILED",
+                f"sdlc init: hook-trust baseline failed: {exc}",
+                ctx=ctx,
+                details={"project_root": str(root)},
+            )
+        echo(f"sdlc init: hook-trust baseline failed: {exc}", err=True)
+        raise typer.Exit(code=EXIT_USER_ERROR) from exc
     if ctx is not None and ctx.obj is not None and ctx.obj.get("json", False):
         created = _enumerate_created_paths(root)
         emit_json("init", {"project_root": str(root), "created": created}, ctx=ctx)
