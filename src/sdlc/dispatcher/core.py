@@ -27,17 +27,17 @@ from typing import Literal
 from sdlc.concurrency.subprocess_pool import BoundedDispatcher
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
+from sdlc.dispatcher.retry import with_retries
 from sdlc.errors import DispatchError
 from sdlc.journal import append as journal_append
-from sdlc.runtime.abc import AgentResult, AIRuntime
+from sdlc.runtime import AgentResult, AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 from sdlc.telemetry.runs import record_agent_run
 
-from sdlc.dispatcher.retry import with_retries
-
 _ACTOR = "dispatcher"
 _NULL_HASH = "sha256:" + "0" * 64
+
 
 # EPIC-2A-DEBT-SHARED-TIME: cli/_time.py is the canonical ts source but dispatcher
 # cannot import from cli (boundary §1106). Inline here until a shared util is created.
@@ -370,12 +370,8 @@ async def dispatch_panel(
                 primary_result=primary_result,
                 parallel_results=parallel_results,
                 synthesizer_result=None,
-                write_targets=tuple(
-                    r.target_path for r in (primary_result, *parallel_results)
-                ),
-                total_attempts=sum(
-                    r.attempts for r in (primary_result, *parallel_results)
-                ) + 1,
+                write_targets=tuple(r.target_path for r in (primary_result, *parallel_results)),
+                total_attempts=sum(r.attempts for r in (primary_result, *parallel_results)) + 1,
                 outcome="failed",
             )
 
@@ -391,9 +387,9 @@ async def dispatch_panel(
 
 
 __all__: tuple[str, ...] = (
-    "dispatch",
-    "dispatch_panel",
     "DispatchResult",
     "PanelResult",
     "_default_prompt_builder",
+    "dispatch",
+    "dispatch_panel",
 )
