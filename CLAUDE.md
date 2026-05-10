@@ -36,10 +36,15 @@ check ALL of the following — not just `src/`:
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+This project has a knowledge graph served via MCP (`graphify-knowledge-graph`).
 
 Rules:
-- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
-- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- NEVER read `graphify-out/GRAPH_REPORT.md` upfront — use MCP tools instead.
+- For ANY codebase question, call MCP tools before reading source files or running grep/glob:
+  - `query_graph("<concept>")` — find nodes/relationships by concept or natural-language question
+  - `get_node("<filename>")` — get detailed info for a specific file/node
+  - `get_neighbors("<filename>")` — get direct dependencies of a file
+  - `shortest_path("<A>", "<B>")` — find connection path between two modules
+- IF `graphify-out/wiki/index.md` EXISTS, navigate it for high-level orientation only.
+- For cross-module "how does X relate to Y" questions, use `query_graph` or `shortest_path` — do NOT grep.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
