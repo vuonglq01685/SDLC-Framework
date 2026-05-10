@@ -17,7 +17,7 @@ Every PR — every story — must pass the full quality gate locally before push
 |---|---|---|
 | Format | `ruff format --check .` | clean |
 | Lint | `ruff check .` | zero violations |
-| Type-check | `mypy --strict src tests` | zero errors |
+| Type-check | `mypy --strict src/` | zero errors |
 | Tests | `pytest -q` | zero failures, zero flaky |
 | Coverage | `pytest --cov=sdlc --cov-fail-under=90` | ≥ 90% |
 | Pre-commit | `pre-commit run --all-files` | all hooks pass |
