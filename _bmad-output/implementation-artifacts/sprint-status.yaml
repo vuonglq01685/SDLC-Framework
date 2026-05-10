@@ -104,7 +104,7 @@ development_status:
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: done
   2a-5-recovery-hook-tampering-detection-trust-hooks: done
   2a-6-claude-code-pretooluse-hook-hook-check: backlog
-  2a-7-recovery-signoff-state-machine-hash-drift-validation: backlog
+  2a-7-recovery-signoff-state-machine-hash-drift-validation: in-progress
   2a-8-sdlc-start-phase-1-entry: backlog
   2a-9-sdlc-research: backlog
   2a-10-sdlc-verify: backlog
