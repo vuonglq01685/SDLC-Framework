@@ -96,7 +96,7 @@ development_status:
   epic-2a: in-progress
   2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: done
   2a-1-workflow-yaml-loader-schema-validation: done
-  2a-2-specialist-registry-manifest-validation: ready-for-dev
+  2a-2-specialist-registry-manifest-validation: review
   2a-3-dispatcher-primary-parallel-synthesizer-retry: backlog
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: backlog
   2a-5-recovery-hook-tampering-detection-trust-hooks: ready-for-dev
