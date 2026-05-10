@@ -11,8 +11,22 @@ Exports populated incrementally across TDD commits:
 from __future__ import annotations
 
 from sdlc.signoff.hasher import compute_artifact_hash, compute_signoff_record_hash
+from sdlc.signoff.records import (
+    ArtifactRef,
+    SignoffRecord,
+    invalidate_record,
+    list_records,
+    read_record,
+    write_record,
+)
 
 __all__ = [
     "compute_artifact_hash",
     "compute_signoff_record_hash",
+    "ArtifactRef",
+    "SignoffRecord",
+    "invalidate_record",
+    "list_records",
+    "read_record",
+    "write_record",
 ]
