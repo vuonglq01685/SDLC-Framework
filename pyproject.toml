@@ -52,6 +52,7 @@ packages = ["src/sdlc"]
 "src/sdlc/commands" = "sdlc/commands"
 "src/sdlc/hooks" = "sdlc/hooks"
 "src/sdlc/workflows" = "sdlc/workflows"
+"src/sdlc/workflows_yaml" = "sdlc/workflows_yaml"
 "src/sdlc/skills" = "sdlc/skills"
 "src/sdlc/memory" = "sdlc/memory"
 "src/sdlc/dashboard/static" = "sdlc/dashboard/static"
@@ -100,6 +101,7 @@ max-statements = 50
 
 [tool.ruff.lint.isort]
 required-imports = ["from __future__ import annotations"]
+known-first-party = ["sdlc"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
@@ -113,6 +115,9 @@ required-imports = ["from __future__ import annotations"]
 "src/sdlc/config/secrets.py" = [
     "C901",     # _sanitize_value complexity — pre-existing (Story 1.8); acceptable for recursive sanitizer
     "PLR0911",  # too many returns — pre-existing (Story 1.8); acceptable for recursive sanitizer
+]
+"tests/property/test_disjoint_writes_static_check.py" = [
+    "PLR0911",  # _ref_match mirrors the implementation algorithm for adversarial cross-checking
 ]
 
 [tool.ruff.format]
