@@ -102,8 +102,8 @@ statically enforced and which are review-only.
 
 Story 2A.4 ships the pre-write hook runner (`hooks/runner.py`) and two builtin hooks:
 `naming_validator` (FR36, AC4) and `phase_gate` (FR37, AC5). The chain runs before every
-artifact write. Engine-side wiring lands in Story 2A.6; this section documents the contract
-so callers can conform before 2A.6 merges.
+artifact write. Story 2A.6 wires both the engine-side (`dispatcher.core`) and the Claude-side
+(`claude_hooks/pre_tool_use.py` → `sdlc hook-check` subprocess).
 
 ### Data flow
 
@@ -134,8 +134,8 @@ Caller (dispatcher / CLI)
 
 | Write site | Caller module | `target_kind` | Story that wires it |
 |---|---|---|---|
-| Engine pre-write (every artifact write) | `dispatcher.core` | `"write_intent"` | Story 2A.6 (engine-side wiring) |
-| Claude Code PreToolUse hook | `claude_hooks/pre_tool_use.py` | `"write_intent"` | Story 2A.6 (shells to `sdlc hook-check`) |
+| Engine pre-write (every artifact write) | `dispatcher.core` | `"write_intent"` | Story 2A.6 ✓ shipped |
+| Claude Code PreToolUse hook | `claude_hooks/pre_tool_use.py` | `"write_intent"` | Story 2A.6 ✓ shipped (shells to `sdlc hook-check`) |
 | Signoff record write | `signoff.records.write_record` | `"signoff_record"` | Story 2A.12 |
 
 ### Bypass policy (AC6, NFR-SEC-4)
@@ -191,5 +191,5 @@ dispatch outcomes; discoverable via `sdlc trace --kind=<kind>`).
 | `dispatch_attempt` | `dispatcher.core._run_member` | One attempt (success, retry, or final failure) of a specialist dispatch; one entry per attempt per specialist | Story 2A.3 |
 | `artifact_written` | `dispatcher.core._run_member` | A specialist's `output_text` was successfully written to its declared write target on disk | Story 2A.3 |
 | `stop_trigger_raised` | `dispatcher.core._emit_stop_trigger` | Terminal dispatch failure after retry exhaustion; Epic 4 Story 4.6 reads these entries to compute the STOP banner state (`epic_4_placeholder=True` until then) | Story 2A.3 |
-| `hook_rejected` | `hooks.runner` | First hook in chain returns `deny`; fields: `hook`, `target`, `reason`, `error_code` | Story 2A.4 |
+| `hook_rejected` | `hooks.runner` | First hook in chain returns `deny`; fields: `hook`, `target`, `reason`, `error_code`. Two caller paths: (1) engine-side via `dispatcher.core` (`write_intent="dispatcher_artifact_write"`); (2) Claude-side via `sdlc hook-check` (`write_intent="claude_pretooluse_write"`). Discriminate with `payload.write_intent` in `sdlc trace --kind=hook_rejected`. | Story 2A.4; extended in 2A.6 |
 | `bypass_signoff` | `hooks.runner` | `phase_gate` bypassed for a Phase 2/3 write; fields: `target`, `justification`, `user`, `phase_attempted`, `missing_signoff_path` | Story 2A.4 |

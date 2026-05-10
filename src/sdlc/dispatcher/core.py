@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeAlias
 
+from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher._panel_helpers import (
     DispatchMemberResult,
@@ -35,11 +36,12 @@ from sdlc.dispatcher._panel_helpers import (
     _validate_target_path,
 )
 from sdlc.errors import DispatchError
+from sdlc.hooks.runner import BypassRequest, HookDecision
 from sdlc.runtime import AgentResult, AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 
-DispatchOutcome: TypeAlias = Literal["success", "failed"]
+DispatchOutcome: TypeAlias = Literal["success", "failed", "hook_rejected"]
 
 
 @dataclass(frozen=True)
@@ -50,7 +52,7 @@ class DispatchResult:
     target_path: Path
     agent_result: AgentResult
     attempts: int
-    outcome: DispatchOutcome
+    outcome: DispatchOutcome  # "success" | "failed" | "hook_rejected"
 
 
 @dataclass(frozen=True)
@@ -99,12 +101,16 @@ async def dispatch(
     agent_runs_path: Path,
     prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _default_prompt_builder,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
+    bypass: BypassRequest | None = None,
     _max_attempts: int = 3,
 ) -> DispatchResult:
     """Dispatch the primary specialist for a workflow step (AC1, FR25).
 
     Per-attempt journal entries are written via the ``on_attempt`` hook in
     ``with_retries``; ``artifact_written`` is written on success only.
+    On hook deny: ``hook_rejected`` is written by runner; ``dispatch_attempt``
+    (outcome="hook_rejected") is written here; file is NOT written.
 
     P18: emits STOP-trigger placeholder on terminal failure (parity with dispatch_panel).
     """
@@ -121,6 +127,8 @@ async def dispatch(
             prompt_builder=prompt_builder,
             sleep=sleep,
             max_attempts=_max_attempts,
+            hooks=hooks,
+            bypass=bypass,
         )
     except DispatchError as exc:
         await _emit_stop_trigger(

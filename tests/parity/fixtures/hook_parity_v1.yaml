@@ -1,0 +1,237 @@
+# hook_parity_v1.yaml — AC5 parity fixture (Story 2A.6)
+#
+# Each row: {name, tool_name, target_path, expected_decision, expected_error_code,
+#            claude_only, engine_skip, path_is_absolute_under_cwd,
+#            path_is_absolute_outside_repo, repo_setup_steps}
+#
+# expected_decision: allow | deny
+# expected_error_code: null | naming_violation | phase_gate_violation | path_outside_repo
+# claude_only: true  → only test Claude-side (no engine-side equivalent)
+# engine_skip: true  → skip engine-side (fast-path tool name; Claude side always approve)
+# path_is_absolute_under_cwd: true → target_path is joined to tmp_path at test time
+# path_is_absolute_outside_repo: true → target_path is resolved outside tmp_path at test time
+#
+# repo_setup_steps:
+#   - kind: create_signoff
+#     phase: 1        # creates .claude/state/signoffs/phase-1.yaml
+#     approved: true  # bool
+
+# ── naming_validator axis (6 rows) ────────────────────────────────────────────
+
+- name: nv_allow_valid_epic_write
+  tool_name: Write
+  target_path: "01-Requirement/04-Epics/EPIC-auth-flow.json"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: nv_deny_invalid_epic_write
+  tool_name: Write
+  target_path: "01-Requirement/04-Epics/EPC_typo.json"
+  expected_decision: deny
+  expected_error_code: naming_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: nv_allow_valid_story_edit
+  tool_name: Edit
+  target_path: "01-Requirement/05-Stories/EPIC-auth-flow/EPIC-auth-flow-S01-login-flow.md"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: nv_deny_story_invalid_parent_write
+  tool_name: Write
+  target_path: "01-Requirement/05-Stories/bad-parent-dir/EPIC-auth-flow-S01-login-flow.md"
+  expected_decision: deny
+  expected_error_code: naming_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: nv_allow_valid_task_multiedit
+  tool_name: MultiEdit
+  target_path: "01-Requirement/06-Tasks/EPIC-auth-flow/EPIC-auth-flow-S01-login-flow/EPIC-auth-flow-S01-login-flow-T01-impl.md"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: nv_deny_task_invalid_grandparent_write
+  tool_name: Write
+  target_path: "01-Requirement/06-Tasks/bad-epic/EPIC-auth-flow-S01-login-flow/EPIC-auth-flow-S01-login-flow-T01-impl.md"
+  expected_decision: deny
+  expected_error_code: naming_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+# ── phase_gate axis (7 rows) ──────────────────────────────────────────────────
+
+- name: pg_allow_phase1_path_write
+  tool_name: Write
+  target_path: "01-Requirement/04-Epics/EPIC-foo.json"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: pg_deny_phase2_no_signoff_write
+  tool_name: Write
+  target_path: "02-Architecture/01-UX/01-tokens.md"
+  expected_decision: deny
+  expected_error_code: phase_gate_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: pg_allow_phase2_signoff_approved_write
+  tool_name: Write
+  target_path: "02-Architecture/01-UX/01-tokens.md"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps:
+    - kind: create_signoff
+      phase: 1
+      approved: true
+
+- name: pg_deny_phase2_signoff_false_write
+  tool_name: Write
+  target_path: "02-Architecture/01-UX/01-tokens.md"
+  expected_decision: deny
+  expected_error_code: phase_gate_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps:
+    - kind: create_signoff
+      phase: 1
+      approved: false
+
+- name: pg_deny_phase3_no_signoff_write
+  tool_name: Write
+  target_path: "03-Construction/01-impl.py"
+  expected_decision: deny
+  expected_error_code: phase_gate_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: pg_allow_phase3_both_signoffs_write
+  tool_name: Write
+  target_path: "03-Construction/01-impl.py"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps:
+    - kind: create_signoff
+      phase: 1
+      approved: true
+    - kind: create_signoff
+      phase: 2
+      approved: true
+
+- name: pg_allow_non_phase_bmad_write
+  tool_name: Write
+  target_path: "_bmad-output/planning/epics.md"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+# ── target_path shape axis (4 rows) ──────────────────────────────────────────
+
+- name: path_relative_phase1_write
+  tool_name: Write
+  target_path: "01-Requirement/04-Epics/EPIC-bar.json"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: path_absolute_under_cwd_phase1_write
+  tool_name: Write
+  target_path: "01-Requirement/04-Epics/EPIC-baz.json"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  path_is_absolute_under_cwd: true
+  repo_setup_steps: []
+
+- name: path_absolute_outside_repo_write
+  tool_name: Write
+  target_path: "evil-file.txt"
+  expected_decision: deny
+  expected_error_code: path_outside_repo
+  claude_only: true
+  engine_skip: true
+  path_is_absolute_outside_repo: true
+  repo_setup_steps: []
+
+- name: path_claude_config_write
+  tool_name: Write
+  target_path: ".claude/config.yaml"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+# ── tool-name axis (5 rows) ───────────────────────────────────────────────────
+
+- name: tool_write_valid_path_allow
+  tool_name: Write
+  target_path: "01-Requirement/04-Epics/EPIC-qux.json"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: tool_edit_deny_naming_violation
+  tool_name: Edit
+  target_path: "01-Requirement/04-Epics/EPC_bad_name.json"
+  expected_decision: deny
+  expected_error_code: naming_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: tool_multiedit_deny_phase_gate
+  tool_name: MultiEdit
+  target_path: "02-Architecture/01-UX/02-colors.md"
+  expected_decision: deny
+  expected_error_code: phase_gate_violation
+  claude_only: false
+  engine_skip: false
+  repo_setup_steps: []
+
+- name: tool_read_fastpath_allow
+  tool_name: Read
+  target_path: "docs/readme.md"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: true
+  repo_setup_steps: []
+
+- name: tool_bash_fastpath_allow
+  tool_name: Bash
+  target_path: "docs/readme.md"
+  expected_decision: allow
+  expected_error_code: null
+  claude_only: false
+  engine_skip: true
+  repo_setup_steps: []

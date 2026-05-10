@@ -63,6 +63,18 @@ class HookDecision:
         )
 
 
+@dataclass(frozen=True)
+class BypassRequest:
+    """Bypass parameters propagated from dispatcher callers to run_hook_chain (AC6, Story 2A.6).
+
+    bypass_phase_gate: when True, phase_gate is skipped for Phase 2/3 paths.
+    justification: required when bypass_phase_gate=True (min 10 chars).
+    """
+
+    bypass_phase_gate: bool = False
+    justification: str | None = None
+
+
 def _resolve_user() -> str:
     """Best-effort user identity for bypass journal entries.
 

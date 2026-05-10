@@ -165,6 +165,14 @@ def trust_hooks_command(ctx: typer.Context) -> None:
     run_trust_hooks(ctx=ctx)
 
 
+@app.command(name="hook-check")
+def hook_check_command(ctx: typer.Context) -> None:
+    """Run the engine hook chain against a HookPayload JSON (AC2, Story 2A.6)."""
+    from sdlc.cli.hook_check import run_hook_check  # deferred per Architecture §488
+
+    run_hook_check(ctx=ctx)
+
+
 def _register_migrate_commands(app: typer.Typer) -> None:
     """Register one Typer command per discovered migration script.
 

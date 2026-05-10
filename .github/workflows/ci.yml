@@ -119,3 +119,27 @@ jobs:
 
       - name: Run benchmarks (NFR-PERF-1 gate)
         run: uv run pytest -m benchmark --benchmark-only --no-cov -v
+
+  parity-perf:
+    name: Hook Parity Latency Gate (Story 2A.6 AC7)
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Run parity latency benchmarks (p95 ≤ 500ms gate)
+        run: uv run pytest -m parity_perf --benchmark-only --no-cov -v

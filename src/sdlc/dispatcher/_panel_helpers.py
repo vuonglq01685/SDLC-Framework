@@ -30,10 +30,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher.retry import with_retries
 from sdlc.errors import DispatchError
+from sdlc.hooks.payload import build_write_intent_payload
+from sdlc.hooks.runner import BypassRequest, HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
 from sdlc.journal._seq import _read_highest_seq
 from sdlc.runtime import AgentResult, AIRuntime
@@ -62,7 +65,7 @@ class DispatchMemberResult:
     target_path: Path
     agent_result: AgentResult
     attempts: int
-    outcome: Literal["success", "failed"]
+    outcome: Literal["success", "failed", "hook_rejected"]
 
 
 def _now_ts() -> str:
@@ -173,6 +176,68 @@ async def _emit_stop_trigger(
     )
 
 
+async def _emit_hook_rejected(
+    *,
+    step: WorkflowSpec,
+    specialist_name: str,
+    target_kind: Literal["primary", "parallel", "synthesizer"],
+    target_path: Path,
+    journal_path: Path,
+    decision: HookDecision,
+) -> DispatchMemberResult:
+    """Append dispatch_attempt(outcome=hook_rejected) and return without writing the file."""
+    seq = await _allocate_seq(journal_path)
+    await journal_append(
+        _make_journal_entry(
+            seq=seq,
+            ts=_now_ts(),
+            kind="dispatch_attempt",
+            target_id=f"{step.name}/{specialist_name}",
+            payload={
+                "specialist": specialist_name,
+                "outcome": "hook_rejected",
+                "attempt": 0,
+                "target_kind": target_kind,
+                "hook_name": decision.hook_name,
+                "error_code": decision.error_code,
+            },
+        ),
+        journal_path,
+    )
+    return DispatchMemberResult(
+        specialist_name=specialist_name,
+        target_path=target_path,
+        agent_result=AgentResult(output_text="", tokens_in=0, tokens_out=0),
+        attempts=0,
+        outcome="hook_rejected",
+    )
+
+
+async def _run_pre_write_hooks(
+    hooks: tuple[Callable[[HookPayload], HookDecision], ...],
+    target_path: Path,
+    repo_root: Path,
+    journal_path: Path,
+    bypass: BypassRequest | None,
+) -> HookDecision | None:
+    """Run hook chain before write; return deny decision or None if allowed."""
+    if not hooks:
+        return None
+    hook_payload = build_write_intent_payload(
+        hook_name="pre_write",
+        target_path=target_path.relative_to(repo_root.resolve()).as_posix(),
+        write_intent="dispatcher_artifact_write",
+    )
+    decision = await run_hook_chain(
+        hook_payload,
+        hooks=hooks,
+        journal_path=journal_path,
+        bypass_phase_gate=bypass.bypass_phase_gate if bypass else False,
+        justification=bypass.justification if bypass else None,
+    )
+    return decision if decision.decision == "deny" else None
+
+
 async def _run_member(
     step: WorkflowSpec,
     specialist_name: str,
@@ -189,6 +254,8 @@ async def _run_member(
     extra_context: dict[str, object] | None = None,
     extra_journal_payload: dict[str, object] | None = None,
     target_path_override: Path | None = None,
+    hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
+    bypass: BypassRequest | None = None,
 ) -> DispatchMemberResult:
     """Dispatch a single specialist as a panel member (primary/parallel/synthesizer)."""
     specialist = registry.get(specialist_name)
@@ -238,6 +305,17 @@ async def _run_member(
                 payload=attempt_payload,
             ),
             journal_path,
+        )
+
+    deny = await _run_pre_write_hooks(hooks, target_path, repo_root, journal_path, bypass)
+    if deny is not None:
+        return await _emit_hook_rejected(
+            step=step,
+            specialist_name=specialist_name,
+            target_kind=target_kind,
+            target_path=target_path,
+            journal_path=journal_path,
+            decision=deny,
         )
 
     t_start = time.monotonic()
@@ -309,6 +387,7 @@ __all__: tuple[str, ...] = (
     "DispatchMemberResult",
     "_allocate_seq",
     "_default_prompt_builder",
+    "_emit_hook_rejected",
     "_emit_stop_trigger",
     "_make_journal_entry",
     "_now_ts",

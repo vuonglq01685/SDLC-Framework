@@ -60,7 +60,7 @@ seq=1  ts=...  dispatch_attempt  outcome=retry   attempt=2  specialist=product-s
 seq=2  ts=...  dispatch_attempt  outcome=failed  attempt=3  specialist=product-strategist
 ```
 
-Three rows for the same specialist means all retries were exhausted (transient path).  
+Three rows for the same specialist means all retries were exhausted (transient path).
 One row with `outcome=failed` means the error was non-retryable (config/operator path).
 
 ---

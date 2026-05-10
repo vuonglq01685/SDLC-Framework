@@ -72,6 +72,7 @@ nav:
   - Runbooks:
       - "Handle hook hash drift (FR39 / NFR-SEC-5)": runbooks/handle-hash-drift.md
       - "Diagnose hook rejection (Story 2A.4)": runbooks/diagnose-hook-rejection.md
+      - "Diagnose dispatch failure": runbooks/diagnose-dispatch-failure.md
   - Code Maps:
       - CODEMAPS/cli-module.md
       - CODEMAPS/engine-module.md
