@@ -203,7 +203,88 @@ via ordinary PR discussion.
 
 ---
 
-## 7. Reporting Issues
+## 7. Per-Epic Prerequisites (Pre-Story N.1 Gate)
+
+**Status:** Permanent policy from Epic 2A onward (Epic 1 patterns codified retroactively).
+**Source:** Epic 1 retrospective Team Agreements (A) and (F) — generalized for all future epics.
+
+Before Story `N.1` of any epic enters implementation, the following artifacts and gates MUST be
+satisfied. This is a hard prerequisite, not a checklist of recommendations.
+
+### 7.1 Mandatory Artifacts
+
+| # | Artifact | Path | Owner |
+|---|---|---|---|
+| 1 | Story DAG document | `docs/sprints/epic-<N>-dag.md` | Senior dev + PO |
+| 2 | Sprint-planning output | DAG §3 (parallelism layers) + §4 (critical path) + §5 (worktree assignments) | included in #1 |
+| 3 | DAG approval signoffs | DAG §8 — minimum **3 approvers**: dispatcher-correctness, sprint-capacity, architectural cross-reference | individual reviewers |
+| 4 | Project Lead directive sign-off | DAG §8 final checkbox | Project Lead |
+
+### 7.2 Mandatory Closed-Items Gate
+
+Before Story `N.1` starts, the previous epic's retrospective action items MUST be in the
+following state:
+
+- **All process actions (A-series)** flagged "Before Story N.1" in the retro: **closed** (visible
+  in CONTRIBUTING.md, ADR, or PR-merged code).
+- **All technical debt items (D-series) marked HIGH or "blocks Story N.x"**: **closed** with
+  evidence (test file path, ADR, or merged PR).
+- **All documentation actions (DOC-series)** flagged "Before Story N.1": **published** (ADR
+  status `Accepted`, not `Proposed`).
+
+Items marked MEDIUM/LOW priority MAY remain open and run in parallel-prep slots (per Epic 1
+retro §6.2 pattern).
+
+### 7.3 Mandatory DAG-First Rule (Team Agreement F)
+
+> Every epic begins with a sprint-planning session producing a story-DAG and parallelism plan.
+
+No exceptions for "small" epics. The DAG document is the single source of truth for:
+
+- Story dependencies (which stories block which)
+- Parallelism layers (which stories may run as concurrent worktrees)
+- Critical path (longest chain — sets epic minimum wall-clock)
+- Worktree assignments (per Team Agreement G — worktree-per-story at same layer)
+- Risks and mitigations (cross-story coupling, capacity bottlenecks)
+
+The DAG document SHALL be approved (§7.1 row 3+4) before any Story `N.1` story file is created
+via `bmad-create-story` or equivalent.
+
+### 7.4 Pre-Story N.1 Verification Checklist
+
+The story author (or AI agent) verifies the gate is satisfied immediately before invoking
+`bmad-create-story` for `N.1`:
+
+```markdown
+## Pre-Story N.1 Verification — Epic <N>
+
+- [ ] `docs/sprints/epic-<N>-dag.md` exists
+- [ ] DAG §8 has all 4 approvals checked (dispatcher / capacity / architecture / Project Lead)
+- [ ] Previous epic's retro: all "Before Story N.1" A-actions closed (linked)
+- [ ] Previous epic's retro: all HIGH-priority D-items closed (linked)
+- [ ] Previous epic's retro: all "Before Story N.1" DOC-items published (ADR Accepted)
+- [ ] Wire-format snapshots green (`scripts/freeze_wireformat_snapshots.py --check`)
+- [ ] Quality gate green on `main` (`pre-commit run --all-files && pytest -q`)
+```
+
+If any item is unchecked, **stop and escalate to Project Lead**. Do not proceed with story
+creation under "I'll backfill later" rationale — the prerequisites exist precisely because Epic
+1 demonstrated the cost of skipping them.
+
+### 7.5 Audit Trail
+
+Each epic's prerequisite verification SHALL leave one of:
+
+- A commit message citing this section (preferred for solo runs)
+- A row in the relevant DAG `§9. Revision Log` (preferred for team runs)
+- A signed-off PR description on the first story PR
+
+This is how a future contributor (or auditor) reconstructs whether the gate fired.
+
+---
+
+## 8. Reporting Issues
+
 
 - **Bugs in shipped substrate:** Open an issue with `kind:bug` label, cite the failing test or
   reproducer, and specify which ADR's invariant is violated (if any).
@@ -214,7 +295,7 @@ via ordinary PR discussion.
 
 ---
 
-## 8. Code of Conduct
+## 9. Code of Conduct
 
 This project is an internal milestone today; team agreements (A) — (I) recorded in the Epic 1
 retrospective govern collaboration. Public-contributor terms will be added when the project
@@ -222,8 +303,9 @@ ships externally.
 
 ---
 
-## 9. Revision Log
+## 10. Revision Log
 
 | Date | Author | Change |
 |---|---|---|
 | 2026-05-10 | Alice (drafted via sprint-planning skill) | Initial publication — TDD-first + chunked review + worktree workflow + decision protocol per Epic 1 retro DOC4 |
+| 2026-05-10 | Vuonglq01685 + Claude | Added §7 Per-Epic Prerequisites — codifies Team Agreements (A)+(F) as permanent policy for all future epics; Pre-Story N.1 gate with mandatory DAG approval + retro-action closure |
