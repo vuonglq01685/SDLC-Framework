@@ -78,7 +78,7 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
     ),
     "telemetry": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "journal"}),
+        depends_on=frozenset({"errors", "contracts", "journal", "concurrency"}),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
     ),
     "dispatcher": ModuleSpec(
@@ -93,6 +93,9 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
                 "hooks",
                 "telemetry",
                 "concurrency",
+                "config",
+                "contracts",
+                "ids",
             }
         ),
         forbidden_from=frozenset({"engine", "cli"}),

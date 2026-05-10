@@ -100,7 +100,7 @@ development_status:
   2a-0-e2e-test-harness-tier-1-cli-tier-2-pipeline: done
   2a-1-workflow-yaml-loader-schema-validation: done
   2a-2-specialist-registry-manifest-validation: done
-  2a-3-dispatcher-primary-parallel-synthesizer-retry: ready-for-dev
+  2a-3-dispatcher-primary-parallel-synthesizer-retry: in-progress
   2a-4-pre-write-hook-chain-naming-validator-phase-gate: ready-for-dev
   2a-5-recovery-hook-tampering-detection-trust-hooks: done
   2a-6-claude-code-pretooluse-hook-hook-check: backlog
