@@ -21,6 +21,8 @@ coverage.xml
 # Editor / IDE
 .idea/
 .vscode/
+# Cursor project MCP config — keep local only (machine/env-specific)
+.mcp.json
 
 # OS
 .DS_Store
