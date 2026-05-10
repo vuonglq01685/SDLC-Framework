@@ -13,7 +13,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
-from sdlc.errors import DispatchError, SdlcError
+from sdlc.errors import DispatchError
 
 T = TypeVar("T")
 
@@ -41,13 +41,11 @@ async def with_retries(
 
     Retry contract:
     - Attempt 1: call coro_factory(); on success return immediately.
-    - On ``retryable`` exception: sleep ``backoff_schedule[attempt-1]`` seconds, retry.
+    - On ``retryable`` exception: sleep ``backoff_schedule[attempt-1]`` then retry.
     - After ``max_attempts`` failures: raise ``DispatchError("dispatch failed after N
       attempts: <last_message>")`` with ``__cause__`` set to the final exception.
     - Non-retryable exceptions (including ``asyncio.CancelledError``,
       ``KeyboardInterrupt``) propagate immediately without retry.
-    - ``SdlcError`` subclasses other than ``DispatchError`` are NOT retryable —
-      they indicate operator-fixable misconfiguration.
     """
     last_exc: BaseException | None = None
     for attempt in range(1, max_attempts + 1):
@@ -59,17 +57,17 @@ async def with_retries(
             last_exc = exc
             if attempt < max_attempts:
                 backoff_idx = attempt - 1
-                delay = backoff_schedule[backoff_idx] if backoff_idx < len(backoff_schedule) else backoff_schedule[-1]
+                delay = (
+                    backoff_schedule[backoff_idx]
+                    if backoff_idx < len(backoff_schedule)
+                    else backoff_schedule[-1]
+                )
                 await sleep(delay)
 
-    # All attempts exhausted.
     assert last_exc is not None
     raise DispatchError(
         f"dispatch failed after {max_attempts} attempts: {last_exc}",
-        details={
-            "attempts": max_attempts,
-            "last_error": str(last_exc),
-        },
+        details={"attempts": max_attempts, "last_error": str(last_exc)},
     ) from last_exc
 
 

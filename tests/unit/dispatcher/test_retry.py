@@ -294,7 +294,7 @@ class TestWithRetriesCoroFactoryCalledFresh:
 
         def _factory() -> "asyncio.coroutine":
             async def _coro() -> str:
-                if len(created) < 2:
+                if len(created) < 3:
                     raise DispatchError("transient")
                 return "ok"
 
