@@ -127,6 +127,9 @@ async def dispatch(
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
     bypass: BypassRequest | None = None,
+    observer: PanelObserver | None = None,
+    persist_artifact: bool = True,
+    target_path_override: Path | None = None,
     _max_attempts: int = 3,
 ) -> DispatchResult:
     """Dispatch the primary specialist for a workflow step (AC1, FR25).
@@ -137,6 +140,21 @@ async def dispatch(
     (outcome="hook_rejected") is written here; file is NOT written.
 
     P18: emits STOP-trigger placeholder on terminal failure (parity with dispatch_panel).
+
+    Story 2A.10 extends the single-specialist surface with three kwargs that
+    panel dispatch already exposed via :func:`_run_member`:
+
+    * ``observer`` — typed CLI passthrough; when set with
+      ``emit_agent_dispatched=True`` the dispatcher emits
+      ``kind="agent_dispatched"`` once per dispatch (mirrors panel behaviour).
+    * ``persist_artifact`` — set to False to suppress the dispatcher's
+      ``Path.write_text`` + ``artifact_written`` journal append. The caller
+      is then responsible for any persistent write (used by ``sdlc verify``
+      so the verification ceremony is non-destructive — AC5/D2).
+    * ``target_path_override`` — bypass ``write_globs[0]`` resolution and
+      use the supplied concrete path. Required when the workflow YAML
+      declares a glob pattern (e.g. ``01-Requirement/**/*.md``) but the
+      CLI knows the artifact path explicitly (Story 2A.10 AC2/AC5).
     """
     try:
         member = await _run_member(
@@ -153,6 +171,9 @@ async def dispatch(
             max_attempts=_max_attempts,
             hooks=hooks,
             bypass=bypass,
+            observer=observer,
+            persist_artifact=persist_artifact,
+            target_path_override=target_path_override,
         )
     except DispatchError as exc:
         await _emit_stop_trigger(
