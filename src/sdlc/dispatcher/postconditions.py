@@ -30,6 +30,17 @@ _REQUIRED_PRODUCT_FRONTMATTER_KEYS: frozenset[str] = frozenset(
     {"schema_version", "kind", "idea", "drafted_at", "drafted_by_specialists"}
 )
 
+_REQUIRED_RESEARCH_FRONTMATTER_KEYS: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "kind",
+        "topic",
+        "slug",
+        "researched_at",
+        "researched_by_specialist",
+    }
+)
+
 
 def evaluate_postconditions(
     spec: WorkflowSpec,
@@ -37,6 +48,7 @@ def evaluate_postconditions(
     repo_root: Path,
     agent_runs_path: Path,
     product_rel: str = "01-Requirement/01-PRODUCT.md",
+    research_artifact_abs: Path | None = None,
 ) -> None:
     """Raise WorkflowError on first failed postcondition when the workflow lists any."""
     if not spec.postconditions:
@@ -48,6 +60,16 @@ def evaluate_postconditions(
             _check_boundary_line_in_runs(agent_runs_path)
         elif name == "product_md_frontmatter_keys":
             _check_product_md_frontmatter_keys(repo_root / product_rel)
+        elif name == "research_md_exists":
+            if research_artifact_abs is None:
+                # Programmer error (caller forgot to plumb the path), not a workflow
+                # contract failure — use RuntimeError so observers/journal'ers do not
+                # record this as a workflow problem (Story 2A.9 code review P19).
+                raise RuntimeError(
+                    f"postcondition research_md_exists requires research_artifact_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_research_md_exists(research_artifact_abs)
         else:
             raise WorkflowError(
                 f"unknown postcondition {name!r}",
@@ -102,6 +124,70 @@ def _check_product_md_exists(path: Path) -> None:
             "postcondition product_md_exists: markdown body must contain an H2 heading",
             details={"path": str(path)},
         )
+
+
+def validate_research_md_text(text: str, *, source_label: str = "<in-memory>") -> None:
+    """P4 (code review): validate the research artifact SHAPE without requiring disk I/O.
+
+    Use this BEFORE the CLI writes + journals, so a malformed specialist body
+    fails fast in memory instead of leaving an orphan ``artifact_written``
+    journal entry pointing at an unshippable file.
+
+    ``_REQUIRED_RESEARCH_FRONTMATTER_KEYS`` is enforced as a *subset* of the
+    actual key set (D5 from the Story 2A.9 code review): /sdlc-verify
+    (Story 2A.10) APPENDS ``verifications: [...]`` to this frontmatter and the
+    postcondition must keep accepting verified artifacts.
+    """
+    if not text.startswith("---"):
+        raise WorkflowError(
+            "postcondition research_md_exists: expected YAML frontmatter",
+            details={"path": source_label},
+        )
+    segments = text.split("---", 2)
+    if len(segments) < _FRONT_MATTER_MIN_SEGMENTS:
+        raise WorkflowError(
+            "postcondition research_md_exists: malformed frontmatter",
+            details={"path": source_label},
+        )
+    try:
+        front = yaml.safe_load(segments[1])
+    except yaml.YAMLError as e:
+        raise WorkflowError(
+            "postcondition research_md_exists: frontmatter malformed",
+            details={"path": source_label, "cause": str(e)},
+        ) from e
+    if not isinstance(front, dict) or front.get("kind") != "research":
+        raise WorkflowError(
+            "postcondition research_md_exists: frontmatter kind must be research",
+            details={"path": source_label},
+        )
+    actual = frozenset(front.keys())
+    if not _REQUIRED_RESEARCH_FRONTMATTER_KEYS.issubset(actual):
+        raise WorkflowError(
+            "postcondition research_md_exists: missing required frontmatter keys",
+            details={
+                "path": source_label,
+                "expected": sorted(_REQUIRED_RESEARCH_FRONTMATTER_KEYS),
+                "actual": sorted(actual),
+            },
+        )
+    body = segments[2].lstrip("\n")
+    if not _H2_HEADING_RE.search(body):
+        raise WorkflowError(
+            "postcondition research_md_exists: markdown body must contain an H2 heading",
+            details={"path": source_label},
+        )
+
+
+def _check_research_md_exists(path: Path) -> None:
+    """Story 2A.9 — research artifact exists with YAML frontmatter + H2 body."""
+    if not path.is_file():
+        raise WorkflowError(
+            f"postcondition research_md_exists: missing file {path}",
+            details={"path": str(path)},
+        )
+    text = _read_text_utf8(path, context="research_md")
+    validate_research_md_text(text, source_label=str(path))
 
 
 def _check_product_md_frontmatter_keys(path: Path) -> None:

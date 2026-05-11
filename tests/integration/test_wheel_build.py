@@ -72,7 +72,32 @@ _CONTENT_SUFFIXES = frozenset({".md", ".json", ".yaml", ".yml", ".toml", ".txt",
 # P-R18: store as POSIX-normalized strings; comparisons normalize via Path.as_posix()
 # so wheel name variants (`./sdlc/...`, backslashes on Windows builders, etc.) all
 # resolve to the canonical form before allowlist lookup.
-_ALLOWED_CONTENT_FILES = frozenset({Path("sdlc/agents/index.yaml").as_posix()})
+_ALLOWED_CONTENT_FILES = frozenset(
+    {
+        # Story 2A.2 — empty manifest stub must ship.
+        Path("sdlc/agents/index.yaml").as_posix(),
+        # Story 2A.8 — phase 1 specialist stubs (Story 2A.9 backfill from PR scope).
+        Path("sdlc/agents/phase1/devil-advocate.md").as_posix(),
+        Path("sdlc/agents/phase1/product-strategist.md").as_posix(),
+        Path("sdlc/agents/phase1/requirement-synthesizer.md").as_posix(),
+        Path("sdlc/agents/phase1/technical-researcher.md").as_posix(),
+        # Story 2A.8 — /sdlc-start command + workflow YAML (2A.9 backfill).
+        Path("sdlc/commands/sdlc-start.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-start.yaml").as_posix(),
+        # Story 2A.9 — /sdlc-research command + workflow YAML.
+        Path("sdlc/commands/sdlc-research.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-research.yaml").as_posix(),
+    }
+)
+
+
+def _ensure_allowed_paths_exist_in_source(repo_root: Path) -> None:
+    """P29 (code review): the allowlist is the wheel-content contract — a typo
+    silently widens the surface. Guard against typos by asserting every entry
+    actually exists in the source tree before the test relies on it.
+    """
+    missing = [p for p in _ALLOWED_CONTENT_FILES if not (repo_root / "src" / p).is_file()]
+    assert not missing, f"allowlist entries missing from source tree: {missing}"
 
 
 def _build_wheel(out_dir: Path) -> Path:
@@ -124,6 +149,9 @@ def test_wheel_does_not_ship_content_files(tmp_path: Path) -> None:
     Story 2A.2 explicitly ships `agents/index.yaml` (empty manifest stub, per AC1/AC3).
     That file is in _ALLOWED_CONTENT_FILES. All other content-suffix files are leaks.
     """
+    # P29 (code review): allowlist is the wheel-content contract — a typo
+    # silently widens the surface. Verify every entry exists in source first.
+    _ensure_allowed_paths_exist_in_source(Path(__file__).resolve().parents[2])
     wheel = _build_wheel(tmp_path)
     with zipfile.ZipFile(wheel) as zf:
         names = sorted(zf.namelist())

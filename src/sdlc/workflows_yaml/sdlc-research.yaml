@@ -1,0 +1,13 @@
+schema_version: 1
+name: phase1-topic-research
+slash_command: /sdlc-research
+primary_agent: technical-researcher
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - research_md_exists
+  - boundary_line_present_in_prompts
+write_globs:
+  technical-researcher:
+    - "01-Requirement/02-Research/*.md"
+stop_on_postcondition_failure: true

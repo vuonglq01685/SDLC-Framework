@@ -1,9 +1,8 @@
 """Unit tests for the boundary-validator core logic in scripts/check_module_boundaries.py.
 
 Covers MODULE_DEPS table, file_to_module path mapping, _extract_sdlc_imports
-AST extraction, check_imports rule enforcement (including §1103-#N per-rule
-citation and TYPE_CHECKING-block skipping). LOC-cap and main() integration
-tests live in tests/test_module_boundaries_main.py.
+AST extraction, check_imports rule enforcement (§1103-#N per-rule citation and
+TYPE_CHECKING-block skipping). LOC-cap/main() tests in test_module_boundaries_main.py.
 """
 
 from __future__ import annotations
@@ -14,12 +13,13 @@ from pathlib import Path
 import pytest
 
 import check_module_boundaries as mb
+import module_boundary_table
 
 # MODULE_DEPS completeness + invariants
 
 
 @pytest.mark.unit
-def test_module_deps_contains_all_21_modules() -> None:
+def test_module_deps_contains_all_22_modules() -> None:
     expected = {
         "errors",
         "ids",
@@ -31,6 +31,7 @@ def test_module_deps_contains_all_21_modules() -> None:
         "signoff",
         "runtime",
         "workflows",
+        "workflows_yaml",
         "specialists",
         "hooks",
         "telemetry",
@@ -80,7 +81,7 @@ def test_engine_can_import_ids_per_story_115() -> None:
 
 @pytest.mark.unit
 def test_module_deps_invariant_no_unknown_references() -> None:
-    mb._validate_module_deps_table()
+    module_boundary_table._validate_module_deps_table()
     known = frozenset(mb.MODULE_DEPS)
     for name, spec in mb.MODULE_DEPS.items():
         assert (spec.depends_on | spec.forbidden_from) <= known, name
