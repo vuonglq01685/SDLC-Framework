@@ -1,0 +1,14 @@
+schema_version: 1
+name: phase1-artifact-verification
+slash_command: /sdlc-verify
+primary_agent: artifact-verifier
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - artifact_verified_frontmatter_present
+  - boundary_line_present_in_prompts
+write_globs:
+  artifact-verifier:
+    - "01-Requirement/**/*.md"
+    - "01-Requirement/**/*.json"
+stop_on_postcondition_failure: true

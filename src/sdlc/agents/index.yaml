@@ -12,3 +12,6 @@ specialists:
   - name: requirement-synthesizer
     phase: 1
     file: phase1/requirement-synthesizer.md
+  - name: artifact-verifier
+    phase: 1
+    file: phase1/artifact-verifier.md
