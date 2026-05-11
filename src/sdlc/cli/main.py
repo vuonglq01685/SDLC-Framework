@@ -84,6 +84,17 @@ def init_command(
     run_init(ctx=ctx)
 
 
+@app.command(name="research")
+def research_command(
+    ctx: typer.Context,
+    topic: str = typer.Argument(..., help="The research topic"),
+) -> None:
+    """Phase 1 topic research (FR7)."""
+    from sdlc.cli.research import run_research  # deferred per Architecture §488
+
+    run_research(ctx=ctx, topic=topic)
+
+
 @app.command(name="start")
 def start_command(
     ctx: typer.Context,

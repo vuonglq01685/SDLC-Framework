@@ -31,7 +31,7 @@ import hashlib
 import inspect
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -389,6 +389,26 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
         # provenance of who was assigned to write the target, not retry count.
         seq_ad = await _allocate_seq(journal_path)
         idea_hash = "sha256:" + hashlib.sha256(idea_text.encode("utf-8")).hexdigest()
+        ad_payload: dict[str, object] = {
+            "slash_command": slash_command,
+            "specialist": specialist_name,
+            "role": target_kind,
+            "idea_hash": idea_hash,
+        }
+        # P12 (code review): protect canonical keys from caller-supplied extras —
+        # a misconfigured caller could pass ``{"specialist": "evil"}`` and clobber
+        # the actor field, corrupting the audit log. Reject collisions explicitly.
+        _CANONICAL_AD_KEYS: frozenset[str] = frozenset(ad_payload)
+        extras_src = observer_extra_context.get("agent_dispatched_extras")
+        if isinstance(extras_src, Mapping):
+            for k, v in extras_src.items():
+                key = str(k)
+                if key in _CANONICAL_AD_KEYS:
+                    raise ValueError(
+                        f"agent_dispatched_extras key {key!r} collides with a "
+                        f"canonical agent_dispatched payload key"
+                    )
+                ad_payload[key] = v
         await journal_append(
             _make_journal_entry(
                 seq=seq_ad,
@@ -396,12 +416,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
                 kind="agent_dispatched",
                 target_id=rel_for_journal,
                 actor=f"agent:{specialist_name}",
-                payload={
-                    "slash_command": slash_command,
-                    "specialist": specialist_name,
-                    "role": target_kind,
-                    "idea_hash": idea_hash,
-                },
+                payload=ad_payload,
             ),
             journal_path,
         )

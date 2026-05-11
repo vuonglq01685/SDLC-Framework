@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
@@ -115,6 +116,42 @@ def _failed_result(
     )
 
 
+def _validate_target_path_override(
+    target: Path,
+    *,
+    repo_root: Path,
+    spec: WorkflowSpec,
+    specialist: str,
+) -> None:
+    """P13 (code review): reject overrides that escape the repo or workflow contract.
+
+    Three guards:
+      1. ``target`` must resolve to a path under ``repo_root`` — no traversal.
+      2. ``target`` must not be a symlink — would defeat phase_gate semantics.
+      3. ``target`` (relative form) must match at least one ``write_globs`` entry
+         for the primary specialist — overrides cannot widen the workflow surface.
+    """
+    try:
+        rel = target.resolve().relative_to(repo_root.resolve())
+    except ValueError as exc:
+        raise ValueError(
+            f"target_path_override {target!s} is not under repo_root {repo_root!s}"
+        ) from exc
+    if target.is_symlink():
+        raise ValueError(
+            f"target_path_override {target!s} is a symlink; dispatcher refuses to follow it"
+        )
+    globs = spec.write_globs.get(specialist, ())
+    if not globs:
+        return  # no constraint declared — caller accepted broad surface
+    rel_posix = rel.as_posix()
+    if not any(fnmatchcase(rel_posix, pat) for pat in globs):
+        raise ValueError(
+            f"target_path_override {rel_posix!r} matches none of the write_globs "
+            f"for specialist {specialist!r}: {list(globs)}"
+        )
+
+
 async def dispatch(
     step: WorkflowSpec,
     *,
@@ -128,6 +165,9 @@ async def dispatch(
     hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
     bypass: BypassRequest | None = None,
     _max_attempts: int = 3,
+    observer: PanelObserver | None = None,
+    persist_artifact: bool = True,
+    target_path_override: Path | None = None,
 ) -> DispatchResult:
     """Dispatch the primary specialist for a workflow step (AC1, FR25).
 
@@ -137,7 +177,23 @@ async def dispatch(
     (outcome="hook_rejected") is written here; file is NOT written.
 
     P18: emits STOP-trigger placeholder on terminal failure (parity with dispatch_panel).
+
+    P13 (code review): ``target_path_override`` is validated here — it MUST live
+    under ``repo_root`` (no path traversal), MUST NOT be a symlink (the
+    dispatcher writes through the path; following a symlink to outside the
+    repo would defeat phase_gate's relative-path enforcement), and MUST match
+    at least one ``write_globs`` entry for the primary specialist (the override
+    cannot route writes to a path the workflow YAML disallows). Callers passing
+    user-derived slug paths (e.g., ``cli/research.py``) must keep both guards
+    intact.
     """
+    if target_path_override is not None:
+        _validate_target_path_override(
+            target_path_override,
+            repo_root=repo_root,
+            spec=step,
+            specialist=step.primary_agent,
+        )
     try:
         member = await _run_member(
             step,
@@ -153,6 +209,9 @@ async def dispatch(
             max_attempts=_max_attempts,
             hooks=hooks,
             bypass=bypass,
+            observer=observer,
+            persist_artifact=persist_artifact,
+            target_path_override=target_path_override,
         )
     except DispatchError as exc:
         await _emit_stop_trigger(

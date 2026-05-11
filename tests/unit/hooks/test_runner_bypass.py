@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from sdlc.contracts.hook_payload import HookPayload
-from sdlc.hooks.builtin.naming_validator import naming_validator
-from sdlc.hooks.builtin.phase_gate import phase_gate
+from sdlc.dispatcher._hook_chain import build_pre_write_hook_chain
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 
 
@@ -23,11 +21,17 @@ def _p(path: str) -> HookPayload:
     )
 
 
-def _make_phase_gate(repo_root: Path):
-    def _hook(p: HookPayload) -> HookDecision:
-        return phase_gate(p, repo_root=repo_root)
+def _phase_gate_only(tmp_path):  # type: ignore[no-untyped-def]
+    """P16 (code review): pick the phase_gate hook by marker, not positional index.
 
-    return _hook
+    Prior code used ``build_pre_write_hook_chain(tmp_path)[1]`` which silently
+    breaks if the chain ever reorders or grows. Filter by the
+    ``__is_phase_gate__`` marker set in ``_hook_chain.py``.
+    """
+    chain = build_pre_write_hook_chain(tmp_path)
+    matches = [h for h in chain if getattr(h, "__is_phase_gate__", False)]
+    assert len(matches) == 1, f"expected exactly one phase_gate hook; got {len(matches)}"
+    return matches[0]
 
 
 @pytest.mark.unit
@@ -37,7 +41,7 @@ class TestBypassInRunner:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock):
             result = await run_hook_chain(
                 _p("01-Requirement/04-Epics/EPC_typo.json"),
-                hooks=(naming_validator, _make_phase_gate(tmp_path)),
+                hooks=build_pre_write_hook_chain(tmp_path),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=None,
@@ -50,7 +54,7 @@ class TestBypassInRunner:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock):
             result = await run_hook_chain(
                 _p("02-Architecture/01-UX/01-tokens.md"),
-                hooks=(naming_validator, _make_phase_gate(tmp_path)),
+                hooks=build_pre_write_hook_chain(tmp_path),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=None,
@@ -63,7 +67,7 @@ class TestBypassInRunner:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock) as mock_j:
             result = await run_hook_chain(
                 _p("02-Architecture/01-UX/01-tokens.md"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=journal_path,
@@ -81,7 +85,7 @@ class TestBypassInRunner:
         with pytest.raises(ValueError, match="10 characters"):
             await run_hook_chain(
                 _p("02-Architecture/01-UX/01-tokens.md"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="short",
                 journal_path=None,
@@ -93,7 +97,7 @@ class TestBypassInRunner:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock) as mock_j:
             result = await run_hook_chain(
                 _p("01-Requirement/04-Epics/EPIC-foo.json"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=journal_path,
@@ -109,7 +113,7 @@ class TestBypassInRunner:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock) as mock_j:
             result = await run_hook_chain(
                 _p("03-Implementation/01-API/server.py"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=journal_path,
@@ -125,7 +129,7 @@ class TestBypassInRunner:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock) as mock_j:
             result = await run_hook_chain(
                 _p(".claude/hooks/naming_validator.py"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=journal_path,
@@ -187,7 +191,7 @@ class TestBypassInRunner:
         ):
             result = await run_hook_chain(
                 _p("02-Architecture/01-UX/01-tokens.md"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=journal_path,
@@ -211,7 +215,7 @@ class TestBypassInRunner:
         ):
             result = await run_hook_chain(
                 _p("02-Architecture/01-UX/01-tokens.md"),
-                hooks=(_make_phase_gate(tmp_path),),
+                hooks=(_phase_gate_only(tmp_path),),
                 bypass_phase_gate=True,
                 justification="real reason here",
                 journal_path=journal_path,

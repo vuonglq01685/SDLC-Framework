@@ -14,20 +14,17 @@ pre_tool_use.py (verified here via the engine path).
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.specialist_frontmatter import SpecialistFrontmatter
 from sdlc.contracts.workflow_spec import WorkflowSpec
-from sdlc.hooks.builtin.naming_validator import naming_validator
-from sdlc.hooks.builtin.phase_gate import phase_gate
+from sdlc.dispatcher._hook_chain import build_pre_write_hook_chain
 from sdlc.hooks.payload import build_write_intent_payload
-from sdlc.hooks.runner import BypassRequest, HookDecision, run_hook_chain
+from sdlc.hooks.runner import BypassRequest, run_hook_chain
 from sdlc.runtime.abc import AgentResult
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
@@ -73,16 +70,6 @@ def _make_registry(*specialists: Specialist) -> SpecialistRegistry:
     return SpecialistRegistry(MappingProxyType({s.frontmatter.name: s for s in specialists}))
 
 
-def _make_phase_gate_hook(repo_root: Path):  # type: ignore[return]
-    """Return a phase_gate closure bound to repo_root; marks __is_phase_gate__ for runner."""
-
-    def _hook(p):  # type: ignore[no-untyped-def]
-        return phase_gate(p, repo_root=repo_root)
-
-    _hook.__is_phase_gate__ = True  # type: ignore[attr-defined]
-    return _hook
-
-
 async def _instant_sleep(seconds: float) -> None:
     await asyncio.sleep(0)
 
@@ -106,7 +93,7 @@ class TestDispatcherAllowPath:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
 
         with (
             patch("sdlc.dispatcher._panel_helpers.journal_append", new_callable=AsyncMock),
@@ -136,7 +123,7 @@ class TestDispatcherAllowPath:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         captured: list = []
 
         async def _capture(entry, journal_path):  # type: ignore[no-untyped-def]
@@ -186,7 +173,7 @@ class TestDispatcherDenyNamingViolation:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         target_file = tmp_path / _NAMING_DENY_TARGET
 
         with (
@@ -220,7 +207,7 @@ class TestDispatcherDenyNamingViolation:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         dispatcher_captured: list = []
         hooks_captured: list = []
 
@@ -282,7 +269,7 @@ class TestDispatcherDenyPhaseGate:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         target_file = tmp_path / _PHASE2_TARGET
 
         with (
@@ -314,7 +301,7 @@ class TestDispatcherDenyPhaseGate:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         hooks_captured: list = []
 
         async def _cap_hooks(entry, journal_path):  # type: ignore[no-untyped-def]
@@ -362,7 +349,7 @@ class TestDispatcherBypassPhaseGate:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         bypass = BypassRequest(bypass_phase_gate=True, justification=_BYPASS_JUSTIFICATION)
 
         with (
@@ -394,7 +381,7 @@ class TestDispatcherBypassPhaseGate:
         registry = _make_registry(specialist)
         runtime = AsyncMock()
         runtime.dispatch.return_value = AgentResult(output_text=_OUTPUT, tokens_in=1, tokens_out=1)
-        hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+        hooks = build_pre_write_hook_chain(tmp_path)
         bypass = BypassRequest(bypass_phase_gate=True, justification=_BYPASS_JUSTIFICATION)
         hooks_captured: list = []
 
@@ -434,15 +421,6 @@ class TestDispatcherBypassPhaseGate:
 # ---------------------------------------------------------------------------
 
 
-def _make_phase_gate_hook_direct(repo_root: Path) -> Callable[[HookPayload], HookDecision]:
-    """Minimal phase_gate wrapper for direct runner tests (no __is_phase_gate__ needed)."""
-
-    def _hook(p: HookPayload) -> HookDecision:
-        return phase_gate(p, repo_root=repo_root)
-
-    return _hook
-
-
 @pytest.mark.integration
 class TestRunHookChainDirect:
     """Direct run_hook_chain tests migrated from test_hook_chain_smoke.py (AC7, 2A.4 Task 8.1)."""
@@ -457,7 +435,7 @@ class TestRunHookChainDirect:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock) as mock_j:
             result = await run_hook_chain(
                 payload,
-                hooks=(naming_validator, _make_phase_gate_hook_direct(tmp_path)),
+                hooks=build_pre_write_hook_chain(tmp_path),
                 journal_path=None,
             )
         assert result.decision == "allow"
@@ -473,7 +451,7 @@ class TestRunHookChainDirect:
         with patch("sdlc.hooks.runner._do_journal_append", new_callable=AsyncMock):
             result = await run_hook_chain(
                 payload,
-                hooks=(naming_validator, _make_phase_gate_hook_direct(tmp_path)),
+                hooks=build_pre_write_hook_chain(tmp_path),
                 journal_path=None,
             )
         assert result.decision == "allow"

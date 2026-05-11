@@ -31,8 +31,7 @@ from typing import Any
 import pytest
 import yaml
 
-from sdlc.hooks.builtin.naming_validator import naming_validator
-from sdlc.hooks.builtin.phase_gate import phase_gate
+from sdlc.dispatcher._hook_chain import build_pre_write_hook_chain
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 
@@ -73,15 +72,44 @@ _SIGNOFF_DIR = Path(".claude/state/signoffs")
 
 def _setup_repo(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
     """Create the minimal repo layout needed by hook_check (pyproject.toml + signoffs)."""
+    from sdlc.signoff.records import ArtifactRef, SignoffRecord, write_record
+
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_HOOK_REGISTRY, encoding="utf-8")
+    ts = "2026-01-01T00:00:00.000Z"
+    placeholder_hash = "sha256:" + "a" * 64
     for step in steps:
-        if step["kind"] == "create_signoff":
-            phase = step["phase"]
-            approved = step["approved"]
-            signoff_dir = tmp_path / _SIGNOFF_DIR
-            signoff_dir.mkdir(parents=True, exist_ok=True)
-            signoff_file = signoff_dir / f"phase-{phase}.yaml"
-            signoff_file.write_text(f"approved: {str(approved).lower()}\n", encoding="utf-8")
+        if step["kind"] != "create_signoff":
+            continue
+        phase = int(step["phase"])
+        approved = bool(step["approved"])
+        signoff_dir = tmp_path / _SIGNOFF_DIR
+        signoff_dir.mkdir(parents=True, exist_ok=True)
+        signoff_file = signoff_dir / f"phase-{phase}.yaml"
+        if approved:
+            artifact_path = (
+                "01-Requirement/01-PRODUCT.md"
+                if phase == 1
+                else "02-Architecture/01-UX/01-tokens.md"
+            )
+            record = SignoffRecord(
+                phase=phase,
+                artifacts=(ArtifactRef(path=artifact_path, hash=placeholder_hash),),
+                approved_by="parity-fixture",
+                approved_at=ts,
+                drafted_at=ts,
+                validated_at=ts,
+            )
+            write_record(record, repo_root=tmp_path)
+        else:
+            # P15 (code review): the canonical "not approved" state is "no record on
+            # disk" → compute_state returns AWAITING → phase_gate denies. Writing a
+            # legacy approved-only YAML stub exercised the read_record fall-through
+            # path on one branch only, leaving parity one-sided. Mirror the canonical
+            # representation on both branches by writing nothing.
+            #
+            # signoff_file path is computed above but intentionally not used; keep
+            # the directory creation so concurrent setup steps see the same layout.
+            _ = signoff_file  # silence "unused" lint without touching loop locals
 
 
 def _expand_target_path(row: dict[str, Any], tmp_path: Path) -> tuple[str, str]:
@@ -106,16 +134,6 @@ def _expand_target_path(row: dict[str, Any], tmp_path: Path) -> tuple[str, str]:
     return raw, raw  # both get the same relative path
 
 
-def _make_phase_gate_hook(repo_root: Path):  # type: ignore[return]
-    """Phase gate closure with __is_phase_gate__ marker for bypass detection."""
-
-    def _hook(p):  # type: ignore[no-untyped-def]
-        return phase_gate(p, repo_root=repo_root)
-
-    _hook.__is_phase_gate__ = True  # type: ignore[attr-defined]
-    return _hook
-
-
 def _run_engine_side(relative_path: str, tmp_path: Path) -> HookDecision:
     """Run naming_validator + phase_gate chain in-process; return the decision."""
     payload = build_write_intent_payload(
@@ -123,7 +141,7 @@ def _run_engine_side(relative_path: str, tmp_path: Path) -> HookDecision:
         target_path=relative_path,
         write_intent="dispatcher_artifact_write",
     )
-    hooks = (naming_validator, _make_phase_gate_hook(tmp_path))
+    hooks = build_pre_write_hook_chain(tmp_path)
     return asyncio.run(run_hook_chain(payload, hooks=hooks, journal_path=None))
 
 

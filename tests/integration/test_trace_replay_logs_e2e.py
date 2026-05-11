@@ -151,6 +151,9 @@ def test_no_color_flag_strips_ansi_on_trace_replay_logs(
 
     from sdlc.cli.output import echo
 
+    # CI / developer shells often set NO_COLOR; is_no_color_active treats it as global strip.
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
     captured_messages: list[str] = []
 
     def _fake_echo(msg: str = "", **kw: object) -> None:

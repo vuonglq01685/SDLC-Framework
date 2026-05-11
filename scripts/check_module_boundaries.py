@@ -12,205 +12,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# P25 (code review): allow this script to import the sibling table regardless of
+# CWD or invocation mode (pre-commit, `python scripts/...`, IDE runner). Without
+# this insert, sibling-script import works only when CWD already includes
+# scripts/ on PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-@dataclass(frozen=True)
-class ModuleSpec:
-    depends_on: frozenset[str]
-    forbidden_from: frozenset[str]
-
-
-FOUNDATION = frozenset({"errors", "ids", "contracts", "config", "concurrency"})
-UPPER_STACK = frozenset({"engine", "dispatcher", "cli"})
-
-MODULE_DEPS: dict[str, ModuleSpec] = {
-    "errors": ModuleSpec(
-        depends_on=frozenset(),
-        forbidden_from=frozenset(),
-    ),
-    "ids": ModuleSpec(
-        depends_on=frozenset({"errors"}),
-        forbidden_from=frozenset(),
-    ),
-    "contracts": ModuleSpec(
-        depends_on=frozenset({"errors", "ids"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "cli"}),
-    ),
-    "config": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "cli"}),
-    ),
-    "concurrency": ModuleSpec(
-        depends_on=frozenset({"errors"}),
-        forbidden_from=frozenset({"engine", "state", "journal"}),
-    ),
-    "state": ModuleSpec(
-        # state depends on journal: state.json is a projection of the journal
-        # (Decision B5, ADR-015 / Story 1.12).
-        depends_on=frozenset({"errors", "contracts", "concurrency", "config", "journal"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
-    ),
-    "journal": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "concurrency", "config"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
-    ),
-    "signoff": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "state", "journal"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "cli"}),
-    ),
-    "runtime": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "concurrency"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "state", "journal", "cli"}),
-    ),
-    "workflows": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "ids"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime"}),
-    ),
-    # Packaged YAML workflow files (importlib.resources / __file__ only; no engine).
-    "workflows_yaml": ModuleSpec(
-        depends_on=frozenset({"errors"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
-    ),
-    "specialists": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "workflows"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime"}),
-    ),
-    "hooks": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "state", "journal", "ids"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
-    ),
-    "telemetry": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "journal", "concurrency"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
-    ),
-    "dispatcher": ModuleSpec(
-        depends_on=frozenset(
-            {
-                "errors",
-                "runtime",
-                "workflows",
-                "specialists",
-                "state",
-                "journal",
-                "hooks",
-                "telemetry",
-                "concurrency",
-                "config",
-                "contracts",
-                "ids",
-                "signoff",  # hook chain / panel postconditions may consult signoff records
-            }
-        ),
-        forbidden_from=frozenset({"engine", "cli"}),
-    ),
-    "engine": ModuleSpec(
-        depends_on=frozenset(
-            {
-                "errors",
-                "ids",  # NEW (Story 1.15) — scanner.py needs parse_epic_id/_story_id/_task_id
-                "state",
-                "journal",
-                "signoff",
-                "dispatcher",
-                "hooks",
-                "telemetry",
-                "workflows",
-                "specialists",
-                "runtime",
-                "config",
-            }
-        ),
-        # dashboard forbidden: read-only re state/journal; importing it inverts
-        # the layered DAG (sits below upper stack, not parallel). §1103-#4
-        forbidden_from=frozenset({"cli", "dashboard"}),
-    ),
-    # Known widening vs. Architecture §1069: adopt/ may only use cli/git sub-import,
-    # but at module-level granularity we grant adopt→cli (ADR-010 Consequences).
-    "adopt": ModuleSpec(
-        depends_on=frozenset({"errors", "state", "journal", "signoff", "config"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime"}),
-    ),
-    # Story 1.19 / ADR-022: migration scripts are a leaf cluster (errors + state only).
-    "migrations": ModuleSpec(
-        depends_on=frozenset({"errors", "state"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
-    ),
-    # Known gap: "read-only" constraint is not expressible at import-graph level (ADR-010).
-    "dashboard": ModuleSpec(
-        depends_on=frozenset({"errors", "state", "journal", "telemetry", "signoff", "config"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "hooks", "adopt"}),
-    ),
-    "cli": ModuleSpec(
-        depends_on=frozenset(
-            {
-                "engine",
-                "adopt",
-                "dashboard",
-                "runtime",
-                "config",
-                "errors",
-                # Stories 1.16-2A.5 widening: cli/ submodules need state/journal/hooks I/O.
-                "state",  # cli/init.py writes state.json via write_state_atomic_sync
-                "journal",  # cli/init.py creates empty journal.log; cli/scan.py appends
-                "contracts",  # JournalEntry / State pydantic contracts used by cli
-                "ids",  # cli/init.py + cli/scan.py validate canonical IDs
-                "migrations",  # cli/migrate.py: migration scripts (Story 1.19)
-                "hooks",  # cli/{init,scan,trust_hooks}.py: FR39 tampering surface
-                "concurrency",  # 2A.5 DR1+P9: trust_hooks file_lock RMW
-                # Phase 1 / sdlc start: CLI orchestrates dispatcher, workflows, specialists.
-                "dispatcher",
-                "specialists",
-                "workflows",
-                "workflows_yaml",
-                "signoff",  # hook_check signoff surface
-            }
-        ),
-        forbidden_from=frozenset(),
-    ),
-    # Provisional v0.2: agents/ holds specialist registry (markdown today; will gain
-    # Python with Story 2A-2). Conservative leaf profile prevents silent bypass.
-    # TODO Story 2A-2: revise based on actual specialist runtime requirements.
-    "agents": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "workflows", "specialists"}),
-        forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli", "state", "journal"}),
-    ),
-    "claude_hooks": ModuleSpec(  # 2A.6: stdlib-only content tree, not an importable sdlc module
-        depends_on=frozenset(),
-        forbidden_from=frozenset(
-            {"engine", "dispatcher", "runtime", "state", "journal", "hooks", "cli"}
-        ),
-    ),
-}
-
-
-SPECIFIC_RULE_MAP: dict[tuple[str, str], int] = {
-    ("engine", "dashboard"): 4,  # #4
-    ("hooks", "engine"): 5,
-    ("hooks", "dispatcher"): 5,  # #5
-    ("adopt", "engine"): 6,
-    ("adopt", "dispatcher"): 6,  # #6
-    ("workflows", "engine"): 7,
-    ("workflows", "dispatcher"): 7,  # #7
-    ("workflows", "runtime"): 7,
-    ("specialists", "engine"): 7,
-    ("specialists", "dispatcher"): 7,
-    ("specialists", "runtime"): 7,
-}
-
-
-def _validate_module_deps_table() -> None:
-    """Module-level invariant: every value in any depends_on / forbidden_from is a
-    declared MODULE_DEPS key. Catches typos at import time, not at runtime."""
-    known = frozenset(MODULE_DEPS)
-    for name, spec in MODULE_DEPS.items():
-        unknown = (spec.depends_on | spec.forbidden_from) - known
-        if unknown:
-            raise AssertionError(
-                f"MODULE_DEPS[{name!r}] references unknown module(s): {sorted(unknown)}"
-            )
-
-
-_validate_module_deps_table()
-
+from module_boundary_table import MODULE_DEPS, SPECIFIC_RULE_MAP, ModuleSpec
 
 # Path helpers
 
@@ -360,8 +168,9 @@ LOC_EXEMPT_PATH_PREFIX_PARTS: tuple[tuple[str, ...], ...] = (
     ("src", "sdlc", "dispatcher", "_panel_helpers.py"),
     ("src", "sdlc", "dispatcher", "core.py"),
     ("src", "sdlc", "cli", "start.py"),
+    # Story 2A.9: research CLI bundles dispatch + journal + mock materialization; split deferred.
+    ("src", "sdlc", "cli", "research.py"),
     ("src", "sdlc", "signoff", "records.py"),
-    ("scripts", "check_module_boundaries.py"),
     ("tests", "integration", "test_dispatch_panel.py"),
     ("tests", "integration", "test_dispatcher_hook_integration.py"),
 )

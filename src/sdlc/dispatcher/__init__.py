@@ -11,6 +11,22 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from sdlc.dispatcher._hook_chain import build_pre_write_hook_chain
+
+# P2 (code review): promote journal-emit helpers to public API so consumers
+# (e.g., cli/research.py) do not have to reach into _panel_helpers private
+# names; the leading-underscore module remains the source of truth.
+from sdlc.dispatcher._panel_helpers import (
+    _allocate_seq as allocate_seq,
+)
+from sdlc.dispatcher._panel_helpers import (
+    _content_hash as content_hash,
+)
+from sdlc.dispatcher._panel_helpers import (
+    _make_journal_entry as make_journal_entry,
+)
+from sdlc.dispatcher._panel_helpers import (
+    _now_ts as now_ts,
+)
 from sdlc.dispatcher.core import (
     DispatchOutcome,
     DispatchResult,
@@ -49,9 +65,13 @@ __all__: tuple[str, ...] = (
     "DispatchResult",
     "PanelObserver",
     "PanelResult",
+    "allocate_seq",
     "build_pre_write_hook_chain",
+    "content_hash",
     "dispatch",
     "dispatch_panel",
+    "make_journal_entry",
+    "now_ts",
     "phase1_prompt_builder",
     "with_retries",
 )
