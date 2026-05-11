@@ -37,6 +37,7 @@ from pydantic import StringConstraints, ValidationError
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.output import emit_error
 from sdlc.contracts._strict_model import StrictModel
+from sdlc.dispatcher.prompts import BOUNDARY_LINE
 from sdlc.errors import WorkflowError
 
 __all__ = (  # noqa: RUF022 — semantic order: model, then helpers in pipeline order (parse → append → serialize)
@@ -288,6 +289,24 @@ def _preflight_checks(*, ctx: typer.Context, root: Path, artifact_id: str) -> tu
 
 
 # ---------------------------------------------------------------------------
+# Boundary-marker artifact guard (AC4)
+# ---------------------------------------------------------------------------
+
+
+def _artifact_contains_boundary(content: str) -> bool:
+    """Return True iff `content` contains the canonical BOUNDARY_LINE.
+
+    Bytewise substring match; NOT Markdown-aware. Even content inside fenced
+    code blocks triggers rejection. The check defends against the homograph
+    attack where a Phase-1 artifact embeds the data-vs-instruction marker
+    in its body — without the guard, the verifier prompt (which embeds the
+    artifact as `idea_text`) could be tricked into following an in-band
+    `</USER_IDEA>` block followed by adversarial instructions.
+    """
+    return BOUNDARY_LINE in content
+
+
+# ---------------------------------------------------------------------------
 # Dispatch entry point (Task 5 will fill this in)
 # ---------------------------------------------------------------------------
 
@@ -311,11 +330,22 @@ def _invoke_dispatch(
 def run_verify(*, ctx: typer.Context, artifact_id: str) -> None:
     """Verify a Phase 1 artifact (FR8).
 
-    AC3 pre-flight is performed BEFORE any journal append; AC4 boundary
-    guard runs in Task 3; full dispatch + frontmatter append lands in Task 5.
+    AC3 pre-flight runs BEFORE any journal append. AC4 boundary guard runs
+    BEFORE dispatch is invoked so a polluted artifact never reaches the
+    prompt builder. Full dispatch + frontmatter append lands in Task 5.
     """
     root = _get_repo_root_or_cwd()
     artifact_path, artifact_content = _preflight_checks(ctx=ctx, root=root, artifact_id=artifact_id)
+
+    if _artifact_contains_boundary(artifact_content):
+        emit_error(
+            "ERR_ARTIFACT_CONTAINS_BOUNDARY",
+            f"artifact at {artifact_id} contains the data-vs-instruction "
+            "boundary marker; refusing to verify — boundary marker is "
+            "reserved internal scaffolding",
+            ctx=ctx,
+            details={"artifact_id": artifact_id},
+        )
 
     _invoke_dispatch(
         ctx=ctx,
