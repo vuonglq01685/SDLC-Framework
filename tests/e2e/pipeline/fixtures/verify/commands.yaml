@@ -1,0 +1,16 @@
+# Tier-2 verify scenarios (Story 2A.10, AC9 — 5 scenarios)
+#
+# Driven by tests/e2e/pipeline/test_sdlc_verify.py via Typer CliRunner.
+# Each scenario corresponds to one numbered test function below.
+# Kept as a discoverable manifest (mirrors fixtures/dispatch_panel/commands.yaml).
+commands:
+  - id: 01_happy_first_verification
+    args: ["verify", "01-Requirement/01-PRODUCT.md"]
+  - id: 02_second_verification_appends
+    args: ["verify", "01-Requirement/01-PRODUCT.md"]
+  - id: 03_artifact_not_found
+    args: ["verify", "01-Requirement/does-not-exist.md"]
+  - id: 04_path_traversal
+    args: ["verify", "../etc/passwd"]
+  - id: 05_boundary_pollution
+    args: ["verify", "01-Requirement/01-PRODUCT.md"]

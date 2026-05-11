@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
@@ -28,6 +27,7 @@ from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher._panel_helpers import (
     DispatchMemberResult,
     _emit_stop_trigger,
+    _globstar_match,
     _is_phase1_prompt_builder,
     _legacy_default_prompt_builder,
     _run_member,
@@ -145,7 +145,7 @@ def _validate_target_path_override(
     if not globs:
         return  # no constraint declared — caller accepted broad surface
     rel_posix = rel.as_posix()
-    if not any(fnmatchcase(rel_posix, pat) for pat in globs):
+    if not any(_globstar_match(rel_posix, pat) for pat in globs):
         raise ValueError(
             f"target_path_override {rel_posix!r} matches none of the write_globs "
             f"for specialist {specialist!r}: {list(globs)}"
@@ -160,14 +160,14 @@ async def dispatch(
     repo_root: Path,
     journal_path: Path,
     agent_runs_path: Path,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _legacy_default_prompt_builder,
+    prompt_builder: PromptBuilder | LegacyPromptBuilder = _legacy_default_prompt_builder,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
     bypass: BypassRequest | None = None,
-    _max_attempts: int = 3,
     observer: PanelObserver | None = None,
     persist_artifact: bool = True,
     target_path_override: Path | None = None,
+    _max_attempts: int = 3,
 ) -> DispatchResult:
     """Dispatch the primary specialist for a workflow step (AC1, FR25).
 
@@ -186,6 +186,21 @@ async def dispatch(
     cannot route writes to a path the workflow YAML disallows). Callers passing
     user-derived slug paths (e.g., ``cli/research.py``) must keep both guards
     intact.
+
+    Story 2A.10 extends the single-specialist surface with three kwargs that
+    panel dispatch already exposed via :func:`_run_member`:
+
+    * ``observer`` — typed CLI passthrough; when set with
+      ``emit_agent_dispatched=True`` the dispatcher emits
+      ``kind="agent_dispatched"`` once per dispatch (mirrors panel behaviour).
+    * ``persist_artifact`` — set to False to suppress the dispatcher's
+      ``Path.write_text`` + ``artifact_written`` journal append. The caller
+      is then responsible for any persistent write (used by ``sdlc verify``
+      so the verification ceremony is non-destructive — AC5/D2).
+    * ``target_path_override`` — bypass ``write_globs[0]`` resolution and
+      use the supplied concrete path. Required when the workflow YAML
+      declares a glob pattern (e.g. ``01-Requirement/**/*.md``) but the
+      CLI knows the artifact path explicitly (Story 2A.10 AC2/AC5).
     """
     if target_path_override is not None:
         _validate_target_path_override(

@@ -120,6 +120,19 @@ def scan_command(ctx: typer.Context) -> None:
     run_scan(ctx=ctx)
 
 
+@app.command(name="verify")
+def verify_command(
+    ctx: typer.Context,
+    artifact_id: str = typer.Argument(
+        ..., help="Repo-relative POSIX path under 01-Requirement/ to verify."
+    ),
+) -> None:
+    """Verify a Phase 1 artifact (FR8, Story 2A.10)."""
+    from sdlc.cli.verify import run_verify  # deferred per Architecture §488
+
+    run_verify(ctx=ctx, artifact_id=artifact_id)
+
+
 @app.command(name="status")
 def status_command(ctx: typer.Context) -> None:
     """Print the resume card with suggested next-action (FR44)."""

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import fnmatch
 import hashlib
 import inspect
 import time
@@ -286,6 +287,35 @@ async def _run_pre_write_hooks(
         justification=bypass.justification if bypass else None,
     )
     return decision if decision.decision == "deny" else None
+
+
+def _globstar_match(path: str, pattern: str) -> bool:
+    """Match a POSIX path against a glob pattern with ``**`` support.
+
+    Story 2A.10 review P8 — validates ``target_path_override`` against the
+    workflow's ``write_globs``. ``**`` matches zero or more path segments;
+    ``*``/``?``/character-class metacharacters match within a single
+    segment (delegated to :mod:`fnmatch`). Segment-aware so ``*.md`` does
+    NOT cross ``/`` boundaries (Python's bare ``fnmatch`` does and would
+    over-accept).
+    """
+    return _match_segments(path.split("/"), pattern.split("/"))
+
+
+def _match_segments(path_parts: list[str], pat_parts: list[str]) -> bool:
+    if not pat_parts:
+        return not path_parts
+    head = pat_parts[0]
+    if head == "**":
+        for i in range(len(path_parts) + 1):
+            if _match_segments(path_parts[i:], pat_parts[1:]):
+                return True
+        return False
+    if not path_parts:
+        return False
+    if fnmatch.fnmatchcase(path_parts[0], head):
+        return _match_segments(path_parts[1:], pat_parts[1:])
+    return False
 
 
 def _is_phase1_prompt_builder(prompt_builder: Callable[..., str]) -> bool:

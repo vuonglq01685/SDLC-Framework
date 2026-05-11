@@ -13,6 +13,7 @@ _REPO = Path(__file__).resolve().parents[3]
 _WORKFLOWS = _REPO / "src" / "sdlc" / "workflows_yaml"
 _YAML_PATH = _WORKFLOWS / "sdlc-start.yaml"
 _RESEARCH_YAML = _WORKFLOWS / "sdlc-research.yaml"
+_VERIFY_YAML_PATH = _WORKFLOWS / "sdlc-verify.yaml"
 
 pytestmark = pytest.mark.unit
 
@@ -79,3 +80,27 @@ def test_sdlc_start_yaml_round_trip_byte_stable() -> None:
     assert data["schema_version"] == 1
     assert data["slash_command"] == "/sdlc-start"
     assert data["primary_agent"] == "product-strategist"
+
+
+def test_registry_loads_sdlc_verify() -> None:
+    """Story 2A.10 AC1/D1: sdlc-verify.yaml is discoverable + shape-stable."""
+    reg = WorkflowRegistry.load(_WORKFLOWS)
+    spec = reg.get("/sdlc-verify")
+    assert spec.primary_agent == "artifact-verifier"
+    assert spec.parallel_agents == ()
+    assert spec.synthesizer_agent is None
+    assert spec.slash_command == "/sdlc-verify"
+    assert spec.name == "phase1-artifact-verification"
+
+
+def test_sdlc_verify_yaml_round_trip_byte_stable() -> None:
+    raw = _VERIFY_YAML_PATH.read_bytes()
+    data = yaml.safe_load(raw)
+    dumped = yaml.safe_dump(data, sort_keys=True, allow_unicode=False, default_flow_style=False)
+    round_raw = yaml.safe_dump(
+        yaml.safe_load(dumped),
+        sort_keys=True,
+        allow_unicode=False,
+        default_flow_style=False,
+    )
+    assert dumped == round_raw
