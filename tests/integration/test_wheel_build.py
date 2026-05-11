@@ -68,11 +68,29 @@ _REQUIRED_CLI_FILES = frozenset(
 # Intentionally-shipped content files are listed in _ALLOWED_CONTENT_FILES.
 _CONTENT_SUFFIXES = frozenset({".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".csv"})
 
-# Files explicitly allowed by story ACs (Story 2A.2: empty manifest stub must ship).
+# Files explicitly allowed by story ACs.
+# Story 2A.2: empty agents manifest stub.
+# Story 2A.3+: phase1 specialist markdown (devil-advocate, product-strategist,
+#   requirement-synthesizer, technical-researcher).
+# Story 2A.9: /sdlc-start slash-command + workflow YAML.
+# Story 2A.10: /sdlc-verify slash-command + workflow YAML + artifact-verifier specialist.
 # P-R18: store as POSIX-normalized strings; comparisons normalize via Path.as_posix()
 # so wheel name variants (`./sdlc/...`, backslashes on Windows builders, etc.) all
 # resolve to the canonical form before allowlist lookup.
-_ALLOWED_CONTENT_FILES = frozenset({Path("sdlc/agents/index.yaml").as_posix()})
+_ALLOWED_CONTENT_FILES = frozenset(
+    {
+        Path("sdlc/agents/index.yaml").as_posix(),
+        Path("sdlc/agents/phase1/artifact-verifier.md").as_posix(),
+        Path("sdlc/agents/phase1/devil-advocate.md").as_posix(),
+        Path("sdlc/agents/phase1/product-strategist.md").as_posix(),
+        Path("sdlc/agents/phase1/requirement-synthesizer.md").as_posix(),
+        Path("sdlc/agents/phase1/technical-researcher.md").as_posix(),
+        Path("sdlc/commands/sdlc-start.md").as_posix(),
+        Path("sdlc/commands/sdlc-verify.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-start.yaml").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-verify.yaml").as_posix(),
+    }
+)
 
 
 def _build_wheel(out_dir: Path) -> Path:
