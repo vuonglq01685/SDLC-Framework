@@ -1,0 +1,17 @@
+# Canned verifier response for the Tier-2 verify scenarios (Story 2A.10, AC9).
+#
+# The CLI (`cli/_verify_dispatch.py:_materialize_verifier_fixture`) computes
+# the prompt at runtime against the actual specialist stub + workflow spec,
+# hashes it, and writes a single-record MockAIRuntime fixture into a private
+# tempdir. The verdict envelope below is the canonical output_text payload
+# that the CLI parses in `_verify_post.parse_verdict_envelope` to derive
+# (`status`, `note`) for the frontmatter `verifications:` entry.
+#
+# Kept as a fixture-descriptor for reproducibility; the runtime fixture is
+# materialised in-process by the CLI itself.
+verifier:
+  output_text: |
+    {"verdict": "verified", "note": "v1 mock verifier — replaced by Story 2B.x"}
+  tokens_in: 1
+  tokens_out: 1
+  tool_calls: []

@@ -1,0 +1,20 @@
+# Mirrors src/sdlc/workflows_yaml/sdlc-verify.yaml (Story 2A.10, AC1/D1).
+# Kept here as a fixture-descriptor so the verify scenario is reproducible
+# from a single fixtures/ tree (matches Story 2A.8's dispatch_panel pattern).
+# The actual workflow loaded by the CLI comes from `src/sdlc/workflows_yaml/`
+# (WorkflowRegistry import); this file is documentary and never read at
+# test runtime.
+schema_version: 1
+name: phase1-artifact-verification
+slash_command: /sdlc-verify
+primary_agent: artifact-verifier
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - artifact_verified_frontmatter_present
+  - boundary_line_present_in_prompts
+write_globs:
+  artifact-verifier:
+    - "01-Requirement/**/*.md"
+    - "01-Requirement/**/*.json"
+stop_on_postcondition_failure: true
