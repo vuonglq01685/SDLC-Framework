@@ -108,8 +108,19 @@ def test_sdlc_verify_first_verification_appends_frontmatter(tmp_path: Path) -> N
     assert verified["payload"]["verification_index"] == 0
 
     runs_path = tmp_path / "03-Implementation" / "agent_runs.jsonl"
-    runs_text = runs_path.read_text(encoding="utf-8")
-    assert BOUNDARY_LINE in runs_text
+    runs_lines = runs_path.read_text(encoding="utf-8").splitlines()
+    # JSONL is written with ensure_ascii=True (`telemetry/runs.py`), so the em
+    # dash inside BOUNDARY_LINE is encoded as `\u2014`. Compare against the
+    # unescaped `dispatch_prompt` field per row.
+    boundary_seen = False
+    for raw in runs_lines:
+        if not raw.strip():
+            continue
+        row = json.loads(raw)
+        if BOUNDARY_LINE in row.get("dispatch_prompt", ""):
+            boundary_seen = True
+            break
+    assert boundary_seen, "expected BOUNDARY_LINE to appear in dispatch_prompt"
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal append in panel")

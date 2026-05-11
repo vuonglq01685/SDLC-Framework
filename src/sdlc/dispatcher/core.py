@@ -123,7 +123,7 @@ async def dispatch(
     repo_root: Path,
     journal_path: Path,
     agent_runs_path: Path,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _legacy_default_prompt_builder,
+    prompt_builder: PromptBuilder | LegacyPromptBuilder = _legacy_default_prompt_builder,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
     bypass: BypassRequest | None = None,
