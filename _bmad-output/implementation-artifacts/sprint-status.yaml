@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-11 (status-correction: 2a-9 / 2a-10 / 2a-11 development_status table flipped backlog → ready-for-dev to match Status: ready-for-dev at line 3 of each story md file [drift backfill — story files were authored but development_status + audit log were not updated synchronously]; 3 create-story audit entries + 1 status-correction entry appended to audit log; no story content edits; prior 2026-05-11 entry: code-review 2a-8 closed [7 D-decisions resolved / 56 patches across 3 phases / 14 deferred / 15 dismissed / 107 in-scope tests pass; story status review → done])"
+last_updated: "2026-05-11 (dev-story 2a-10-sdlc-verify: ready-for-dev → in-progress; worktree story/2a-10-sdlc-verify branched from origin/main 32096b0; Layer 4 sibling of 2a-9; per CONTRIBUTING.md §3 worktree-per-story for same parallelism layer)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -113,7 +113,7 @@ development_status:
   2a-7-recovery-signoff-state-machine-hash-drift-validation: done
   2a-8-sdlc-start-phase-1-entry: done
   2a-9-sdlc-research: ready-for-dev
-  2a-10-sdlc-verify: ready-for-dev
+  2a-10-sdlc-verify: in-progress
   2a-11-sdlc-epics-and-sdlc-stories: ready-for-dev
   2a-12-sdlc-signoff-generate-draft-sign-validate: backlog
   2a-13-sdlc-ux-phase-2-ux-track: backlog
