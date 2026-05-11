@@ -26,11 +26,16 @@ a frozen wire-format snapshot is deferred per AC6/D2.
 from __future__ import annotations
 
 import copy
-from typing import Annotated, Any, Literal
+import json
+from pathlib import Path, PurePosixPath
+from typing import Annotated, Any, Final, Literal
 
+import typer
 import yaml
 from pydantic import StringConstraints, ValidationError
 
+from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.cli.output import emit_error
 from sdlc.contracts._strict_model import StrictModel
 from sdlc.errors import WorkflowError
 
@@ -39,11 +44,17 @@ __all__ = (  # noqa: RUF022 — semantic order: model, then helpers in pipeline 
     "_parse_frontmatter",
     "_append_verification",
     "_serialize_artifact",
+    "run_verify",
 )
 
 _FRONTMATTER_DELIMITER = "---"
 _TS_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$"
 _SHA256_PATTERN = r"^sha256:[0-9a-f]{64}$"
+
+_STATE_REL: Final[str] = ".claude/state/state.json"
+_JOURNAL_REL: Final[str] = ".claude/state/journal.log"
+_REQUIREMENT_DIR: Final[str] = "01-Requirement"
+_REQUIRED_PHASE: Final[int] = 1
 
 
 class _Verification(StrictModel):
@@ -155,3 +166,161 @@ def _serialize_artifact(frontmatter: dict[str, Any], body: str) -> str:
 
 
 _VALIDATION_ERROR_TYPES: tuple[type[Exception], ...] = (ValidationError,)
+
+
+# ---------------------------------------------------------------------------
+# Pre-flight checks (AC3)
+# ---------------------------------------------------------------------------
+
+
+def _read_state_phase(state_path: Path) -> int:
+    """Read phase from state.json (best-effort; returns 1 default on missing field)."""
+    try:
+        raw = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _REQUIRED_PHASE
+    phase = raw.get("phase") if isinstance(raw, dict) else None
+    if isinstance(phase, int):
+        return phase
+    return _REQUIRED_PHASE
+
+
+def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) -> Path:
+    """Resolve `artifact_id` to a repo-relative POSIX path under `01-Requirement/`.
+
+    Rejects absolute paths, `..` traversal, and any path that would resolve
+    outside the requirement directory (defends against symlink escape).
+    """
+    pure = PurePosixPath(artifact_id)
+    if pure.is_absolute() or any(part == ".." for part in pure.parts):
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            "artifact_id must be a repo-relative POSIX path under 01-Requirement/",
+            ctx=ctx,
+            details={"artifact_id": artifact_id},
+        )
+    if not pure.parts or pure.parts[0] != _REQUIREMENT_DIR:
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            "artifact_id must be a repo-relative POSIX path under 01-Requirement/",
+            ctx=ctx,
+            details={"artifact_id": artifact_id},
+        )
+
+    candidate = root / Path(*pure.parts)
+
+    try:
+        resolved = candidate.resolve(strict=False)
+        root_resolved = root.resolve(strict=False)
+        target_root = (root_resolved / _REQUIREMENT_DIR).resolve(strict=False)
+    except OSError as exc:
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            f"could not resolve artifact path: {exc}",
+            ctx=ctx,
+            details={"artifact_id": artifact_id},
+        )
+
+    try:
+        resolved.relative_to(target_root)
+    except ValueError:
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            "artifact_id resolves outside 01-Requirement/ (symlink escape or directory traversal)",
+            ctx=ctx,
+            details={
+                "artifact_id": artifact_id,
+                "resolved": str(resolved),
+            },
+        )
+
+    return candidate
+
+
+def _preflight_checks(*, ctx: typer.Context, root: Path, artifact_id: str) -> tuple[Path, str]:
+    """Run AC3 pre-flight matrix; on success returns (artifact_path, content)."""
+    state_path = root / _STATE_REL
+    if not state_path.is_file():
+        emit_error(
+            "ERR_NOT_INITIALIZED",
+            f"project not initialized at {root}; run `sdlc init` first",
+            ctx=ctx,
+            details={"project_root": str(root)},
+        )
+
+    phase = _read_state_phase(state_path)
+    if phase != _REQUIRED_PHASE:
+        emit_error(
+            "ERR_PHASE_MISMATCH",
+            f"sdlc verify requires phase=1; current phase={phase}",
+            ctx=ctx,
+            details={"phase": phase, "required_phase": _REQUIRED_PHASE},
+        )
+
+    artifact_path = _resolve_artifact_path(ctx=ctx, root=root, artifact_id=artifact_id)
+
+    if not artifact_path.is_file():
+        emit_error(
+            "ERR_ARTIFACT_NOT_FOUND",
+            f"artifact not found at {artifact_id}",
+            ctx=ctx,
+            details={"artifact_id": artifact_id, "path": str(artifact_path)},
+        )
+
+    try:
+        content = artifact_path.read_text(encoding="utf-8")
+    except PermissionError as exc:
+        emit_error(
+            "ERR_ARTIFACT_UNREADABLE",
+            f"artifact not readable at {artifact_id}: {exc}",
+            ctx=ctx,
+            details={"artifact_id": artifact_id, "path": str(artifact_path)},
+        )
+    except OSError as exc:
+        emit_error(
+            "ERR_ARTIFACT_UNREADABLE",
+            f"artifact read failed at {artifact_id}: {exc}",
+            ctx=ctx,
+            details={"artifact_id": artifact_id, "path": str(artifact_path)},
+        )
+
+    return artifact_path, content
+
+
+# ---------------------------------------------------------------------------
+# Dispatch entry point (Task 5 will fill this in)
+# ---------------------------------------------------------------------------
+
+
+def _invoke_dispatch(
+    *,
+    ctx: typer.Context,
+    root: Path,
+    artifact_path: Path,
+    artifact_id: str,
+    artifact_content: str,
+) -> None:
+    """Dispatch the artifact-verifier specialist + append verification entry.
+
+    NOTE: stub for Task 2; the full wiring lands in Task 5 (commit 5)
+    once `workflows_yaml/sdlc-verify.yaml` + the specialist stub exist.
+    """
+    raise NotImplementedError("sdlc verify dispatch wiring lands in Story 2A.10 Task 5")
+
+
+def run_verify(*, ctx: typer.Context, artifact_id: str) -> None:
+    """Verify a Phase 1 artifact (FR8).
+
+    AC3 pre-flight is performed BEFORE any journal append; AC4 boundary
+    guard runs in Task 3; full dispatch + frontmatter append lands in Task 5.
+    """
+    root = _get_repo_root_or_cwd()
+    artifact_path, artifact_content = _preflight_checks(ctx=ctx, root=root, artifact_id=artifact_id)
+
+    _invoke_dispatch(
+        ctx=ctx,
+        root=root,
+        artifact_path=artifact_path,
+        artifact_id=artifact_id,
+        artifact_content=artifact_content,
+    )

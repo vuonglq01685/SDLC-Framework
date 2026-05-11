@@ -27,6 +27,11 @@ Error code → exit code table (_ERR_CODE_TO_EXIT_CODE):
   ERR_JOURNAL_SCHEMA_DRIFT → 2 (Story 1.20)
   ERR_PHASE1_PRODUCT_EXISTS → 1 (Story 2A.8)
   ERR_PANEL_DISPATCH_FAILED → 2 (Story 2A.8)
+  ERR_PHASE_MISMATCH → 1 (Story 2A.10)
+  ERR_PATH_TRAVERSAL → 1 (Story 2A.10)
+  ERR_ARTIFACT_NOT_FOUND → 1 (Story 2A.10)
+  ERR_ARTIFACT_UNREADABLE → 2 (Story 2A.10)
+  ERR_ARTIFACT_CONTAINS_BOUNDARY → 1 (Story 2A.10)
 
 Per-command JSON output schemas (Story 1.21 wire-format-lock ceremony freezes these at v1):
   _SCAN_OUTPUT_SCHEMA, _STATUS_OUTPUT_SCHEMA, _TRACE_OUTPUT_SCHEMA,
@@ -123,6 +128,12 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_JOURNAL_SCHEMA_DRIFT": 2,
         "ERR_PHASE1_PRODUCT_EXISTS": 1,
         "ERR_PANEL_DISPATCH_FAILED": 2,
+        # Added in Story 2A.10 (sdlc verify) — see story §AC3, §AC4.
+        "ERR_PHASE_MISMATCH": 1,
+        "ERR_PATH_TRAVERSAL": 1,
+        "ERR_ARTIFACT_NOT_FOUND": 1,
+        "ERR_ARTIFACT_UNREADABLE": 2,
+        "ERR_ARTIFACT_CONTAINS_BOUNDARY": 1,
     }
 )
 _DEFAULT_EXIT_CODE: Final[int] = 1
