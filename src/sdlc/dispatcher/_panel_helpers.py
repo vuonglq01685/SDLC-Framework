@@ -1,7 +1,7 @@
 """Private panel-orchestration helpers for dispatcher.core (AC6 LOC discipline, DR2).
 
 Houses ``_run_member`` (single-specialist dispatch), ``_emit_stop_trigger`` (AC5 placeholder),
-``_make_journal_entry``, ``_now_ts``, ``_default_prompt_builder``, and the process-local
+``_make_journal_entry``, ``_now_ts``, ``_legacy_default_prompt_builder``, and the process-local
 monotonic_seq allocator that fixes panel-dispatch journal regression (P1).
 
 Architecture §821-§824, §1067; ADR-013, ADR-014, ADR-016, ADR-024, ADR-026.
@@ -16,6 +16,11 @@ Architecture §821-§824, §1067; ADR-013, ADR-014, ADR-016, ADR-024, ADR-026.
 # v1 monotonic_seq allocator is process-local: dispatcher is single-process per AC1.
 # Cross-process journal coordination (Epic 2B + ClaudeAIRuntime) requires a journal
 # API like ``append_with_seq_alloc`` — out of 2A.3 scope.
+
+``_legacy_default_prompt_builder`` is deprecated; use
+``sdlc.dispatcher.prompts.phase1_prompt_builder`` for Phase-1 flows (Story 2A.8
+closed deferred-work W1). Non-Phase-1 dispatch sites retain it pending Stories
+2A.13/2A.14 replacement.
 """
 
 from __future__ import annotations
@@ -23,18 +28,19 @@ from __future__ import annotations
 import asyncio
 import datetime
 import hashlib
+import inspect
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher.retry import with_retries
-from sdlc.errors import DispatchError
+from sdlc.errors import DispatchError, WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import BypassRequest, HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
@@ -43,6 +49,9 @@ from sdlc.runtime import AgentResult, AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 from sdlc.telemetry.runs import record_agent_run
+
+if TYPE_CHECKING:
+    from sdlc.dispatcher import PanelObserver
 
 _ACTOR = "dispatcher"
 # Sentinel hash for non-state-mutation journal entries (dispatch_attempt, stop_trigger_raised).
@@ -73,8 +82,13 @@ def _now_ts() -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
-def _default_prompt_builder(specialist: Specialist, step: WorkflowSpec) -> str:
-    """Minimal prompt scaffold — Story 2A.8 will replace with full context (FR25)."""
+def _legacy_default_prompt_builder(specialist: Specialist, step: WorkflowSpec) -> str:
+    """Legacy 2-arg prompt — verbatim ``specialist.body`` (Story 2A.3).
+
+    Phase-1 flows use :func:`sdlc.dispatcher.prompts.phase1_prompt_builder` instead
+    (Story 2A.8, closes deferred-work W1). Non-Phase-1 dispatch sites keep this until
+    Stories 2A.13/2A.14 replace it.
+    """
     return specialist.body
 
 
@@ -86,12 +100,13 @@ def _make_journal_entry(
     target_id: str,
     payload: dict[str, object],
     after_hash: str = _NULL_HASH,
+    actor: str | None = None,
 ) -> JournalEntry:
     return JournalEntry(
         schema_version=1,
         monotonic_seq=seq,
         ts=ts,
-        actor=_ACTOR,
+        actor=actor if actor is not None else _ACTOR,
         kind=kind,
         target_id=target_id,
         before_hash=None,
@@ -127,6 +142,27 @@ def _reset_seq_cache_for_test(journal_path: Path | None = None) -> None:
     else:
         _SEQ_CACHE.pop(journal_path, None)
         _SEQ_LOCKS.pop(journal_path, None)
+
+
+def _unified_write_target_panel(step: WorkflowSpec) -> bool:
+    """True when synthesizer is set and every panel member writes one identical concrete glob.
+
+    Used to skip intermediate disk writes so only the synthesizer persists the artifact
+    (Story 2A.8 AC3, Story 2A.3 synthesizer-as-canonical-writer semantics).
+    """
+    if not step.synthesizer_agent:
+        return False
+    names: list[str] = [step.primary_agent, *step.parallel_agents, step.synthesizer_agent]
+    paths: list[str] = []
+    for name in names:
+        globs = step.write_globs.get(name)
+        if not globs or len(globs) != 1:
+            return False
+        g0 = globs[0]
+        if any(ch in g0 for ch in "*?["):
+            return False
+        paths.append(g0)
+    return len(set(paths)) == 1
 
 
 def _validate_target_path(repo_root: Path, raw_glob: str) -> Path:
@@ -224,10 +260,19 @@ async def _run_pre_write_hooks(
     if not hooks:
         return None
     # F3: symmetric .resolve() (macOS tmp_path → /private/var/ symlink edge case).
+    # P23: a resolved path that escapes ``repo_root`` (e.g. via symlink) is a
+    # safety violation — never silently fall back to an absolute path.
     try:
         rel_target = target_path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        rel_target = target_path.as_posix()
+    except ValueError as exc:
+        raise WorkflowError(
+            "artifact path escapes repository root",
+            details={
+                "target_path": str(target_path),
+                "repo_root": str(repo_root),
+                "resolved": str(target_path.resolve()),
+            },
+        ) from exc
     hook_payload = build_write_intent_payload(
         hook_name="pre_write",
         target_path=rel_target,
@@ -243,7 +288,21 @@ async def _run_pre_write_hooks(
     return decision if decision.decision == "deny" else None
 
 
-async def _run_member(
+def _is_phase1_prompt_builder(prompt_builder: Callable[..., str]) -> bool:
+    """True if ``prompt_builder`` accepts the Phase-1 kw-only args (idea_text, role, ...).
+
+    Used by ``_run_member`` to pick the right call shape without an explicit flag.
+    Legacy 2-arg ``_legacy_default_prompt_builder`` returns False; Phase-1
+    ``phase1_prompt_builder`` returns True.
+    """
+    try:
+        sig = inspect.signature(prompt_builder)
+    except (TypeError, ValueError):
+        return False
+    return "idea_text" in sig.parameters and "role" in sig.parameters
+
+
+async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestration; split deferred
     step: WorkflowSpec,
     specialist_name: str,
     target_kind: Literal["primary", "parallel", "synthesizer"],
@@ -253,7 +312,7 @@ async def _run_member(
     repo_root: Path,
     journal_path: Path,
     agent_runs_path: Path,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str],
+    prompt_builder: Callable[..., str],
     sleep: Callable[[float], Awaitable[None]],
     max_attempts: int,
     extra_context: dict[str, object] | None = None,
@@ -261,8 +320,17 @@ async def _run_member(
     target_path_override: Path | None = None,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
     bypass: BypassRequest | None = None,
+    observer: PanelObserver | None = None,
+    upstream_outputs: tuple[str, ...] = (),
+    persist_artifact: bool = True,
 ) -> DispatchMemberResult:
-    """Dispatch a single specialist as a panel member (primary/parallel/synthesizer)."""
+    """Dispatch a single specialist as a panel member (primary/parallel/synthesizer).
+
+    Story 2A.8 D1-C: CLI-specific concerns (slash_command, idea_text passthrough,
+    journal-emit gating, frontmatter context) are read from ``observer``. When
+    ``observer is None`` we behave as if ``emit_agent_dispatched=False`` and use
+    empty strings/mappings for the passthrough fields.
+    """
     specialist = registry.get(specialist_name)
 
     if target_path_override is not None:
@@ -278,7 +346,66 @@ async def _run_member(
         target_path = _validate_target_path(repo_root, write_globs[0])
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    prompt = prompt_builder(specialist, step)
+    # P23: escaping repo_root via the resolved path is a safety violation —
+    # raise instead of writing an absolute path into the journal.
+    try:
+        rel_for_journal = target_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError as exc:
+        raise WorkflowError(
+            "artifact path escapes repository root",
+            details={
+                "target_path": str(target_path),
+                "repo_root": str(repo_root),
+                "resolved": str(target_path.resolve()),
+                "specialist": specialist_name,
+            },
+        ) from exc
+
+    idea_text: str = "" if observer is None or observer.idea_text is None else observer.idea_text
+    slash_command: str | None = None if observer is None else observer.slash_command
+    emit_agent_dispatched: bool = False if observer is None else observer.emit_agent_dispatched
+    observer_extra_context: dict[str, object] = (
+        {} if observer is None else dict(observer.extra_context)
+    )
+
+    if _is_phase1_prompt_builder(prompt_builder):
+        builder_kwargs: dict[str, Any] = {
+            "idea_text": idea_text,
+            "role": target_kind,
+            "upstream_outputs": upstream_outputs,
+        }
+        # Forward observer.extra_context only for the synthesizer; non-synth
+        # builders use the empty default. D3-A: synthesizer needs frontmatter.
+        if target_kind == "synthesizer":
+            builder_kwargs["extra_context"] = observer_extra_context
+        prompt = prompt_builder(specialist, step, **builder_kwargs)
+    else:
+        prompt = prompt_builder(specialist, step)
+
+    if emit_agent_dispatched and slash_command:
+        # P22: emit ``agent_dispatched`` ONCE per agent (not per attempt) and
+        # omit the ``attempt`` field — per-attempt accounting lives on
+        # ``dispatch_attempt`` entries. ``agent_dispatched`` marks the
+        # provenance of who was assigned to write the target, not retry count.
+        seq_ad = await _allocate_seq(journal_path)
+        idea_hash = "sha256:" + hashlib.sha256(idea_text.encode("utf-8")).hexdigest()
+        await journal_append(
+            _make_journal_entry(
+                seq=seq_ad,
+                ts=_now_ts(),
+                kind="agent_dispatched",
+                target_id=rel_for_journal,
+                actor=f"agent:{specialist_name}",
+                payload={
+                    "slash_command": slash_command,
+                    "specialist": specialist_name,
+                    "role": target_kind,
+                    "idea_hash": idea_hash,
+                },
+            ),
+            journal_path,
+        )
+
     context: dict[str, object] = {
         "workflow_step": step.name,
         "agent_name": specialist_name,
@@ -332,7 +459,6 @@ async def _run_member(
             on_attempt=_on_attempt,
         )
     except DispatchError as exc:
-        # P7: augment AC4 step 6 details with specialist (and step) at the dispatcher seam.
         details = dict(exc.details) if exc.details else {}
         details["specialist"] = specialist_name
         details["step"] = step.name
@@ -341,24 +467,59 @@ async def _run_member(
     duration_ms = int((time.monotonic() - t_start) * 1000)
     ts = _now_ts()
     run_id = str(uuid.uuid4())
+    rel_target = rel_for_journal
+
+    if not persist_artifact:
+        await asyncio.to_thread(
+            record_agent_run,
+            agent_runs_path,
+            run_id=run_id,
+            ts=ts,
+            workflow_step=step.name,
+            specialist_name=specialist_name,
+            target_kind=target_kind,
+            outcome="success",
+            attempts=actual_attempts or 1,
+            tokens_in=agent_result.tokens_in,
+            tokens_out=agent_result.tokens_out,
+            target_path=rel_target,
+            duration_ms=duration_ms,
+            dispatch_prompt=prompt,
+        )
+        return DispatchMemberResult(
+            specialist_name=specialist_name,
+            target_path=target_path,
+            agent_result=agent_result,
+            attempts=actual_attempts or 1,
+            outcome="success",
+        )
 
     target_path.write_text(agent_result.output_text, encoding="utf-8")
 
     artifact_seq = await _allocate_seq(journal_path)
-    rel_target = target_path.relative_to(repo_root.resolve()).as_posix()
+    # D2-B: synthesizer-canonical write — actor reflects the agent that produced
+    # the bytes. CLI no longer post-processes the file, so the journal entry MUST
+    # name the agent (not 'cli'). When an observer carries a slash_command we
+    # include it in the payload for downstream filtering.
+    art_payload: dict[str, object] = {
+        "target": rel_target,
+        "writer": "dispatcher",
+        "specialist": specialist_name,
+        "run_id": run_id,
+    }
+    if slash_command:
+        art_payload["slash_command"] = slash_command
+        art_payload["phase"] = 1
+    actor_for_write = f"agent:{specialist_name}"
     await journal_append(
         _make_journal_entry(
             seq=artifact_seq,
             ts=ts,
             kind="artifact_written",
             target_id=rel_target,
-            payload={
-                "target": rel_target,
-                "writer": "dispatcher",
-                "specialist": specialist_name,
-                "run_id": run_id,
-            },
+            payload=art_payload,
             after_hash=_content_hash(agent_result.output_text),
+            actor=actor_for_write,
         ),
         journal_path,
     )
@@ -377,6 +538,7 @@ async def _run_member(
         tokens_out=agent_result.tokens_out,
         target_path=rel_target,
         duration_ms=duration_ms,
+        dispatch_prompt=prompt,
     )
 
     return DispatchMemberResult(
@@ -389,7 +551,16 @@ async def _run_member(
 
 
 __all__: tuple[str, ...] = (
-    "DispatchMemberResult", "_allocate_seq", "_default_prompt_builder",
-    "_emit_hook_rejected", "_emit_stop_trigger", "_make_journal_entry",
-    "_now_ts", "_reset_seq_cache_for_test", "_run_member", "_validate_target_path",
+    "DispatchMemberResult",
+    "_allocate_seq",
+    "_emit_hook_rejected",
+    "_emit_stop_trigger",
+    "_is_phase1_prompt_builder",
+    "_legacy_default_prompt_builder",
+    "_make_journal_entry",
+    "_now_ts",
+    "_reset_seq_cache_for_test",
+    "_run_member",
+    "_unified_write_target_panel",
+    "_validate_target_path",
 )

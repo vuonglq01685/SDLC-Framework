@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import re
-import sys
 from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
@@ -28,23 +26,17 @@ _PHASE_NAMES: Final[Mapping[int, str]] = MappingProxyType(
     {1: "Requirement", 2: "Architecture", 3: "Implementation"}
 )
 _NEVER_SENTINEL: Final[str] = "<never - run `sdlc scan`>"
-_PYPROJECT_NAME_RE: Final[re.Pattern[str]] = re.compile(
-    r'^name\s*=\s*["\']([^"\']+)["\']', re.MULTILINE
-)
 
 
 def _resolve_project_name(root: Path) -> str:
     """Best-effort project name from pyproject.toml [project] name; fallback to dir basename.
 
-    Uses tomllib (Python 3.11+) for proper TOML parsing when available; falls back to
-    a regex on the [project] section for Python 3.10 (per AC2.1).
+    Uses stdlib ``tomllib`` (Python 3.11+). Runtime is 3.12 per ``.python-version``.
     """
     pyproject = root / "pyproject.toml"
     if not pyproject.exists():
         return root.name
-    if sys.version_info >= (3, 11):
-        return _resolve_via_tomllib(pyproject, root.name)
-    return _resolve_via_regex(pyproject, root.name)
+    return _resolve_via_tomllib(pyproject, root.name)
 
 
 def _resolve_via_tomllib(pyproject: Path, fallback_name: str) -> str:
@@ -61,26 +53,6 @@ def _resolve_via_tomllib(pyproject: Path, fallback_name: str) -> str:
         name = project.get("name")
         if isinstance(name, str) and name:
             return name
-    return fallback_name
-
-
-def _resolve_via_regex(pyproject: Path, fallback_name: str) -> str:
-    """Python 3.10 fallback: regex on the [project] section only.
-
-    Avoids matching `name = ...` under `[tool.poetry]` or other tables that
-    appear earlier in the file. Exposed as a separate function so it can be
-    unit-tested on Python 3.11+ without monkey-patching sys.version_info.
-    """
-    try:
-        text = pyproject.read_text(encoding="utf-8")
-    except OSError:
-        return fallback_name
-    project_section = _extract_project_section(text)
-    if project_section is None:
-        return fallback_name
-    m = _PYPROJECT_NAME_RE.search(project_section)
-    if m:
-        return m.group(1)
     return fallback_name
 
 

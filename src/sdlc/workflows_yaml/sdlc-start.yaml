@@ -1,0 +1,22 @@
+schema_version: 1
+name: phase1-product-discovery
+slash_command: /sdlc-start
+primary_agent: product-strategist
+parallel_agents:
+  - technical-researcher
+  - devil-advocate
+synthesizer_agent: requirement-synthesizer
+postconditions:
+  - product_md_exists
+  - boundary_line_present_in_prompts
+  - product_md_frontmatter_keys
+write_globs:
+  product-strategist:
+    - "01-Requirement/01-PRODUCT.md"
+  technical-researcher:
+    - "01-Requirement/01-PRODUCT.md"
+  devil-advocate:
+    - "01-Requirement/01-PRODUCT.md"
+  requirement-synthesizer:
+    - "01-Requirement/01-PRODUCT.md"
+stop_on_postcondition_failure: true

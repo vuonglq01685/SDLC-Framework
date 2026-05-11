@@ -1,45 +1,69 @@
 """Dispatcher core: primary dispatch + panel orchestration (FR25, FR26, FR27, NFR-OBS-2).
 
 Architecture §821-§824, §1067; ADR-013, ADR-016, ADR-024, ADR-025, ADR-026.
-
-Boundary rules (Architecture §1106, §1109):
-- Imports ``runtime/`` ONLY via ``sdlc.runtime.abc.AIRuntime`` ABC.
-- Forbidden from importing ``engine/`` or ``cli/``.
-- ``repo_root`` is accepted as a ``Path`` parameter; ``cli._paths`` stays in CLI.
+Boundary rules (§1106, §1109): imports ``runtime/`` ONLY via ``AIRuntime`` ABC; forbidden
+from importing ``engine/`` or ``cli/``; ``repo_root`` is a ``Path`` parameter.
 
 # TODO(epic-4): STOP-trigger placeholder — ``kind="stop_trigger_raised"`` entries
 # are written by ``_emit_stop_trigger()`` on terminal dispatch failure (AC5).
-# Epic 4 Story 4.6 reads these journal entries to surface the actual STOP banner.
-# See ``deferred-work.md`` EPIC-4-STOP-TRIGGER-WIRE.
+# Epic 4 Story 4.6 reads these to surface the STOP banner. See deferred-work.md.
 
 DR2 — ``_run_member``, ``_emit_stop_trigger``, ``_make_journal_entry``, ``_now_ts``,
-``_default_prompt_builder`` extracted to ``dispatcher/_panel_helpers.py`` to keep
-this file under the AC6 350-LOC cap. Public API (``dispatch``, ``dispatch_panel``,
-``DispatchResult``, ``PanelResult``, ``DispatchOutcome``) lives here.
+``_legacy_default_prompt_builder`` extracted to ``dispatcher/_panel_helpers.py``.
+Public API (``dispatch``, ``dispatch_panel``, ``DispatchResult``, ``PanelResult``,
+``DispatchOutcome``) lives here.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher._panel_helpers import (
     DispatchMemberResult,
-    _default_prompt_builder,
     _emit_stop_trigger,
+    _is_phase1_prompt_builder,
+    _legacy_default_prompt_builder,
     _run_member,
+    _unified_write_target_panel,
     _validate_target_path,
 )
-from sdlc.errors import DispatchError
+from sdlc.errors import DispatchError, WorkflowError
 from sdlc.hooks.runner import BypassRequest, HookDecision
 from sdlc.runtime import AgentResult, AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
+
+if TYPE_CHECKING:
+    from sdlc.dispatcher import PanelObserver
+
+
+class PromptBuilder(Protocol):
+    """Prompt-assembly Protocol — Phase 1 form takes role/idea_text/upstream_outputs/extra_context.
+
+    Legacy 2-arg ``_legacy_default_prompt_builder`` is also accepted via
+    ``LegacyPromptBuilder`` for non-Phase-1 sites. The dispatcher introspects
+    the call shape at the invocation site (``_run_member``).
+    """
+
+    def __call__(
+        self,
+        specialist: Specialist,
+        spec: WorkflowSpec,
+        *,
+        idea_text: str,
+        role: Literal["primary", "parallel", "synthesizer"],
+        upstream_outputs: Sequence[str] = (),
+        extra_context: Mapping[str, object] = ...,
+    ) -> str: ...
+
+
+LegacyPromptBuilder: TypeAlias = Callable[[Specialist, WorkflowSpec], str]
 
 DispatchOutcome: TypeAlias = Literal["success", "failed", "hook_rejected"]
 
@@ -99,7 +123,7 @@ async def dispatch(
     repo_root: Path,
     journal_path: Path,
     agent_runs_path: Path,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _default_prompt_builder,
+    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _legacy_default_prompt_builder,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
     bypass: BypassRequest | None = None,
@@ -163,7 +187,7 @@ async def _gather_with_semaphore(
     return list(await asyncio.gather(*(_acquire(c) for c in coros), return_exceptions=True))
 
 
-async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestration; complexity is intrinsic to AC2
+async def dispatch_panel(  # noqa: C901, PLR0912, PLR0915 — panel orchestration intrinsic to AC2
     step: WorkflowSpec,
     *,
     runtime: AIRuntime,
@@ -171,7 +195,9 @@ async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestratio
     repo_root: Path,
     journal_path: Path,
     agent_runs_path: Path,
-    prompt_builder: Callable[[Specialist, WorkflowSpec], str] = _default_prompt_builder,
+    prompt_builder: PromptBuilder | LegacyPromptBuilder = _legacy_default_prompt_builder,
+    hooks: tuple[Callable[[HookPayload], HookDecision], ...] = (),
+    observer: PanelObserver | None = None,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     max_parallel_agents: int = 4,
     _max_attempts: int = 3,
@@ -191,11 +217,38 @@ async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestratio
     On any DispatchError the panel short-circuits, emits a ``stop_trigger_raised``
     journal placeholder (AC5, TODO(epic-4)), and returns ``outcome="failed"``;
     the synthesizer is never dispatched on failure (AC2.5).
+
+    Story 2A.8 D1-C+D2-B: CLI-specific concerns (slash_command tagging, idea_text,
+    journal-emit gating, synthesizer frontmatter context) are passed via the typed
+    ``observer`` argument instead of free-standing kwargs. The synthesizer is always
+    the canonical writer for unified-target panels (D2-B); the CLI no longer
+    post-processes the synthesizer's output.
     """
     if max_parallel_agents < 1:
         raise DispatchError(
             f"max_parallel_agents must be >= 1, got {max_parallel_agents}",
             details={"max_parallel_agents": max_parallel_agents},
+        )
+
+    # P21: Phase-1 prompt_builder REQUIRES observer.idea_text to be non-empty —
+    # the synthesizer's prompt embeds the idea verbatim. Fail at the entry, not
+    # deep in _run_member, so the error surfaces with the exact caller invariant.
+    if _is_phase1_prompt_builder(prompt_builder):
+        idea_text = observer.idea_text if observer is not None else None
+        if not idea_text:
+            raise WorkflowError(
+                "phase1 prompt_builder requires non-empty observer.idea_text",
+                details={
+                    "step": step.name,
+                    "prompt_builder": getattr(prompt_builder, "__name__", repr(prompt_builder)),
+                },
+            )
+    # P28: emit_agent_dispatched=True without a slash_command produces journal
+    # entries with no provenance — block this misconfiguration at the entry.
+    if observer is not None and observer.emit_agent_dispatched and not observer.slash_command:
+        raise WorkflowError(
+            "observer.emit_agent_dispatched=True requires non-empty observer.slash_command",
+            details={"step": step.name},
         )
 
     # Phase 0 — atomicity pre-resolution (P7+P8) and primary target derivation (DR5).
@@ -214,20 +267,31 @@ async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestratio
         )
     primary_target = _validate_target_path(repo_root, primary_globs[0])
 
-    _kw: dict[str, object] = dict(
-        runtime=runtime,
-        registry=registry,
-        repo_root=repo_root,
-        journal_path=journal_path,
-        agent_runs_path=agent_runs_path,
-        prompt_builder=prompt_builder,
-        sleep=sleep,
-        max_attempts=_max_attempts,
-    )
+    unified = _unified_write_target_panel(step)
+    # D2-B: for unified-target panels the synthesizer is the canonical writer;
+    # non-synth members run for their candidate output but do NOT persist to disk.
+    # The synthesizer ALWAYS persists (no more cli_finalize_product_md shortcut).
+    persist_non_synth = not unified
 
     # Phase 1 — primary (sequential)
     try:
-        primary_member = await _run_member(step, step.primary_agent, "primary", **_kw)  # type: ignore[arg-type]
+        primary_member = await _run_member(
+            step,
+            step.primary_agent,
+            "primary",
+            runtime=runtime,
+            registry=registry,
+            repo_root=repo_root,
+            journal_path=journal_path,
+            agent_runs_path=agent_runs_path,
+            prompt_builder=prompt_builder,
+            sleep=sleep,
+            max_attempts=_max_attempts,
+            hooks=hooks,
+            observer=observer,
+            persist_artifact=persist_non_synth,
+            upstream_outputs=(),
+        )
     except DispatchError as exc:
         await _emit_stop_trigger(step.primary_agent, step.name, journal_path, last_error=str(exc))
         return PanelResult(
@@ -245,13 +309,34 @@ async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestratio
     parallel_pub: tuple[DispatchResult, ...] = ()
     if step.parallel_agents:
         coros: list[Awaitable[DispatchMemberResult]] = [
-            _run_member(step, name, "parallel", **_kw)  # type: ignore[arg-type]
+            _run_member(
+                step,
+                name,
+                "parallel",
+                runtime=runtime,
+                registry=registry,
+                repo_root=repo_root,
+                journal_path=journal_path,
+                agent_runs_path=agent_runs_path,
+                prompt_builder=prompt_builder,
+                sleep=sleep,
+                max_attempts=_max_attempts,
+                hooks=hooks,
+                observer=observer,
+                persist_artifact=persist_non_synth,
+                upstream_outputs=(),
+            )
             for name in step.parallel_agents
         ]
         outcomes = await _gather_with_semaphore(coros, max_parallel_agents=max_parallel_agents)
         successes: list[DispatchMemberResult] = []
         first_exc: BaseException | None = None
         for outcome in outcomes:
+            # P14: never swallow cancellation/interrupt — surface them so the
+            # caller can shut down cleanly instead of being silently degraded
+            # to a "failed" panel result.
+            if isinstance(outcome, (KeyboardInterrupt, asyncio.CancelledError)):
+                raise outcome
             if isinstance(outcome, BaseException):
                 if first_exc is None:
                     first_exc = outcome
@@ -280,15 +365,28 @@ async def dispatch_panel(  # noqa: C901, PLR0912 — phase-by-phase orchestratio
         panel_outputs: dict[str, object] = {
             r.specialist_name: r.agent_result.output_text for r in (primary_pub, *parallel_pub)
         }
+        upstream_tuple = tuple(r.agent_result.output_text for r in (primary_pub, *parallel_pub))
         try:
             synth_member = await _run_member(
                 step,
                 synth_name,
                 "synthesizer",
+                runtime=runtime,
+                registry=registry,
+                repo_root=repo_root,
+                journal_path=journal_path,
+                agent_runs_path=agent_runs_path,
+                prompt_builder=prompt_builder,
+                sleep=sleep,
+                max_attempts=_max_attempts,
+                hooks=hooks,
+                observer=observer,
                 extra_context={"panel_outputs": panel_outputs},
                 extra_journal_payload={"panel_size": panel_size},
                 target_path_override=primary_target,
-                **_kw,  # type: ignore[arg-type]
+                # D2-B: synthesizer is always the canonical writer.
+                persist_artifact=True,
+                upstream_outputs=upstream_tuple,
             )
         except DispatchError as exc:
             synth_attempts_raw = exc.details.get("attempts", 1) if exc.details else 1

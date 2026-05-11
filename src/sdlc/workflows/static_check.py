@@ -33,6 +33,8 @@ from sdlc.errors import WorkflowError
 # Symbolic placeholder used when constructing witnesses for pure-wildcard
 # segments (no literal characters to draw from).
 _WILDCARD_FILLER: str = "x"
+# Primary + ≥2 parallel/synth agents: same-glob panel needs synthesizer + 3+ writers.
+_MIN_AGENTS_FOR_SYNTHESIZER_UNIFIED_TARGET: int = 3
 
 
 def _segments(glob: str) -> tuple[str, ...]:
@@ -230,6 +232,32 @@ def _check_intra_agent_overlaps(
             )
 
 
+def _all_agents_share_single_identical_glob(
+    sorted_globs: Sequence[tuple[str, tuple[str, ...]]],
+) -> bool:
+    """True when every agent declares exactly one write glob and all strings are equal.
+
+    Synthesizer-final panel workflows (Story 2A.8) intentionally target one artifact
+    from multiple specialists; the synthesizer is the canonical final writer.
+
+    Caller must enforce ``spec.synthesizer_agent is not None`` and
+    ``len(sorted_globs) >= 3`` so primary+synthesizer (two roles) cannot bypass
+    disjoint-writes (see ``test_dispatcher_trusts_spec_no_static_check``).
+    """
+    if not sorted_globs:
+        return False
+    first: str | None = None
+    for _agent, globs in sorted_globs:
+        if len(globs) != 1:
+            return False
+        g0 = globs[0]
+        if first is None:
+            first = g0
+        elif g0 != first:
+            return False
+    return first is not None
+
+
 def _check_inter_agent_disjoint(
     sorted_globs: Sequence[tuple[str, tuple[str, ...]]],
 ) -> None:
@@ -277,4 +305,16 @@ def validate_workflow(spec: WorkflowSpec) -> None:
     )
     _check_phantom_agents(sorted_globs, _resolve_known_agents(spec))
     _check_intra_agent_overlaps(sorted_globs)
-    _check_inter_agent_disjoint(sorted_globs)
+    # P24: ``primary_agent == synthesizer_agent`` is a degenerate panel — the
+    # disjoint-writes bypass for unified-target synthesizer panels (Story 2A.8)
+    # MUST NOT apply when primary and synthesizer collapse into a single agent,
+    # because then "panel size >= 3" no longer guarantees independent writers.
+    primary_synth_distinct = spec.synthesizer_agent != spec.primary_agent
+    unified_synthesizer_panel = (
+        spec.synthesizer_agent is not None
+        and primary_synth_distinct
+        and len(sorted_globs) >= _MIN_AGENTS_FOR_SYNTHESIZER_UNIFIED_TARGET
+        and _all_agents_share_single_identical_glob(sorted_globs)
+    )
+    if not unified_synthesizer_panel:
+        _check_inter_agent_disjoint(sorted_globs)

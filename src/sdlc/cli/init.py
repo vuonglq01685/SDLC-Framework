@@ -107,7 +107,8 @@ def _write_state_json_windows_atomic(state_path: Path) -> None:
             f.write(payload)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp_path, state_path)  # noqa: state-write -- Windows atomic equivalent of POSIX protocol
+        # sdlc: state-write-ok -- Windows os.replace shim for atomic state.json (NTFS).
+        os.replace(tmp_path, state_path)  # noqa: state-write -- Windows NTFS atomic initial state.json (Architecture §573; Story 1.20)
     except BaseException:
         with contextlib.suppress(OSError):
             tmp_path.unlink(missing_ok=True)

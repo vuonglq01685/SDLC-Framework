@@ -33,14 +33,18 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import typer
 
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.hooks.builtin.phase_gate import phase_gate
+from sdlc.signoff import compute_state
 
 if TYPE_CHECKING:
+    from sdlc.contracts.hook_payload import HookPayload
     from sdlc.hooks.runner import HookDecision
 
 _JOURNAL_REL: Final[str] = ".claude/state/journal.log"
@@ -52,17 +56,56 @@ def _emit(envelope: dict[str, object]) -> None:
     typer.echo(json.dumps(envelope, sort_keys=True, separators=(",", ":")))
 
 
+class _PhaseGateHook:
+    """Phase-gate hook callable with an explicit ``__is_phase_gate__`` marker (P26).
+
+    Replaces the previous ``functools.partial`` + attribute-assignment idiom —
+    setting attributes on ``functools.partial`` instances is undocumented CPython
+    behavior. The class-based shape keeps the marker discoverable by
+    ``sdlc.hooks.runner`` while binding ``repo_root`` and ``signoff_reader``
+    via composition.
+
+    Mirrors :func:`sdlc.dispatcher._hook_chain.build_pre_write_hook_chain` so
+    ``sdlc hook-check`` and dispatch exercise the same gate semantics.
+    """
+
+    __is_phase_gate__: bool = True
+
+    def __init__(self, repo_root: Path) -> None:
+        self._fn = partial(
+            phase_gate,
+            repo_root=repo_root,
+            signoff_reader=_signoff_reader_for_repo,
+        )
+
+    def __call__(self, payload: HookPayload) -> HookDecision:
+        return self._fn(payload)
+
+
+def _signoff_reader_for_repo(phase: int, root: Path) -> str:
+    """Adapter: ``compute_state`` accepts ``repo_root`` as kwarg-only.
+
+    P25: fail OPEN (advisory v1 trust posture, ADR-013) when compute_state
+    blows up — engine-side gate is authoritative; hook-check should not crash
+    the agent on a transient signoff-store read error.
+    """
+    try:
+        return compute_state(phase, repo_root=root).value
+    except Exception:
+        # P25: fail-open advisory per ADR-013 — hook-check is parity oracle,
+        # engine-side gate is authoritative.
+        return "indeterminate"
+
+
 def _make_phase_gate_hook(
     repo_root: Path,
 ) -> object:  # Callable[[HookPayload], HookDecision] at runtime
-    """Return a single-arg closure wrapping phase_gate with __is_phase_gate__ marker."""
-    from sdlc.hooks.builtin.phase_gate import phase_gate
+    """Return phase_gate bound to repo_root and signoff_reader (Story 2A.7 AC7).
 
-    def _hook(payload: object) -> object:
-        return phase_gate(payload, repo_root=repo_root)  # type: ignore[arg-type]
-
-    _hook.__is_phase_gate__ = True  # type: ignore[attr-defined]
-    return _hook
+    Mirrors ``dispatcher._hook_chain.build_pre_write_hook_chain`` so hook-check
+    exercises the same gate semantics as dispatch (no missing DI).
+    """
+    return _PhaseGateHook(repo_root)
 
 
 def run_hook_check(*, ctx: typer.Context) -> None:

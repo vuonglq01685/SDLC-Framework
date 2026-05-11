@@ -84,6 +84,23 @@ def init_command(
     run_init(ctx=ctx)
 
 
+@app.command(name="start")
+def start_command(
+    ctx: typer.Context,
+    idea: str = typer.Argument(..., help="The idea text to begin Phase 1 with"),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Suppress MockAIRuntime v1 stderr warning.",
+    ),
+) -> None:
+    """Initiate Phase 1 product discovery (FR6)."""
+    from sdlc.cli.start import run_start  # deferred per Architecture §488
+
+    run_start(ctx=ctx, idea=idea, quiet=quiet)
+
+
 @app.command(name="scan")
 def scan_command(ctx: typer.Context) -> None:
     """Refresh state.json from the artifact tree (FR3)."""

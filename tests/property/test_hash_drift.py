@@ -169,7 +169,7 @@ def test_hash_drift_permutation_matrix(
 
         if mutation == "artifact_edit":
             # Tamper the FIRST artifact's bytes; need genuinely different bytes.
-            target_name, original = artifact_specs[0]
+            target_name, _original = artifact_specs[0]
             tmp_check = repo_root / "_tmp_check.md"
             tmp_check.write_bytes(tampered_payload)
             tampered_hash = compute_artifact_hash(tmp_check, repo_root=repo_root)

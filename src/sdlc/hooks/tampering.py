@@ -96,7 +96,7 @@ def compute_hook_hashes(hooks_root: Path) -> dict[str, str]:
 
         try:
             with resolved.open("rb") as fh:  # P5 streaming
-                digest = hashlib.file_digest(fh, "sha256").hexdigest()  # type: ignore[attr-defined]  # 3.11+
+                digest = hashlib.file_digest(fh, "sha256").hexdigest()  # type: ignore[attr-defined]
         except OSError as exc:
             raise HookError(
                 f"failed to read hook file {relpath}: {exc}",

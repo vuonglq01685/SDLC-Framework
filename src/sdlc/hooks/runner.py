@@ -19,10 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
 
-from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import HookError
+from sdlc.ids.clock import now_rfc3339_utc_ms
 
 _GIT_TIMEOUT_SECONDS: Final[float] = 5.0
 _BYPASS_MIN_JUSTIFICATION_LEN: Final[int] = 10

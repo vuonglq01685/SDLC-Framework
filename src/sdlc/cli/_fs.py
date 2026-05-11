@@ -22,7 +22,7 @@ def sha256_file_or_none(path: Path) -> str | None:
     if not path.exists():
         return None
     with path.open("rb") as fh:
-        digest = hashlib.file_digest(fh, "sha256").hexdigest()  # type: ignore[attr-defined]  # 3.11+
+        digest = hashlib.file_digest(fh, "sha256").hexdigest()  # type: ignore[attr-defined]
     return f"sha256:{digest}"
 
 

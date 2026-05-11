@@ -53,9 +53,7 @@ def _to_claude_envelope(engine: dict[str, object]) -> dict[str, object]:
             "error_code": engine.get("error_code"),
         }
     # Unknown decision value (schema drift) — fail-open per AC9 advisory posture.
-    sys.stderr.write(
-        f"[pre_tool_use WARN] unknown engine decision {decision!r}; fail-open\n"
-    )
+    sys.stderr.write(f"[pre_tool_use WARN] unknown engine decision {decision!r}; fail-open\n")
     return dict(_APPROVE)
 
 
@@ -131,9 +129,7 @@ def _call_engine(rel_path: str, tool_name: str, cwd: Path) -> dict[str, object] 
         "content_hash_before": _content_hash_before(rel_path, cwd),
         "write_intent": f"claude_pretooluse_{tool_name.lower()}",
     }
-    payload_bytes = json.dumps(
-        payload, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    payload_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     try:
         result = subprocess.run(
             ["sdlc", "hook-check"],

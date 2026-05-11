@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-import tomllib
+import tomllib  # type: ignore[import-not-found]  # stdlib 3.11+; CI/pre-commit use 3.12
 
 from sdlc.errors import ConfigError
 

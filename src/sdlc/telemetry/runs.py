@@ -39,9 +39,13 @@ class _AgentRunLine:
     tokens_out: int
     ts: str
     workflow_step: str
+    dispatch_prompt: str | None = None
 
     def to_json_line(self) -> str:
-        return json.dumps(asdict(self), sort_keys=True) + "\n"
+        d = asdict(self)
+        if d.get("dispatch_prompt") is None:
+            d.pop("dispatch_prompt", None)
+        return json.dumps(d, sort_keys=True) + "\n"
 
 
 def _validate(  # noqa: C901 — flat field validators; refactoring would obscure
@@ -95,6 +99,7 @@ def _build_line(
     tokens_out: int,
     target_path: str,
     duration_ms: int,
+    dispatch_prompt: str | None = None,
 ) -> str:
     return _AgentRunLine(
         schema_version=1,
@@ -109,6 +114,7 @@ def _build_line(
         tokens_out=tokens_out,
         ts=ts,
         workflow_step=workflow_step,
+        dispatch_prompt=dispatch_prompt,
     ).to_json_line()
 
 
@@ -139,6 +145,7 @@ if sys.platform != "win32":
         tokens_out: int,
         target_path: str,
         duration_ms: int,
+        dispatch_prompt: str | None = None,
     ) -> None:
         """Append one JSONL line to ``runs_path`` under ``file_lock`` (POSIX).
 
@@ -170,6 +177,7 @@ if sys.platform != "win32":
             tokens_out=tokens_out,
             target_path=target_path,
             duration_ms=duration_ms,
+            dispatch_prompt=dispatch_prompt,
         )
         _ensure_parent_dir(runs_path)
         with file_lock(_lock_path_for(runs_path)), runs_path.open("a", encoding="utf-8") as fh:
@@ -194,6 +202,7 @@ else:
         tokens_out: int,
         target_path: str,
         duration_ms: int,
+        dispatch_prompt: str | None = None,
     ) -> None:
         """Append one JSONL line to ``runs_path`` (Windows — no file_lock)."""
         _validate(
@@ -220,6 +229,7 @@ else:
             tokens_out=tokens_out,
             target_path=target_path,
             duration_ms=duration_ms,
+            dispatch_prompt=dispatch_prompt,
         )
         _ensure_parent_dir(runs_path)
         with runs_path.open("a", encoding="utf-8") as fh:

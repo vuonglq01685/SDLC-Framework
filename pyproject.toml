@@ -76,9 +76,18 @@ exclude = ["**"]
 line-length = 100
 target-version = "py310"
 src = ["src", "tests", "scripts"]
-extend-exclude = ["docs/ux/", ".claude/", "_bmad/", "_bmad-output/", "_site/"]  # `docs/ux/` matches mkdocs.yml `exclude_docs: ux/` scope (ADR-011)
+extend-exclude = [
+    "docs/ux/",
+    ".claude/",
+    ".agents/",
+    "_bmad/",
+    "_bmad-output/",
+    "_site/",
+]  # `docs/ux/` matches mkdocs.yml `exclude_docs: ux/` scope (ADR-011); `.agents/` BMad templates are not product Python.
 
 [tool.ruff.lint]
+# Project-specific noqa used by scripts/check_no_direct_state_writes.py (not a Ruff code).
+external = ["state-write"]
 select = [
     "E",     # pycodestyle errors
     "F",     # Pyflakes

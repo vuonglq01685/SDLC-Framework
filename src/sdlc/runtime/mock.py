@@ -50,7 +50,7 @@ class _Fixture(BaseModel):
 
 
 def _hash_prompt(prompt: str) -> str:
-    """Compute sha256:<hex> of the UTF-8-encoded prompt (Pattern §3 hash format).
+    """Compute deterministic prompt hash for MockAIRuntime keying.
 
     Raises:
         MockMissError: if `prompt` cannot be UTF-8 encoded (e.g., contains lone surrogates).
@@ -63,6 +63,10 @@ def _hash_prompt(prompt: str) -> str:
             details={"step": "prompt_encode", "error": str(exc)},
         ) from exc
     return _SHA256_PREFIX + hashlib.sha256(encoded).hexdigest()
+
+
+# Public alias — single canonical implementation lives in `_hash_prompt` to prevent drift.
+compute_prompt_hash = _hash_prompt
 
 
 class _NoDuplicateKeysLoader(yaml.SafeLoader):

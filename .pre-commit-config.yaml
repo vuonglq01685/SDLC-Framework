@@ -151,9 +151,9 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-        exclude: ^(_bmad/|_bmad-output/|\.claude/)
+        exclude: ^(_bmad/|_bmad-output/|\.claude/|\.agents/)
       - id: check-toml
-        exclude: ^(_bmad/|_bmad-output/|\.claude/)
+        exclude: ^(_bmad/|_bmad-output/|\.claude/|\.agents/)
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=500]   # 500KB cap; revisit if golden-corpus fixtures push past

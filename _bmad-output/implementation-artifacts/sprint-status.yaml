@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-10 (create-story Layer 3 batch: 2a-6 + 2a-7 backlog → ready-for-dev; Layer 2 deps green on main b15a622; §7.4 hard gate N/A — neither is Story N.1; both stories carry explicit D-decision protocol on AC11 with recommended options cited in PR Change Log first lines; HookPayload + JournalEntry wire-format frozen-reminder explicit in 2a-6; SignoffRecord private-by-default in 2a-7; 3 mandatory anti-tautology receipts in 2a-6, 1 in 2a-7; sibling-coordination note for phase_gate.py edit window between 2a-6 dispatcher wiring + 2a-7 DI refactor; closes EPIC-2A-DEBT-PHASE-GATE-READ via 2a-7 Task 6; opens EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE for 2A.19 + EPIC-2A-DEBT-CLAUDE-HOOK-FAIL-CLOSED-V1.X for v1.x)"
+last_updated: "2026-05-11 (code-review 2a-8 closed: 7 D-decisions resolved [D1-C PanelObserver / D2-B synth canonical write / D3-A frontmatter relocation / D4-B dispatcher-owned seq / D5-A alphabetical fm / D6-B tag-anchored boundary / D7-A normalized goldens]; 56 patches applied across 3 phases [Phase 1 hardening + Phase 2 architectural refactor + Phase 3 CLI/tests/goldens]; 14 deferred [W1-W17 incl. P45 split _run_member]; 15 dismissed; quality gate green: ruff clean, mypy --strict clean, 107 in-scope tests pass; story status review → done)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -107,7 +107,7 @@ development_status:
   2a-5-recovery-hook-tampering-detection-trust-hooks: done
   2a-6-claude-code-pretooluse-hook-hook-check: done
   2a-7-recovery-signoff-state-machine-hash-drift-validation: done
-  2a-8-sdlc-start-phase-1-entry: backlog
+  2a-8-sdlc-start-phase-1-entry: done
   2a-9-sdlc-research: backlog
   2a-10-sdlc-verify: backlog
   2a-11-sdlc-epics-and-sdlc-stories: backlog

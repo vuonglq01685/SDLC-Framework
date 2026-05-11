@@ -1,0 +1,75 @@
+# D7-A reference responses for MockAIRuntime — Story 2A.8 EPIC-2A-DEBT-DISPATCH-E2E.
+#
+# This file is a *documented reference* of the MockAIRuntime fixture shape that
+# `sdlc start "Build a Stripe webhook integration"` materializes for the
+# Phase-1 panel. The CLI builds an equivalent file dynamically at run time
+# (cli/start.py:_materialize_phase1_mock_fixtures) because prompt hashes are
+# tied to the live `drafted_at` RFC3339 timestamp in the synthesizer
+# frontmatter — so the actual e2e does NOT load this file.
+#
+# Hashes below assume a fixed-for-the-fixture timestamp of
+# `drafted_at: '2026-05-11T00:00:00.000Z'`. Regenerate by running:
+#
+#     .venv/bin/python -c 'from sdlc.cli.start import _materialize_phase1_mock_fixtures, \
+#         _workflows_package_dir; from sdlc.workflows.registry import WorkflowRegistry; \
+#         from sdlc.specialists import load_registry; from pathlib import Path; \
+#         import tempfile; \
+#         spec = WorkflowRegistry.load(_workflows_package_dir()).get("/sdlc-start"); \
+#         registry = load_registry(Path("tests/e2e/pipeline/fixtures/dispatch_panel/specialists")); \
+#         fm = {"schema_version":1,"kind":"product_brief","idea":"Build a Stripe webhook integration", \
+#               "drafted_at":"2026-05-11T00:00:00.000Z", \
+#               "drafted_by_specialists":[spec.primary_agent,*spec.parallel_agents,spec.synthesizer_agent]}; \
+#         td = tempfile.mkdtemp(); _materialize_phase1_mock_fixtures(Path(td), spec=spec, registry=registry, \
+#             idea_text="Build a Stripe webhook integration", extra_context=fm); \
+#         print(Path(td,f"{spec.name}.yaml").read_text())'
+#
+# Fixture key = compute_prompt_hash(prompt_builder(specialist, spec, ...))
+# Each entry: { output_text, tokens_in, tokens_out, tool_calls } — matches the
+# `_Fixture` model in src/sdlc/runtime/mock.py.
+
+# technical-researcher (parallel) — emits an H2-headed candidate draft that
+# becomes part of upstream_outputs for the synthesizer.
+"sha256:1fabba33b1daade2d50cd38bd15ef945e60bb056d4c761769d2e074010d9d340":
+  output_text: "## Research\n\nParallel notes.\n"
+  tokens_in: 1
+  tokens_out: 1
+  tool_calls: []
+
+# devil-advocate (parallel) — emits an H2-headed candidate draft.
+"sha256:e7226321c33cc318fd0aeca74f7035ca9b003d32bbdda0dc59d1a86701ffc830":
+  output_text: "## Risks\n\nParallel concerns.\n"
+  tokens_in: 1
+  tokens_out: 1
+  tool_calls: []
+
+# requirement-synthesizer (synthesizer) — canonical writer. Output is the FULL
+# `01-Requirement/01-PRODUCT.md` payload: frontmatter block (schema_version,
+# kind, idea, drafted_at, drafted_by_specialists) + Markdown body with an H2,
+# satisfying AC3 + the `product_md_frontmatter_keys` postcondition.
+"sha256:e9cf3e1f9d73b960b0d8ff2dfbdf4f2294cd7c408fb1ab5f498c2e5542b26dd2":
+  output_text: |
+    ---
+    drafted_at: '2026-05-11T00:00:00.000Z'
+    drafted_by_specialists:
+    - product-strategist
+    - technical-researcher
+    - devil-advocate
+    - requirement-synthesizer
+    idea: Build a Stripe webhook integration
+    kind: product_brief
+    schema_version: 1
+    ---
+
+    ## Product Brief
+
+    Synthesized PRD body for v1.
+  tokens_in: 1
+  tokens_out: 1
+  tool_calls: []
+
+# product-strategist (primary) — emits an H2-headed candidate draft.
+"sha256:fc04109948e620e0495dbd99c69ac6300b4ee7f56d16b4ebc9d61d53aec367dd":
+  output_text: "## Strategist\n\nPrimary draft.\n"
+  tokens_in: 1
+  tokens_out: 1
+  tool_calls: []
