@@ -36,14 +36,16 @@ import yaml
 from pydantic import ValidationError
 
 from sdlc.cli._verify_frontmatter import _compute_body_hash
+from sdlc.cli._verify_mock import resolve_mock_verdict
 from sdlc.cli._verify_post import (
     REQUIRED_PHASE,
     SLASH_COMMAND,
-    advance_state_seq,
+    advance_state_seq_or_emit,
     append_and_persist_frontmatter,
+    assert_artifact_not_raced,
     build_verification_entry,
     emit_artifact_verified,
-    parse_verdict_envelope,
+    parse_verdict_with_overflow_check,
 )
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.errors import WorkflowError
@@ -54,12 +56,6 @@ _JOURNAL_REL: Final[str] = ".claude/state/journal.log"
 _STATE_REL: Final[str] = ".claude/state/state.json"
 _AGENTS_REL: Final[str] = ".claude/agents"
 _RUNS_REL: Final[str] = "03-Implementation/agent_runs.jsonl"
-
-# v1 mock verifier output (deterministic; see Story 2A.10 D2). Private: the
-# on-disk frontmatter row is the public surface, NOT the verdict envelope.
-_MOCK_VERIFIER_VERDICT: Final[Mapping[str, str]] = MappingProxyType(
-    {"verdict": "verified", "note": "v1 mock verifier — replaced by Story 2B.x"},
-)
 
 _ = REQUIRED_PHASE  # imported for re-export visibility; payload built in _verify_post
 
@@ -98,7 +94,7 @@ def _materialize_verifier_fixture(
     prompt_hash = compute_prompt_hash(prompt)
     records = {
         prompt_hash: {
-            "output_text": json.dumps(dict(_MOCK_VERIFIER_VERDICT), sort_keys=True),
+            "output_text": json.dumps(dict(resolve_mock_verdict()), sort_keys=True),
             "tokens_in": 1,
             "tokens_out": 1,
             "tool_calls": [],
@@ -261,6 +257,20 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
     state_path = root / _STATE_REL
     agent_runs_path = root / _RUNS_REL
 
+    # P20 / DC7=(c) (post-review 2026-05-12 Cluster C-J): lazy mkdir the
+    # `03-Implementation/` parent of `agent_runs.jsonl` before any journal
+    # append. Real Phase-1 init may not have created this directory; test
+    # fixtures do so manually. Matches typical Python file-I/O idiom.
+    try:
+        agent_runs_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        emit_error(
+            "ERR_INFRASTRUCTURE",
+            f"could not create agent_runs directory: {exc}",
+            ctx=ctx,
+            details={"path": str(agent_runs_path.parent)},
+        )
+
     if not json_mode:
         echo(
             "[WARN] sdlc verify runs against MockAIRuntime in v1; "
@@ -299,8 +309,15 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
 
     agent_result = getattr(result, "agent_result", None)
     output_text: str = getattr(agent_result, "output_text", "") if agent_result else ""
-    status, note = parse_verdict_envelope(output_text)
+
+    status, note = parse_verdict_with_overflow_check(ctx, output_text)
     body_hash = _compute_body_hash(artifact_content)
+    assert_artifact_not_raced(
+        ctx=ctx,
+        artifact_path=artifact_path,
+        artifact_id=artifact_id,
+        preflight_body_hash=body_hash,
+    )
     try:
         entry = build_verification_entry(
             verifier=getattr(spec, "primary_agent", "artifact-verifier"),
@@ -335,7 +352,7 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
             verification_index=verification_index,
         )
     )
-    advance_state_seq(state_path, journal_path)
+    advance_state_seq_or_emit(ctx, state_path=state_path, journal_path=journal_path)
 
     if json_mode:
         emit_json(

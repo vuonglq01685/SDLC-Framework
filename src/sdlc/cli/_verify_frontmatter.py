@@ -73,8 +73,36 @@ class _Verification(StrictModel):
     verifier_note: Annotated[str, StringConstraints(max_length=VERIFIER_NOTE_MAX_LEN)] | None = None
 
 
+_BOM: Final[str] = "﻿"
+
+
+def _normalize_line_endings(content: str) -> str:
+    """P5 / DC3=(a) (post-review 2026-05-12 Cluster C-J): strip UTF-8 BOM and
+    normalise CRLF/CR line endings to LF before frontmatter detection.
+
+    Without this, a Markdown artifact saved by a Windows editor (CRLF) or
+    served with a BOM silently fails the ``startswith("---\\n")`` check in
+    :func:`_split_frontmatter_block` and is treated as having NO frontmatter
+    — the verify ceremony then appends a fresh ``verifications:`` block on
+    top of the (CRLF) body, and downstream re-reads observe a body hash
+    that depends on the file's line-ending convention. Normalising up-front
+    makes the body-hash invariant under {LF, CRLF, BOM+LF, BOM+CRLF}
+    representations of identical text.
+    """
+    if content.startswith(_BOM):
+        content = content[len(_BOM) :]
+    # Normalise CRLF → LF first to avoid creating empty lines from bare CR.
+    return content.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _split_frontmatter_block(content: str) -> tuple[str, str] | None:
-    """Return `(yaml_block, body)` if `content` opens with a `---` block; else None."""
+    """Return `(yaml_block, body)` if `content` opens with a `---` block; else None.
+
+    Input is assumed to already be BOM-stripped + line-ending-normalised
+    via :func:`_normalize_line_endings`; :func:`_parse_frontmatter` applies
+    the normalisation up-front so EVERY call path (including the
+    no-frontmatter return) sees a canonical representation. PC5/DC3=a.
+    """
     if not content.startswith(FRONTMATTER_DELIMITER + "\n") and content != FRONTMATTER_DELIMITER:
         return None
     lines = content.split("\n")
@@ -98,6 +126,12 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     structure is not a mapping (we never accept top-level lists / scalars
     in artifact frontmatter).
     """
+    # P5 / DC3=(a): normalise BOM + CRLF up-front so the body returned to
+    # callers (including the no-frontmatter return below) is canonical. This
+    # makes :func:`_compute_body_hash` invariant under {LF, CRLF, BOM} edits
+    # of the SAME LOGICAL CONTENT — drives 2A.12 drift detection per AC7.
+    content = _normalize_line_endings(content)
+
     split = _split_frontmatter_block(content)
     if split is None:
         return {}, content

@@ -48,12 +48,19 @@ _DASH_VARIANTS: Final[tuple[str, ...]] = (
 _WHITESPACE_RE: Final[re.Pattern[str]] = re.compile(r"\s+")
 
 
-def _normalize_for_boundary_check(s: str) -> str:
-    """Normalize a string for BOUNDARY_LINE substring detection (P9).
+def normalize_for_boundary_check(s: str) -> str:
+    """Normalize a string for BOUNDARY_LINE substring detection.
 
     Applies NFKC, collapses whitespace runs to a single space, lowercases,
     and folds ASCII-dash variants to ``-`` so an attacker cannot bypass the
     boundary-marker check by injecting Unicode look-alikes.
+
+    PC7 (post-review 2026-05-12 Cluster C-J): promoted from underscore-
+    prefixed private to public surface so :mod:`sdlc.cli.verify` can share
+    the same predicate as the dispatcher-side `_validate_idea_text`. AC4
+    spec text was simultaneously amended from "case-sensitive byte match"
+    to "normalised compare = NFKC + dash-fold + whitespace-collapse +
+    lowercase via this helper".
     """
     normalized = unicodedata.normalize("NFKC", s)
     for dash in _DASH_VARIANTS:
@@ -108,8 +115,8 @@ def _validate_idea_text(idea_text: str) -> None:
             },
         )
     _reject_control_characters(idea_text)
-    boundary_normalized = _normalize_for_boundary_check(BOUNDARY_LINE)
-    idea_normalized = _normalize_for_boundary_check(idea_text)
+    boundary_normalized = normalize_for_boundary_check(BOUNDARY_LINE)
+    idea_normalized = normalize_for_boundary_check(idea_text)
     if boundary_normalized in idea_normalized:
         raise WorkflowError(
             "idea text contains the data-vs-instruction boundary marker; refusing to "

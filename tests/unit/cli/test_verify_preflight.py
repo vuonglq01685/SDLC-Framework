@@ -51,6 +51,12 @@ def test_uninitialized_returns_err_not_initialized(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "01-Requirement/01-PRODUCT.md"])
     assert result.exit_code == 1
     out = result.stderr + result.stdout
+    # PC4 (post-review 2026-05-12 Cluster C-J): keep OR-clause until tests
+    # migrate to `--json` invocation. Non-JSON mode emits only the canonical
+    # message ("project not initialized"); the ERR code is only surfaced in
+    # JSON mode. Tightening to ERR-code-only without --json invocation
+    # over-fits. TODO: refactor invocation to `["--json", ...]` and parse
+    # envelope.
     assert "ERR_NOT_INITIALIZED" in out or "not initialized" in out.lower()
 
 
@@ -65,7 +71,9 @@ def test_phase_mismatch_returns_err_phase_mismatch(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "01-Requirement/01-PRODUCT.md"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_PHASE_MISMATCH" in out or "phase" in out.lower()
+    assert (
+        "ERR_PHASE_MISMATCH" in out or "requires phase=1" in out
+    )  # PC4 (2026-05-12): canonical-msg fallback
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +87,9 @@ def test_absolute_path_returns_err_path_traversal(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "/etc/passwd"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_PATH_TRAVERSAL" in out or "01-Requirement" in out
+    assert (
+        "ERR_PATH_TRAVERSAL" in out or "repo-relative POSIX path" in out
+    )  # PC4: tight ERR-or-canonical-msg
 
 
 def test_dotdot_traversal_returns_err_path_traversal(tmp_path: Path) -> None:
@@ -88,7 +98,9 @@ def test_dotdot_traversal_returns_err_path_traversal(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "../etc/passwd"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_PATH_TRAVERSAL" in out or "01-Requirement" in out
+    assert (
+        "ERR_PATH_TRAVERSAL" in out or "repo-relative POSIX path" in out
+    )  # PC4: tight ERR-or-canonical-msg
 
 
 def test_outside_requirement_dir_returns_err_path_traversal(tmp_path: Path) -> None:
@@ -100,7 +112,9 @@ def test_outside_requirement_dir_returns_err_path_traversal(tmp_path: Path) -> N
         result = _runner.invoke(app, ["verify", "02-Architecture/x.md"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_PATH_TRAVERSAL" in out or "01-Requirement" in out
+    assert (
+        "ERR_PATH_TRAVERSAL" in out or "repo-relative POSIX path" in out
+    )  # PC4: tight ERR-or-canonical-msg
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +128,9 @@ def test_missing_artifact_returns_err_artifact_not_found(tmp_path: Path) -> None
         result = _runner.invoke(app, ["verify", "01-Requirement/missing.md"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_ARTIFACT_NOT_FOUND" in out or "artifact not found" in out.lower()
+    assert (
+        "ERR_ARTIFACT_NOT_FOUND" in out or "artifact not found" in out.lower()
+    )  # PC4 (2026-05-12): kept dual-channel
 
 
 def test_directory_returns_err_artifact_not_found(tmp_path: Path) -> None:
@@ -124,7 +140,9 @@ def test_directory_returns_err_artifact_not_found(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "01-Requirement/subdir"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_ARTIFACT_NOT_FOUND" in out or "artifact not found" in out.lower()
+    assert (
+        "ERR_ARTIFACT_NOT_FOUND" in out or "artifact not found" in out.lower()
+    )  # PC4 (2026-05-12): kept dual-channel
 
 
 def test_symlink_escape_returns_err_path_traversal(tmp_path: Path) -> None:
@@ -141,7 +159,17 @@ def test_symlink_escape_returns_err_path_traversal(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "01-Requirement/escape.md"])
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_PATH_TRAVERSAL" in out or "ERR_ARTIFACT_NOT_FOUND" in out or "01-Requirement" in out
+    # PC4 (2026-05-12): symlink escape is caught by PC2 parent-walk → message
+    # contains "symlink component" + "01-Requirement". On platforms where
+    # `Path.is_symlink()` can't see the link (rare; tests skipped above if
+    # symlinks unsupported), the resolve() check catches it via either
+    # traversal or not-found messaging. The non-JSON CLI emits only the
+    # canonical message; tighter than the prior bare "01-Requirement" substring.
+    assert (
+        "symlink component" in out
+        or "repo-relative POSIX path" in out
+        or "artifact not found" in out.lower()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +192,34 @@ def test_phase1_valid_path_reaches_dispatch(tmp_path: Path) -> None:
         result = _runner.invoke(app, ["verify", "01-Requirement/01-PRODUCT.md"])
 
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# P26 / PC5 (post-review 2026-05-12 Cluster C-J): JSON-mode missing-arg envelope
+# Typer's default missing-argument error handler emits a usage-banner plain text
+# to stderr, NOT a JSON envelope. This test pins the current behaviour so a
+# future contract amendment (AC1 sub-clause for Typer-level errors) has a
+# concrete failure-mode to assert against. Until that AC ships, the assertion
+# is "exits non-zero", not "emits structured envelope".
+# ---------------------------------------------------------------------------
+
+
+def test_json_mode_missing_artifact_id_exits_nonzero(tmp_path: Path) -> None:
+    """sdlc --json verify (no artifact_id) MUST exit non-zero; envelope shape
+    is currently NOT JSON (Typer usage banner). When AC1 amends the contract,
+    tighten this test to parse and assert ``envelope["error"]["code"]``.
+    """
+    _bootstrap(tmp_path)
+    with unittest.mock.patch("sdlc.cli.verify._get_repo_root_or_cwd", return_value=tmp_path):
+        result = _runner.invoke(app, ["--json", "verify"])
+    assert result.exit_code != 0
+    # Document current behaviour: Typer emits a usage banner. Future PC may
+    # introduce an early `--json` check that produces an `{"error": {...}}`
+    # envelope; the assertion below is the regression pin for "AC1 contract
+    # is NOT YET amended for Typer-level errors" — flip to a JSON-parse
+    # assertion when AC1 grows the sub-clause.
+    out = result.stderr + result.stdout
+    assert "Missing argument" in out or "MISSING_ARGUMENT" in out or "Usage:" in out
 
 
 # ---------------------------------------------------------------------------

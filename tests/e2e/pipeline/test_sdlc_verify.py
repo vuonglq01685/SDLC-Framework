@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from sdlc.cli.main import app
@@ -43,11 +44,19 @@ _VERIFY_KINDS: frozenset[str] = frozenset({"agent_dispatched", "artifact_verifie
 
 
 def _init_repo(tmp_path: Path) -> None:
-    """Bootstrap a Phase-1 project (state.json + journal seed) under `tmp_path`."""
+    """Bootstrap a Phase-1 project (state.json + journal seed) under `tmp_path`.
+
+    PC5 (post-review 2026-05-12 Cluster C-J): pass a real Typer Context with
+    ``ctx.obj = {}`` instead of ``ctx=None``. The prior ``ctx=None`` value
+    masked any future contract drift if ``run_init`` (or its callees) starts
+    reading ``ctx.obj``.
+    """
     from sdlc.cli import init as init_mod
 
+    ctx = typer.Context(command=typer.core.TyperCommand("init"))
+    ctx.ensure_object(dict)
     with unittest.mock.patch.object(init_mod, "_get_repo_root_or_cwd", return_value=tmp_path):
-        init_mod.run_init(ctx=None)
+        init_mod.run_init(ctx=ctx)
 
 
 def _seed_artifact(tmp_path: Path, *, body: str | None = None) -> Path:

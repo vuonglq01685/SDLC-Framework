@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli._verify_frontmatter import (
@@ -28,15 +28,24 @@ from sdlc.cli._verify_frontmatter import (
     _serialize_artifact,
     _Verification,
 )
+from sdlc.cli._verify_io import atomic_write_text
+from sdlc.cli.output import emit_error
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import StateError
 
+if TYPE_CHECKING:
+    import typer
+
 __all__ = (  # noqa: RUF022 — pipeline order, not alphabetical
     "parse_verdict_envelope",
+    "check_verifier_note_overflow",
+    "parse_verdict_with_overflow_check",
     "build_verification_entry",
     "append_and_persist_frontmatter",
+    "assert_artifact_not_raced",
     "emit_artifact_verified",
     "advance_state_seq",
+    "advance_state_seq_or_emit",
     "SLASH_COMMAND",
     "REQUIRED_PHASE",
 )
@@ -73,10 +82,45 @@ def parse_verdict_envelope(output_text: str) -> tuple[str, str | None]:
         else "verified"
     )
     raw_note = parsed.get("note")
+    # P14 / DC1=(a) (post-review 2026-05-12 Cluster C-J): notes >MAX_LEN MUST
+    # be rejected upstream (see :func:`check_verifier_note_overflow`); by the
+    # time we reach here the contract is already enforced. We still slice
+    # defensively in case a future call-site forgets the precheck — keeps
+    # this helper safe to call standalone.
     note: str | None = (
         raw_note[:VERIFIER_NOTE_MAX_LEN] if isinstance(raw_note, str) and raw_note else None
     )
     return status, note
+
+
+def check_verifier_note_overflow(output_text: str) -> int | None:
+    """P14 / DC1=(a): return ``len(raw_note)`` if the verifier's note exceeds
+    ``VERIFIER_NOTE_MAX_LEN`` — else ``None``.
+
+    Called BEFORE :func:`parse_verdict_envelope` in the dispatch orchestrator
+    so an oversized note is surfaced as ``ERR_VERIFIER_NOTE_OVERFLOW`` rather
+    than silently truncated. Reading the spec: "preserves audit-trail
+    integrity" — a verifier that returns a 5,000-char note is signalling
+    something the operator MUST see verbatim, not a truncated tail.
+
+    Returns ``None`` when the payload is malformed in a way that
+    :func:`parse_verdict_envelope` would already fall through (empty,
+    invalid JSON, non-dict, non-string note). Those paths are handled by
+    the existing defensive fallbacks and do not require a hard reject.
+    """
+    txt = output_text.strip()
+    if not txt:
+        return None
+    try:
+        parsed: object = json.loads(txt)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    raw_note = parsed.get("note")
+    if isinstance(raw_note, str) and len(raw_note) > VERIFIER_NOTE_MAX_LEN:
+        return len(raw_note)
+    return None
 
 
 def build_verification_entry(
@@ -108,12 +152,16 @@ def append_and_persist_frontmatter(
     embed both into the ``artifact_verified`` journal payload. Body
     bytes are preserved verbatim (canonical round-trip proof lives in
     `_verify_frontmatter._canonical_body`).
+
+    The write uses :func:`sdlc.cli._verify_io.atomic_write_text` (PC3
+    post-review patch) so a crash mid-write leaves either the pre-state
+    or the new state on disk — never a truncated artifact.
     """
     fresh_content = artifact_path.read_text(encoding="utf-8")
     fresh_fm, fresh_body = _parse_frontmatter(fresh_content)
     new_fm = _append_verification(fresh_fm, entry)
     new_content = _serialize_artifact(new_fm, fresh_body)
-    artifact_path.write_text(new_content, encoding="utf-8")
+    atomic_write_text(artifact_path, new_content)
     verifications_list = new_fm["verifications"]
     assert isinstance(verifications_list, list)
     return new_fm, len(verifications_list) - 1
@@ -163,30 +211,134 @@ def advance_state_seq(state_path: Path, journal_path: Path) -> None:
 
     Mirrors `cli/start.py`'s post-panel advance. Verify never mutates
     ``state.phase``; only the seq pointer advances so subsequent CLI
-    ceremonies read a fresh horizon. Defensive: never regress the pointer.
-    Any read or write error is swallowed (best-effort sync — the journal
-    is already authoritative).
+    ceremonies read a fresh horizon. The pointer never regresses (the
+    `max(...)` guard ensures monotonic-only updates).
+
+    P13 / DC4=(1) (post-review 2026-05-12 Cluster C-J): errors are NOT
+    silently swallowed. The function bubbles two distinct error types so
+    the caller (``_verify_dispatch.invoke_dispatch``) can distinguish:
+
+      * :class:`sdlc.errors.StateError` — logical corruption of
+        ``state.json`` (terminal; caller emits ``ERR_STATE_CORRUPT`` +
+        suggests ``sdlc rebuild-state``).
+      * :class:`OSError` — transient I/O failure on write (retryable;
+        caller emits ``ERR_STATE_SYNC_FAILED``).
+
+    The function still no-ops gracefully on two designed-in cases:
+    ``read_state_or_recover`` returning ``None`` (state file missing),
+    and ``next_seq <= pre.next_monotonic_seq`` (already caught up).
     """
     from sdlc.journal._seq import _read_highest_seq  # deferred (private)
     from sdlc.state import read_state_or_recover, write_state_atomic_sync  # deferred
 
     highest_seq = _read_highest_seq(journal_path.resolve())
-    try:
-        pre = read_state_or_recover(state_path.resolve(), journal_path.resolve())
-    except StateError:
-        return
+    # P13: re-raise StateError so the orchestrator surfaces ERR_STATE_CORRUPT.
+    pre = read_state_or_recover(state_path.resolve(), journal_path.resolve())
     if pre is None:
         return
     next_seq = max(pre.next_monotonic_seq, highest_seq + 1)
     if next_seq <= pre.next_monotonic_seq:
         return
-    try:
-        write_state_atomic_sync(
-            pre.model_copy(update={"next_monotonic_seq": next_seq}),
-            target=state_path,
+    # P13: re-raise OSError so the orchestrator surfaces ERR_STATE_SYNC_FAILED.
+    write_state_atomic_sync(
+        pre.model_copy(update={"next_monotonic_seq": next_seq}),
+        target=state_path,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator wrappers (PC + DC bundle, post-review 2026-05-12 Cluster C-J)
+#
+# The three helpers below translate the pure post-dispatch primitives into
+# `emit_error`-bearing forms that the CLI orchestrator invokes directly.
+# Extracted here (from _verify_dispatch.py) under the §1052-§1112 / NFR-MAINT-3
+# 400-LOC cap. Each wraps exactly one P-cluster patch:
+#
+#   * parse_verdict_with_overflow_check  →  P14 / DC1=(a)
+#   * assert_artifact_not_raced          →  P10 / DC2
+#   * advance_state_seq_or_emit          →  P13 / DC4=(1)
+# ---------------------------------------------------------------------------
+
+
+def parse_verdict_with_overflow_check(
+    ctx: typer.Context, output_text: str
+) -> tuple[str, str | None]:
+    """P14 / DC1=(a): reject verifier notes >VERIFIER_NOTE_MAX_LEN BEFORE
+    :func:`parse_verdict_envelope`'s silent truncation; preserves audit-trail
+    integrity. Returns the parsed ``(status, note)`` on success.
+    """
+    overflow_len = check_verifier_note_overflow(output_text)
+    if overflow_len is not None:
+        emit_error(
+            "ERR_VERIFIER_NOTE_OVERFLOW",
+            f"verifier note exceeded {VERIFIER_NOTE_MAX_LEN} chars (got {overflow_len}); "
+            "refusing silent truncation",
+            ctx=ctx,
+            details={"max_len": VERIFIER_NOTE_MAX_LEN, "actual_len": overflow_len},
         )
-    except OSError:
-        return
+    return parse_verdict_envelope(output_text)
+
+
+def assert_artifact_not_raced(
+    *,
+    ctx: typer.Context,
+    artifact_path: Path,
+    artifact_id: str,
+    preflight_body_hash: str,
+) -> None:
+    """P10 / DC2: close TOCTOU between pre-flight content read and post-
+    dispatch frontmatter rewrite. Fail-loud (`ERR_ARTIFACT_RACED`) if the
+    body hash changed between pre-flight and now.
+    """
+    from sdlc.cli._verify_frontmatter import _compute_body_hash  # deferred
+
+    try:
+        fresh_content = artifact_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        emit_error(
+            "ERR_ARTIFACT_UNREADABLE",
+            f"artifact unreadable after dispatch: {exc}",
+            ctx=ctx,
+            details={"artifact_id": artifact_id, "path": str(artifact_path)},
+        )
+    fresh_body_hash = _compute_body_hash(fresh_content)
+    if fresh_body_hash != preflight_body_hash:
+        emit_error(
+            "ERR_ARTIFACT_RACED",
+            "artifact body changed between pre-flight and post-dispatch "
+            "(content_hash_at_verify mismatch); refusing to append a "
+            "verification row pinned to stale bytes",
+            ctx=ctx,
+            details={
+                "artifact_id": artifact_id,
+                "preflight_hash": preflight_body_hash,
+                "post_dispatch_hash": fresh_body_hash,
+            },
+        )
+
+
+def advance_state_seq_or_emit(ctx: typer.Context, *, state_path: Path, journal_path: Path) -> None:
+    """P13 / DC4=(1): surface state-sync failures via distinct envelopes —
+    terminal corruption (``ERR_STATE_CORRUPT``) vs retryable I/O
+    (``ERR_STATE_SYNC_FAILED``). Wrapping the call here keeps
+    ``invoke_dispatch`` under the mccabe complexity cap.
+    """
+    try:
+        advance_state_seq(state_path, journal_path)
+    except StateError as exc:
+        emit_error(
+            "ERR_STATE_CORRUPT",
+            f"state corrupted during seq advance: {exc}; run `sdlc rebuild-state`",
+            ctx=ctx,
+            details={"state_path": str(state_path)},
+        )
+    except OSError as exc:
+        emit_error(
+            "ERR_STATE_SYNC_FAILED",
+            f"state.next_monotonic_seq write failed: {exc}; retry is safe",
+            ctx=ctx,
+            details={"state_path": str(state_path), "error": str(exc)},
+        )
 
 
 # Re-export used by the orchestrator so `_verify_dispatch.py` only needs to
@@ -195,8 +347,11 @@ def advance_state_seq(state_path: Path, journal_path: Path) -> None:
 # module.
 _POST_DISPATCH_SURFACE: Final[Mapping[str, object]] = {
     "parse_verdict_envelope": parse_verdict_envelope,
+    "parse_verdict_with_overflow_check": parse_verdict_with_overflow_check,
     "build_verification_entry": build_verification_entry,
     "append_and_persist_frontmatter": append_and_persist_frontmatter,
+    "assert_artifact_not_raced": assert_artifact_not_raced,
     "emit_artifact_verified": emit_artifact_verified,
     "advance_state_seq": advance_state_seq,
+    "advance_state_seq_or_emit": advance_state_seq_or_emit,
 }

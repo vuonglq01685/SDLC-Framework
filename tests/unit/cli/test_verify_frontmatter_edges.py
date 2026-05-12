@@ -139,3 +139,55 @@ def test_canonical_body_already_terminated_passes_through() -> None:
 def test_canonical_body_missing_newline_gets_one_appended() -> None:
     """Body without a trailing `\\n` is given exactly one."""
     assert _canonical_body("body") == "body\n"
+
+
+# ---------------------------------------------------------------------------
+# P24 / DC12=(a) (post-review 2026-05-12 Cluster C-J)
+# Body-hash invariance across no-frontmatter -> with-frontmatter transition.
+# The first verify appends a `verifications:` block; body bytes are
+# unchanged. The canonical body hash MUST be invariant — drives 2A.12
+# drift detection per DC8 + AC7.
+# ---------------------------------------------------------------------------
+
+
+def test_body_hash_invariant_across_no_fm_to_with_fm_transition() -> None:
+    """no-fm -> with-fm (1 entry) -> with-fm (2 entries) — body hash stable."""
+    from sdlc.cli._verify_frontmatter import _compute_body_hash
+
+    body = "# Heading\n\nSome content.\n"
+    state_1 = body
+    h1 = _compute_body_hash(state_1)
+
+    state_2 = _serialize_artifact({"verifications": [_entry().model_dump(mode="python")]}, body)
+    h2 = _compute_body_hash(state_2)
+
+    state_3 = _serialize_artifact(
+        {"verifications": [_entry().model_dump(mode="python"), _entry().model_dump(mode="python")]},
+        body,
+    )
+    h3 = _compute_body_hash(state_3)
+
+    assert h1 == h2 == h3, (
+        f"body-hash must be invariant across no-fm -> with-fm transition; got {h1=}, {h2=}, {h3=}"
+    )
+
+
+def test_body_hash_invariant_under_crlf_line_endings() -> None:
+    """P5 / DC3=(a): CRLF and LF representations of the same body yield
+    identical hashes after BOM/CRLF normalisation in
+    `_split_frontmatter_block`.
+    """
+    from sdlc.cli._verify_frontmatter import _compute_body_hash
+
+    body_lf = "# Heading\n\nLine one.\nLine two.\n"
+    body_crlf = body_lf.replace("\n", "\r\n")
+    assert _compute_body_hash(body_lf) == _compute_body_hash(body_crlf)
+
+
+def test_body_hash_invariant_under_bom_prefix() -> None:
+    """P5 / DC3=(a): UTF-8 BOM prefix is stripped before hashing."""
+    from sdlc.cli._verify_frontmatter import _compute_body_hash
+
+    body = "# Heading\n\nBody.\n"
+    body_with_bom = "﻿" + body
+    assert _compute_body_hash(body) == _compute_body_hash(body_with_bom)

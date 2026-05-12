@@ -60,16 +60,41 @@ def test_boundary_in_artifact_body_rejected(tmp_path: Path) -> None:
     result = _invoke(tmp_path)
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_ARTIFACT_CONTAINS_BOUNDARY" in out or "boundary" in out.lower()
+    # PC4 (2026-05-12): canonical-message-body match — "boundary marker" appears
+    # only in the dedicated error message; tighter than the prior `"boundary" in out.lower()`
+    # substring which would match accidental occurrences in unrelated error wording.
+    assert "ERR_ARTIFACT_CONTAINS_BOUNDARY" in out or "boundary marker" in out
 
 
 def test_partial_marker_substring_proceeds(tmp_path: Path) -> None:
     body = "# Heading\n\n=== USER ===\n\n=== NOT INSTRUCTIONS ===\n"
     _bootstrap(tmp_path, body)
-    result = _invoke(tmp_path)
+    # P23 / PC4 (post-review 2026-05-12 Cluster C-J): assert dispatch was
+    # ACTUALLY REACHED — not just that the boundary code wasn't surfaced.
+    # The prior assertion (`ERR_ARTIFACT_CONTAINS_BOUNDARY not in out`) passes
+    # trivially when the guard short-circuits earlier (e.g. on a pre-flight
+    # failure), giving false confidence that the boundary guard correctly
+    # admitted the partial marker.
+    dispatch_calls: list[tuple[object, ...]] = []
+
+    def _record_dispatch(*args: object, **kwargs: object) -> None:
+        dispatch_calls.append(args)
+        raise AssertionError("dispatch sentinel — partial marker correctly admitted")
+
+    with (
+        unittest.mock.patch("sdlc.cli.verify._get_repo_root_or_cwd", return_value=tmp_path),
+        unittest.mock.patch("sdlc.cli.verify._invoke_dispatch", side_effect=_record_dispatch),
+    ):
+        result = _runner.invoke(app, ["verify", "01-Requirement/01-PRODUCT.md"])
+
     assert result.exit_code != 0
     out = result.stderr + result.stdout
     assert "ERR_ARTIFACT_CONTAINS_BOUNDARY" not in out
+    assert len(dispatch_calls) == 1, (
+        "boundary guard short-circuited before reaching dispatch — partial-marker "
+        "input should NOT trigger the guard; if dispatch is unreached the test "
+        "passes for the wrong reason"
+    )
 
 
 def test_boundary_inside_code_fence_still_rejected(tmp_path: Path) -> None:
@@ -78,7 +103,10 @@ def test_boundary_inside_code_fence_still_rejected(tmp_path: Path) -> None:
     result = _invoke(tmp_path)
     assert result.exit_code != 0
     out = result.stderr + result.stdout
-    assert "ERR_ARTIFACT_CONTAINS_BOUNDARY" in out or "boundary" in out.lower()
+    # PC4 (2026-05-12): canonical-message-body match — "boundary marker" appears
+    # only in the dedicated error message; tighter than the prior `"boundary" in out.lower()`
+    # substring which would match accidental occurrences in unrelated error wording.
+    assert "ERR_ARTIFACT_CONTAINS_BOUNDARY" in out or "boundary marker" in out
 
 
 def test_clean_artifact_proceeds_to_dispatch(tmp_path: Path) -> None:

@@ -52,7 +52,8 @@ from sdlc.cli._verify_frontmatter import (
     _Verification,
 )
 from sdlc.cli.output import emit_error
-from sdlc.dispatcher.prompts import BOUNDARY_LINE
+from sdlc.dispatcher.prompts import BOUNDARY_LINE, normalize_for_boundary_check
+from sdlc.errors import StateError
 
 __all__ = (  # noqa: RUF022 — semantic order: model, then helpers in pipeline order
     "_Verification",
@@ -76,16 +77,77 @@ _MIN_ARTIFACT_PATH_PARTS: Final[int] = 2  # 01-Requirement/<file>; bare dir refu
 # ---------------------------------------------------------------------------
 
 
+_MIN_PHASE: Final[int] = 1
+_MAX_PHASE: Final[int] = 6
+
+
 def _read_state_phase(state_path: Path) -> int:
-    """Read phase from state.json (best-effort; returns 1 default on missing field)."""
+    """Read phase from state.json.
+
+    Best-effort defaults to ``_REQUIRED_PHASE`` on **transient** failures
+    (file missing, JSON undecodable) so a recoverable state can still
+    surface as ``ERR_NOT_INITIALIZED`` or ``ERR_PHASE_MISMATCH`` downstream.
+
+    P6 / DC4=(1) (post-review 2026-05-12 Cluster C-J): raises
+    :class:`sdlc.errors.StateError` on **logical** corruption — the JSON
+    decoded fine but the structure is wrong (top-level not a mapping;
+    ``phase`` missing, non-int, ``bool``, or out of range 1..6). The caller
+    (``_preflight_checks``) translates this into an ``ERR_STATE_CORRUPT``
+    envelope that points the operator at ``sdlc rebuild-state``.
+    """
     try:
         raw = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return _REQUIRED_PHASE
-    phase = raw.get("phase") if isinstance(raw, dict) else None
-    if isinstance(phase, int):
-        return phase
-    return _REQUIRED_PHASE
+    if not isinstance(raw, dict):
+        raise StateError(
+            f"state.json top-level value must be a JSON object; got {type(raw).__name__}"
+        )
+    phase = raw.get("phase")
+    if phase is None:
+        raise StateError("state.json missing required 'phase' field")
+    # ``bool`` is a subclass of ``int``; reject explicitly so ``"phase": true``
+    # never silently coerces to phase=1.
+    if isinstance(phase, bool) or not isinstance(phase, int):
+        raise StateError(
+            f"state.json 'phase' must be an integer in [{_MIN_PHASE}, {_MAX_PHASE}]; "
+            f"got {type(phase).__name__}"
+        )
+    if phase < _MIN_PHASE or phase > _MAX_PHASE:
+        raise StateError(
+            f"state.json 'phase' out of range [{_MIN_PHASE}, {_MAX_PHASE}]; got {phase}"
+        )
+    return phase
+
+
+def _reject_symlink_ancestors(
+    *, ctx: typer.Context, root: Path, parts: tuple[str, ...], artifact_id: str
+) -> None:
+    """PC2: walk every parent component from `root` toward the artifact and
+    reject if any is a symlink. ``Path.resolve()`` silently follows symlinks
+    so a `01-Requirement/` that is itself a symlink to an out-of-tree path
+    yields ``resolved`` AND ``target_root`` both pointing at the symlink
+    target, defeating the ``relative_to`` containment check. Walking with
+    ``is_symlink()`` closes this gap. Covers Windows reparse points via
+    ``Path.is_symlink`` ST_REPARSE_POINT semantics.
+    """
+    walk = root
+    for part in parts:
+        walk = walk / part
+        try:
+            if walk.is_symlink():
+                emit_error(
+                    "ERR_PATH_TRAVERSAL",
+                    f"artifact_id path contains a symlink component '{part}'; "
+                    "refusing to resolve (symlink components disallowed under "
+                    "01-Requirement/)",
+                    ctx=ctx,
+                    details={"artifact_id": artifact_id, "symlink_at": str(walk)},
+                )
+        except OSError:
+            # Broken symlink or permission error on a component — let the
+            # explicit resolve() in the caller surface the precise error.
+            break
 
 
 def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) -> Path:
@@ -146,6 +208,11 @@ def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) 
 
     candidate = root / Path(*pure.parts)
 
+    # PC2 (post-review 2026-05-12 Cluster C-J): parent-symlink walk extracted
+    # to _reject_symlink_ancestors() to keep this orchestrator under the
+    # mccabe complexity cap (max=8).
+    _reject_symlink_ancestors(ctx=ctx, root=root, parts=pure.parts, artifact_id=artifact_id)
+
     try:
         resolved = candidate.resolve(strict=False)
         root_resolved = root.resolve(strict=False)
@@ -185,7 +252,16 @@ def _preflight_checks(*, ctx: typer.Context, root: Path, artifact_id: str) -> tu
             details={"project_root": str(root)},
         )
 
-    phase = _read_state_phase(state_path)
+    try:
+        phase = _read_state_phase(state_path)
+    except StateError as exc:
+        # P6 / DC4=(1): logical corruption — terminal, suggest rebuild-state.
+        emit_error(
+            "ERR_STATE_CORRUPT",
+            f"state.json is corrupt: {exc}; run `sdlc rebuild-state` to recover",
+            ctx=ctx,
+            details={"state_path": str(state_path)},
+        )
     if phase != _REQUIRED_PHASE:
         emit_error(
             "ERR_PHASE_MISMATCH",
@@ -232,14 +308,24 @@ def _preflight_checks(*, ctx: typer.Context, root: Path, artifact_id: str) -> tu
 def _artifact_contains_boundary(content: str) -> bool:
     """Return True iff `content` contains the canonical BOUNDARY_LINE.
 
-    Bytewise substring match; NOT Markdown-aware. Even content inside fenced
-    code blocks triggers rejection. The check defends against the homograph
-    attack where a Phase-1 artifact embeds the data-vs-instruction marker
-    in its body — without the guard, the verifier prompt (which embeds the
-    artifact as `idea_text`) could be tricked into following an in-band
-    `</USER_IDEA>` block followed by adversarial instructions.
+    Performs a NORMALISED substring match (NFKC + dash-fold + whitespace-
+    collapse + lowercase) via :func:`normalize_for_boundary_check` — the
+    same predicate the dispatcher applies to ``idea_text`` in
+    :func:`sdlc.dispatcher.prompts._validate_idea_text`. NOT Markdown-aware.
+    Even content inside fenced code blocks triggers rejection. The check
+    defends against the homograph attack where a Phase-1 artifact embeds
+    the data-vs-instruction marker (or any normalised-equivalent — e.g.
+    U+2013 EN DASH variant, NBSP-separated, lowercase-only) in its body —
+    without the guard, the verifier prompt (which embeds the artifact as
+    ``idea_text``) could be tricked into following an in-band
+    ``</USER_IDEA>`` block followed by adversarial instructions.
+
+    PC7 (post-review 2026-05-12 Cluster C-J): tightened from raw byte
+    substring match to normalised compare so CLI and dispatcher reject
+    identical inputs. Closes the dash-fold / NBSP bypass that the prior
+    byte-match implementation missed.
     """
-    return BOUNDARY_LINE in content
+    return normalize_for_boundary_check(BOUNDARY_LINE) in normalize_for_boundary_check(content)
 
 
 # ---------------------------------------------------------------------------

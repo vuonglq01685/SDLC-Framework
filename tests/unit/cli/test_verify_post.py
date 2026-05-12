@@ -85,13 +85,51 @@ def test_build_verification_entry_unknown_status_coerced_to_verified() -> None:
     assert entry.status == "verified"
 
 
+def test_build_verification_entry_status_failed_round_trips() -> None:
+    """P31(a) / PC6 (post-review 2026-05-12 Cluster C-J): a verifier returning
+    `{"verdict": "failed"}` MUST produce a `_Verification` row with
+    ``status == "failed"`` (not silently coerced to "verified"). This pins
+    the DC10-scoped P30 behaviour at the unit-test layer: verifier-decided
+    failed verdicts survive the `build_verification_entry` step and flow to
+    the frontmatter row + journal payload unchanged.
+    """
+    entry = build_verification_entry(
+        verifier="artifact-verifier",
+        status="failed",
+        note="hand-rolled failure reason",
+        body_hash="sha256:" + ("b" * 64),
+    )
+    assert entry.status == "failed"
+    assert entry.verifier_note == "hand-rolled failure reason"
+    assert entry.content_hash_at_verify == "sha256:" + ("b" * 64)
+
+
+def test_build_verification_entry_status_advisory_round_trips() -> None:
+    """`status="advisory"` is currently legal per AC6's `ALLOWED_STATUSES`
+    enum (it's the DC9-deferred destination for unknown verdicts under P36).
+    This pins it as a contract-supported value today.
+    """
+    entry = build_verification_entry(
+        verifier="artifact-verifier",
+        status="advisory",
+        note=None,
+        body_hash="sha256:" + ("c" * 64),
+    )
+    assert entry.status == "advisory"
+
+
 # ---------------------------------------------------------------------------
 # advance_state_seq: defensive return paths
 # ---------------------------------------------------------------------------
 
 
-def test_advance_state_seq_swallows_state_error(tmp_path: Path) -> None:
-    """`StateError` from the reader is swallowed (best-effort sync)."""
+def test_advance_state_seq_propagates_state_error(tmp_path: Path) -> None:
+    """P13 / DC4=(1) (post-review 2026-05-12 Cluster C-J): `StateError` from
+    the reader is NO LONGER silently swallowed. The function bubbles it up
+    so the orchestrator can emit `ERR_STATE_CORRUPT` and surface terminal
+    state corruption to the operator (vs the prior silent no-op which let
+    the verify ceremony exit 0 even when state.json was unreadable).
+    """
     state_path = tmp_path / "state.json"
     journal_path = tmp_path / "journal.jsonl"
     journal_path.write_text("", encoding="utf-8")
@@ -101,8 +139,9 @@ def test_advance_state_seq_swallows_state_error(tmp_path: Path) -> None:
         mock.patch(
             "sdlc.state.read_state_or_recover", side_effect=StateError("simulated corruption")
         ),
+        pytest.raises(StateError, match="simulated corruption"),
     ):
-        advance_state_seq(state_path, journal_path)  # MUST NOT raise
+        advance_state_seq(state_path, journal_path)
 
 
 def test_advance_state_seq_returns_when_pre_is_none(tmp_path: Path) -> None:
@@ -138,8 +177,12 @@ def test_advance_state_seq_no_op_when_already_caught_up(tmp_path: Path) -> None:
         writer.assert_not_called()
 
 
-def test_advance_state_seq_swallows_oserror_on_write(tmp_path: Path) -> None:
-    """A disk-write `OSError` is swallowed — the journal stays authoritative."""
+def test_advance_state_seq_propagates_oserror_on_write(tmp_path: Path) -> None:
+    """P13 / DC4=(1) (post-review 2026-05-12 Cluster C-J): a disk-write
+    `OSError` is NO LONGER silently swallowed. The orchestrator wraps this
+    into `ERR_STATE_SYNC_FAILED` so operators see that the state pointer
+    drifted (retryable I/O failure, distinct from `ERR_STATE_CORRUPT`).
+    """
     state_path = tmp_path / "state.json"
     journal_path = tmp_path / "journal.jsonl"
     journal_path.write_text("", encoding="utf-8")
@@ -160,5 +203,6 @@ def test_advance_state_seq_swallows_oserror_on_write(tmp_path: Path) -> None:
         mock.patch(
             "sdlc.state.write_state_atomic_sync", side_effect=OSError("disk full simulated")
         ),
+        pytest.raises(OSError, match="disk full simulated"),
     ):
-        advance_state_seq(state_path, journal_path)  # MUST NOT raise
+        advance_state_seq(state_path, journal_path)
