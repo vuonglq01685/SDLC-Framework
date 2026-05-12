@@ -65,9 +65,15 @@ _ = REQUIRED_PHASE  # imported for re-export visibility; payload built in _verif
 
 
 def _workflows_package_dir() -> Path:
-    import sdlc.workflows_yaml as pkg  # deferred per Architecture §488
+    # P18 (post-review 2026-05-12): use importlib.resources so we don't depend
+    # on `pkg.__file__` being a real filesystem path (e.g. frozen wheels /
+    # zip-imports). The package is a normal MultiplexedPath under Hatchling.
+    from importlib.resources import files  # deferred per Architecture §488
 
-    return Path(pkg.__file__).resolve().parent
+    pkg_path = files("sdlc.workflows_yaml")
+    # `files()` returns a Traversable; for a regular package this is a real
+    # `Path`. Coerce via str(...) so non-Path Traversable shims still work.
+    return Path(str(pkg_path)).resolve()
 
 
 def _materialize_verifier_fixture(
@@ -152,6 +158,16 @@ def _load_workflow_and_registry(ctx: typer.Context, root: Path) -> tuple[object,
             f"workflow load failed: {exc}",
             ctx=ctx,
             details=wf_details,
+        )
+    # P2 (post-review 2026-05-12): broaden so OSError / yaml.YAMLError /
+    # TypeError from the importlib.resources path coercion surface as
+    # ERR_INFRASTRUCTURE envelopes instead of raw tracebacks.
+    except Exception as exc:
+        emit_error(
+            "ERR_INFRASTRUCTURE",
+            f"workflow registry load failed: {exc}",
+            ctx=ctx,
+            details={"error": str(exc), "error_type": type(exc).__name__},
         )
     agents_dir = root / _AGENTS_REL
     try:

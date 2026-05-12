@@ -63,8 +63,15 @@ def parse_verdict_envelope(output_text: str) -> tuple[str, str | None]:
         return "verified", None
     if not isinstance(parsed, dict):
         return "verified", None
+    # P28 (post-review 2026-05-12): isinstance guard before `in ALLOWED_STATUSES`.
+    # Previously a non-hashable verdict (e.g. `{"verdict": ["verified"]}`) raised
+    # TypeError on `in frozenset` and propagated as an unenveloped traceback.
     raw_verdict = parsed.get("verdict")
-    status: str = raw_verdict if raw_verdict in ALLOWED_STATUSES else "verified"
+    status: str = (
+        raw_verdict
+        if isinstance(raw_verdict, str) and raw_verdict in ALLOWED_STATUSES
+        else "verified"
+    )
     raw_note = parsed.get("note")
     note: str | None = (
         raw_note[:VERIFIER_NOTE_MAX_LEN] if isinstance(raw_note, str) and raw_note else None
@@ -123,6 +130,9 @@ async def emit_artifact_verified(
     from sdlc.dispatcher._panel_helpers import _allocate_seq  # deferred (private)
     from sdlc.journal import append as journal_append  # deferred
 
+    # P15 (post-review 2026-05-12): always emit `verifier_note` key (None when
+    # absent) so downstream consumers — dashboards, Story 2A.12 sdlc-signoff —
+    # can expect a stable payload shape without per-key existence guards.
     payload: dict[str, object] = {
         "slash_command": SLASH_COMMAND,
         "phase": REQUIRED_PHASE,
@@ -130,9 +140,8 @@ async def emit_artifact_verified(
         "status": entry.status,
         "content_hash_at_verify": entry.content_hash_at_verify,
         "verification_index": verification_index,
+        "verifier_note": entry.verifier_note,
     }
-    if entry.verifier_note:
-        payload["verifier_note"] = entry.verifier_note
     seq = await _allocate_seq(journal_path)
     je = JournalEntry(
         schema_version=1,

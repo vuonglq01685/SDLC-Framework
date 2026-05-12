@@ -65,6 +65,10 @@ __all__ = (  # noqa: RUF022 — semantic order: model, then helpers in pipeline 
 _STATE_REL: Final[str] = ".claude/state/state.json"
 _REQUIREMENT_DIR: Final[str] = "01-Requirement"
 _REQUIRED_PHASE: Final[int] = 1
+# P3/P4 thresholds (post-review 2026-05-12) — control-char + min-segment guards.
+_CONTROL_CHAR_THRESHOLD: Final[int] = 0x20  # everything below 0x20 is C0 control
+_DEL_CHAR: Final[int] = 0x7F  # DEL is the lone control char outside the C0 block
+_MIN_ARTIFACT_PATH_PARTS: Final[int] = 2  # 01-Requirement/<file>; bare dir refused
 
 
 # ---------------------------------------------------------------------------
@@ -87,9 +91,31 @@ def _read_state_phase(state_path: Path) -> int:
 def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) -> Path:
     """Resolve `artifact_id` to a repo-relative POSIX path under `01-Requirement/`.
 
-    Rejects absolute paths, `..` traversal, and any path that would resolve
-    outside the requirement directory (defends against symlink escape).
+    Rejects absolute paths, `..` traversal, NUL/control-char injection, paths
+    that resolve to fewer than 2 segments (i.e. the directory itself), and any
+    path that would resolve outside the requirement directory (defends against
+    symlink escape).
     """
+    # P3 (post-review 2026-05-12): reject NUL bytes + ASCII control characters
+    # before they reach `PurePosixPath` / `Path.resolve`. POSIX path semantics
+    # forbid NUL bytes; on most OSes `Path(...).resolve()` raises ValueError
+    # (uncaught — we only catch OSError below). Explicit early rejection
+    # surfaces ERR_PATH_TRAVERSAL with a clear message.
+    if not artifact_id or not artifact_id.strip():
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            "artifact_id must be a non-empty repo-relative POSIX path under 01-Requirement/",
+            ctx=ctx,
+            details={"artifact_id": artifact_id},
+        )
+    if any(ord(ch) < _CONTROL_CHAR_THRESHOLD or ord(ch) == _DEL_CHAR for ch in artifact_id):
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            "artifact_id contains NUL or control characters; refusing to resolve",
+            ctx=ctx,
+            details={"artifact_id_repr": repr(artifact_id)},
+        )
+
     pure = PurePosixPath(artifact_id)
     if pure.is_absolute() or any(part == ".." for part in pure.parts):
         emit_error(
@@ -102,6 +128,18 @@ def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) 
         emit_error(
             "ERR_PATH_TRAVERSAL",
             "artifact_id must be a repo-relative POSIX path under 01-Requirement/",
+            ctx=ctx,
+            details={"artifact_id": artifact_id},
+        )
+    # P4 (post-review 2026-05-12): require at least 2 path segments. Bare
+    # `01-Requirement` or `01-Requirement/` would pass parts[0] check but is
+    # never a file; reject up-front with a clearer error than the eventual
+    # `is_file()` failure downstream.
+    if len(pure.parts) < _MIN_ARTIFACT_PATH_PARTS:
+        emit_error(
+            "ERR_PATH_TRAVERSAL",
+            "artifact_id must include a file segment under 01-Requirement/ "
+            "(e.g. 01-Requirement/01-PRODUCT.md)",
             ctx=ctx,
             details={"artifact_id": artifact_id},
         )
