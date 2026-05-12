@@ -109,6 +109,35 @@ def test_append_verification_treats_null_existing_as_empty() -> None:
     assert len(rows) == 1
 
 
+def test_append_verification_coerces_legacy_string_entries() -> None:
+    """P19 / DC6=(2) (post-review 2026-05-12 Cluster C-J): legacy v0
+    string entries (e.g. ``verifications: ["manual note"]``) get coerced
+    to the current dict shape on the fly. Sentinel hash signals "body not
+    pinned at coercion time"; legacy verifier name `"legacy"` + status
+    `"advisory"` mark the entry as historical, not a fresh verify.
+    """
+    fm: dict[str, object] = {"verifications": ["legacy manual note from v0"]}
+    new_fm = _append_verification(fm, _entry())
+    rows = new_fm["verifications"]
+    assert isinstance(rows, list) and len(rows) == 2
+    coerced = rows[0]
+    assert coerced["verifier"] == "legacy"
+    assert coerced["status"] == "advisory"
+    assert coerced["verifier_note"] == "legacy manual note from v0"
+    assert coerced["content_hash_at_verify"] == "sha256:" + ("0" * 64)
+    # Fresh entry appended last.
+    assert rows[1]["verifier"] == "artifact-verifier"
+
+
+def test_append_verification_rejects_non_str_non_dict_entries() -> None:
+    """P19 / DC6=(2): only `dict` or `str` items are accepted; everything
+    else (int, list, None inside a list) is treated as malformed.
+    """
+    fm: dict[str, object] = {"verifications": [42]}
+    with pytest.raises(WorkflowError, match="must be dict or str"):
+        _append_verification(fm, _entry())
+
+
 # ---------------------------------------------------------------------------
 # _serialize_artifact + _canonical_body: trailing-newline normalisation
 # ---------------------------------------------------------------------------

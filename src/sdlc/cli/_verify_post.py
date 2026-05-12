@@ -1,15 +1,9 @@
 """Post-dispatch ceremony for `sdlc verify` (Story 2A.10).
 
-Private CLI-internal helpers invoked AFTER the dispatcher returns:
-
-  * verdict envelope parsing,
-  * `_Verification` row construction + frontmatter append,
-  * `kind=artifact_verified` journal emit,
-  * defensive `state.next_monotonic_seq` re-anchor.
-
-Lives alongside `_verify_dispatch.py` so each file stays under the
-§1052-§1112 LOC cap; D1 still mandates a single PUBLIC surface
-(`cli/verify.py` re-exports the relevant symbols).
+Private CLI-internal helpers run AFTER dispatch returns: verdict parsing,
+``_Verification`` row construction + frontmatter append, ``artifact_verified``
+journal emit, defensive ``state.next_monotonic_seq`` re-anchor. PUBLIC
+surface stays in :mod:`sdlc.cli.verify` (D1).
 """
 
 from __future__ import annotations
@@ -38,6 +32,7 @@ if TYPE_CHECKING:
 
 __all__ = (  # noqa: RUF022 — pipeline order, not alphabetical
     "parse_verdict_envelope",
+    "is_verdict_malformed",
     "check_verifier_note_overflow",
     "parse_verdict_with_overflow_check",
     "build_verification_entry",
@@ -57,21 +52,28 @@ REQUIRED_PHASE: Final[int] = 1
 def parse_verdict_envelope(output_text: str) -> tuple[str, str | None]:
     """Parse the verifier's ``output_text`` into ``(status, note)``.
 
-    Defensive: any malformed payload falls back to
-    ``(status="verified", note=None)`` rather than failing the verify
-    ceremony — the stored ``content_hash_at_verify`` already pins the
-    body bytes presented to the verifier, so an unparseable verdict
-    still produces a defensible audit trail.
+    P36 / DC9 / DR7 (post-review 2026-05-12 Cluster C-J): malformed payloads
+    fall back to ``status="advisory"`` (NOT silently "verified"). The DR7
+    rationale: a verifier that returns an unparseable verdict is exhibiting
+    behaviour the operator MUST see — "verified" silently approves the
+    artifact based on a non-decision, which is the most severe correctness
+    failure mode. "advisory" routes through DC10's non-zero exit path so
+    the verify ceremony surfaces the malformed payload to CI/operators
+    while still appending a defensible audit row.
+
+    Use :func:`is_verdict_malformed` alongside this function when the
+    caller needs to know whether coercion happened (for journal payload
+    flagging per P36 / `verifier_payload_malformed`).
     """
     txt = output_text.strip()
     if not txt:
-        return "verified", None
+        return "advisory", None  # P36: empty payload is a non-decision -> advisory
     try:
         parsed: object = json.loads(txt)
     except json.JSONDecodeError:
-        return "verified", None
+        return "advisory", None  # P36: malformed JSON -> advisory
     if not isinstance(parsed, dict):
-        return "verified", None
+        return "advisory", None  # P36: non-dict JSON -> advisory
     # P28 (post-review 2026-05-12): isinstance guard before `in ALLOWED_STATUSES`.
     # Previously a non-hashable verdict (e.g. `{"verdict": ["verified"]}`) raised
     # TypeError on `in frozenset` and propagated as an unenveloped traceback.
@@ -79,34 +81,46 @@ def parse_verdict_envelope(output_text: str) -> tuple[str, str | None]:
     status: str = (
         raw_verdict
         if isinstance(raw_verdict, str) and raw_verdict in ALLOWED_STATUSES
-        else "verified"
+        else "advisory"  # P36: unknown / non-string / missing verdict -> advisory
     )
     raw_note = parsed.get("note")
-    # P14 / DC1=(a) (post-review 2026-05-12 Cluster C-J): notes >MAX_LEN MUST
-    # be rejected upstream (see :func:`check_verifier_note_overflow`); by the
-    # time we reach here the contract is already enforced. We still slice
-    # defensively in case a future call-site forgets the precheck — keeps
-    # this helper safe to call standalone.
+    # P14 / DC1=(a): notes >MAX_LEN MUST be rejected upstream (see
+    # :func:`check_verifier_note_overflow`); by the time we reach here the
+    # contract is already enforced. We still slice defensively in case a
+    # future call-site forgets the precheck — keeps this helper safe to
+    # call standalone.
     note: str | None = (
         raw_note[:VERIFIER_NOTE_MAX_LEN] if isinstance(raw_note, str) and raw_note else None
     )
     return status, note
 
 
+def is_verdict_malformed(output_text: str) -> bool:
+    """P36 / DC9 / DR7: True iff :func:`parse_verdict_envelope` would coerce
+    the payload to ``advisory`` (verifier did NOT return well-formed
+    ``{"verdict": <ALLOWED_STATUS>, ...}``). Drives the
+    ``verifier_payload_malformed`` journal flag.
+    """
+    txt = output_text.strip()
+    if not txt:
+        return True
+    try:
+        parsed: object = json.loads(txt)
+    except json.JSONDecodeError:
+        return True
+    if not isinstance(parsed, dict):
+        return True
+    raw_verdict = parsed.get("verdict")
+    return not (isinstance(raw_verdict, str) and raw_verdict in ALLOWED_STATUSES)
+
+
 def check_verifier_note_overflow(output_text: str) -> int | None:
     """P14 / DC1=(a): return ``len(raw_note)`` if the verifier's note exceeds
-    ``VERIFIER_NOTE_MAX_LEN`` — else ``None``.
-
-    Called BEFORE :func:`parse_verdict_envelope` in the dispatch orchestrator
-    so an oversized note is surfaced as ``ERR_VERIFIER_NOTE_OVERFLOW`` rather
-    than silently truncated. Reading the spec: "preserves audit-trail
-    integrity" — a verifier that returns a 5,000-char note is signalling
-    something the operator MUST see verbatim, not a truncated tail.
-
-    Returns ``None`` when the payload is malformed in a way that
-    :func:`parse_verdict_envelope` would already fall through (empty,
-    invalid JSON, non-dict, non-string note). Those paths are handled by
-    the existing defensive fallbacks and do not require a hard reject.
+    ``VERIFIER_NOTE_MAX_LEN``, else ``None``. Surfaced upstream as
+    ``ERR_VERIFIER_NOTE_OVERFLOW`` to preserve audit-trail integrity (a
+    5000-char note is a behaviour signal, not noise to truncate).
+    Malformed-payload cases short-circuit to ``None`` — covered by the
+    existing :func:`parse_verdict_envelope` defensive fallbacks.
     """
     txt = output_text.strip()
     if not txt:
@@ -130,9 +144,15 @@ def build_verification_entry(
     note: str | None,
     body_hash: str,
 ) -> _Verification:
-    """Construct a single ``_Verification`` row from the parsed verdict."""
+    """Construct a single ``_Verification`` row from the parsed verdict.
+
+    P36 / DC9 (post-review 2026-05-12 Cluster C-J): out-of-band status
+    coerces to ``advisory`` (NOT ``verified``) so silent verifier
+    misbehaviour surfaces as a flagged advisory row + non-zero exit per
+    DC10. Aligns with :func:`parse_verdict_envelope` post-DR7 default.
+    """
     if status not in ALLOWED_STATUSES:
-        status = "verified"
+        status = "advisory"
     return _Verification(
         verifier=verifier,
         ts=now_rfc3339_utc_ms(),
@@ -173,8 +193,23 @@ async def emit_artifact_verified(
     rel_path: str,
     entry: _Verification,
     verification_index: int,
+    verifier_payload_malformed: bool = False,
+    before_hash: str | None = None,
+    after_hash: str | None = None,
 ) -> int:
-    """Append the ``kind=artifact_verified`` journal entry; return seq used."""
+    """Append the ``kind=artifact_verified`` journal entry; return seq used.
+
+    P36/DC9 ``verifier_payload_malformed`` flag distinguishes coerced-from-
+    malformed advisories from verifier-decided advisories (stable payload
+    shape; always emitted).
+
+    P29/DC8=(2) ``before_hash`` / ``after_hash`` are **whole-file** SHA-256
+    of artifact bytes immediately before/after the frontmatter rewrite.
+    ``payload.content_hash_at_verify`` continues to pin the **body-only**
+    hash (2A.12 drift detection semantics — unchanged). When
+    ``before_hash is None`` the legacy ``after_hash=content_hash_at_verify``
+    convention is preserved for backward-compat.
+    """
     from sdlc.dispatcher._panel_helpers import _allocate_seq  # deferred (private)
     from sdlc.journal import append as journal_append  # deferred
 
@@ -189,6 +224,8 @@ async def emit_artifact_verified(
         "content_hash_at_verify": entry.content_hash_at_verify,
         "verification_index": verification_index,
         "verifier_note": entry.verifier_note,
+        # P36 / DC9: always emit so payload shape is stable.
+        "verifier_payload_malformed": verifier_payload_malformed,
     }
     seq = await _allocate_seq(journal_path)
     je = JournalEntry(
@@ -198,8 +235,10 @@ async def emit_artifact_verified(
         actor="cli",
         kind="artifact_verified",
         target_id=rel_path,
-        before_hash=None,
-        after_hash=entry.content_hash_at_verify,
+        # P29 / DC8=(2): pre/post whole-file hashes if computed; else
+        # legacy semantics (before=None, after=body-only hash).
+        before_hash=before_hash,
+        after_hash=after_hash if after_hash is not None else entry.content_hash_at_verify,
         payload=payload,
     )
     await journal_append(je, journal_path)

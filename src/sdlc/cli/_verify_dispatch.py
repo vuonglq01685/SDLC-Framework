@@ -1,24 +1,13 @@
 """Dispatch wiring for `sdlc verify` (Story 2A.10, FR8, AC5/AC7).
 
-Private CLI-internal module. Owns the dispatch-side of the verify ceremony:
-workflow + spec load, MockAIRuntime fixture materialisation, single-specialist
-``dispatch(...)`` invocation with ``persist_artifact=False`` (AC5), and the
-top-level orchestrator (`invoke_dispatch`).
-
-Post-dispatch ceremony — verdict parsing, frontmatter append, journal emit,
-state advance — lives in the sibling `_verify_post.py` so each module stays
-under the Architecture §1052-§1112 LOC cap. D1 still mandates a single PUBLIC
-surface; both privates are re-exported only via `cli/verify.py`.
-
-Mock posture (v1, Story 2A.10):
-
-  * The verifier specialist is dispatched against a deterministic
-    `MockAIRuntime` whose fixture is materialised at request time
-    (parity with `cli/start.py`). The mock returns a canned
-    ``{"verdict": "verified", "note": "..."}`` envelope. Real Claude
-    dispatch ships in Story 2B.x; the on-disk frontmatter contract is
-    stable across that swap because the verdict envelope is parsed
-    defensively in `_verify_post.parse_verdict_envelope`.
+Private CLI-internal. Owns workflow+spec load, MockAIRuntime fixture
+materialisation (v1), single-specialist ``dispatch(persist_artifact=False)``
+per AC5, and the top-level orchestrator. Post-dispatch ceremony lives in
+the sibling :mod:`sdlc.cli._verify_post`. PUBLIC surface stays in
+:mod:`sdlc.cli.verify` (D1). Real Claude dispatch ships in Story 2B.x;
+the on-disk frontmatter contract is stable across that swap because
+verdict parsing is defensive (see
+:func:`sdlc.cli._verify_post.parse_verdict_envelope`).
 """
 
 from __future__ import annotations
@@ -35,19 +24,18 @@ import typer
 import yaml
 from pydantic import ValidationError
 
+from sdlc.cli._verify_finalize import emit_user_output_and_exit, emit_verified_and_advance
 from sdlc.cli._verify_frontmatter import _compute_body_hash
 from sdlc.cli._verify_mock import resolve_mock_verdict
 from sdlc.cli._verify_post import (
     REQUIRED_PHASE,
     SLASH_COMMAND,
-    advance_state_seq_or_emit,
     append_and_persist_frontmatter,
     assert_artifact_not_raced,
     build_verification_entry,
-    emit_artifact_verified,
     parse_verdict_with_overflow_check,
 )
-from sdlc.cli.output import echo, emit_error, emit_json
+from sdlc.cli.output import echo, emit_error
 from sdlc.errors import WorkflowError
 
 __all__ = ("invoke_dispatch", "SLASH_COMMAND")  # noqa: RUF022 — public entry first, constant second
@@ -62,14 +50,11 @@ _ = REQUIRED_PHASE  # imported for re-export visibility; payload built in _verif
 
 def _workflows_package_dir() -> Path:
     # P18 (post-review 2026-05-12): use importlib.resources so we don't depend
-    # on `pkg.__file__` being a real filesystem path (e.g. frozen wheels /
-    # zip-imports). The package is a normal MultiplexedPath under Hatchling.
+    # on `pkg.__file__` being a real filesystem path (frozen wheels / zip-imports).
     from importlib.resources import files  # deferred per Architecture §488
 
-    pkg_path = files("sdlc.workflows_yaml")
-    # `files()` returns a Traversable; for a regular package this is a real
-    # `Path`. Coerce via str(...) so non-Path Traversable shims still work.
-    return Path(str(pkg_path)).resolve()
+    # files() returns a Traversable; str(...) coerces non-Path shims.
+    return Path(str(files("sdlc.workflows_yaml"))).resolve()
 
 
 def _materialize_verifier_fixture(
@@ -155,9 +140,8 @@ def _load_workflow_and_registry(ctx: typer.Context, root: Path) -> tuple[object,
             ctx=ctx,
             details=wf_details,
         )
-    # P2 (post-review 2026-05-12): broaden so OSError / yaml.YAMLError /
-    # TypeError from the importlib.resources path coercion surface as
-    # ERR_INFRASTRUCTURE envelopes instead of raw tracebacks.
+    # P2: broaden to surface OSError / yaml.YAMLError / TypeError as
+    # ERR_INFRASTRUCTURE instead of raw tracebacks.
     except Exception as exc:
         emit_error(
             "ERR_INFRASTRUCTURE",
@@ -241,11 +225,9 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
 ) -> None:
     """Dispatch the artifact-verifier specialist + append verification entry.
 
-    Public to `cli/verify.py` (re-exported there as `_invoke_dispatch`
-    for test compatibility). The post-dispatch ceremony — verdict parsing,
-    frontmatter append, journal emit, state advance — is delegated to
-    `_verify_post` so each private module stays under the §1052-§1112
-    LOC cap.
+    Re-exported via :mod:`sdlc.cli.verify` as ``_invoke_dispatch``. Post-
+    dispatch ceremony (parse/append/emit/advance) lives in
+    :mod:`sdlc.cli._verify_post` for LOC-cap discipline.
     """
     from sdlc.dispatcher import PanelObserver  # deferred
 
@@ -257,10 +239,8 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
     state_path = root / _STATE_REL
     agent_runs_path = root / _RUNS_REL
 
-    # P20 / DC7=(c) (post-review 2026-05-12 Cluster C-J): lazy mkdir the
-    # `03-Implementation/` parent of `agent_runs.jsonl` before any journal
-    # append. Real Phase-1 init may not have created this directory; test
-    # fixtures do so manually. Matches typical Python file-I/O idiom.
+    # P20 / DC7=(c): lazy mkdir `03-Implementation/` (test fixtures create
+    # it manually; real Phase-1 init may not).
     try:
         agent_runs_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -279,10 +259,23 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
             ctx=ctx,
         )
 
+    # P29/DC8=(2): whole-file hash pre-dispatch → stamps both
+    # `agent_dispatched.payload.artifact_hash_at_dispatch` (alongside legacy
+    # `idea_hash`) AND `artifact_verified.before_hash`.
+    from sdlc.signoff.hasher import compute_artifact_hash  # deferred
+
+    pre_dispatch_full_hash = compute_artifact_hash(artifact_path, repo_root=root)
+
     observer = PanelObserver(
         slash_command=SLASH_COMMAND,
         idea_text=artifact_content,
-        extra_context=MappingProxyType({}),
+        extra_context=MappingProxyType(
+            {
+                "agent_dispatched_extras": MappingProxyType(
+                    {"artifact_hash_at_dispatch": pre_dispatch_full_hash}
+                ),
+            }
+        ),
         emit_agent_dispatched=True,
     )
 
@@ -333,6 +326,10 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
             details={"errors": exc.errors()},
         )
 
+    # P29/DC8=(2): reuse pre-dispatch hash; TOCTOU above guarantees bytes
+    # unchanged since dispatch.
+    before_hash_full = pre_dispatch_full_hash
+
     try:
         new_fm, verification_index = append_and_persist_frontmatter(artifact_path, entry)
     except WorkflowError as exc:
@@ -344,32 +341,27 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
             details=wf_details,
         )
 
-    asyncio.run(
-        emit_artifact_verified(
-            journal_path=journal_path,
-            rel_path=artifact_id,
-            entry=entry,
-            verification_index=verification_index,
-        )
-    )
-    advance_state_seq_or_emit(ctx, state_path=state_path, journal_path=journal_path)
+    # P29 / DC8=(2): post-rewrite whole-file hash pins the after-state.
+    after_hash_full = compute_artifact_hash(artifact_path, repo_root=root)
 
-    if json_mode:
-        emit_json(
-            "verify",
-            {
-                "artifact_id": artifact_id,
-                "verifier": entry.verifier,
-                "status": entry.status,
-                "verification_index": verification_index,
-                "content_hash_at_verify": entry.content_hash_at_verify,
-                "total_verifications": len(new_fm["verifications"]),
-            },
-            ctx=ctx,
-        )
-    else:
-        echo(
-            f"sdlc verify: appended verification[{verification_index}] "
-            f"({entry.status}) to {artifact_id}",
-            ctx=ctx,
-        )
+    emit_verified_and_advance(
+        ctx,
+        json_mode=json_mode,
+        output_text=output_text,
+        journal_path=journal_path,
+        state_path=state_path,
+        artifact_id=artifact_id,
+        entry=entry,
+        verification_index=verification_index,
+        before_hash=before_hash_full,
+        after_hash=after_hash_full,
+    )
+
+    emit_user_output_and_exit(
+        ctx,
+        json_mode=json_mode,
+        artifact_id=artifact_id,
+        entry=entry,
+        verification_index=verification_index,
+        total_verifications=len(new_fm["verifications"]),
+    )

@@ -17,6 +17,7 @@ import pytest
 from sdlc.cli._verify_post import (
     advance_state_seq,
     build_verification_entry,
+    is_verdict_malformed,
     parse_verdict_envelope,
 )
 from sdlc.errors import StateError
@@ -29,29 +30,33 @@ pytestmark = pytest.mark.unit
 # ---------------------------------------------------------------------------
 
 
-def test_parse_verdict_envelope_empty_string_returns_verified_none() -> None:
-    """Empty `output_text` (mock runtime, no payload) — fall back."""
-    assert parse_verdict_envelope("") == ("verified", None)
-    assert parse_verdict_envelope("   \n\t ") == ("verified", None)
+def test_parse_verdict_envelope_empty_string_returns_advisory_none() -> None:
+    """P36 / DC9 (post-review 2026-05-12 Cluster C-J): empty `output_text`
+    is a non-decision; coerced to ``advisory`` (NOT ``verified`` — the
+    DR7 silent-verified fallback was the most severe correctness failure
+    mode). "advisory" routes through DC10 non-zero exit.
+    """
+    assert parse_verdict_envelope("") == ("advisory", None)
+    assert parse_verdict_envelope("   \n\t ") == ("advisory", None)
 
 
-def test_parse_verdict_envelope_invalid_json_returns_verified_none() -> None:
-    """Garbage that fails `json.loads` — fall back to verified/None."""
-    assert parse_verdict_envelope("not-json-at-all") == ("verified", None)
-    assert parse_verdict_envelope("{ unterminated") == ("verified", None)
+def test_parse_verdict_envelope_invalid_json_returns_advisory_none() -> None:
+    """P36 / DC9: garbage that fails `json.loads` → ``advisory``."""
+    assert parse_verdict_envelope("not-json-at-all") == ("advisory", None)
+    assert parse_verdict_envelope("{ unterminated") == ("advisory", None)
 
 
-def test_parse_verdict_envelope_non_dict_json_returns_verified_none() -> None:
-    """Valid JSON that isn't an object — fall back."""
-    assert parse_verdict_envelope('["list", "not", "dict"]') == ("verified", None)
-    assert parse_verdict_envelope('"bare string"') == ("verified", None)
-    assert parse_verdict_envelope("42") == ("verified", None)
+def test_parse_verdict_envelope_non_dict_json_returns_advisory_none() -> None:
+    """P36 / DC9: valid JSON that isn't a mapping → ``advisory``."""
+    assert parse_verdict_envelope('["list", "not", "dict"]') == ("advisory", None)
+    assert parse_verdict_envelope('"bare string"') == ("advisory", None)
+    assert parse_verdict_envelope("42") == ("advisory", None)
 
 
-def test_parse_verdict_envelope_unknown_status_defaults_to_verified() -> None:
-    """Verdict outside `ALLOWED_STATUSES` is coerced to ``verified``."""
+def test_parse_verdict_envelope_unknown_status_defaults_to_advisory() -> None:
+    """P36 / DC9: verdict outside `ALLOWED_STATUSES` → ``advisory`` (note preserved)."""
     status, note = parse_verdict_envelope('{"verdict": "bogus-status", "note": "x"}')
-    assert status == "verified"
+    assert status == "advisory"
     assert note == "x"
 
 
@@ -74,15 +79,56 @@ def test_parse_verdict_envelope_empty_note_returns_none() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_build_verification_entry_unknown_status_coerced_to_verified() -> None:
-    """A caller passing an out-of-band status is normalised, never raised."""
+# ---------------------------------------------------------------------------
+# is_verdict_malformed: P36 / DC9 detector for journal payload flag
+# ---------------------------------------------------------------------------
+
+
+def test_is_verdict_malformed_well_formed_returns_false() -> None:
+    """A clean ``{"verdict": "verified", ...}`` payload is NOT malformed."""
+    assert is_verdict_malformed('{"verdict": "verified", "note": "ok"}') is False
+    assert is_verdict_malformed('{"verdict": "failed"}') is False
+    assert is_verdict_malformed('{"verdict": "advisory", "note": "watch"}') is False
+
+
+def test_is_verdict_malformed_empty_returns_true() -> None:
+    """Empty / whitespace payload is a non-decision → malformed."""
+    assert is_verdict_malformed("") is True
+    assert is_verdict_malformed("   \n\t ") is True
+
+
+def test_is_verdict_malformed_invalid_json_returns_true() -> None:
+    """Unparseable JSON → malformed."""
+    assert is_verdict_malformed("not-json") is True
+    assert is_verdict_malformed("{ unterminated") is True
+
+
+def test_is_verdict_malformed_non_dict_returns_true() -> None:
+    """Valid JSON that isn't a mapping → malformed."""
+    assert is_verdict_malformed("[1, 2, 3]") is True
+    assert is_verdict_malformed('"bare string"') is True
+
+
+def test_is_verdict_malformed_unknown_verdict_returns_true() -> None:
+    """Verdict outside ALLOWED_STATUSES (incl. missing / non-string) → malformed."""
+    assert is_verdict_malformed('{"verdict": "bogus"}') is True
+    assert is_verdict_malformed('{"note": "no verdict key"}') is True
+    assert is_verdict_malformed('{"verdict": ["verified"]}') is True  # unhashable (P28)
+    assert is_verdict_malformed('{"verdict": null}') is True
+
+
+def test_build_verification_entry_unknown_status_coerced_to_advisory() -> None:
+    """P36 / DC9 (post-review 2026-05-12 Cluster C-J): out-of-band status
+    coerces to ``advisory`` (not ``verified``) so silent misbehaviour
+    surfaces as a flagged advisory + non-zero exit per DC10.
+    """
     entry = build_verification_entry(
         verifier="artifact-verifier",
         status="not-a-real-status",
         note=None,
         body_hash="sha256:" + ("a" * 64),
     )
-    assert entry.status == "verified"
+    assert entry.status == "advisory"
 
 
 def test_build_verification_entry_status_failed_round_trips() -> None:

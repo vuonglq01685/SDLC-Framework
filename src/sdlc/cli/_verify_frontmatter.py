@@ -34,6 +34,7 @@ from typing import Annotated, Any, Final, Literal
 import yaml
 from pydantic import StringConstraints
 
+from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.contracts._strict_model import StrictModel
 from sdlc.errors import WorkflowError
 
@@ -151,19 +152,44 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     return parsed, body
 
 
+def _coerce_legacy_verification(item: Any) -> dict[str, Any]:
+    """P19 / DC6=(2) (post-review 2026-05-12 Cluster C-J): wrap a non-dict
+    ``verifications:`` entry (typically a legacy v0 string note) into the
+    current dict shape.
+
+    Sentinel hash ``sha256:0*64`` signals "body not pinned at coercion time"
+    — 2A.12 drift detection MUST treat this hash as an explicit unknown
+    rather than a normal body hash.
+    """
+    if isinstance(item, dict):
+        return item
+    if isinstance(item, str):
+        return {
+            "verifier": "legacy",
+            "ts": now_rfc3339_utc_ms(),
+            "status": "advisory",
+            "content_hash_at_verify": "sha256:" + ("0" * 64),
+            "verifier_note": item[:VERIFIER_NOTE_MAX_LEN] if item else None,
+            "schema_version": 1,
+        }
+    raise WorkflowError(f"verifications: entry must be dict or str; got {type(item).__name__}")
+
+
 def _append_verification(frontmatter: dict[str, Any], entry: _Verification) -> dict[str, Any]:
     """Return a NEW frontmatter dict with `entry` appended to `verifications:`.
 
     Does NOT mutate `frontmatter`. Initialises `verifications: []` when the
     field is absent or `None`. Existing entries are preserved bit-exact via
-    `copy.deepcopy`.
+    `copy.deepcopy`; legacy string entries are coerced to dict shape via
+    :func:`_coerce_legacy_verification` (P19 / DC6=(2)).
     """
     new_fm = copy.deepcopy(frontmatter)
     existing = new_fm.get("verifications")
     if existing is None:
         existing_list: list[dict[str, Any]] = []
     elif isinstance(existing, list):
-        existing_list = list(existing)
+        # P19: coerce mixed-type legacy lists into uniform dict-of-Verification.
+        existing_list = [_coerce_legacy_verification(item) for item in existing]
     else:
         raise WorkflowError(f"verifications: must be a list or null; got {type(existing).__name__}")
 
