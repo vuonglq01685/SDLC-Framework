@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-07
-last_updated: "2026-05-14 (code-review 2a-12-sdlc-signoff-generate-draft-sign-validate: review → done; bmad-code-review 3 parallel layers [Blind Hunter/Edge Case Hunter/Acceptance Auditor]; 54 raw → 38 unique findings; 4 D-decisions resolved [DR1=revert+sentinel, DR2=amend AC11 to 85, DR3=reclassify as AC3/D2 + EPIC-2A-DEBT-SIGNOFF-WRITE-INTENT, DR4=add schema_version:1]; 25 patches applied [PR-DR1..DR4 + P2..P21]; 3 deferred [W1 multi-drift, W2 phase_gate '01-' rule, W3 details.artifact type contract]; 9 dismissed; quality gate green: ruff format/check + mypy --strict 5 source files clean, 808 in-scope tests pass, aggregate coverage 86% ≥85% gate, per-module cli/signoff.py 98% + signoff/generator.py 91% + cli/scan.py 76% [scan.py remainder is pre-existing run_scan paths]; wireformat snapshots 5/5 match [workflow_spec.json reverted to v1-original per DR1]; module boundaries clean; validate_specialists pass)"
+last_updated: "2026-05-14 (code-review 2a-13-sdlc-ux-phase-2-ux-track: review → done; 3-round bmad-code-review cycle [review-A / review-B / review-C, 3 parallel layers each]; 6 D-decisions resolved [D1=c drop boundary postcondition; D2=a extract _ux_pipeline.py; D3=a manual rebase split bundled commit 73abf94; D4=a register EPIC-2A-DEBT-PHASE2-PROMPT-SECURITY-INVARIANT; DB1=c keep distinct ERR-code semantics; DB2=a reword AC1 single-layer enforcement]; 38 patches applied [P1-P19 + PB1-PB8/10/11 (PB9 dropped) + PC1-PC8 + WB13 cleanup]; 28 deferred [W1-W13 + WB1-WB15]; 62 dismissed; LOC cli/ux.py 398 → 280 via _ux_pipeline.py 351 LOC; 5 new error codes registered; quality gate green: ruff + mypy --strict clean, 26 in-scope tests pass, failure-delta vs main = 0, wireformat snapshots 5/5 byte-stable; 3-reviewer verdict APPROVE-WITH-COMMENTS unanimous)"
 project: SDLC-Framework
 # last_action is a single line; prior transitions remain in the audit log:
 #   2026-05-09 dev-story 1-15-engine-scanner-skeleton (status: review → done)
@@ -122,7 +122,7 @@ development_status:
   2a-10-sdlc-verify: done
   2a-11-sdlc-epics-and-sdlc-stories: done
   2a-12-sdlc-signoff-generate-draft-sign-validate: done
-  2a-13-sdlc-ux-phase-2-ux-track: review
+  2a-13-sdlc-ux-phase-2-ux-track: done
   2a-14-sdlc-architect-dynamic-sub-tracks: ready-for-dev
   2a-15-sdlc-bootstrap-phase-3-greenfield-scaffolding: backlog
   2a-16-sdlc-break-active-story-only-task-generation: backlog

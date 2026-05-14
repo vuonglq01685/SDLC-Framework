@@ -1,6 +1,6 @@
 # Story 2A.13: `/sdlc-ux` (Phase 2 UX Track)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
