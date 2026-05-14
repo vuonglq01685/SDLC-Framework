@@ -164,6 +164,10 @@ def renumber_for_append(
 
     out: list[_StoryEntry] = []
     for offset, raw in enumerate(raw_entries):
+        # mode="json" emits tuples as lists; we round-trip through JSON for
+        # validation because StrictModel rejects list-for-tuple coercion in
+        # python mode. The JSON serializer's list→tuple coercion is allowed
+        # via model_validate_json.
         dumped = raw.model_dump(mode="json")
         dumped["id"] = new_ids[offset]
         dumped["seq"] = start_seq + 1 + offset

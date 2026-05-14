@@ -200,7 +200,7 @@ def _validate_story_json_file(path: Path) -> None:  # noqa: C901, PLR0912
             "postcondition all_story_jsons_valid: invalid epic_id",
             details={"path": str(path), "epic_id": epic_id},
         )
-    if not isinstance(eid, str) or not eid.startswith(f"{epic_id}-S"):
+    if not eid.startswith(f"{epic_id}-S"):
         raise WorkflowError(
             "postcondition all_story_jsons_valid: story id / epic_id mismatch",
             details={"path": str(path)},

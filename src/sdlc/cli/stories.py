@@ -77,6 +77,7 @@ def _read_utf8(path: Path, rel: str, ctx: Context) -> str:
             ctx=ctx,
             details={"path": str(path)},
         )
+        return ""  # type: ignore[unreachable]  # emit_error raises typer.Exit
     return text
 
 

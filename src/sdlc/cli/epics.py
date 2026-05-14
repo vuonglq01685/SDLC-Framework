@@ -71,6 +71,7 @@ def _read_product_text(product_path: Path, ctx: Context) -> str:
             ctx=ctx,
             details={"path": str(product_path)},
         )
+        return ""  # type: ignore[unreachable]  # emit_error raises typer.Exit
     return text
 
 
