@@ -330,6 +330,19 @@ def _check_all_story_jsons_valid(stories_dir: Path) -> None:
         _validate_story_json_file(path)
 
 
+def _check_ux_dir_non_empty(ux_dir: Path) -> None:
+    if not ux_dir.is_dir():
+        raise WorkflowError(
+            "postcondition ux_dir_non_empty: directory missing",
+            details={"path": str(ux_dir)},
+        )
+    if not any(ux_dir.glob("*.md")):
+        raise WorkflowError(
+            "postcondition ux_dir_non_empty: no .md files in UX directory",
+            details={"path": str(ux_dir)},
+        )
+
+
 def evaluate_postconditions(  # noqa: C901, PLR0912
     spec: WorkflowSpec,
     *,
@@ -339,6 +352,7 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
     research_artifact_abs: Path | None = None,
     epics_dir_abs: Path | None = None,
     stories_subdir_abs: Path | None = None,
+    ux_dir_abs: Path | None = None,
 ) -> None:
     """Raise WorkflowError on first failed postcondition when the workflow lists any."""
     if not spec.postconditions:
@@ -388,6 +402,12 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
                     f"(workflow={spec.name!r})"
                 )
             _check_all_story_jsons_valid(stories_subdir_abs)
+        elif name == "ux_dir_non_empty":
+            if ux_dir_abs is None:
+                raise RuntimeError(
+                    f"postcondition ux_dir_non_empty requires ux_dir_abs (workflow={spec.name!r})"
+                )
+            _check_ux_dir_non_empty(ux_dir_abs)
         else:
             raise WorkflowError(
                 f"unknown postcondition {name!r}",

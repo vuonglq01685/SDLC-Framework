@@ -1,0 +1,12 @@
+schema_version: 1
+name: phase2-ux-track
+slash_command: /sdlc-ux
+primary_agent: ux-designer
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - ux_dir_non_empty
+write_globs:
+  ux-designer:
+    - "02-Architecture/01-UX/*.md"
+stop_on_postcondition_failure: true

@@ -24,3 +24,9 @@ specialists:
   - name: phase1-signoff-summarizer
     phase: 1
     file: phase1/phase1-signoff-summarizer.md
+  - name: ux-designer
+    phase: 2
+    file: phase2/ux-designer.md
+  - name: ux-reviewer
+    phase: 2
+    file: phase2/ux-reviewer.md

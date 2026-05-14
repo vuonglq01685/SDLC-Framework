@@ -228,6 +228,14 @@ def signoff_command(
     run_signoff(ctx=ctx, phase=phase)
 
 
+@app.command(name="ux")
+def ux_command(ctx: typer.Context) -> None:
+    """Initiate Phase 2 UX track (FR13)."""
+    from sdlc.cli.ux import run_ux  # deferred per Architecture §488
+
+    run_ux(ctx=ctx)
+
+
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""
