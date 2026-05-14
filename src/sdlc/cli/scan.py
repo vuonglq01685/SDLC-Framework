@@ -17,6 +17,7 @@ import typer
 
 from sdlc.cli._fs import sha256_file_or_none
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.cli._signoff_check import check_signoffs as _check_signoffs  # P-extract: LOC cap
 from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.contracts.journal_entry import JournalEntry
@@ -28,6 +29,7 @@ _JOURNAL_PATH_REL: Final[str] = ".claude/state/journal.log"
 _SCAN_KIND: Final[str] = "scan_completed"
 _ACTOR: Final[str] = "cli"
 _STATE_TARGET_ID: Final[str] = "state"
+_PHASE_2_GATE: Final[int] = 2  # named constant to satisfy PLR2004 in _check_signoffs
 
 
 def _compute_sha256_of_file(path: Path) -> str | None:
@@ -163,7 +165,13 @@ def run_scan(*, ctx: typer.Context) -> None:
             details={"project_root": str(root)},
         )
 
-    seq = pre_state.next_monotonic_seq
+    # Use max(state seq, journal seq + 1) so commands that append to the
+    # journal without updating state.json (e.g. `sdlc signoff`) don't cause
+    # a monotonic_seq regression here (same pattern as cli/epics.py:301).
+    from sdlc.journal._seq import _read_highest_seq
+
+    journal_highest = _read_highest_seq(journal_path.resolve())
+    seq = max(pre_state.next_monotonic_seq, journal_highest + 1)
 
     from sdlc.engine import scan as engine_scan
 
@@ -212,6 +220,10 @@ def run_scan(*, ctx: typer.Context) -> None:
             details={"path": str(journal_path), "seq": seq},
         )
 
+    # --- Signoff check pass (AC5, AC6, Story 2A.12 — non-blocking) ---
+    # P2: capture per-phase signoff state report for emit_json envelope (AC6 third-And).
+    signoffs_report = _check_signoffs(root, journal_path, ctx=ctx)
+
     # --- Hook tampering detection (FR39, NFR-SEC-5, AC5, AC7 — advisory-only v1) ---
     # F7: single detect_tampering call shared by stderr warning + --json envelope
     # so they cannot disagree under TOCTOU between two separate calls.
@@ -231,13 +243,21 @@ def run_scan(*, ctx: typer.Context) -> None:
                 "next_monotonic_seq": new_state.next_monotonic_seq,
                 "journal_entry_seq": seq,
                 "trust_state": {"status": trust_status, "drift_count": trust_drift_count},
+                # P2 (Story 2A.12 AC6 third-And): per-phase signoff state in scan output.
+                "signoffs": signoffs_report,
             },
             ctx=ctx,
         )
     else:
+        signoff_summary = (
+            ", ".join(f"phase-{s['phase']}: {s['state']}" for s in signoffs_report)
+            if signoffs_report
+            else "no-signoff-check"
+        )
         echo(
             f"sdlc scan: {root} - phase {phase}, "
             f"{len(new_state.epics)} epics, {len(new_state.stories)} stories, "
-            f"{len(new_state.tasks)} tasks (state.json refreshed)",
+            f"{len(new_state.tasks)} tasks (state.json refreshed); "
+            f"signoffs: {signoff_summary}",
             ctx=ctx,
         )

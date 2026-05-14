@@ -121,6 +121,7 @@ def test_scan_json_mode_emits_canonical_envelope(bootstrapped: Path) -> None:
         "next_monotonic_seq",
         "journal_entry_seq",
         "trust_state",  # Story 2A.5: hook tampering advisory field
+        "signoffs",  # Story 2A.12 P2 (review): per-phase signoff state section
     }
     with (
         unittest.mock.patch("sdlc.cli.scan._get_repo_root_or_cwd", return_value=bootstrapped),

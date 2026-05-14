@@ -33,6 +33,11 @@ Error code → exit code table (_ERR_CODE_TO_EXIT_CODE):
   ERR_ARTIFACT_NOT_FOUND → 1 (Story 2A.10)
   ERR_ARTIFACT_UNREADABLE → 2 (Story 2A.10)
   ERR_ARTIFACT_CONTAINS_BOUNDARY → 1 (Story 2A.10)
+  ERR_PHASE1_NOT_APPROVED → 1 (Story 2A.12)
+  ERR_NO_ARTIFACTS → 1 (Story 2A.12)
+  ERR_SIGNOFF_HASH_DRIFT → 0 (Story 2A.12; non-blocking — scan exits 0)
+  ERR_SIGNOFF_VALIDATION → 0 (Story 2A.12 P4; non-blocking)
+  ERR_SIGNOFF_MALFORMED_DRAFT → 0 (Story 2A.12 P9; non-blocking)
 
 Per-command JSON output schemas (Story 1.21 wire-format-lock ceremony freezes these at v1):
   _SCAN_OUTPUT_SCHEMA, _STATUS_OUTPUT_SCHEMA, _TRACE_OUTPUT_SCHEMA,
@@ -64,6 +69,7 @@ __all__ = (  # noqa: RUF022
     "echo",
     "emit_json",
     "emit_error",
+    "emit_warning",
     "make_console",
     "is_no_color_active",
     "canonical_dumps",
@@ -139,6 +145,16 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_ARTIFACT_CONTAINS_BOUNDARY": 1,
         # Story 2A.11 — epics / stories commands.
         "ERR_PHASE1_ALREADY_APPROVED": 1,
+        "ERR_PHASE2_ALREADY_APPROVED": 1,
+        # Story 2A.12 — signoff command.
+        "ERR_PHASE1_NOT_APPROVED": 1,
+        "ERR_NO_ARTIFACTS": 1,
+        # Story 2A.12 code-review patches (P4, P13): non-fatal signoff signals.
+        # Exit code 0: scan is non-blocking per AC6 third-And, but the error
+        # envelope must be routable through emit_error/--json mode.
+        "ERR_SIGNOFF_HASH_DRIFT": 0,
+        "ERR_SIGNOFF_VALIDATION": 0,
+        "ERR_SIGNOFF_MALFORMED_DRAFT": 0,
         "ERR_EPIC_SCHEMA_INVALID": 1,
         "ERR_EPICS_DISPATCH_FAILED": 2,
         "ERR_EPIC_NOT_FOUND": 1,
@@ -227,6 +243,44 @@ def emit_error(
             text = _strip_ansi(text)
         typer.echo(text, err=True)
     raise typer.Exit(code=exit_code)
+
+
+def emit_warning(
+    code: str,
+    message: str,
+    *,
+    ctx: typer.Context,
+    details: Mapping[str, object] | None = None,
+) -> None:
+    """Emit a NON-BLOCKING error envelope; same shape as ``emit_error`` but does NOT raise.
+
+    Used for advisory/non-blocking signals (e.g. signoff hash drift detected during
+    ``sdlc scan`` — AC6 third-And: scan exits 0 regardless of signoff outcome).
+    The error envelope shape matches ``emit_error`` so JSON-mode consumers see the
+    same structure for blocking + non-blocking codes (P13 from Story 2A.12 review).
+
+    Codes registered with exit_code=0 in ``_ERR_CODE_TO_EXIT_CODE`` are the
+    intended consumers; passing a non-zero exit_code is permitted but only the
+    envelope is emitted — the function never raises.
+    """
+    exit_code = _ERR_CODE_TO_EXIT_CODE.get(code, _DEFAULT_EXIT_CODE)
+    json_mode = bool(ctx is not None and ctx.obj is not None and ctx.obj.get("json", False))
+    if json_mode:
+        safe_details: dict[str, object] = sanitize_mapping(dict(details)) if details else {}
+        envelope = {
+            "error": {
+                "code": code,
+                "message": message,
+                "details": safe_details,
+                "exit_code": exit_code,
+            }
+        }
+        typer.echo(canonical_dumps(envelope), err=True)
+    else:
+        text = f"sdlc: {code}: {message}"
+        if is_no_color_active(ctx):
+            text = _strip_ansi(text)
+        typer.echo(text, err=True)
 
 
 def make_console(ctx: typer.Context) -> Console:
