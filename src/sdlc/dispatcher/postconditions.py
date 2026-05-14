@@ -11,12 +11,14 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import cast
 
 import yaml
 
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher.prompts import BOUNDARY_LINE
 from sdlc.errors import WorkflowError
+from sdlc.ids.parsers import EPIC_ID_REGEX, STORY_ID_REGEX
 
 # Frontmatter split("---", 2) yields [preamble, yaml, body] when well-formed.
 _FRONT_MATTER_MIN_SEGMENTS = 3
@@ -41,14 +43,302 @@ _REQUIRED_RESEARCH_FRONTMATTER_KEYS: frozenset[str] = frozenset(
     }
 )
 
+_DRAFTED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
+_EPIC_JSON_KEYS: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "id",
+        "label",
+        "priority",
+        "dependencies",
+        "ordering",
+        "acceptance_criteria",
+        "drafted_at",
+        "drafted_by_specialist",
+    }
+)
+_STORY_JSON_KEYS: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "id",
+        "epic_id",
+        "seq",
+        "label",
+        "as_a",
+        "i_want",
+        "so_that",
+        "given_when_then",
+        "dependencies",
+        "drafted_at",
+        "drafted_by_specialist",
+    }
+)
+_PRIORITY_VALUES: frozenset[str] = frozenset({"P0", "P1", "P2", "P3"})
+_EPIC_LABEL_MAX = 200
+_EPIC_AC_MAX = 1000
+_STORY_LABEL_MAX = 200
+_STORY_AS_A_MAX = 200
+_STORY_I_WANT_MAX = 500
+_STORY_SO_THAT_MAX = 500
+_STORY_SCENARIO_MAX = 8000
 
-def evaluate_postconditions(
+
+def _json_load_mapping(path: Path, *, label: str) -> dict[str, object]:
+    text = _read_text_utf8(path, context=label)
+    try:
+        obj: object = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise WorkflowError(
+            f"postcondition {label}: invalid json",
+            details={"path": str(path), "cause": str(e)},
+        ) from e
+    if not isinstance(obj, dict):
+        raise WorkflowError(
+            f"postcondition {label}: root must be a JSON object",
+            details={"path": str(path), "type": type(obj).__name__},
+        )
+    return cast(dict[str, object], obj)
+
+
+def _validate_epic_json_file(path: Path) -> None:  # noqa: C901, PLR0912
+    """Shape-check one epic JSON file (Story 2A.11; mirrors ``_EpicEntry`` invariants)."""
+    d = _json_load_mapping(path, label="all_epic_jsons_valid")
+    if set(d.keys()) != _EPIC_JSON_KEYS:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: unexpected epic key set",
+            details={"path": str(path), "keys": sorted(d.keys())},
+        )
+    if d.get("schema_version") != 1:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: schema_version must be 1",
+            details={"path": str(path)},
+        )
+    eid = d.get("id")
+    if not isinstance(eid, str) or EPIC_ID_REGEX.fullmatch(eid) is None:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: invalid epic id",
+            details={"path": str(path), "id": eid},
+        )
+    label = d.get("label")
+    if not isinstance(label, str) or not label or len(label) > _EPIC_LABEL_MAX:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: label invalid",
+            details={"path": str(path)},
+        )
+    pri = d.get("priority")
+    if not isinstance(pri, str) or pri not in _PRIORITY_VALUES:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: priority invalid",
+            details={"path": str(path), "priority": pri},
+        )
+    deps = d.get("dependencies")
+    if not isinstance(deps, list):
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: dependencies must be a list",
+            details={"path": str(path)},
+        )
+    for dep in deps:
+        if not isinstance(dep, str) or EPIC_ID_REGEX.fullmatch(dep) is None:
+            raise WorkflowError(
+                "postcondition all_epic_jsons_valid: invalid dependency id",
+                details={"path": str(path), "dep": dep},
+            )
+    ordering = d.get("ordering")
+    if not isinstance(ordering, int) or isinstance(ordering, bool) or ordering < 0:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: ordering must be non-negative int",
+            details={"path": str(path), "ordering": ordering},
+        )
+    ac = d.get("acceptance_criteria")
+    if not isinstance(ac, list) or len(ac) < 1:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: acceptance_criteria must be non-empty list",
+            details={"path": str(path)},
+        )
+    for row in ac:
+        if not isinstance(row, str) or len(row) < 1 or len(row) > _EPIC_AC_MAX:
+            raise WorkflowError(
+                "postcondition all_epic_jsons_valid: acceptance_criteria entry invalid",
+                details={"path": str(path)},
+            )
+    drafted = d.get("drafted_at")
+    if not isinstance(drafted, str) or _DRAFTED_AT_RE.fullmatch(drafted) is None:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: drafted_at invalid",
+            details={"path": str(path)},
+        )
+    dbs = d.get("drafted_by_specialist")
+    if not isinstance(dbs, str) or not dbs:
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: drafted_by_specialist invalid",
+            details={"path": str(path)},
+        )
+
+
+def _validate_story_json_file(path: Path) -> None:  # noqa: C901, PLR0912
+    """Shape-check one story JSON file (Story 2A.11; mirrors ``_StoryEntry`` invariants)."""
+    d = _json_load_mapping(path, label="all_story_jsons_valid")
+    if set(d.keys()) != _STORY_JSON_KEYS:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: unexpected story key set",
+            details={"path": str(path), "keys": sorted(d.keys())},
+        )
+    if d.get("schema_version") != 1:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: schema_version must be 1",
+            details={"path": str(path)},
+        )
+    eid = d.get("id")
+    if not isinstance(eid, str) or STORY_ID_REGEX.fullmatch(eid) is None:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: invalid story id",
+            details={"path": str(path), "id": eid},
+        )
+    epic_id = d.get("epic_id")
+    if not isinstance(epic_id, str) or EPIC_ID_REGEX.fullmatch(epic_id) is None:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: invalid epic_id",
+            details={"path": str(path), "epic_id": epic_id},
+        )
+    if not isinstance(eid, str) or not eid.startswith(f"{epic_id}-S"):
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: story id / epic_id mismatch",
+            details={"path": str(path)},
+        )
+    seq = d.get("seq")
+    if not isinstance(seq, int) or isinstance(seq, bool) or seq < 1:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: seq invalid",
+            details={"path": str(path), "seq": seq},
+        )
+    m = re.match(rf"^{re.escape(epic_id)}-S(\d{{2}})-", eid)
+    if m is None or int(m.group(1)) != seq:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: seq does not match id",
+            details={"path": str(path), "id": eid, "seq": seq},
+        )
+    for text_key, maxlen in (
+        ("label", _STORY_LABEL_MAX),
+        ("as_a", _STORY_AS_A_MAX),
+        ("i_want", _STORY_I_WANT_MAX),
+        ("so_that", _STORY_SO_THAT_MAX),
+    ):
+        val = d.get(text_key)
+        if not isinstance(val, str) or len(val) < 1 or len(val) > maxlen:
+            raise WorkflowError(
+                f"postcondition all_story_jsons_valid: {text_key} invalid",
+                details={"path": str(path)},
+            )
+    gwt = d.get("given_when_then")
+    if not isinstance(gwt, list) or len(gwt) < 1:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: given_when_then invalid",
+            details={"path": str(path)},
+        )
+    for scen in gwt:
+        if not isinstance(scen, str) or len(scen) < 1 or len(scen) > _STORY_SCENARIO_MAX:
+            raise WorkflowError(
+                "postcondition all_story_jsons_valid: scenario invalid",
+                details={"path": str(path)},
+            )
+    deps = d.get("dependencies")
+    if not isinstance(deps, list):
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: dependencies must be a list",
+            details={"path": str(path)},
+        )
+    for dep in deps:
+        if not isinstance(dep, str) or STORY_ID_REGEX.fullmatch(dep) is None:
+            raise WorkflowError(
+                "postcondition all_story_jsons_valid: invalid story dependency id",
+                details={"path": str(path), "dep": dep},
+            )
+    drafted = d.get("drafted_at")
+    if not isinstance(drafted, str) or _DRAFTED_AT_RE.fullmatch(drafted) is None:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: drafted_at invalid",
+            details={"path": str(path)},
+        )
+    dbs = d.get("drafted_by_specialist")
+    if not isinstance(dbs, str) or not dbs:
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: drafted_by_specialist invalid",
+            details={"path": str(path)},
+        )
+
+
+def _epic_files(epics_dir: Path) -> list[Path]:
+    """Glob *.json filtered to filenames whose stem matches ``EPIC_ID_REGEX``.
+
+    Patch #15: stray ``notes.json`` etc. no longer trip the postcondition.
+    """
+    return sorted(
+        p for p in epics_dir.glob("*.json") if EPIC_ID_REGEX.fullmatch(p.stem) is not None
+    )
+
+
+def _story_files(stories_dir: Path) -> list[Path]:
+    """Glob *.json filtered to filenames whose stem matches ``STORY_ID_REGEX``."""
+    return sorted(
+        p for p in stories_dir.glob("*.json") if STORY_ID_REGEX.fullmatch(p.stem) is not None
+    )
+
+
+def _check_epics_dir_non_empty(epics_dir: Path) -> None:
+    if not epics_dir.is_dir():
+        raise WorkflowError(
+            "postcondition epics_dir_non_empty: directory missing",
+            details={"path": str(epics_dir)},
+        )
+    if not _epic_files(epics_dir):
+        raise WorkflowError(
+            "postcondition epics_dir_non_empty: no epic json files",
+            details={"path": str(epics_dir)},
+        )
+
+
+def _check_all_epic_jsons_valid(epics_dir: Path) -> None:
+    if not epics_dir.is_dir():
+        raise WorkflowError(
+            "postcondition all_epic_jsons_valid: directory missing",
+            details={"path": str(epics_dir)},
+        )
+    for path in _epic_files(epics_dir):
+        _validate_epic_json_file(path)
+
+
+def _check_stories_dir_non_empty(stories_dir: Path) -> None:
+    if not stories_dir.is_dir():
+        raise WorkflowError(
+            "postcondition stories_dir_non_empty: directory missing",
+            details={"path": str(stories_dir)},
+        )
+    if not _story_files(stories_dir):
+        raise WorkflowError(
+            "postcondition stories_dir_non_empty: no story json files",
+            details={"path": str(stories_dir)},
+        )
+
+
+def _check_all_story_jsons_valid(stories_dir: Path) -> None:
+    if not stories_dir.is_dir():
+        raise WorkflowError(
+            "postcondition all_story_jsons_valid: directory missing",
+            details={"path": str(stories_dir)},
+        )
+    for path in _story_files(stories_dir):
+        _validate_story_json_file(path)
+
+
+def evaluate_postconditions(  # noqa: C901, PLR0912
     spec: WorkflowSpec,
     *,
     repo_root: Path,
     agent_runs_path: Path,
     product_rel: str = "01-Requirement/01-PRODUCT.md",
     research_artifact_abs: Path | None = None,
+    epics_dir_abs: Path | None = None,
+    stories_subdir_abs: Path | None = None,
 ) -> None:
     """Raise WorkflowError on first failed postcondition when the workflow lists any."""
     if not spec.postconditions:
@@ -70,6 +360,34 @@ def evaluate_postconditions(
                     f"(workflow={spec.name!r})"
                 )
             _check_research_md_exists(research_artifact_abs)
+        elif name == "epics_dir_non_empty":
+            if epics_dir_abs is None:
+                raise RuntimeError(
+                    f"postcondition epics_dir_non_empty requires epics_dir_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_epics_dir_non_empty(epics_dir_abs)
+        elif name == "all_epic_jsons_valid":
+            if epics_dir_abs is None:
+                raise RuntimeError(
+                    f"postcondition all_epic_jsons_valid requires epics_dir_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_all_epic_jsons_valid(epics_dir_abs)
+        elif name == "stories_dir_non_empty":
+            if stories_subdir_abs is None:
+                raise RuntimeError(
+                    f"postcondition stories_dir_non_empty requires stories_subdir_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_stories_dir_non_empty(stories_subdir_abs)
+        elif name == "all_story_jsons_valid":
+            if stories_subdir_abs is None:
+                raise RuntimeError(
+                    f"postcondition all_story_jsons_valid requires stories_subdir_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_all_story_jsons_valid(stories_subdir_abs)
         else:
             raise WorkflowError(
                 f"unknown postcondition {name!r}",

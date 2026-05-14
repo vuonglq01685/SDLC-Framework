@@ -137,6 +137,16 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_ARTIFACT_NOT_FOUND": 1,
         "ERR_ARTIFACT_UNREADABLE": 2,
         "ERR_ARTIFACT_CONTAINS_BOUNDARY": 1,
+        # Story 2A.11 — epics / stories commands.
+        "ERR_PHASE1_ALREADY_APPROVED": 1,
+        "ERR_EPIC_SCHEMA_INVALID": 1,
+        "ERR_EPICS_DISPATCH_FAILED": 2,
+        "ERR_EPIC_NOT_FOUND": 1,
+        "ERR_STORY_SCHEMA_INVALID": 1,
+        "ERR_STORY_EPIC_MISMATCH": 1,
+        "ERR_STORIES_DISPATCH_FAILED": 2,
+        "ERR_SIGNOFF_STATE": 1,
+        "ERR_HOOK_REJECTED": 1,
     }
 )
 _DEFAULT_EXIT_CODE: Final[int] = 1

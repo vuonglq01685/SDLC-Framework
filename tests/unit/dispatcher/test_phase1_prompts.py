@@ -354,3 +354,8 @@ def test_byte_stability_two_calls() -> None:
     assert a.count(BOUNDARY_LINE) == 1
     assert a.count("<BOUNDARY>") == 1
     assert a.count("</BOUNDARY>") == 1
+
+
+# Story 2A.11 AC6 — `phase1_compound_prompt_builder` cases live in
+# tests/unit/dispatcher/test_phase1_compound_prompt_builder.py to keep this
+# module under the Architecture §765 / NFR-MAINT-3 400-LOC cap.

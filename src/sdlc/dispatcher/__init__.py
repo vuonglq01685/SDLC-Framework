@@ -34,7 +34,11 @@ from sdlc.dispatcher.core import (
     dispatch,
     dispatch_panel,
 )
-from sdlc.dispatcher.prompts import BOUNDARY_LINE, phase1_prompt_builder
+from sdlc.dispatcher.prompts import (
+    BOUNDARY_LINE,
+    phase1_compound_prompt_builder,
+    phase1_prompt_builder,
+)
 from sdlc.dispatcher.retry import with_retries
 
 _EMPTY_EXTRA_CONTEXT: Mapping[str, object] = MappingProxyType({})
@@ -72,6 +76,7 @@ __all__: tuple[str, ...] = (
     "dispatch_panel",
     "make_journal_entry",
     "now_ts",
+    "phase1_compound_prompt_builder",
     "phase1_prompt_builder",
     "with_retries",
 )

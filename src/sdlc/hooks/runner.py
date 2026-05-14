@@ -12,6 +12,7 @@ Bypass policy (AC6, NFR-SEC-4):
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 from collections.abc import Callable
@@ -205,11 +206,14 @@ def _check_is_phase_gate_hook(hook: Callable[[HookPayload], HookDecision]) -> bo
 
 
 async def _append_deny_journal(
-    decision: HookDecision, *, seq: int, ts: str, payload: HookPayload, journal_path: Path | None
+    decision: HookDecision, *, ts: str, payload: HookPayload, journal_path: Path | None
 ) -> None:
     """Append a hook_rejected journal entry; no-op when journal_path is None."""
     if journal_path is None:
         return
+    from sdlc.journal import allocate_next_seq_for_append_sync  # noqa: PLC0415
+
+    seq = await asyncio.to_thread(allocate_next_seq_for_append_sync, journal_path)
     await _do_journal_append(
         _make_hook_rejected_entry(
             seq=seq,
@@ -278,7 +282,6 @@ async def run_hook_chain(
             f"{_BYPASS_MIN_JUSTIFICATION_LEN} characters"
         )
 
-    seq = 0
     ts = now_rfc3339_utc_ms()
     bypassed_phase: int | None = None
 
@@ -299,15 +302,15 @@ async def run_hook_chain(
             )
 
         if decision.decision == "deny":
-            seq += 1
-            await _append_deny_journal(
-                decision, seq=seq, ts=ts, payload=payload, journal_path=journal_path
-            )
+            await _append_deny_journal(decision, ts=ts, payload=payload, journal_path=journal_path)
             return decision
 
     if bypass_phase_gate and bypassed_phase is not None and justification and journal_path:
+        from sdlc.journal import allocate_next_seq_for_append_sync  # noqa: PLC0415
+
+        seq_bp = await asyncio.to_thread(allocate_next_seq_for_append_sync, journal_path)
         await _append_bypass_journal(
-            seq=seq + 1,
+            seq=seq_bp,
             ts=ts,
             payload=payload,
             justification=justification,

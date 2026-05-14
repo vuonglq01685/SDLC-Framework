@@ -124,15 +124,37 @@ _SEQ_CACHE: dict[Path, int] = {}
 _SEQ_REGISTRY_LOCK = asyncio.Lock()
 
 
+def _journal_seq_cache_key(journal_path: Path) -> Path:
+    """Stable process-local cache key for ``_allocate_seq`` / ``_reset_seq_cache_for_test``.
+
+    macOS often surfaces pytest tmp dirs as ``/var/folders/...`` while
+    ``Path.resolve()`` yields ``/private/var/folders/...`` for the same inode.
+    Using one canonical form prevents duplicate seq caches (and dead
+    ``asyncio.Lock`` keys) for the same journal within one process (F3).
+    """
+    try:
+        return journal_path.expanduser().resolve()
+    except OSError:
+        return journal_path
+
+
 async def _allocate_seq(journal_path: Path) -> int:
-    """Allocate next monotonic_seq for ``journal_path`` (process-local)."""
+    """Allocate next monotonic_seq for ``journal_path`` (process-local).
+
+    Returns ``max(disk_highest, last_allocated_in_this_process) + 1`` under the
+    per-journal async lock so callers stay monotonic even if the cache was
+    cleared or diverged from on-disk state (CLI hand-off after ``dispatch``).
+    """
+    key = _journal_seq_cache_key(journal_path)
     async with _SEQ_REGISTRY_LOCK:
-        lock = _SEQ_LOCKS.setdefault(journal_path, asyncio.Lock())
+        lock = _SEQ_LOCKS.setdefault(key, asyncio.Lock())
     async with lock:
-        if journal_path not in _SEQ_CACHE:
-            _SEQ_CACHE[journal_path] = await asyncio.to_thread(_read_highest_seq, journal_path)
-        _SEQ_CACHE[journal_path] += 1
-        return _SEQ_CACHE[journal_path]
+        disk_highest = await asyncio.to_thread(_read_highest_seq, key)
+        cached_high = _SEQ_CACHE.get(key, -1)
+        base = max(disk_highest, cached_high)
+        nxt = base + 1
+        _SEQ_CACHE[key] = nxt
+        return nxt
 
 
 def _reset_seq_cache_for_test(journal_path: Path | None = None) -> None:
@@ -141,8 +163,9 @@ def _reset_seq_cache_for_test(journal_path: Path | None = None) -> None:
         _SEQ_CACHE.clear()
         _SEQ_LOCKS.clear()
     else:
-        _SEQ_CACHE.pop(journal_path, None)
-        _SEQ_LOCKS.pop(journal_path, None)
+        key = _journal_seq_cache_key(journal_path)
+        _SEQ_CACHE.pop(key, None)
+        _SEQ_LOCKS.pop(key, None)
 
 
 def _unified_write_target_panel(step: WorkflowSpec) -> bool:

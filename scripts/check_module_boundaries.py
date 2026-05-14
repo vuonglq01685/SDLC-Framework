@@ -171,6 +171,9 @@ LOC_EXEMPT_PATH_PREFIX_PARTS: tuple[tuple[str, ...], ...] = (
     # Story 2A.9: research CLI bundles dispatch + journal + mock materialization; split deferred.
     ("src", "sdlc", "cli", "research.py"),
     ("src", "sdlc", "signoff", "records.py"),
+    # Story 2A.11: postcondition validators for epic + story JSON files added 318 LOC; split into
+    # sibling module deferred to v1.x (debt: EPIC-2A-DEBT-POSTCONDITIONS-SPLIT).
+    ("src", "sdlc", "dispatcher", "postconditions.py"),
     ("tests", "integration", "test_dispatch_panel.py"),
     ("tests", "integration", "test_dispatcher_hook_integration.py"),
 )
