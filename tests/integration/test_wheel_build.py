@@ -97,6 +97,13 @@ _ALLOWED_CONTENT_FILES = frozenset(
         # Story 2A.10 — /sdlc-verify command + workflow YAML.
         Path("sdlc/commands/sdlc-verify.md").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-verify.yaml").as_posix(),
+        # Story 2A.11 — /sdlc-epics + /sdlc-stories specialist stubs, commands, workflows.
+        Path("sdlc/agents/phase1/epic-generator.md").as_posix(),
+        Path("sdlc/agents/phase1/story-writer.md").as_posix(),
+        Path("sdlc/commands/sdlc-epics.md").as_posix(),
+        Path("sdlc/commands/sdlc-stories.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-epics.yaml").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-stories.yaml").as_posix(),
     }
 )
 
