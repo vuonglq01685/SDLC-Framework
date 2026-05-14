@@ -41,7 +41,13 @@ pytestmark = [
 import sdlc.journal  # noqa: E402
 
 _JOURNAL_PUBLIC_API = set(sdlc.journal.__all__)
-_EXPECTED_API = {"append", "append_sync", "iter_entries", "iter_after"}
+_EXPECTED_API = {
+    "allocate_next_seq_for_append_sync",  # Story 2A.11: locked seq alloc for hook deny/bypass
+    "append",
+    "append_sync",
+    "iter_after",
+    "iter_entries",
+}
 assert _JOURNAL_PUBLIC_API == _EXPECTED_API, f"Unexpected public API: {_JOURNAL_PUBLIC_API}"
 
 _FORBIDDEN_MUTATION_NAMES = (
