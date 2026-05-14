@@ -1,0 +1,3 @@
+commands:
+  - "sdlc epics"
+  - "sdlc stories EPIC-sdlc-mock-a"

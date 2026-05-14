@@ -133,6 +133,25 @@ def verify_command(
     run_verify(ctx=ctx, artifact_id=artifact_id)
 
 
+@app.command(name="epics")
+def epics_command(ctx: typer.Context) -> None:
+    """Generate epic JSON files from the draft PRD (FR9, Story 2A.11)."""
+    from sdlc.cli.epics import run_epics  # deferred per Architecture §488
+
+    run_epics(ctx=ctx)
+
+
+@app.command(name="stories")
+def stories_command(
+    ctx: typer.Context,
+    epic_id: str = typer.Argument(..., help="The EPIC-<slug> id to generate stories for"),
+) -> None:
+    """Generate story JSON files for a given epic (FR10, Story 2A.11)."""
+    from sdlc.cli.stories import run_stories  # deferred per Architecture §488
+
+    run_stories(ctx=ctx, epic_id=epic_id)
+
+
 @app.command(name="status")
 def status_command(ctx: typer.Context) -> None:
     """Print the resume card with suggested next-action (FR44)."""

@@ -1,0 +1,7 @@
+schema_version: 1
+name: epics-stories-e2e
+steps:
+  - kind: cli_command
+    command: sdlc epics
+  - kind: cli_command
+    command: sdlc stories EPIC-sdlc-mock-a

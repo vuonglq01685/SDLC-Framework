@@ -1,0 +1,8 @@
+epics:
+  - id: EPIC-sdlc-mock-a
+    label: Mock epic A
+  - id: EPIC-sdlc-mock-b
+    label: Mock epic B
+stories:
+  - id: EPIC-sdlc-mock-a-S01-mock-story-one
+  - id: EPIC-sdlc-mock-a-S02-mock-story-two
