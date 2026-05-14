@@ -336,7 +336,11 @@ def _check_ux_dir_non_empty(ux_dir: Path) -> None:
             "postcondition ux_dir_non_empty: directory missing",
             details={"path": str(ux_dir)},
         )
-    if not any(ux_dir.glob("*.md")):
+    # P11 (Story 2A.13 code review): is_file() filter + hidden-dotfile exclusion
+    # so a directory named ``foo.md`` or a stray ``.gitkeep.md`` editor temp
+    # file cannot satisfy the postcondition without real specialist output.
+    md_files = [p for p in ux_dir.glob("*.md") if p.is_file() and not p.name.startswith(".")]
+    if not md_files:
         raise WorkflowError(
             "postcondition ux_dir_non_empty: no .md files in UX directory",
             details={"path": str(ux_dir)},

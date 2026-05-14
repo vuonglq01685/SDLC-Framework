@@ -27,7 +27,7 @@ So that UX work is audit-tracked with the same rigor as engineering artifacts (F
 **Given** Phase 1 signoff is NOT in state `APPROVED` (any of: `AWAITING_SIGNOFF`, `DRAFTED_NOT_APPROVED`, `INVALIDATED_BY_REPLAN`)
 **When** I run `/sdlc-ux`
 **Then** the **CLI pre-flight** refuses with `ERR_PHASE1_NOT_APPROVED` and message `"phase 1 signoff must be APPROVED before starting Phase 2 UX work; run '/sdlc-signoff 1' to generate the draft, approve it, then run 'sdlc scan' to record the approval"`
-**And** the **phase-gate hook** (Story 2A.4) would ALSO block Phase 2 writes independently — the CLI pre-flight is defense-in-depth; both layers must block
+**And** the CLI pre-flight is the sole enforcement point for v1 — the **phase-gate hook** (Story 2A.4) does NOT yet extend to Phase 2 directory writes; that defense-in-depth layer is tracked as `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE` (review-B / DB2=a). When the hook is extended in a follow-up story it will block independently as a redundant gate; until then, only the CLI pre-flight blocks.
 
 ### AC2 — Output file layout D-decision
 
@@ -64,7 +64,7 @@ So that UX work is audit-tracked with the same rigor as engineering artifacts (F
 
 **Given** the architecture canonical tree at `architecture.md:960` lists `sdlc-ux.yaml`
 **When** the dev authors the workflow YAML (per AC2/D1 + AC3/D1 recommended path)
-**Then** `src/sdlc/workflows_yaml/sdlc-ux.yaml` is authored:
+**Then** `src/sdlc/workflows_yaml/sdlc-ux.yaml` is authored (12 lines, byte-stable with the canonical YAML — `boundary_line_present_in_prompts` postcondition intentionally absent per AC4/D3; see Change Log row 3 + `EPIC-2A-DEBT-PHASE2-PROMPT-BOUNDARY-CHECK`):
   ```yaml
   schema_version: 1
   name: phase2-ux-track
@@ -74,7 +74,6 @@ So that UX work is audit-tracked with the same rigor as engineering artifacts (F
   synthesizer_agent: null
   postconditions:
     - ux_dir_non_empty
-    - boundary_line_present_in_prompts
   write_globs:
     ux-designer:
       - "02-Architecture/01-UX/*.md"
@@ -148,7 +147,7 @@ So that UX work is audit-tracked with the same rigor as engineering artifacts (F
 **When** the dev authors the UX e2e
 **Then** `tests/e2e/pipeline/test_sdlc_ux.py` (NEW) covers TWO scenarios:
 
-  1. **Happy path**: tmp repo with phase 1 APPROVED signoff (use e2e fixture helper from Story 2A.12 Task 5.2 or provide equivalent — a pre-built `.claude/state/signoffs/phase-1.yaml` fixture) + `01-PRODUCT.md` present; MockAIRuntime canned response returns `[{"filename": "01-tokens.md", "content": "# Design Tokens\n..."}, {"filename": "02-flows.md", "content": "# Flows\n..."}]`; invoke `sdlc ux`; assert exit 0; assert 2 files written at `02-Architecture/01-UX/`; journal has 1 `agent_dispatched` + 2 `artifact_written`; `BOUNDARY_LINE` present in prompt
+  1. **Happy path**: tmp repo with phase 1 APPROVED signoff (use e2e fixture helper from Story 2A.12 Task 5.2 or provide equivalent — a pre-built `.claude/state/signoffs/phase-1.yaml` fixture) + `01-PRODUCT.md` present; MockAIRuntime canned response returns `[{"filename": "01-tokens.md", "content": "# Design Tokens\n..."}, {"filename": "02-flows.md", "content": "# Flows\n..."}]`; invoke `sdlc ux`; assert exit 0; assert ≥1 `.md` file written at `02-Architecture/01-UX/`; assert each written file contains the `PLACEHOLDER` marker or starts with a Markdown heading (`#`); journal has 1 `agent_dispatched` + N `artifact_written`. (PC7 review-C: `BOUNDARY_LINE` in-prompt assertion is NOT made here — `agent_runs.jsonl` is not written by MockAIRuntime path; that invariant is tracked as `EPIC-2A-DEBT-PHASE2-PROMPT-BOUNDARY-CHECK` for the real runtime in Story 2B.9.)
   2. **Phase gate block**: tmp repo with Phase 1 NOT approved (AWAITING_SIGNOFF); invoke `sdlc ux`; assert exit 1; assert `ERR_PHASE1_NOT_APPROVED` in stderr; assert NO files written; NO dispatch call
 
 **And** **Anti-tautology receipt (AC9 mandatory)**: in scenario 1, temporarily replace the `compute_state == APPROVED` check with an unconditional pass; assert scenario 2 (gate block) test NOW FAILS because the gate isn't applied; revert; document in PR Change Log
@@ -229,7 +228,7 @@ if phase1_state != SignoffState.APPROVED:
     raise SystemExit(1)
 ```
 
-This is defense-in-depth alongside the phase-gate hook. Both must block. The hook checks at write time; the CLI check is at command entry (fails fast before any dispatch cost).
+For v1, the CLI pre-flight is the sole enforcement layer (the Story 2A.4 phase-gate hook does NOT yet extend to Phase 2 directory writes — tracked as `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE`). Once the hook is extended in a follow-up story, the two layers will form true defense-in-depth: the hook checks at write time; the CLI check is at command entry (fails fast before any dispatch cost).
 
 ### Phase 2 directory structure
 
@@ -275,8 +274,7 @@ The CLI parses this with `json.loads(output_text)` — same pattern as `/sdlc-ep
 ### Phase-gate hook interaction
 
 The phase-gate hook (`hooks/builtin/phase_gate.py`) was built in Story 2A.4. It blocks writes to phase-N directories when phase-N signoff is not APPROVED. For Phase 2 writes:
-- Phase 2 writes to `02-Architecture/` are blocked when Phase 1 signoff is NOT APPROVED
-- Verify the hook's current logic covers this; if not, this story must extend it (check `phase_gate.py:_PHASE_WRITE_DIRS` or equivalent)
+- **Status (post review-B PB2 / DB2=a):** the hook has NOT been verified to cover Phase 2 writes in this story. Per AC1 (reworded), the CLI pre-flight at `cli/ux.py:run_ux` is the **sole** enforcement layer for v1. Extending `phase_gate.py:_PHASE_WRITE_DIRS` (or equivalent) is tracked as `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE` — when closed, the hook becomes defense-in-depth alongside the CLI pre-flight (the hook checks at write time; the CLI checks at command entry).
 
 ### Inherited Debt
 
@@ -384,7 +382,9 @@ claude-sonnet-4-6
 - `src/sdlc/agents/index.yaml` (MODIFIED — added ux-designer + ux-reviewer)
 - `src/sdlc/workflows_yaml/sdlc-ux.yaml` (NEW)
 - `src/sdlc/commands/sdlc-ux.md` (NEW)
-- `src/sdlc/cli/ux.py` (NEW — run_ux + _ux_dispatch_and_write_async + _materialize_ux_mock_fixture)
+- `src/sdlc/cli/ux.py` (NEW — `run_ux` only; pre-flight + error mapping; ~273 LOC post review-A/B/C)
+- `src/sdlc/cli/_ux_pipeline.py` (NEW per P14 — `ux_dispatch_and_write_async`, `validate_ux_filename`, `materialize_ux_mock_fixture`; ~348 LOC; sibling of `_epics_pipeline.py`)
+- `src/sdlc/cli/_boundary.py` (NEW per P13 — `artifact_contains_boundary` promoted from `cli/verify.py`)
 - `src/sdlc/cli/main.py` (MODIFIED — registered ux_command)
 - `src/sdlc/dispatcher/postconditions.py` (MODIFIED — added ux_dir_non_empty + ux_dir_abs param)
 - `tests/unit/workflows/test_phase2_workflows_present.py` (NEW)
@@ -401,8 +401,61 @@ claude-sonnet-4-6
 |---|----------|-----------|
 | 1 | **AC2/D1 chosen: JSON array of `{filename, content}`** | Consistent with `/sdlc-epics` pattern (Story 2A.11); enables per-file journal granularity (each file separately hashed + journaled); supports Phase 2 signoff hash-drift detection at file level. |
 | 2 | **AC3/D1 chosen: `parallel_agents: []` in v1; `ux-reviewer` stub registered but inactive** | Parallel dispatch requires synthesizer to merge outputs, a v1.x feature needing real specialist content (Story 2B.9). Stubs registered in `agents/phase2/` for forward compatibility. Matches Story 2A.9 sibling posture. |
-| 3 | **`boundary_line_present_in_prompts` removed from `sdlc-ux.yaml`** | This postcondition validates Phase 1 prompt security invariants by reading `agent_runs.jsonl`. For the UX track (MockAIRuntime v1), `agent_runs.jsonl` is not written when dispatch is mocked in unit tests. The postcondition is inapplicable to Phase 2 UX which uses a different execution path. |
+| 3 | **AC4/D3 chosen — `boundary_line_present_in_prompts` postcondition dropped from `sdlc-ux.yaml`** (re-decided 2026-05-14 during code-review of this story per CONTRIBUTING.md §5 D-decision protocol; original Change Log entry was a free-text rationale not a labeled D-decision triplet). Options considered: **D1** restore the postcondition in YAML and accept v1 mock-dispatch failure; **D2** wire a CLI-layer boundary check on prompt-build at call site; **D3 (chosen)** amend AC4 to drop the postcondition for v1 + register `EPIC-2A-DEBT-PHASE2-PROMPT-BOUNDARY-CHECK`. Rationale: MockAIRuntime path does not write `agent_runs.jsonl` so the postcondition is inapplicable for v1 UX; CLI-layer enforcement is reintroduced by Story 2B.9 when the real runtime lands. Per D4 below, the broader prompt-injection-security invariant (NFR-SEC-3) is also tracked as deferred debt for v1.x. |
 | 4 | **`agent_dispatched` journal entry written at CLI layer** | `PanelObserver.emit_agent_dispatched=True` only fires inside real `dispatch`. With `dispatch` mocked in unit tests, no entry was written. Writing it explicitly at CLI layer (with `emit_agent_dispatched=False` on observer) makes AC6 testable independently of dispatch internals. |
 | 5 | **Anti-tautology receipt (AC9 mandatory)** | Temporarily commented out `phase1_state != SignoffState.APPROVED` guard in `run_ux`. E2e scenario 2 (`test_e2e_sdlc_ux_phase_gate_block`) FAILED — `ERR_PHASE1_NOT_APPROVED` was not emitted, `dispatch` was invoked. Reverted. Confirms the gate is actually exercised by the test. |
 | 6 | **Inherited debt re-cited** | `EPIC-2A-DEBT-WRITE-PRIMITIVE` (non-atomic `Path.write_text`), `EPIC-2A-DEBT-PANEL-V1-PROCESS-LOCAL-SEQ` (process-local seq allocator). |
-| 7 | **New debt registered** | `EPIC-2A-DEBT-UX-PARALLEL-REVIEWER` — defer `ux-reviewer` + `ux-synthesizer` to Story 2B.9. `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE` — verify `phase_gate.py` correctly blocks Phase 2 writes. |
+| 7 | **New debt registered** | `EPIC-2A-DEBT-UX-PARALLEL-REVIEWER` — defer `ux-reviewer` + `ux-synthesizer` to Story 2B.9. `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE` — verify `phase_gate.py` correctly blocks Phase 2 writes. `EPIC-2A-DEBT-PHASE2-PROMPT-BOUNDARY-CHECK` (D1/D3) — restore boundary-marker postcondition (or CLI-layer equivalent) once `agent_runs.jsonl` is written by the real runtime in Story 2B.9. `EPIC-2A-DEBT-PHASE2-PROMPT-SECURITY-INVARIANT` (D4) — close the NFR-SEC-3 Phase-2 gap (agent_runs_path plumbed but unwritten; boundary postcondition deferred). |
+| 8 | **Code-review-A patches applied (2026-05-14, bmad-code-review review-A)** | 4 decision-needed resolved (D1=c, D2=a, D3=a, D4=a) + 19 patches applied (P1–P19 — see Review Findings section below). LOC: `cli/ux.py` 398 → 273 (post review-B amendments added back lines; mid-review-A snapshot was 242) via extraction of `_ux_pipeline.py` (~348 LOC final) mirroring sibling `_epics_pipeline.py` / `_stories_pipeline.py`. Promoted `_artifact_contains_boundary` to public `cli/_boundary.py` (P13). Registered new error codes in `cli/output.py`: `ERR_UNSAFE_FILENAME`, `ERR_UNSAFE_PATH`, `ERR_UX_DISPATCH_FAILED`, `ERR_POSTCONDITION_FAILED`, `ERR_SIGNOFF_READ_FAILED`. 13 deferred + 32 dismissed (most dismissals were false positives invalidated by `emit_error` raising `typer.Exit` at `cli/output.py:254`). |
+| 9 | **Code-review-B patches applied (2026-05-14, bmad-code-review review-B)** | 2 decision-needed resolved (DB1=c, DB2=a) + 10 patches applied (PB1–PB8, PB10, PB11 — PB9 was determined unneeded because `emit_error` already had `-> NoReturn` annotation in `cli/output.py:229`). PB1: AC4 spec text amended to drop `boundary_line_present_in_prompts` (D1=c follow-through). PB2: AC1 spec wording reworded — CLI pre-flight is sole v1 enforcement (phase-gate hook extension deferred to `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE`). PB3: `_materialize_ux_mock_fixture` now re-raises `SpecialistError` as `WorkflowError` instead of silently returning. PB4/PB5: `compute_state` + `WorkflowRegistry.load` catches widened to include `pydantic.ValidationError`. PB6: `evaluate_postconditions` post-call catch widened to include `OSError`. PB7: `_SAFE_FILENAME_RE` uses `re.ASCII` to prevent Unicode-digit `\d` bypass. PB8: duplicate-filename guard normalised to lowercase for case-insensitive filesystems (APFS/NTFS). PB10: `01-PRODUCT.md` read with `encoding="utf-8-sig"` to strip BOM. PB11: new tests added (3 below). 3 new tests added: `test_refuses_when_phase1_signoff_corrupt` (P2/PB4 coverage), `test_rejects_reserved_anchor_filename` (P1 coverage), `test_rejects_duplicate_filename_case_insensitive` (P4/PB8 coverage). 15 deferred + 12 dismissed (incl. blind hunter's false-positive `typer.Exit` MRO claim — verified `typer.Exit` IS `RuntimeError`, NOT `ClickException`). |
+| 11 | **Code-review-C doc-rot patches (2026-05-14, bmad-code-review review-C)** | 0 decision-needed + 8 patches applied (PC1–PC8): PC1 fix row 8 LOC stale claim (398 → 273, not 242); PC2 reconcile row 9 PB-numbering (PB9 explicitly dropped as unneeded); PC3 AC4 YAML codeblock comment moved out of canonical YAML (3-line apology comment was breaking byte-for-byte fixture comparison); PC4 File List entry corrected (`cli/ux.py` no longer hosts `_ux_dispatch_and_write_async` / `_materialize_ux_mock_fixture` — those moved to `_ux_pipeline.py` per P14); PC5 split path-traversal error from invalid-pattern (substring `..` was misleading for `01-a..b.md` innocent inputs); PC6 sanitize `ValidationError` stringification before embedding in `ERR_SIGNOFF_READ_FAILED` envelope (strip newlines + truncate to 500 chars — prevents ANSI/newline leakage into line-delimited JSON consumers); PC7 reword AC9 scenario 1 wording to align with the actual `PLACEHOLDER` assertion (was referring to `BOUNDARY_LINE` assertion that scenario 1 cannot make under MockAIRuntime path); PC8 reconcile Dev Notes phase-gate hook section with AC1 PB2 wording (CLI is sole v1 enforcement; hook-extension deferred). Review-C verdict from all 3 reviewers: **APPROVE-WITH-COMMENTS**. Only hard-blocker for `done` is D3 manual rebase (WB14) — bundled commit `73abf94` per CONTRIBUTING §2 TDD-first ordering. After rebase, story flips cleanly to `done`. |
+| 10 | **ERR-code convention matrix for signoff-state reads (DB1=c, review-B)** | Three sibling CLIs surface phase-1 signoff errors via three intentionally-distinct codes: (a) `signoff.py` → `ERR_PHASE1_NOT_APPROVED` (state != APPROVED at signoff-time); (b) `epics.py` → `ERR_SIGNOFF_STATE` (general signoff-state-related condition); (c) `ux.py` → `ERR_SIGNOFF_READ_FAILED` (corrupt YAML / schema-invalid / OSError reading the record file). The three codes carry different semantics: read-failure vs state-mismatch vs general-state-condition. Aligning is **not** required; the matrix is documented here for future code-review reference. |
+
+### Review Findings
+
+> Generated by `bmad-code-review` on 2026-05-14. 3 parallel layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor). 99 raw findings → 36 unique after dedupe → 4 decision-needed + 19 patch + 13 defer + 32 dismissed (most dismissals were Edge/Blind concerns invalidated by `emit_error` raising `typer.Exit` at `cli/output.py:245`).
+
+#### Decision-Needed
+
+- [ ] [Review][Decision] **D1 — AC4 spec text requires `boundary_line_present_in_prompts` postcondition, but `sdlc-ux.yaml` drops it.** Change Log row 3 rationalizes the removal as free-text, not as a D1/D2/D3 option triplet per CONTRIBUTING.md §5. Options: (a) restore the postcondition in the YAML and accept it will fail on mock-dispatch paths, (b) wire a CLI-layer prompt-boundary check at prompt-build time, (c) amend AC4 to drop the postcondition and register `EPIC-2A-DEBT-PHASE2-PROMPT-BOUNDARY-CHECK` for v1.x. Recommended: (c) — sibling Story 2A.11 set this precedent.
+- [ ] [Review][Decision] **D2 — `cli/ux.py` is 398 LOC, violating spec §AC5 LOC ≤ 300 cap. Sibling stories 2A.11 / 2A.12 extracted `_epics_pipeline.py` / `_stories_pipeline.py`.** Options: (a) extract `_ux_pipeline.py` mirroring siblings (recommended), (b) amend AC5 LOC cap to ≤ 400 and accept `noqa: C901, PLR0915` on `run_ux`. Recommended: (a).
+- [ ] [Review][Decision] **D3 — Commit `73abf94` bundled spec + RED + GREEN + e2e + status flip into one commit, then user manually reverted spec/sprint-status to `review` (uncommitted).** Process violation of CONTRIBUTING.md §2 (TDD-first ordering) and §4 (review-A/B/C chunked review). Options: (a) split via `git rebase` into RED → GREEN → e2e → close-out before merge (recommended), (b) document as one-time process exception and add to epic-2A retro action list. Recommended: (a) — rebase is mechanical here.
+- [ ] [Review][Decision] **D4 — `agent_runs_path` is plumbed into `dispatch(...)` but the MockAIRuntime path never writes it, AND `boundary_line_present_in_prompts` postcondition was disabled (D1 above).** Phase 1's prompt-injection-security invariant (NFR-SEC-3) is silently absent for Phase 2 UX writes. Options: (a) accept that mock-dispatch v1 has no prompt-security gate and register `EPIC-2A-DEBT-PHASE2-PROMPT-SECURITY-INVARIANT` for v1.x (recommended; depends on D1=c), (b) implement CLI-layer prompt-build boundary check now (depends on D1=b). Recommended: (a).
+
+#### Patch (must-fix before merge)
+
+- [ ] [Review][Patch] **P1 — `_validate_ux_filename` permits `00-*.md` colliding with phantom anchor `00-ux-dispatch-anchor.md`** [`src/sdlc/cli/ux.py:50,59-74`]; reject filenames matching the anchor or starting with `00-` reserved prefix.
+- [ ] [Review][Patch] **P2 — `compute_state(...)` `SignoffError` collapses corrupt-signoff into `ERR_PHASE1_NOT_APPROVED`** [`src/sdlc/cli/ux.py:237-243`]; add distinct `ERR_SIGNOFF_READ_FAILED` so operators can distinguish "no signoff" from "broken signoff".
+- [ ] [Review][Patch] **P3 — `Path.resolve().relative_to(root.resolve())` raises `ValueError` if path escapes root via symlink** [`src/sdlc/cli/ux.py:94,177`]; catch `ValueError` and raise `WorkflowError("UX target escapes repo root")` mapped to `ERR_UNSAFE_PATH`.
+- [ ] [Review][Patch] **P4 — Specialist JSON array allows duplicate filenames; second write silently clobbers first** [`src/sdlc/cli/ux.py:164-217`]; track `seen` set, raise `WorkflowError("duplicate filename in specialist response")` on collision.
+- [ ] [Review][Patch] **P5 — `str(entry["filename"])` / `str(entry["content"])` coerces non-strings to literal `"None"` / `"{...}"`** [`src/sdlc/cli/ux.py:171-172`]; add explicit `isinstance(filename, str)` and `isinstance(content, str)` checks and raise `WorkflowError` with clear cause.
+- [ ] [Review][Patch] **P6 — `json.loads(result.agent_result.output_text)` raises `TypeError` if `output_text` is `None`/`bytes`; not in current `except` tuple** [`src/sdlc/cli/ux.py:150-156`]; pre-check `isinstance(result.agent_result.output_text, str)` and raise typed `WorkflowError`.
+- [ ] [Review][Patch] **P7 — `_materialize_ux_mock_fixture` swallows specialist-load failures via bare `except Exception: return`** [`src/sdlc/cli/ux.py:376-379`]; narrow to expected exception class (or let it propagate) so root cause is visible instead of surfacing later as opaque `MockMissError → ERR_UX_DISPATCH_FAILED`.
+- [ ] [Review][Patch] **P8 — Empty / whitespace-only `01-PRODUCT.md` passes through to specialist prompt** [`src/sdlc/cli/ux.py:262`]; reject with `emit_error("ERR_USER_INPUT", "01-PRODUCT.md is empty")` before prompt-build.
+- [ ] [Review][Patch] **P9 — Filename length unbounded by `_SAFE_FILENAME_RE`** [`src/sdlc/cli/ux.py:50`]; cap UTF-8 byte length ≤ 100 to stay safely under POSIX `NAME_MAX=255`.
+- [ ] [Review][Patch] **P10 — `compute_state(1, repo_root=root)` uses positional arg** [`src/sdlc/cli/ux.py:236`]; switch to `compute_state(phase=1, repo_root=root)` per Story 2A.7 keyword-only style (also matches spec Dev Notes example).
+- [ ] [Review][Patch] **P11 — `ux_dir.glob("*.md")` postcondition matches directories named `foo.md`** [`src/sdlc/dispatcher/postconditions.py:994-1004`]; filter `is_file()` and exclude hidden dotfiles.
+- [ ] [Review][Patch] **P12 — `WorkflowRegistry.load(...)` only catches `WorkflowError`; bare `yaml.YAMLError`/`OSError` propagate** [`src/sdlc/cli/ux.py:280-286`]; widen `except (WorkflowError, yaml.YAMLError, OSError)`.
+- [ ] [Review][Patch] **P13 — `_artifact_contains_boundary` imported from private `cli.verify._artifact_contains_boundary`** [`src/sdlc/cli/ux.py:17`]; promote to public utility (e.g. `cli/_boundary.py`) or move to `sdlc.security`.
+- [ ] [Review][Patch] **P14 — Extract `src/sdlc/cli/_ux_pipeline.py`** containing `_ux_dispatch_and_write_async` + `_validate_ux_filename` + `_materialize_ux_mock_fixture`; brings `cli/ux.py` under 300 LOC matching sibling pattern (`_epics_pipeline.py`, `_stories_pipeline.py`); removes need for `noqa: C901, PLR0915`.
+- [ ] [Review][Patch] **P15 — `evaluate_postconditions` raises bare `RuntimeError` if `ux_dir_abs` plumbing missing; not in `except WorkflowError` clause** [`src/sdlc/cli/ux.py:334-348`, `src/sdlc/dispatcher/postconditions.py:1022-1026`]; convert wrapper `RuntimeError → WorkflowError("postcondition wiring incomplete: ...")` at the post-`evaluate` boundary.
+- [ ] [Review][Patch] **P16 — Process patch: revert `_bmad-output/implementation-artifacts/sprint-status.yaml` flip `2a-13...: done` and revert spec frontmatter `Status: done` (user already reverted uncommitted).** Stage these reverts in a follow-up `chore(2A.13): revert premature done flip` commit before review-B.
+- [ ] [Review][Patch] **P17 — Hook chain runs with `content_hash_before=None` even when target file already exists (replan / retry path)** [`src/sdlc/cli/ux.py:179-184`]; compute existing-file hash and pass as `content_hash_before` when `target.exists()`, otherwise `None`.
+- [ ] [Review][Patch] **P18 — Generic `except Exception` on `_ux_dispatch_and_write_async` masks WorkflowError-derived exit paths from inside the async function** [`src/sdlc/cli/ux.py:321-332`]; the first `except WorkflowError` clause is fine, but the bare `except Exception` should re-raise after `emit_error` ; current shape relies on `emit_error` raising `typer.Exit`. Already correct because `emit_error` raises `typer.Exit` (subclass of `SystemExit`, NOT `Exception`) — but add inline comment to that effect to prevent regression.
+- [ ] [Review][Patch] **P19 — `load_registry(...)` wrapped by bare `except Exception`** [`src/sdlc/cli/ux.py:288-296`]; narrow to expected `OSError | ValidationError` and include `cause=str(exc)` in `details` so debugging is feasible.
+
+#### Defer
+
+- [x] [Review][Defer] **W1 — `agent_dispatched` journal entry written BEFORE `dispatch()` succeeds** [`src/sdlc/cli/ux.py:108-123`] — design intent per AC6 / Change Log row 4; document as `EPIC-2A-DEBT-JOURNAL-DISPATCH-ORDER` for v1.x replay-safety; deferred, pre-existing pattern.
+- [x] [Review][Defer] **W2 — `target.write_text(...)` non-atomic; partial-write recovery undefined** [`src/sdlc/cli/ux.py:196`] — pre-existing `EPIC-2A-DEBT-WRITE-PRIMITIVE`; deferred.
+- [x] [Review][Defer] **W3 — Production code unconditionally constructs `MockAIRuntime`** [`src/sdlc/cli/ux.py:306`] — Story 2B.9 wires real runtime; deferred, intentional v1 stub.
+- [x] [Review][Defer] **W4 — 57 pre-existing test failures reported in spec line 384 — AC10 is not a clean binary pass** — Epic-2A baseline tracking debt; deferred, pre-existing.
+- [x] [Review][Defer] **W5 — `asyncio.run(...)` inside CLI fails if invoked from already-running event loop (REPL / test harness)** [`src/sdlc/cli/ux.py:307`] — deferred, no current trigger.
+- [x] [Review][Defer] **W6 — Concurrent `run_ux` is lockless** [`src/sdlc/cli/ux.py:221`] — no per-repo lock anywhere in framework; deferred for framework-wide concurrency story.
+- [x] [Review][Defer] **W7 — Windows-reserved filenames (CON.md, PRN.md, NUL.md, AUX.md) pass filename regex** [`src/sdlc/cli/ux.py:50`] — deferred, cross-platform concern; project is POSIX-first per ADR.
+- [x] [Review][Defer] **W8 — `tempfile.TemporaryDirectory` cleanup may leak on Ctrl+C mid-write** [`src/sdlc/cli/ux.py:300`] — deferred, edge case; OS reaps tmpdir on next reboot.
+- [x] [Review][Defer] **W9 — Unit tests use forged `"sha256:" + "a"*64` hashes while integration uses real `compute_artifact_hash`** [`tests/unit/cli/test_ux_command.py` vs `tests/integration/test_sdlc_ux.py`] — pattern shared with all sibling CLI suites; deferred until canonical signoff-state fixture utility lands.
+- [x] [Review][Defer] **W10 — `evaluate_postconditions` dispatcher already carries `noqa: C901, PLR0912`** [`src/sdlc/dispatcher/postconditions.py:1007`] — pre-existing smell; refactor to dict-of-functions registry in follow-up; deferred.
+- [x] [Review][Defer] **W11 — `agents/phase2/{ux-designer,ux-reviewer}.md` ship with `model: sonnet`** — stubs don't run real work; revisit when Story 2B.9 wires real specialists; deferred.
+- [x] [Review][Defer] **W12 — `phase_gate.py` not actually extended for Phase 2 dir writes** — `EPIC-2A-DEBT-PHASE2-DIR-PHASE-GATE` already registered per Change Log row 7; deferred.
+- [x] [Review][Defer] **W13 — Anchor file `00-ux-dispatch-anchor.md` is a phantom (path used in journal, never written to disk)** [`src/sdlc/cli/ux.py:93`] — depends on `dispatch(...)` `target_path_override` semantics; document or remove in v1.x; deferred.

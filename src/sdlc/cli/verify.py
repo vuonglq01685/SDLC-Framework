@@ -43,6 +43,7 @@ from typing import Final
 
 import typer
 
+from sdlc.cli._boundary import artifact_contains_boundary as _artifact_contains_boundary  # P13
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli._verify_dispatch import invoke_dispatch as _invoke_dispatch
 from sdlc.cli._verify_frontmatter import (
@@ -52,7 +53,6 @@ from sdlc.cli._verify_frontmatter import (
     _Verification,
 )
 from sdlc.cli.output import emit_error
-from sdlc.dispatcher.prompts import BOUNDARY_LINE, normalize_for_boundary_check
 from sdlc.errors import StateError
 
 __all__ = (  # noqa: RUF022 — semantic order: model, then helpers in pipeline order
@@ -298,34 +298,6 @@ def _preflight_checks(*, ctx: typer.Context, root: Path, artifact_id: str) -> tu
         )
 
     return artifact_path, content
-
-
-# ---------------------------------------------------------------------------
-# Boundary-marker artifact guard (AC4)
-# ---------------------------------------------------------------------------
-
-
-def _artifact_contains_boundary(content: str) -> bool:
-    """Return True iff `content` contains the canonical BOUNDARY_LINE.
-
-    Performs a NORMALISED substring match (NFKC + dash-fold + whitespace-
-    collapse + lowercase) via :func:`normalize_for_boundary_check` — the
-    same predicate the dispatcher applies to ``idea_text`` in
-    :func:`sdlc.dispatcher.prompts._validate_idea_text`. NOT Markdown-aware.
-    Even content inside fenced code blocks triggers rejection. The check
-    defends against the homograph attack where a Phase-1 artifact embeds
-    the data-vs-instruction marker (or any normalised-equivalent — e.g.
-    U+2013 EN DASH variant, NBSP-separated, lowercase-only) in its body —
-    without the guard, the verifier prompt (which embeds the artifact as
-    ``idea_text``) could be tricked into following an in-band
-    ``</USER_IDEA>`` block followed by adversarial instructions.
-
-    PC7 (post-review 2026-05-12 Cluster C-J): tightened from raw byte
-    substring match to normalised compare so CLI and dispatcher reject
-    identical inputs. Closes the dash-fold / NBSP bypass that the prior
-    byte-match implementation missed.
-    """
-    return normalize_for_boundary_check(BOUNDARY_LINE) in normalize_for_boundary_check(content)
 
 
 # ---------------------------------------------------------------------------

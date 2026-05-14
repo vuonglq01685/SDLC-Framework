@@ -120,7 +120,7 @@ def test_clean_artifact_proceeds_to_dispatch(tmp_path: Path) -> None:
 def test_boundary_module_helper_rejects() -> None:
     """Direct unit test of the predicate so refactors of run_verify don't
     accidentally weaken the check."""
-    from sdlc.cli.verify import _artifact_contains_boundary
+    from sdlc.cli._boundary import artifact_contains_boundary as _artifact_contains_boundary
 
     assert _artifact_contains_boundary(BOUNDARY_LINE) is True
     assert _artifact_contains_boundary(f"prefix\n{BOUNDARY_LINE}\nsuffix") is True

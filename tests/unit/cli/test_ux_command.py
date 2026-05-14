@@ -125,12 +125,72 @@ def test_refuses_phase1_not_approved_no_dispatch_called(tmp_path: Path) -> None:
     _write_product_md(tmp_path)
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch") as mock_dispatch,
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch") as mock_dispatch,
     ):
         r = _runner.invoke(app, ["--json", "ux"])
     assert r.exit_code == 1
     assert "ERR_PHASE1_NOT_APPROVED" in (r.stdout + r.stderr)
     mock_dispatch.assert_not_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal")
+def test_refuses_when_phase1_signoff_corrupt(tmp_path: Path) -> None:
+    """P2 / DB1=c (review-B): malformed signoff YAML → ERR_SIGNOFF_READ_FAILED (exit 2).
+
+    Distinguishes corrupt-read from not-approved (which is ERR_PHASE1_NOT_APPROVED).
+    """
+    _init_repo(tmp_path)
+    _write_product_md(tmp_path)
+    signoffs_dir = tmp_path / ".claude" / "state" / "signoffs"
+    signoffs_dir.mkdir(parents=True, exist_ok=True)
+    # Malformed YAML (unterminated quote) so compute_state raises SignoffError.
+    (signoffs_dir / "phase-1.yaml").write_text('phase: "', encoding="utf-8")
+    with unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path):
+        r = _runner.invoke(app, ["--json", "ux"])
+    assert r.exit_code == 2, r.stdout + (r.stderr or "")
+    assert "ERR_SIGNOFF_READ_FAILED" in (r.stdout + r.stderr)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal")
+def test_rejects_reserved_anchor_filename(tmp_path: Path) -> None:
+    """P1 (review-A): specialist returning ``00-*.md`` collides with phantom anchor → rejected."""
+    _init_repo(tmp_path)
+    _write_approved_phase1_signoff(tmp_path)
+    _write_product_md(tmp_path)
+    mock_result = _make_mock_dispatch_result(
+        json.dumps([{"filename": "00-ux-dispatch-anchor.md", "content": "x"}])
+    )
+    with (
+        unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
+    ):
+        r = _runner.invoke(app, ["--json", "ux"])
+    assert r.exit_code == 1
+    assert "ERR_UNSAFE_FILENAME" in (r.stdout + r.stderr)
+    assert "reserved-anchor-prefix" in (r.stdout + r.stderr)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal")
+def test_rejects_duplicate_filename_case_insensitive(tmp_path: Path) -> None:
+    """P4 + PB8 (review-B): case-insensitive duplicate-filename guard."""
+    _init_repo(tmp_path)
+    _write_approved_phase1_signoff(tmp_path)
+    _write_product_md(tmp_path)
+    mock_result = _make_mock_dispatch_result(
+        json.dumps(
+            [
+                {"filename": "01-Tokens.md", "content": "first"},
+                {"filename": "01-tokens.md", "content": "second-clobbers"},
+            ]
+        )
+    )
+    with (
+        unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
+    ):
+        r = _runner.invoke(app, ["--json", "ux"])
+    assert r.exit_code == 1
+    assert "duplicate filename" in (r.stdout + r.stderr).lower()
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +227,9 @@ def test_happy_path_writes_two_files(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", return_value=mock_result) as mock_disp,
+        unittest.mock.patch(
+            "sdlc.cli._ux_pipeline.dispatch", return_value=mock_result
+        ) as mock_disp,
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -190,7 +252,7 @@ def test_happy_path_emit_json_success(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -214,7 +276,7 @@ def test_happy_path_journal_entries(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -257,7 +319,7 @@ def test_happy_path_ux_dir_created_before_dispatch(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", side_effect=_mock_dispatch),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", side_effect=_mock_dispatch),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -283,7 +345,7 @@ def test_rejects_path_traversal_filename(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -304,7 +366,7 @@ def test_rejects_non_md_filename(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -323,7 +385,7 @@ def test_rejects_empty_dispatch_response(tmp_path: Path) -> None:
 
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
-        unittest.mock.patch("sdlc.cli.ux.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 

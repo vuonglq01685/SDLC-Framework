@@ -27,10 +27,10 @@ from typing import Final
 from typer import Context
 
 from sdlc.cli import _stories_pipeline as _pipeline
+from sdlc.cli._boundary import artifact_contains_boundary as _artifact_contains_boundary
 from sdlc.cli._epic_story_models import _EpicEntry
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.output import echo, emit_error, emit_json
-from sdlc.cli.verify import _artifact_contains_boundary
 from sdlc.dispatcher import build_pre_write_hook_chain
 from sdlc.dispatcher.postconditions import evaluate_postconditions
 from sdlc.errors import IdsError, SignoffError, StateError, WorkflowError

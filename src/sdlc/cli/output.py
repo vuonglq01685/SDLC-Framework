@@ -163,6 +163,15 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_STORIES_DISPATCH_FAILED": 2,
         "ERR_SIGNOFF_STATE": 1,
         "ERR_HOOK_REJECTED": 1,
+        # Story 2A.13 (sdlc-ux) + code-review patches. Exit codes mirror the
+        # historical fallback (``_DEFAULT_EXIT_CODE = 1``) so existing test
+        # expectations remain valid; corrupt-state reads use 2 like the rest of
+        # the read-failure family.
+        "ERR_UNSAFE_FILENAME": 1,
+        "ERR_UNSAFE_PATH": 1,  # P3 — symlink/path escape from UX target
+        "ERR_UX_DISPATCH_FAILED": 1,
+        "ERR_POSTCONDITION_FAILED": 1,
+        "ERR_SIGNOFF_READ_FAILED": 2,  # P2 — corrupt signoff (read-failure family)
     }
 )
 _DEFAULT_EXIT_CODE: Final[int] = 1

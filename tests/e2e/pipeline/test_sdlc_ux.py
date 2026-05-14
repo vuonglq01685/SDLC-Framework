@@ -154,7 +154,7 @@ def test_e2e_sdlc_ux_phase_gate_block(tmp_path: Path) -> None:
     _seed_product_md(tmp_path)
     # No signoff record → AWAITING_SIGNOFF
 
-    with unittest.mock.patch("sdlc.cli.ux.dispatch") as mock_dispatch:
+    with unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch") as mock_dispatch:
         result = _invoke_ux(tmp_path)
 
     assert result.exit_code == 1
