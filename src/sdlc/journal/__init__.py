@@ -7,7 +7,11 @@ from pathlib import Path
 # On Windows the names exist at import time but append/append_sync raise JournalError,
 # while iter_entries/iter_after remain functional (no flock needed for read-only access).
 if sys.platform != "win32":
-    from sdlc.journal.writer import append, append_sync
+    from sdlc.journal.writer import (
+        allocate_next_seq_for_append_sync,
+        append,
+        append_sync,
+    )
 else:
     from sdlc.contracts.journal_entry import JournalEntry
     from sdlc.errors import JournalError
@@ -39,11 +43,23 @@ else:
             },
         )
 
+    def allocate_next_seq_for_append_sync(journal_path: Path) -> int:
+        raise JournalError(
+            _WIN_MSG.replace("append", "allocate_next_seq_for_append_sync"),
+            details={
+                "path": str(journal_path),
+                "errno": None,
+                "step": "windows_unsupported",
+                "monotonic_seq": -1,
+            },
+        )
+
 
 from sdlc.journal.reader import iter_after, iter_entries
 
 # Semantic order: write (async) → write (sync) → read-all → read-after; do NOT alphabetize.
 __all__ = (  # noqa: RUF022
+    "allocate_next_seq_for_append_sync",
     "append",
     "append_sync",
     "iter_entries",

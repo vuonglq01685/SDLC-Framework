@@ -14,6 +14,8 @@ _WORKFLOWS = _REPO / "src" / "sdlc" / "workflows_yaml"
 _YAML_PATH = _WORKFLOWS / "sdlc-start.yaml"
 _RESEARCH_YAML = _WORKFLOWS / "sdlc-research.yaml"
 _VERIFY_YAML_PATH = _WORKFLOWS / "sdlc-verify.yaml"
+_EPICS_YAML = _WORKFLOWS / "sdlc-epics.yaml"
+_STORIES_YAML = _WORKFLOWS / "sdlc-stories.yaml"
 
 pytestmark = pytest.mark.unit
 
@@ -104,3 +106,67 @@ def test_sdlc_verify_yaml_round_trip_byte_stable() -> None:
         default_flow_style=False,
     )
     assert dumped == round_raw
+
+
+def test_registry_loads_sdlc_epics() -> None:
+    """Story 2A.11 AC3: ``sdlc-epics.yaml`` is discoverable + shape-stable."""
+    reg = WorkflowRegistry.load(_WORKFLOWS)
+    spec = reg.get("/sdlc-epics")
+    assert spec.primary_agent == "epic-generator"
+    assert spec.parallel_agents == ()
+    assert spec.synthesizer_agent is None
+    assert spec.slash_command == "/sdlc-epics"
+    assert spec.name == "phase1-epics-generation"
+
+
+def test_registry_loads_sdlc_stories() -> None:
+    """Story 2A.11 AC3: ``sdlc-stories.yaml`` is discoverable + shape-stable."""
+    reg = WorkflowRegistry.load(_WORKFLOWS)
+    spec = reg.get("/sdlc-stories")
+    assert spec.primary_agent == "story-writer"
+    assert spec.parallel_agents == ()
+    assert spec.synthesizer_agent is None
+    assert spec.slash_command == "/sdlc-stories"
+    assert spec.name == "phase1-stories-generation"
+
+
+def test_sdlc_epics_yaml_round_trip_byte_stable() -> None:
+    raw = _EPICS_YAML.read_bytes()
+    data = yaml.safe_load(raw)
+    dumped = yaml.safe_dump(data, sort_keys=True, allow_unicode=False, default_flow_style=False)
+    round_raw = yaml.safe_dump(
+        yaml.safe_load(dumped),
+        sort_keys=True,
+        allow_unicode=False,
+        default_flow_style=False,
+    )
+    assert dumped == round_raw
+    assert data["schema_version"] == 1
+    assert data["slash_command"] == "/sdlc-epics"
+    assert data["primary_agent"] == "epic-generator"
+    assert data["postconditions"] == [
+        "epics_dir_non_empty",
+        "all_epic_jsons_valid",
+        "boundary_line_present_in_prompts",
+    ]
+
+
+def test_sdlc_stories_yaml_round_trip_byte_stable() -> None:
+    raw = _STORIES_YAML.read_bytes()
+    data = yaml.safe_load(raw)
+    dumped = yaml.safe_dump(data, sort_keys=True, allow_unicode=False, default_flow_style=False)
+    round_raw = yaml.safe_dump(
+        yaml.safe_load(dumped),
+        sort_keys=True,
+        allow_unicode=False,
+        default_flow_style=False,
+    )
+    assert dumped == round_raw
+    assert data["schema_version"] == 1
+    assert data["slash_command"] == "/sdlc-stories"
+    assert data["primary_agent"] == "story-writer"
+    assert data["postconditions"] == [
+        "stories_dir_non_empty",
+        "all_story_jsons_valid",
+        "boundary_line_present_in_prompts",
+    ]

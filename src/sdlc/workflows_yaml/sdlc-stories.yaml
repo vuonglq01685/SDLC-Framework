@@ -1,0 +1,14 @@
+schema_version: 1
+name: phase1-stories-generation
+slash_command: /sdlc-stories
+primary_agent: story-writer
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - stories_dir_non_empty
+  - all_story_jsons_valid
+  - boundary_line_present_in_prompts
+write_globs:
+  story-writer:
+    - "01-Requirement/05-Stories/*/*.json"
+stop_on_postcondition_failure: true

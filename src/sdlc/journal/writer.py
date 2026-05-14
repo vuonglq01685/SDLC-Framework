@@ -42,7 +42,11 @@ JOURNAL_LOCK_SUFFIX: Final[str] = ".lock"
 
 # Drift detector: linter main() runtime-asserts hasattr(append/append_sync).
 _CANONICAL_WRITE_API: Final[frozenset[str]] = frozenset(
-    {"sdlc.journal.writer.append", "sdlc.journal.writer.append_sync"}
+    {
+        "sdlc.journal.writer.append",
+        "sdlc.journal.writer.append_sync",
+        "sdlc.journal.writer.allocate_next_seq_for_append_sync",
+    }
 )
 
 
@@ -214,6 +218,25 @@ def _validate_absolute(journal_path: Path, entry: JournalEntry, fn_name: str) ->
             step="validate_path",
             monotonic_seq=entry.monotonic_seq,
         )
+
+
+def allocate_next_seq_for_append_sync(journal_path: Path) -> int:
+    """Return ``highest_on_disk + 1`` while holding the journal write flock.
+
+    Callers outside ``dispatcher._allocate_seq`` (e.g. hook deny / bypass lines)
+    must not mint small placeholder seq values that collide with prior phase-1
+    journal traffic.
+    """
+    if not journal_path.is_absolute():
+        raise _je(
+            "journal.allocate_next_seq_for_append_sync requires an absolute journal_path",
+            path=str(journal_path),
+            errno=None,
+            step="validate_path",
+            monotonic_seq=-1,
+        )
+    with file_lock(_lock_path_for(journal_path)):
+        return _read_highest_seq(journal_path) + 1
 
 
 async def append(entry: JournalEntry, journal_path: Path) -> None:

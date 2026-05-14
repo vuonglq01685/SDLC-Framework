@@ -15,3 +15,9 @@ specialists:
   - name: artifact-verifier
     phase: 1
     file: phase1/artifact-verifier.md
+  - name: epic-generator
+    phase: 1
+    file: phase1/epic-generator.md
+  - name: story-writer
+    phase: 1
+    file: phase1/story-writer.md

@@ -1,0 +1,14 @@
+schema_version: 1
+name: phase1-epics-generation
+slash_command: /sdlc-epics
+primary_agent: epic-generator
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - epics_dir_non_empty
+  - all_epic_jsons_valid
+  - boundary_line_present_in_prompts
+write_globs:
+  epic-generator:
+    - "01-Requirement/04-Epics/*.json"
+stop_on_postcondition_failure: true

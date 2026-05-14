@@ -7,12 +7,15 @@ from typing import Final
 from sdlc.errors import IdsError
 
 _EPIC_ID_PATTERN: Final[str] = r"^EPIC-(?P<epic_slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
+# Public string patterns (Story 1.6 / 2A.11) — identical to the compiled regex sources.
+EPIC_ID_PATTERN: Final[str] = _EPIC_ID_PATTERN
 EPIC_ID_REGEX: Final[re.Pattern[str]] = re.compile(_EPIC_ID_PATTERN)
 
 _STORY_ID_PATTERN: Final[str] = (
     r"^EPIC-(?P<epic_slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
     r"-S(?P<story_num>\d{2})-(?P<story_slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
+STORY_ID_PATTERN: Final[str] = _STORY_ID_PATTERN
 STORY_ID_REGEX: Final[re.Pattern[str]] = re.compile(_STORY_ID_PATTERN)
 
 _TASK_ID_PATTERN: Final[str] = (
@@ -20,6 +23,7 @@ _TASK_ID_PATTERN: Final[str] = (
     r"-S(?P<story_num>\d{2})-(?P<story_slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
     r"-T(?P<task_num>\d{2})-(?P<task_slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
+TASK_ID_PATTERN: Final[str] = _TASK_ID_PATTERN
 TASK_ID_REGEX: Final[re.Pattern[str]] = re.compile(_TASK_ID_PATTERN)
 
 # Private slug validator — imported by builders.py (intra-module; allowed by boundary rules).
