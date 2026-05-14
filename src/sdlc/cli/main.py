@@ -217,6 +217,17 @@ def _rebuild_state_cmd(ctx: typer.Context) -> None:
     run_rebuild_state(ctx=ctx)
 
 
+@app.command(name="signoff")
+def signoff_command(
+    ctx: typer.Context,
+    phase: int = typer.Argument(..., help="Phase number to sign off (1 or 2)"),
+) -> None:
+    """Generate a phase signoff draft for human approval (FR11, Story 2A.12)."""
+    from sdlc.cli.signoff import run_signoff  # deferred per Architecture §488
+
+    run_signoff(ctx=ctx, phase=phase)
+
+
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""
