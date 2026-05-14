@@ -16,6 +16,7 @@ _RESEARCH_YAML = _WORKFLOWS / "sdlc-research.yaml"
 _VERIFY_YAML_PATH = _WORKFLOWS / "sdlc-verify.yaml"
 _EPICS_YAML = _WORKFLOWS / "sdlc-epics.yaml"
 _STORIES_YAML = _WORKFLOWS / "sdlc-stories.yaml"
+_SIGNOFF_YAML = _WORKFLOWS / "sdlc-signoff.yaml"
 
 pytestmark = pytest.mark.unit
 
@@ -170,3 +171,38 @@ def test_sdlc_stories_yaml_round_trip_byte_stable() -> None:
         "all_story_jsons_valid",
         "boundary_line_present_in_prompts",
     ]
+
+
+def test_registry_loads_sdlc_signoff() -> None:
+    """Story 2A.12 AC7: sdlc-signoff.yaml is discoverable + primary_agent is sentinel (AC1/D1).
+
+    Per code-review DR1 (2026-05-14): workflow is mechanical (not dispatched), uses sentinel
+    "none" to keep ``WorkflowSpec.primary_agent: str`` frozen v1 contract intact (ADR-024).
+    """
+    reg = WorkflowRegistry.load(_WORKFLOWS)
+    spec = reg.get("/sdlc-signoff")
+    assert spec.primary_agent == "none"
+    assert spec.parallel_agents == ()
+    assert spec.synthesizer_agent is None
+    assert spec.slash_command == "/sdlc-signoff"
+    assert spec.name == "phase-signoff-draft-generation"
+
+
+def test_sdlc_signoff_yaml_round_trip_byte_stable() -> None:
+    """Story 2A.12 AC7: sdlc-signoff.yaml round-trips byte-stable + shape pinned."""
+    raw = _SIGNOFF_YAML.read_bytes()
+    data = yaml.safe_load(raw)
+    dumped = yaml.safe_dump(data, sort_keys=True, allow_unicode=False, default_flow_style=False)
+    round_raw = yaml.safe_dump(
+        yaml.safe_load(dumped),
+        sort_keys=True,
+        allow_unicode=False,
+        default_flow_style=False,
+    )
+    assert dumped == round_raw
+    assert data["schema_version"] == 1
+    assert data["slash_command"] == "/sdlc-signoff"
+    assert data["primary_agent"] == "none"  # sentinel — see DR1 in story Change Log
+    assert data["parallel_agents"] == []
+    assert data["synthesizer_agent"] is None
+    assert "signoff_draft_written" in data["postconditions"]

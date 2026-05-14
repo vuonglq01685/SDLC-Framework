@@ -104,6 +104,10 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/commands/sdlc-stories.md").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-epics.yaml").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-stories.yaml").as_posix(),
+        # Story 2A.12 — /sdlc-signoff specialist stub, command, workflow YAML.
+        Path("sdlc/agents/phase1/phase1-signoff-summarizer.md").as_posix(),
+        Path("sdlc/commands/sdlc-signoff.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-signoff.yaml").as_posix(),
     }
 )
 

@@ -21,3 +21,6 @@ specialists:
   - name: story-writer
     phase: 1
     file: phase1/story-writer.md
+  - name: phase1-signoff-summarizer
+    phase: 1
+    file: phase1/phase1-signoff-summarizer.md

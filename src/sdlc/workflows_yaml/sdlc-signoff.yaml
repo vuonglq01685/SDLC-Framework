@@ -1,0 +1,11 @@
+schema_version: 1
+name: phase-signoff-draft-generation
+slash_command: /sdlc-signoff
+primary_agent: "none"  # sentinel — workflow not actually dispatched per AC1/D1 (mechanical generation)
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - signoff_draft_written
+  - boundary_line_present_in_prompts
+write_globs: {}
+stop_on_postcondition_failure: true
