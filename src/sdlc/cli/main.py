@@ -236,6 +236,14 @@ def ux_command(ctx: typer.Context) -> None:
     run_ux(ctx=ctx)
 
 
+@app.command(name="architect")
+def architect_command(ctx: typer.Context) -> None:
+    """Initiate Phase 2 system architecture track (FR14)."""
+    from sdlc.cli.architect import run_architect  # deferred per Architecture §488
+
+    run_architect(ctx=ctx)
+
+
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""
