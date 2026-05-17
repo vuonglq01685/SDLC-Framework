@@ -1,6 +1,6 @@
 # Story 2A.14: `/sdlc-architect` + Dynamic Sub-Tracks
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -280,7 +280,7 @@ So that architecture sub-tracks (database, security, observability, etc.) are sp
 
 - [x] [Review][Decision] Sub-track failure leaves inconsistent Phase 2 — no `PARTIAL` outcome — **RESOLVED (D1 → option 2):** accept the deferral; AC8 text amended to mark the `PARTIAL`-outcome clause as an accepted deferral tracked by `EPIC-2A-DEBT-SUBTRACK-PARTIAL-FAILURE`. No code change. [AC8 spec text + architect.py:851-867]
 - [x] [Review][Decision] Idempotent re-run leaves orphan stale sub-track files — **RESOLVED (D2 → option 1, patched):** `run_architect` now drops `sub-tracks/*.md` files not in the current `requires:` set before dispatching. [architect.py — CR14-D2 orphan cleanup]
-- [ ] [Review][Decision] 2A.14 work is entirely uncommitted — TDD-first commit ceremony not established — **RESOLVED (D3 → option 2):** commit ceremony to be run AFTER review patches land, so all commits (spec + RED tests + GREEN impl + e2e + review patches) are staged in TDD-first order in one pass. Tracked as an end-of-review action; remains open until the ceremony is executed.
+- [x] [Review][Decision] 2A.14 work is entirely uncommitted — TDD-first commit ceremony not established — **RESOLVED (D3 → option 2, executed 2026-05-17):** branch `epic-2a/2a-14-sdlc-architect-dynamic-sub-tracks`; commit ceremony in TDD-first order visible in `git log --reverse` — `test(2A.14) (RED)` → `feat(2A.14) phase2 specialists + workflow + postcondition` → `feat(2A.14) /sdlc-architect CLI` → `chore(2A.14) spec + review findings`. ADR-026 §1 tests-first ordering satisfied.
 
 **Patch**
 
