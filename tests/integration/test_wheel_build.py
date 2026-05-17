@@ -108,6 +108,18 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase1/phase1-signoff-summarizer.md").as_posix(),
         Path("sdlc/commands/sdlc-signoff.md").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-signoff.yaml").as_posix(),
+        # Story 2A.13 — /sdlc-ux phase 2 specialist stubs, command, workflow YAML.
+        Path("sdlc/agents/phase2/ux-designer.md").as_posix(),
+        Path("sdlc/agents/phase2/ux-reviewer.md").as_posix(),
+        Path("sdlc/commands/sdlc-ux.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-ux.yaml").as_posix(),
+        # Story 2A.14 — /sdlc-architect phase 2 specialist stubs, command, workflow YAML.
+        Path("sdlc/agents/phase2/system-architect.md").as_posix(),
+        Path("sdlc/agents/phase2/database-architect.md").as_posix(),
+        Path("sdlc/agents/phase2/observability-architect.md").as_posix(),
+        Path("sdlc/agents/phase2/security-architect.md").as_posix(),
+        Path("sdlc/commands/sdlc-architect.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-architect.yaml").as_posix(),
     }
 )
 
