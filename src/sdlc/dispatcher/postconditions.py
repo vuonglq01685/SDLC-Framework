@@ -347,6 +347,21 @@ def _check_ux_dir_non_empty(ux_dir: Path) -> None:
         )
 
 
+def _check_architecture_md_written(path: Path) -> None:
+    """Story 2A.14 — ARCHITECTURE.md exists and is non-empty (AC8)."""
+    if not path.is_file():
+        raise WorkflowError(
+            f"postcondition architecture_md_written: missing file {path}",
+            details={"path": str(path)},
+        )
+    text = _read_text_utf8(path, context="architecture_md_written")
+    if not text.strip():
+        raise WorkflowError(
+            "postcondition architecture_md_written: file is empty",
+            details={"path": str(path)},
+        )
+
+
 def evaluate_postconditions(  # noqa: C901, PLR0912
     spec: WorkflowSpec,
     *,
@@ -357,6 +372,7 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
     epics_dir_abs: Path | None = None,
     stories_subdir_abs: Path | None = None,
     ux_dir_abs: Path | None = None,
+    architecture_path_abs: Path | None = None,
 ) -> None:
     """Raise WorkflowError on first failed postcondition when the workflow lists any."""
     if not spec.postconditions:
@@ -412,6 +428,13 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
                     f"postcondition ux_dir_non_empty requires ux_dir_abs (workflow={spec.name!r})"
                 )
             _check_ux_dir_non_empty(ux_dir_abs)
+        elif name == "architecture_md_written":
+            if architecture_path_abs is None:
+                raise RuntimeError(
+                    f"postcondition architecture_md_written requires architecture_path_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_architecture_md_written(architecture_path_abs)
         else:
             raise WorkflowError(
                 f"unknown postcondition {name!r}",

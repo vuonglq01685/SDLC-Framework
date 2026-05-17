@@ -30,3 +30,15 @@ specialists:
   - name: ux-reviewer
     phase: 2
     file: phase2/ux-reviewer.md
+  - name: system-architect
+    phase: 2
+    file: phase2/system-architect.md
+  - name: database-architect
+    phase: 2
+    file: phase2/database-architect.md
+  - name: security-architect
+    phase: 2
+    file: phase2/security-architect.md
+  - name: observability-architect
+    phase: 2
+    file: phase2/observability-architect.md

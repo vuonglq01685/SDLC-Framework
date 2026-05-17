@@ -1,0 +1,13 @@
+schema_version: 1
+name: phase2-architect-track
+slash_command: /sdlc-architect
+primary_agent: system-architect
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - architecture_md_written
+  - boundary_line_present_in_prompts
+write_globs:
+  system-architect:
+    - "02-Architecture/02-System/ARCHITECTURE.md"
+stop_on_postcondition_failure: true
