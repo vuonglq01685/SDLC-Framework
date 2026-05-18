@@ -45,3 +45,6 @@ specialists:
   - name: code-bootstrapper
     phase: 3
     file: phase3/code-bootstrapper.md
+  - name: task-breaker
+    phase: 3
+    file: phase3/task-breaker.md

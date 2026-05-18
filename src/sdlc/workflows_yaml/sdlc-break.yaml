@@ -1,0 +1,13 @@
+schema_version: 1
+name: phase3-break-track
+slash_command: /sdlc-break
+primary_agent: task-breaker
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - tasks_dir_populated
+  - boundary_line_present_in_prompts
+write_globs:
+  task-breaker:
+    - "03-Implementation/tasks/**"
+stop_on_postcondition_failure: true

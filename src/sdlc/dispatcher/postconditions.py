@@ -1,4 +1,4 @@
-"""Runtime postcondition validators for workflow dispatch (Story 2A.8, AC1).
+"""Runtime postcondition validators for workflow dispatch (Story 2A.8, AC1; Story 2A.16 AC9/D2).
 
 ``product_md_exists`` and ``boundary_line_present_in_prompts`` are evaluated from
 ``sdlc.cli.start.run_start`` after the final ``01-PRODUCT.md`` artifact is composed
@@ -9,6 +9,7 @@ CLI commits.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Final, cast
@@ -19,6 +20,8 @@ from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher.prompts import BOUNDARY_LINE
 from sdlc.errors import WorkflowError
 from sdlc.ids.parsers import EPIC_ID_REGEX, STORY_ID_REGEX
+
+_log = logging.getLogger(__name__)
 
 # Frontmatter split("---", 2) yields [preamble, yaml, body] when well-formed.
 _FRONT_MATTER_MIN_SEGMENTS = 3
@@ -463,6 +466,14 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
                     f"(workflow={spec.name!r})"
                 )
             _check_source_root_populated(source_root_abs)
+        elif name == "tasks_dir_populated":
+            # AC9/D2 (Story 2A.16): no-op v1 — the CLI's per-write journal entries serve
+            # as evidence. Full check deferred to EPIC-2A-DEBT-POSTCONDITION-RUNTIME-CONTEXT.
+            _log.warning(
+                "tasks_dir_populated postcondition is a no-op in v1 "
+                "(EPIC-2A-DEBT-POSTCONDITION-RUNTIME-CONTEXT); "
+                "verification delegated to break CLI write loop"
+            )
         else:
             raise WorkflowError(
                 f"unknown postcondition {name!r}",

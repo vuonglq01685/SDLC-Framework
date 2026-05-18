@@ -252,6 +252,17 @@ def bootstrap_command(ctx: typer.Context) -> None:
     run_bootstrap(ctx=ctx)
 
 
+@app.command(name="break")
+def break_command(
+    ctx: typer.Context,
+    story_id: str = typer.Argument(..., help="Story identifier (EPIC-<slug>-S<NN>-<slug>)."),
+) -> None:
+    """Generate task files for an active story (FR16, Story 2A.16)."""
+    from sdlc.cli.break_ import run_break  # deferred per Architecture §488
+
+    run_break(ctx=ctx, story_id=story_id)
+
+
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""
