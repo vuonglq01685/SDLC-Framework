@@ -1,0 +1,17 @@
+{
+  "as_a": "developer",
+  "dependencies": [],
+  "drafted_at": "2026-05-18T09:00:00Z",
+  "drafted_by_specialist": "e2e-fixture",
+  "epic_id": "EPIC-e2ebreak",
+  "given_when_then": [
+    "Given the auth service is running, when a user submits valid credentials, then a JWT is returned."
+  ],
+  "i_want": "to implement user authentication",
+  "id": "EPIC-e2ebreak-S01-user-auth",
+  "label": "User authentication story for e2e break tests",
+  "schema_version": 1,
+  "seq": 1,
+  "so_that": "users can log in securely",
+  "status": "in-progress"
+}
