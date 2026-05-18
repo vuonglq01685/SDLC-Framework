@@ -124,7 +124,7 @@ development_status:
   2a-12-sdlc-signoff-generate-draft-sign-validate: done
   2a-13-sdlc-ux-phase-2-ux-track: done
   2a-14-sdlc-architect-dynamic-sub-tracks: done
-  2a-15-sdlc-bootstrap-phase-3-greenfield-scaffolding: ready-for-dev
+  2a-15-sdlc-bootstrap-phase-3-greenfield-scaffolding: done
   2a-16-sdlc-break-active-story-only-task-generation: ready-for-dev
   2a-17-sdlc-task-tdd-pipeline-5-stages: backlog
   2a-18-sdlc-next: backlog

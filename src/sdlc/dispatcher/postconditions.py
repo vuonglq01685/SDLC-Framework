@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
 import yaml
 
@@ -22,6 +22,10 @@ from sdlc.ids.parsers import EPIC_ID_REGEX, STORY_ID_REGEX
 
 # Frontmatter split("---", 2) yields [preamble, yaml, body] when well-formed.
 _FRONT_MATTER_MIN_SEGMENTS = 3
+
+# Story 2A.15 AC7 — mirrors cli/bootstrap.py _BOOTSTRAP_PLACEHOLDER_ALLOWLIST (AC2/D1).
+# Files with these names do NOT count as "real source" for source_root_populated.
+_BOOTSTRAP_PLACEHOLDER_ALLOWLIST: Final[frozenset[str]] = frozenset({".gitkeep", "README.md"})
 _H2_HEADING_RE = re.compile(r"^## ", re.MULTILINE)
 _BOUNDARY_OPEN_RE = re.compile(r"^<BOUNDARY>$", re.MULTILINE)
 _BOUNDARY_CLOSE_RE = re.compile(r"^</BOUNDARY>$", re.MULTILINE)
@@ -347,6 +351,22 @@ def _check_ux_dir_non_empty(ux_dir: Path) -> None:
         )
 
 
+def _check_source_root_populated(src_root: Path) -> None:
+    """Story 2A.15 — src_root exists and contains at least one non-placeholder file (AC7)."""
+    if not src_root.is_dir():
+        raise WorkflowError(
+            "postcondition source_root_populated: directory missing",
+            details={"path": str(src_root)},
+        )
+    for path in src_root.rglob("*"):
+        if path.is_file() and path.name not in _BOOTSTRAP_PLACEHOLDER_ALLOWLIST:
+            return
+    raise WorkflowError(
+        "postcondition source_root_populated: no real source files found",
+        details={"path": str(src_root)},
+    )
+
+
 def _check_architecture_md_written(path: Path) -> None:
     """Story 2A.14 — ARCHITECTURE.md exists and is non-empty (AC8)."""
     if not path.is_file():
@@ -373,6 +393,7 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
     stories_subdir_abs: Path | None = None,
     ux_dir_abs: Path | None = None,
     architecture_path_abs: Path | None = None,
+    source_root_abs: Path | None = None,
 ) -> None:
     """Raise WorkflowError on first failed postcondition when the workflow lists any."""
     if not spec.postconditions:
@@ -435,6 +456,13 @@ def evaluate_postconditions(  # noqa: C901, PLR0912
                     f"(workflow={spec.name!r})"
                 )
             _check_architecture_md_written(architecture_path_abs)
+        elif name == "source_root_populated":
+            if source_root_abs is None:
+                raise RuntimeError(
+                    f"postcondition source_root_populated requires source_root_abs "
+                    f"(workflow={spec.name!r})"
+                )
+            _check_source_root_populated(source_root_abs)
         else:
             raise WorkflowError(
                 f"unknown postcondition {name!r}",

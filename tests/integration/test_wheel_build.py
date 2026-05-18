@@ -120,6 +120,10 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase2/security-architect.md").as_posix(),
         Path("sdlc/commands/sdlc-architect.md").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-architect.yaml").as_posix(),
+        # Story 2A.15 — /sdlc-bootstrap phase 3 specialist stub, command, workflow YAML.
+        Path("sdlc/agents/phase3/code-bootstrapper.md").as_posix(),
+        Path("sdlc/commands/sdlc-bootstrap.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-bootstrap.yaml").as_posix(),
     }
 )
 

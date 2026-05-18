@@ -1,0 +1,14 @@
+schema_version: 1
+name: phase3-bootstrap-track
+slash_command: /sdlc-bootstrap
+primary_agent: code-bootstrapper
+parallel_agents: []
+synthesizer_agent: null
+postconditions:
+  - source_root_populated
+  - boundary_line_present_in_prompts
+write_globs:
+  code-bootstrapper:
+    - "src/**"
+    - "tests/**"
+stop_on_postcondition_failure: true

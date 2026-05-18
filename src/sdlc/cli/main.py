@@ -244,6 +244,14 @@ def architect_command(ctx: typer.Context) -> None:
     run_architect(ctx=ctx)
 
 
+@app.command(name="bootstrap")
+def bootstrap_command(ctx: typer.Context) -> None:
+    """Initiate Phase 3 codebase scaffolding (FR15)."""
+    from sdlc.cli.bootstrap import run_bootstrap  # deferred per Architecture §488
+
+    run_bootstrap(ctx=ctx)
+
+
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""
