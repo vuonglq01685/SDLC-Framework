@@ -1,6 +1,6 @@
 # Story 2A.19: `sdlc replan --scope=<scope>` (Mark Stale + Invalidate Downstream)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -171,25 +171,25 @@ so that the audit chain reflects reality after a major direction change (FR4).
 
 > Tasks ordered for TDD-first commits per ADR-026 §1. AC1/AC9 (CLI), AC2/AC3/AC8 (engine logic), AC10 (e2e) are public-API surfaces requiring tests-first commit ordering.
 
-- [ ] **Task 1 — Slash-command shell + CLI registration skeleton (AC1, AC8, AC9)** — **TDD-first commit 1**
-  - [ ] 1.1 Author `src/sdlc/commands/sdlc-replan.md` (≤ 80 LOC; `--scope` syntax; no YAML, no specialist).
-  - [ ] 1.2 Author the `run_replan` skeleton in `src/sdlc/cli/replan_cmd.py` (init guard + scope validation only).
-  - [ ] 1.3 Register `replan_command` in `cli/main.py` (deferred import; `--scope` required option).
-  - [ ] 1.4 Author `tests/unit/cli/test_replan_command.py` — command registered; init guard → `ERR_NOT_INITIALIZED`; bad `--scope` (absolute / `..` / backslash) → `WorkflowError`; missing scope artifact → `WorkflowError "not found"`; scope outside a phase dir → `WorkflowError`. Tests fail (red) → implement → pass (green).
-  - [ ] 1.5 Document AC2/D1, AC2/D2, AC6/D1 as FIRST/SECOND/THIRD line items in the PR Change Log.
+- [x] **Task 1 — Slash-command shell + CLI registration skeleton (AC1, AC8, AC9)** — **TDD-first commit 1**
+  - [x] 1.1 Author `src/sdlc/commands/sdlc-replan.md` (≤ 80 LOC; `--scope` syntax; no YAML, no specialist).
+  - [x] 1.2 Author the `run_replan` skeleton in `src/sdlc/cli/replan_cmd.py` (init guard + scope validation only).
+  - [x] 1.3 Register `replan_command` in `cli/main.py` (deferred import; `--scope` required option).
+  - [x] 1.4 Author `tests/unit/cli/test_replan_command.py` — command registered; init guard → `ERR_NOT_INITIALIZED`; bad `--scope` (absolute / `..` / backslash) → `WorkflowError`; missing scope artifact → `WorkflowError "not found"`; scope outside a phase dir → `WorkflowError`. Tests fail (red) → implement → pass (green).
+  - [x] 1.5 Document AC2/D1, AC2/D2, AC6/D1 as FIRST/SECOND/THIRD line items in the PR Change Log.
 
-- [ ] **Task 2 — `engine/replan.py` pure logic (AC2, AC3, AC8)** — **TDD-first commit 2**
-  - [ ] 2.1 Author `tests/unit/engine/test_replan.py`:
+- [x] **Task 2 — `engine/replan.py` pure logic (AC2, AC3, AC8)** — **TDD-first commit 2**
+  - [x] 2.1 Author `tests/unit/engine/test_replan.py`:
     - `resolve_scope_phase` — `01-/02-/03-` prefixes → 1/2/3; unknown → raises
     - `compute_downstream` — `scope_phase=1` → files under `02-` + `03-`; `=2` → under `03-`; `=3` → empty; count correct
     - `plan_invalidations` — only `APPROVED` phases `>= scope_phase` in `{1,2}`; an already-invalidated phase is excluded (AC3 replan-then-replan)
     Tests fail (red).
-  - [ ] 2.2 Implement `src/sdlc/engine/replan.py` (`resolve_scope_phase`, `compute_downstream`, `plan_invalidations` — pure / read-only).
-  - [ ] 2.3 Update `src/sdlc/engine/__init__.py` to export the replan surface. Tests pass (green).
-  - [ ] 2.4 Run `python scripts/check_module_boundaries.py` — confirm `engine` → `signoff` edge is already permitted.
+  - [x] 2.2 Implement `src/sdlc/engine/replan.py` (`resolve_scope_phase`, `compute_downstream`, `plan_invalidations` — pure / read-only).
+  - [x] 2.3 Update `src/sdlc/engine/__init__.py` to export the replan surface. Tests pass (green).
+  - [x] 2.4 Run `python scripts/check_module_boundaries.py` — confirm `engine` → `signoff` edge is already permitted.
 
-- [ ] **Task 3 — `run_replan` orchestration: invalidate + journal (AC3, AC4, AC9)** — **TDD-first commit 3**
-  - [ ] 3.1 Author `tests/unit/cli/test_replan_command.py` additions:
+- [x] **Task 3 — `run_replan` orchestration: invalidate + journal (AC3, AC4, AC9)** — **TDD-first commit 3**
+  - [x] 3.1 Author `tests/unit/cli/test_replan_command.py` additions:
     - Phase 2 scope, both phases approved → only Phase 2 `invalidate_record` called; one `signoff_invalidated` entry
     - Phase 1 scope → Phase 1 + Phase 2 invalidated; two `signoff_invalidated` entries
     - Phase 3 scope → no `invalidate_record` call; still one `replan_invalidated` entry
@@ -197,26 +197,26 @@ so that the audit chain reflects reality after a major direction change (FR4).
     - `replan_invalidated` payload carries `scope`, `scope_phase`, `downstream_count`, `downstream_artifacts`
     - `emit_json` envelope shape (AC4)
     Tests fail (red).
-  - [ ] 3.2 Implement the `run_replan` body per the AC9 ordering: append `replan_invalidated` FIRST, then per-phase `invalidate_record` + `signoff_invalidated`, then `emit_json`. Tests pass (green).
-  - [ ] 3.3 Integration test `tests/integration/test_sdlc_replan.py`: tmp repo with approved Phase 1 + 2 signoff records; invoke `run_replan`; assert signoff YAML files gain `invalidated_at`; assert the journal sequence.
+  - [x] 3.2 Implement the `run_replan` body per the AC9 ordering: append `replan_invalidated` FIRST, then per-phase `invalidate_record` + `signoff_invalidated`, then `emit_json`. Tests pass (green).
+  - [x] 3.3 Integration test `tests/integration/test_sdlc_replan.py`: tmp repo with approved Phase 1 + 2 signoff records; invoke `run_replan`; assert signoff YAML files gain `invalidated_at`; assert the journal sequence.
 
-- [ ] **Task 4 — `sdlc trace` global-event passthrough (AC6)** — **TDD-first commit 4**
-  - [ ] 4.1 Read `src/sdlc/cli/trace.py` — understand its current journal-entry selection/filtering.
-  - [ ] 4.2 Author a unit test asserting `sdlc trace <task>` output includes a `kind="replan_invalidated"` entry that postdates the task (AC6/D1). Test fails (red).
-  - [ ] 4.3 Implement the global-event passthrough rule in `cli/trace.py` (AC6/D1). If the change is disproportionately large, fall back to AC6/D2 and raise the deviation as a D-decision in `review-A`. Test passes (green).
+- [x] **Task 4 — `sdlc trace` global-event passthrough (AC6)** — **TDD-first commit 4**
+  - [x] 4.1 Read `src/sdlc/cli/trace.py` — understand its current journal-entry selection/filtering.
+  - [x] 4.2 Author a unit test asserting `sdlc trace <task>` output includes a `kind="replan_invalidated"` entry that postdates the task (AC6/D1). Test fails (red).
+  - [x] 4.3 Implement the global-event passthrough rule in `cli/trace.py` (AC6/D1). If the change is disproportionately large, fall back to AC6/D2 and raise the deviation as a D-decision in `review-A`. Test passes (green).
 
-- [ ] **Task 5 — Tier-2 e2e + anti-tautology receipt (AC5, AC7, AC10)** — **TDD-first commit 5**
-  - [ ] 5.1 Reuse `phase2_approved_repo` from `tests/e2e/pipeline/conftest.py` (must yield a repo with REAL approved Phase 1 + Phase 2 signoff records — extend the fixture if it only seeds Phase 2).
-  - [ ] 5.2 Author `tests/e2e/pipeline/fixtures/replan/` as needed.
-  - [ ] 5.3 Author `tests/e2e/pipeline/test_sdlc_replan.py` (4 scenarios per AC10).
-  - [ ] 5.4 Run targeted Tier-2 e2e: all scenarios green.
-  - [ ] 5.5 **Anti-tautology receipt (AC10 mandatory)**: neutralise the `invalidate_record` call; confirm `test_e2e_replan_invalidation_is_load_bearing` fails; revert; document in the PR Change Log.
+- [x] **Task 5 — Tier-2 e2e + anti-tautology receipt (AC5, AC7, AC10)** — **TDD-first commit 5**
+  - [x] 5.1 Reuse `phase2_approved_repo` from `tests/e2e/pipeline/conftest.py` (must yield a repo with REAL approved Phase 1 + Phase 2 signoff records — extend the fixture if it only seeds Phase 2).
+  - [x] 5.2 Author `tests/e2e/pipeline/fixtures/replan/` as needed.
+  - [x] 5.3 Author `tests/e2e/pipeline/test_sdlc_replan.py` (4 scenarios per AC10).
+  - [x] 5.4 Run targeted Tier-2 e2e: all scenarios green.
+  - [x] 5.5 **Anti-tautology receipt (AC10 mandatory)**: neutralise the `invalidate_record` call; confirm `test_e2e_replan_invalidation_is_load_bearing` fails; revert; document in the PR Change Log.
 
-- [ ] **Task 6 — Module boundary + quality gate + Change Log + close debt (AC11)**
-  - [ ] 6.1 Run `python scripts/check_module_boundaries.py` — confirm no new edges required.
-  - [ ] 6.2 Add `sdlc-replan.md` to `tests/integration/test_wheel_build.py:_ALLOWED_CONTENT_FILES`.
-  - [ ] 6.3 Run the full quality gate; record the baseline.
-  - [ ] 6.4 Mark `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` CLOSED in `deferred-work.md` (cite AC3 + AC4); author the PR Change Log with D-decisions, the anti-tautology receipt, debt citations.
+- [x] **Task 6 — Module boundary + quality gate + Change Log + close debt (AC11)**
+  - [x] 6.1 Run `python scripts/check_module_boundaries.py` — confirm no new edges required.
+  - [x] 6.2 Add `sdlc-replan.md` to `tests/integration/test_wheel_build.py:_ALLOWED_CONTENT_FILES`.
+  - [x] 6.3 Run the full quality gate; record the baseline.
+  - [x] 6.4 Mark `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` CLOSED in `deferred-work.md` (cite AC3 + AC4); author the PR Change Log with D-decisions, the anti-tautology receipt, debt citations.
 
 ## Dev Notes
 
@@ -335,10 +335,51 @@ tests/e2e/pipeline/conftest.py                # UPDATE if phase2_approved_repo l
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
+
+- ruff RUF100 (unused noqa PLR0912/PLR0915) in replan_cmd.py — removed, left only `# noqa: C901`
+- ruff F401 (unused `SignoffError` import) in replan_cmd.py — removed
+- ruff C901 `_collect_events` complexity=13 in trace.py — extracted `_partition_journal` + `_collect_agent_run_events` helpers
+- ruff PLC0415 (import inside function) in engine/replan.py — promoted `from sdlc.signoff.states import SignoffState, compute_state` to module top level
+- anti-tautology mock target was `sdlc.signoff.records.invalidate_record` (wrong) → corrected to `sdlc.cli.replan_cmd.invalidate_record` (replan_cmd imports the name directly)
 
 ### Completion Notes List
 
+- AC2/D1 (phase-based downstream): chosen; `EPIC-2A-DEBT-REPLAN-FINE-GRAINED-DAG` opened.
+- AC2/D2 → D1 (dirty-marker in journal payload): chosen; `EPIC-2A-DEBT-REPLAN-DIRTY-PROJECTION` opened.
+- AC6/D1 (global-event passthrough in trace.py): implemented; extracted `_partition_journal` + `_collect_agent_run_events` to keep C901 ≤ 8.
+- AC10 anti-tautology receipt: `test_e2e_replan_invalidation_is_load_bearing` — neutralised `sdlc.cli.replan_cmd.invalidate_record` via `unittest.mock.patch`; baseline assertion (`p2["invalidated_at"] is not None`) failed as expected; reverted; documented in Change Log.
+- `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` closed (deferred-work.md updated 2026-05-19).
+- Quality gate: ruff format ✓, ruff check ✓, mypy --strict ✓, pytest 2251 passed / coverage 85.60% ✓, wire-format snapshots unchanged (5 contracts) ✓, module boundaries ✓.
+
 ### File List
 
+- `src/sdlc/commands/sdlc-replan.md` (new)
+- `src/sdlc/cli/replan_cmd.py` (new)
+- `src/sdlc/engine/replan.py` (new)
+- `src/sdlc/cli/main.py` (modified — added `replan_command`)
+- `src/sdlc/cli/trace.py` (modified — AC6/D1 global-event passthrough; extracted helpers)
+- `src/sdlc/engine/__init__.py` (modified — export replan surface)
+- `tests/unit/cli/test_replan_command.py` (new)
+- `tests/unit/engine/test_replan.py` (new)
+- `tests/unit/cli/test_trace_replan.py` (new)
+- `tests/integration/test_sdlc_replan.py` (new)
+- `tests/e2e/pipeline/test_sdlc_replan.py` (new)
+- `tests/integration/test_wheel_build.py` (modified — added `sdlc-replan.md` to allowlist)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (modified — closed REPLAN-INVALIDATION-WIRE; opened REPLAN-FINE-GRAINED-DAG + REPLAN-DIRTY-PROJECTION)
+
 ## Change Log
+
+- **D1: AC2/D1 — Phase-based downstream (recommended path chosen)** — `compute_downstream` returns all files under phase directories numerically > `scope_phase`. A fine-grained artifact-provenance graph (architecture concern #16) would tighten this to the affected epic/story subtree; deferred as `EPIC-2A-DEBT-REPLAN-FINE-GRAINED-DAG`.
+
+- **D2: AC2/D2 → D1 — Dirty-marker recorded in `replan_invalidated` journal payload** — The dirty set (`downstream_artifacts`, `downstream_count`) is encoded in the `replan_invalidated` journal entry. No `state.json` schema change needed for this story. A future `sdlc scan` projection will fold `replan_invalidated` entries into `state.json` dirty-flags; deferred as `EPIC-2A-DEBT-REPLAN-DIRTY-PROJECTION`.
+
+- **D3: AC6/D1 — Global-event passthrough in `cli/trace.py`** — `replan_invalidated` is a global journal event (`target_id=<scope>`, not a task id). Implemented D1 (recommended): `_partition_journal` separates global events from task events; `_add_postdating_globals` appends global events that postdate the task's earliest journal entry. `_collect_events` complexity reduced by extracting two helpers to comply with C901 ≤ 8.
+
+- **Anti-tautology receipt (AC10 mandatory)**: `test_e2e_replan_invalidation_is_load_bearing` — patched `sdlc.cli.replan_cmd.invalidate_record` to a no-op via `unittest.mock.patch`; the baseline assertion `p2_mutated.get("invalidated_at") is None` held (the YAML did NOT gain `invalidated_at`), confirming the call — not just the `replan_invalidated` journal write — is the load-bearing signoff mutation. Patch reverted; test green.
+
+- **Debt closed**: `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` (opened by Story 2A.7 Task 11.5) — `run_replan` calls `invalidate_record` for every APPROVED phase ≥ scope_phase (AC3) and appends `replan_invalidated` + per-phase `signoff_invalidated` journal entries (AC4). Closed 2026-05-19.
+
+- **New debt opened**: `EPIC-2A-DEBT-REPLAN-FINE-GRAINED-DAG` and `EPIC-2A-DEBT-REPLAN-DIRTY-PROJECTION` (see deferred-work.md).
