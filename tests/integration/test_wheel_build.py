@@ -134,6 +134,8 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase3/code-reviewer.md").as_posix(),
         Path("sdlc/commands/sdlc-task.md").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-task.yaml").as_posix(),
+        # Story 2A.18 — /sdlc-next read-and-route command (no workflow YAML, no specialist).
+        Path("sdlc/commands/sdlc-next.md").as_posix(),
     }
 )
 

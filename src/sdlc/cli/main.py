@@ -263,6 +263,14 @@ def break_command(
     run_break(ctx=ctx, story_id=story_id)
 
 
+@app.command(name="next")
+def next_command(ctx: typer.Context) -> None:
+    """Select and advance the highest-priority ready item (FR18, Story 2A.18)."""
+    from sdlc.cli.next_ import run_next  # deferred per Architecture §488
+
+    run_next(ctx=ctx)
+
+
 @app.command(name="task")
 def task_command(
     ctx: typer.Context,
