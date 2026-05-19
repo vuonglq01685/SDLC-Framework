@@ -127,7 +127,7 @@ development_status:
   2a-15-sdlc-bootstrap-phase-3-greenfield-scaffolding: done
   2a-16-sdlc-break-active-story-only-task-generation: done
   2a-17-sdlc-task-tdd-pipeline-5-stages: done
-  2a-18-sdlc-next: ready-for-dev
+  2a-18-sdlc-next: review
   2a-19-sdlc-replan-mark-stale-invalidate-downstream: ready-for-dev
   epic-2a-retrospective: optional
 
