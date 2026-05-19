@@ -1,6 +1,9 @@
 """`sdlc trace <task-id>` implementation (FR33, NFR-OBS-3, Architecture §803, §1159).
 
 Filters journal + agent_runs by task-id; chronological merge.
+AC6/D1 (Story 2A.19): `replan_invalidated` is a global event — any trace invocation
+surfaces `kind="replan_invalidated"` entries that postdate the traced task's
+first journal entry (global-event passthrough rule).
 """
 
 from __future__ import annotations
@@ -68,38 +71,83 @@ def _record_matches_task(record: dict[str, Any], task_id: str) -> bool:
     return False
 
 
-def _collect_events(
-    *,
+_GLOBAL_EVENT_KINDS: frozenset[str] = frozenset({"replan_invalidated"})
+
+
+def _add_postdating_globals(
+    task_events: list[dict[str, Any]],
+    global_candidates: list[dict[str, Any]],
+) -> None:
+    """AC6/D1: append global events that postdate the task's earliest journal entry.
+
+    Mutates task_events in-place; no-op when either list is empty.
+    """
+    if not task_events or not global_candidates:
+        return
+    earliest_task_ts = min(e["_sort_ts"] for e in task_events)
+    for ge in global_candidates:
+        if ge["_sort_ts"] >= earliest_task_ts:
+            task_events.append(ge)
+
+
+def _partition_journal(
     journal_path: Path,
-    agent_runs_path: Path,
     task_id: str,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split journal into (task_events, global_candidates)."""
     from sdlc.journal import iter_entries  # deferred per Architecture §488
 
-    events: list[dict[str, Any]] = []
+    task_events: list[dict[str, Any]] = []
+    global_candidates: list[dict[str, Any]] = []
     for entry in iter_entries(journal_path):
+        if entry.kind in _GLOBAL_EVENT_KINDS:
+            event = _journal_event_from_entry(entry)
+            if event is not None:
+                global_candidates.append(event)
+            continue
         if not _event_affects_task(entry, task_id):
             continue
         event = _journal_event_from_entry(entry)
         if event is not None:
-            events.append(event)
+            task_events.append(event)
+    return task_events, global_candidates
+
+
+def _collect_agent_run_events(
+    agent_runs_path: Path,
+    task_id: str,
+) -> list[dict[str, Any]]:
+    """Return agent_run events matching task_id."""
+    events: list[dict[str, Any]] = []
     for record in _iter_agent_runs(agent_runs_path):
         if not _record_matches_task(record, task_id):
             continue
         event = _agent_event_from_record(record)
         if event is not None:
             events.append(event)
-    events.sort(
+    return events
+
+
+def _collect_events(
+    *,
+    journal_path: Path,
+    agent_runs_path: Path,
+    task_id: str,
+) -> list[dict[str, Any]]:
+    task_events, global_candidates = _partition_journal(journal_path, task_id)
+    task_events.extend(_collect_agent_run_events(agent_runs_path, task_id))
+    _add_postdating_globals(task_events, global_candidates)
+    task_events.sort(
         key=lambda e: (
             e["_sort_ts"],
             0 if e["source"] == "journal" else 1,
             e["_sort_seq"],
         )
     )
-    for e in events:
+    for e in task_events:
         e.pop("_sort_ts", None)
         e.pop("_sort_seq", None)
-    return events
+    return task_events
 
 
 def _load_events(

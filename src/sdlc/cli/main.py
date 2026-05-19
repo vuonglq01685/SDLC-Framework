@@ -271,6 +271,21 @@ def next_command(ctx: typer.Context) -> None:
     run_next(ctx=ctx)
 
 
+@app.command(name="replan")
+def replan_command(
+    ctx: typer.Context,
+    scope: str = typer.Option(
+        ...,
+        "--scope",
+        help="Repo-relative POSIX path of the artifact to replan (FR4).",
+    ),
+) -> None:
+    """Mark an artifact + its downstream stale and invalidate downstream signoffs (FR4)."""
+    from sdlc.cli.replan_cmd import run_replan  # deferred per Architecture §488
+
+    run_replan(ctx=ctx, scope=scope)
+
+
 @app.command(name="task")
 def task_command(
     ctx: typer.Context,
