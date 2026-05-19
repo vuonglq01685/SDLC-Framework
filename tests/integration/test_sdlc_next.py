@@ -137,7 +137,7 @@ def test_phase2_not_started_suggests_sdlc_architect(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase boundary: phase 2 approved, no tasks → none (all complete)
+# Phase boundary: phase 2 approved, no task JSONs → none (no tasks generated yet)
 # ---------------------------------------------------------------------------
 
 
@@ -150,6 +150,10 @@ def test_phase2_approved_no_tasks_returns_none(tmp_path: Path) -> None:
     assert r.exit_code == 0
     data = json.loads(r.output)
     assert data["next_action"] == "none"
+    # No task JSON exists yet — the reason must say so, not "all tasks complete".
+    assert "no tasks" in data["reason"], (
+        f"expected a 'no tasks generated' reason; got {data['reason']!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

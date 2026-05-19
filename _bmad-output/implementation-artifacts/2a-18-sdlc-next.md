@@ -1,6 +1,6 @@
 # Story 2A.18: `/sdlc-next`
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -346,3 +346,30 @@ Fixture: `T01-blocked` (seq=01, `dependencies=[T02-ready]`) + `T02-ready` (seq=0
 **Debt citations (this story):**
 - `EPIC-2A-DEBT-NEXT-CONSUME-PROJECTION` — once task projection lands in `state.json`, refactor `/sdlc-next` to consume it instead of re-globbing artifact tree.
 - `EPIC-2A-DEBT-NEXT-PRIORITY-RANKING` — v1 priority is `(story_seq, task_seq)` order; true cross-phase priority ranking (P0–P3 epic priority) deferred to Epic 4 auto-loop / Epic 5 dashboard.
+
+## Review Findings
+
+> bmad-code-review 2026-05-19 — 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor). ~41 raw → 17 actionable after dedupe (0 decision-needed + 9 patch + 8 defer); 13 dismissed.
+
+### Patch findings
+
+- [x] [Review][Patch] Default (non-`--json`) path emits raw JSON instead of a human-readable line — HIGH; violates AC4/AC5 [src/sdlc/cli/next_.py:63-85]. `_handle_decision` calls `emit_json` unconditionally; `emit_json` (output.py:211-220) always emits `canonical_dumps` JSON with no `--json` gate. Sibling read-only commands `scan.py`/`status.py` gate `emit_json` behind `if ctx.obj.get("json", False)` and `echo` a human-readable line for the default. Fix: gate `emit_json` behind `--json`; emit the suggested command / reason string as plain text on the default path.
+- [x] [Review][Patch] Misplaced `@pytest.mark.skipif` decorates a helper, not the anti-tautology test — HIGH [tests/e2e/pipeline/test_sdlc_next.py:276]. The Windows skip guard sits above the helper `_select_no_dep_check` (line 277); the actual test `test_e2e_next_dependency_gate_is_load_bearing` (line 303) has NO skip guard while every other test in the file does. The AC7-mandatory anti-tautology receipt runs unguarded on Windows. Fix: move the decorator from line 276 to line 303.
+- [x] [Review][Patch] e2e scenario 4 + anti-tautology receipt call `resolve_next` directly instead of invoking `sdlc next` — MEDIUM; violates AC7 ("invoke `sdlc next`") [tests/e2e/pipeline/test_sdlc_next.py:262,319,328]. Scenario 4 and the receipt assert at unit level inside an e2e file, never routing through the CLI surface. Fix: invoke via `_invoke_next` / `_runner.invoke(app, ["next"])`.
+- [x] [Review][Patch] Empty Phase-3 task batch reports "all tasks complete" — MEDIUM [src/sdlc/cli/_next_resolver.py:301-305]. Phase 2 APPROVED with zero task JSONs (e.g. `/sdlc-break` not yet run) falls through `_select_phase3_task` to the "all tasks complete" branch, claiming completion for a project where no task ever existed. Fix: distinguish "no tasks generated" from "all tasks done" and surface a `/sdlc-break` hint.
+- [x] [Review][Patch] `test_e2e_next_phase3_auto_dispatch` asserts only `stage != "pending"` — MEDIUM [tests/e2e/pipeline/test_sdlc_next.py:843-845]. A transition into a failed/error stage also passes. Fix: assert the task reached the specific expected post-dispatch stage.
+- [x] [Review][Patch] `commands/sdlc-next.md` advertises `/sdlc-research`, which the resolver never emits — MEDIUM; doc/impl contradiction [src/sdlc/commands/sdlc-next.md:13]. `_resolve_phase1_ladder` (per the Dev Notes ladder) only emits `/sdlc-epics`, `/sdlc-stories <epic>`, `/sdlc-signoff 1`. Fix: drop `/sdlc-research` from the Phase-1 row of the doc table (resolver is correct; doc overstates).
+- [x] [Review][Patch] `_select_phase3_task` re-parses every task file already parsed by `_collect_task_index` — LOW; TOCTOU + wasted I/O [src/sdlc/cli/_next_resolver.py:161-164]. The loop calls `_load_task(task_path)` again on paths whose `_TaskEntry` is already in `all_tasks`. Fix: carry the parsed entry through `task_paths` (or look it up in `all_tasks`) instead of re-loading.
+- [x] [Review][Patch] `run_task(task_id=...)` dispatched with blanket `# type: ignore[arg-type]` and no runtime None-guard — LOW [src/sdlc/cli/next_.py:59]. `decision.task_id` is `str | None`; nothing enforces the `kind="dispatch_task"` ⇒ `task_id is not None` invariant. Fix: add an explicit `if decision.task_id is None: emit_error(...)` guard before dispatch.
+- [x] [Review][Patch] Integration test asserts `next_action == "none"` without checking the reason string — LOW [tests/integration/test_sdlc_next.py:1144-1152]. A wrong reason (e.g. "all tasks complete" for a zero-task repo) passes. Fix: also assert the expected reason text.
+
+### Deferred findings
+
+- [x] [Review][Defer] Circular / self task dependencies are silently treated as permanently "blocked" [src/sdlc/cli/_next_resolver.py:140-144] — deferred, pre-existing; upstream-validated by Story 2A.16 dep-DAG (Kahn) check, defensive-only here.
+- [x] [Review][Defer] Dependency referencing a non-existent task ID is conflated with "dependency not yet done" [src/sdlc/cli/_next_resolver.py:142-143] — deferred, pre-existing; upstream-validated by Story 2A.16 story_id cross-check + dep-DAG.
+- [x] [Review][Defer] Duplicate task IDs across files silently overwrite in `all_tasks` [src/sdlc/cli/_next_resolver.py:134] — deferred, pre-existing; upstream-validated by Story 2A.16 task-ID uniqueness check.
+- [x] [Review][Defer] All-done batch containing malformed (soft-skipped) task files still reports "all tasks complete" [src/sdlc/cli/_next_resolver.py:161-174] — deferred, pre-existing; `_load_task` soft-skip is a documented posture; masking is a known trade-off.
+- [x] [Review][Defer] `_parse_story_seq` re-derives story seq from the directory name via regex (fallback 999) instead of `parse_story_id` [src/sdlc/cli/_next_resolver.py:106-109] — deferred, pre-existing; works for the canonical `EPIC-…-S<NN>-…` ID format.
+- [x] [Review][Defer] Integration `_invoke` helper does not dual-patch `sdlc.cli.task._get_repo_root_or_cwd` like the e2e helper [tests/integration/test_sdlc_next.py:1043-1046] — deferred, pre-existing; `run_task` is mocked today so no real-dispatch risk.
+- [x] [Review][Defer] `01-PRODUCT.md` existing as a directory is treated as "phase 1 not started" [src/sdlc/cli/_next_resolver.py:188] — deferred, pre-existing; exotic corrupt-state edge.
+- [x] [Review][Defer] An epic with only corrupt story JSONs is treated as having stories (`_stories_exist_for_epic` checks glob presence, not parseability) [src/sdlc/cli/_next_resolver.py:82-87] — deferred, pre-existing; upstream-validated at story-creation time.

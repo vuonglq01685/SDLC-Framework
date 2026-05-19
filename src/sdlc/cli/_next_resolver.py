@@ -119,10 +119,14 @@ def _parse_task_seq(task_id: str) -> int:
 
 def _collect_task_index(
     tasks_root: Path,
-) -> tuple[dict[str, _TaskEntry], list[tuple[int, int, Path]]]:
-    """Return (all_tasks_by_id, sorted_task_paths) from 03-Implementation/tasks/."""
+) -> tuple[dict[str, _TaskEntry], list[tuple[int, int, _TaskEntry]]]:
+    """Return (all_tasks_by_id, sorted [(story_seq, task_seq, task), ...]).
+
+    Each task JSON is parsed exactly once — the parsed ``_TaskEntry`` is carried
+    through the index so callers never re-read the file.
+    """
     all_tasks: dict[str, _TaskEntry] = {}
-    task_paths: list[tuple[int, int, Path]] = []
+    indexed: list[tuple[int, int, _TaskEntry]] = []
     for story_dir in sorted(tasks_root.iterdir()):
         if not story_dir.is_dir():
             continue
@@ -132,9 +136,9 @@ def _collect_task_index(
             if task is None:
                 continue
             all_tasks[task.id] = task
-            task_paths.append((s_seq, _parse_task_seq(task.id), task_path))
-    task_paths.sort()
-    return all_tasks, task_paths
+            indexed.append((s_seq, _parse_task_seq(task.id), task))
+    indexed.sort(key=lambda item: (item[0], item[1]))
+    return all_tasks, indexed
 
 
 def _deps_satisfied(task: _TaskEntry, all_tasks: dict[str, _TaskEntry]) -> bool:
@@ -150,18 +154,21 @@ def _select_phase3_task(tasks_root: Path) -> tuple[_TaskEntry | None, dict[str, 
     Selection order: (story_seq, task_seq). A task is ready when:
       - stage != "done"
       - every dependency task_id has stage == "done"
+
+    The blocker dict is empty (``{}``) ONLY when no task JSON exists at all —
+    callers use that to distinguish "no tasks generated yet" from "all done".
     """
     if not tasks_root.is_dir():
         return None, {}
 
-    all_tasks, task_paths = _collect_task_index(tasks_root)
+    all_tasks, indexed = _collect_task_index(tasks_root)
+    if not indexed:  # tasks_root exists but holds no parseable task JSON
+        return None, {}
+
     blocked_count = 0
     done_count = 0
 
-    for _, _, task_path in task_paths:
-        task = _load_task(task_path)
-        if task is None:
-            continue
+    for _, _, task in indexed:
         if task.stage == "done":
             done_count += 1
             continue
@@ -169,7 +176,7 @@ def _select_phase3_task(tasks_root: Path) -> tuple[_TaskEntry | None, dict[str, 
             return task, {}
         blocked_count += 1
 
-    if task_paths and done_count == len(task_paths):
+    if done_count == len(indexed):
         return None, {"blocked_by_deps": 0, "awaiting_signoff": 0}
     return None, {"blocked_by_deps": blocked_count, "awaiting_signoff": 0}
 
@@ -288,6 +295,12 @@ def _resolve_phase3(repo_root: Path) -> _NextDecision:
             kind="dispatch_task",
             task_id=task.id,
             reason=f"phase 3 task ready: {task.id}",
+        )
+
+    if not blockers:  # no task JSON exists yet — phase 3 not broken into tasks
+        return _NextDecision(
+            kind="none",
+            reason="phase 3: no tasks generated yet (run /sdlc-break for the active story)",
         )
 
     if blockers.get("blocked_by_deps", 0) > 0:

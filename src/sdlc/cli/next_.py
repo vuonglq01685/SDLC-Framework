@@ -51,35 +51,56 @@ def run_next(*, ctx: typer.Context) -> None:
     _handle_decision(decision, ctx=ctx)
 
 
+def _json_mode(ctx: typer.Context) -> bool:
+    """True when the global ``--json`` flag is set (mirrors ``output`` json detection)."""
+    return bool(ctx.obj is not None and ctx.obj.get("json", False))
+
+
 def _handle_decision(decision: _NextDecision, *, ctx: typer.Context) -> None:
     # Step 4 — Phase 3 task: auto-dispatch (AC3/D1)
     if decision.kind == "dispatch_task":
+        task_id = decision.task_id
+        if task_id is None:  # defensive — resolver guarantees task_id for dispatch_task
+            emit_error(
+                "ERR_INFRASTRUCTURE",
+                "internal: dispatch_task decision is missing task_id",
+                ctx=ctx,
+                details={},
+            )
         from sdlc.cli.task import run_task  # deferred; soft dep on Story 2A.17
 
-        run_task(ctx=ctx, task_id=decision.task_id)  # type: ignore[arg-type]
+        run_task(ctx=ctx, task_id=task_id)
         return
 
     # Step 5 — Phase 1/2 advance: print suggested command (AC4)
+    # AC4: the printed line is human-readable on stdout; --json yields the envelope.
     if decision.kind == "run_command":
-        emit_json(
-            "next",
-            {
-                "next_action": "command",
-                "phase": decision.phase,
-                "suggested_command": decision.command,
-                "reason": decision.reason,
-            },
-            ctx=ctx,
-        )
+        if _json_mode(ctx):
+            emit_json(
+                "next",
+                {
+                    "next_action": "command",
+                    "phase": decision.phase,
+                    "suggested_command": decision.command,
+                    "reason": decision.reason,
+                },
+                ctx=ctx,
+            )
+        else:
+            typer.echo(f"sdlc next: run {decision.command}  ({decision.reason})")
         return
 
     # Step 6 — no ready items (AC5)
-    emit_json(
-        "next",
-        {
-            "next_action": "none",
-            "reason": decision.reason,
-            "blockers": decision.blockers,
-        },
-        ctx=ctx,
-    )
+    # AC5: prints a reason string; --json yields the envelope.
+    if _json_mode(ctx):
+        emit_json(
+            "next",
+            {
+                "next_action": "none",
+                "reason": decision.reason,
+                "blockers": decision.blockers,
+            },
+            ctx=ctx,
+        )
+    else:
+        typer.echo(f"sdlc next: no ready items — {decision.reason}")

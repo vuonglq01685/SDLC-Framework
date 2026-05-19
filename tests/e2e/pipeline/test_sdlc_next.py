@@ -181,10 +181,10 @@ def test_e2e_next_phase3_auto_dispatch(tmp_path: Path) -> None:
 
     assert r.exit_code == 0, f"sdlc next failed unexpectedly: {r.output}"
 
-    # Task stage advanced from pending
+    # Task stage advanced exactly one step: pending → write-tests (one-stage-per-invocation)
     task_data = json.loads(task_path.read_text(encoding="utf-8"))
-    assert task_data["stage"] != "pending", (
-        f"task stage should have advanced; got stage={task_data['stage']!r}"
+    assert task_data["stage"] == "write-tests", (
+        f"task should have advanced pending → write-tests; got stage={task_data['stage']!r}"
     )
 
     # Journal has at least one task_stage_advanced entry
@@ -247,23 +247,30 @@ def test_e2e_next_no_ready_items_all_tasks_done(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal")
 def test_e2e_next_dependency_blocked_selects_dep_free_task(tmp_path: Path) -> None:
-    """T01-blocked depends on T02-ready (pending) → resolver selects T02-ready (dep-free).
+    """T01-blocked depends on T02-ready (pending) → `sdlc next` dispatches T02-ready.
 
     T01-blocked (seq=01) would be picked first by pure seq order if no dep gate.
-    With dep gate active: T01-blocked is skipped (T02-ready not done); T02-ready selected.
+    With dep gate active: T01-blocked is skipped (T02-ready not done); T02-ready
+    is dispatched end-to-end through the CLI (AC7 — "invoke `sdlc next`").
     """
     _ready_approved_repo(tmp_path)
-    _write_task(tmp_path, _TASK_BLOCKED_ID, stage="pending", dependencies=[_TASK_READY_ID])
-    _write_task(tmp_path, _TASK_READY_ID, stage="pending", dependencies=[])
+    _seed_story_json(tmp_path)  # run_task needs the story JSON for STORY_CONTEXT
+    blocked_path = _write_task(
+        tmp_path, _TASK_BLOCKED_ID, stage="pending", dependencies=[_TASK_READY_ID]
+    )
+    ready_path = _write_task(tmp_path, _TASK_READY_ID, stage="pending", dependencies=[])
 
-    from sdlc.cli._next_resolver import resolve_next
+    r = _invoke_next(tmp_path)
 
-    with unittest.mock.patch("sdlc.cli.next_._get_repo_root_or_cwd", return_value=tmp_path):
-        decision = resolve_next(tmp_path)
-
-    assert decision.kind == "dispatch_task"
-    assert decision.task_id == _TASK_READY_ID, (
-        f"expected {_TASK_READY_ID!r} (dep-free); got {decision.task_id!r}"
+    assert r.exit_code == 0, f"sdlc next failed unexpectedly: {r.output}"
+    # The dep-free task (T02-ready) is dispatched and advances; the blocked task stays put.
+    ready_stage = json.loads(ready_path.read_text(encoding="utf-8"))["stage"]
+    blocked_stage = json.loads(blocked_path.read_text(encoding="utf-8"))["stage"]
+    assert ready_stage != "pending", (
+        f"dep-free {_TASK_READY_ID!r} should have been dispatched; got stage={ready_stage!r}"
+    )
+    assert blocked_stage == "pending", (
+        f"blocked {_TASK_BLOCKED_ID!r} must NOT be dispatched; got stage={blocked_stage!r}"
     )
 
 
@@ -273,7 +280,6 @@ def test_e2e_next_dependency_blocked_selects_dep_free_task(tmp_path: Path) -> No
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal")
 def _select_no_dep_check(tasks_root: Path) -> tuple[object, dict]:
     """Neutralised gate: pick first non-done task by seq with no dep check."""
     from sdlc.cli._epic_story_models import _TaskEntry
@@ -300,38 +306,49 @@ def _select_no_dep_check(tasks_root: Path) -> tuple[object, dict]:
     return candidates[0][2], {}
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX journal")
 def test_e2e_next_dependency_gate_is_load_bearing(tmp_path: Path) -> None:
     """Prove the dependency gate, not seq order alone, drives task selection.
 
     Fixture: T01-blocked (seq=01, deps=[T02-ready]) + T02-ready (seq=02, deps=[]).
-    - Gate active:    T01-blocked (seq=01) is skipped → T02-ready selected (CORRECT).
-    - Gate neutralised: T01-blocked (seq=01) wins by order → WRONG pick.
+    - Gate active:     `sdlc next` dispatches T02-ready, T01-blocked stays pending (CORRECT).
+    - Gate neutralised: `sdlc next` dispatches T01-blocked (seq=01 wins by order) → WRONG.
 
-    Documented in PR Change Log as 'test_e2e_next_dependency_gate_is_load_bearing'.
+    Both arms invoke `sdlc next` end-to-end (AC7). Documented in PR Change Log as
+    'test_e2e_next_dependency_gate_is_load_bearing'.
     """
     _ready_approved_repo(tmp_path)
-    _write_task(tmp_path, _TASK_BLOCKED_ID, stage="pending", dependencies=[_TASK_READY_ID])
-    _write_task(tmp_path, _TASK_READY_ID, stage="pending", dependencies=[])
+    _seed_story_json(tmp_path)  # run_task needs the story JSON for STORY_CONTEXT
+    blocked_path = _write_task(
+        tmp_path, _TASK_BLOCKED_ID, stage="pending", dependencies=[_TASK_READY_ID]
+    )
+    ready_path = _write_task(tmp_path, _TASK_READY_ID, stage="pending", dependencies=[])
 
     from sdlc.cli import _next_resolver as resolver_mod
-    from sdlc.cli._next_resolver import resolve_next
 
-    decision_with_gate = resolve_next(tmp_path)
-    assert decision_with_gate.kind == "dispatch_task"
-    assert decision_with_gate.task_id == _TASK_READY_ID, (
-        f"gate active: expected T02-ready; got {decision_with_gate.task_id!r}"
+    # --- Gate active: `sdlc next` dispatches the dep-free T02-ready ---
+    r_gate = _invoke_next(tmp_path)
+    assert r_gate.exit_code == 0, f"sdlc next failed unexpectedly: {r_gate.output}"
+    assert json.loads(ready_path.read_text(encoding="utf-8"))["stage"] != "pending", (
+        "gate active: T02-ready (dep-free) should have been dispatched"
     )
+    assert json.loads(blocked_path.read_text(encoding="utf-8"))["stage"] == "pending", (
+        "gate active: T01-blocked must NOT be dispatched"
+    )
+
+    # --- Reset task files, then neutralise the gate ---
+    blocked_path = _write_task(
+        tmp_path, _TASK_BLOCKED_ID, stage="pending", dependencies=[_TASK_READY_ID]
+    )
+    ready_path = _write_task(tmp_path, _TASK_READY_ID, stage="pending", dependencies=[])
 
     with unittest.mock.patch.object(
         resolver_mod, "_select_phase3_task", side_effect=_select_no_dep_check
     ):
-        decision_no_gate = resolve_next(tmp_path)
+        r_no_gate = _invoke_next(tmp_path)
 
-    assert decision_no_gate.kind == "dispatch_task"
-    assert decision_no_gate.task_id == _TASK_BLOCKED_ID, (
-        f"gate neutralised: expected T01-blocked (seq=01 wins by order); "
-        f"got {decision_no_gate.task_id!r}"
-    )
-    assert decision_no_gate.task_id != decision_with_gate.task_id, (
-        "gate neutralisation must invert the selection to prove gate is load-bearing"
+    assert r_no_gate.exit_code == 0, f"sdlc next failed unexpectedly: {r_no_gate.output}"
+    # Gate neutralised: T01-blocked (seq=01) wrongly wins by order and is dispatched.
+    assert json.loads(blocked_path.read_text(encoding="utf-8"))["stage"] != "pending", (
+        "gate neutralised: T01-blocked (seq=01) wrongly dispatched — proves gate is load-bearing"
     )

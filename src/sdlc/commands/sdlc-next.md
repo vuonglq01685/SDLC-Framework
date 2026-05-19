@@ -10,7 +10,7 @@ advance. It routes based on which phase the project is currently in:
 | State | Action |
 |-------|--------|
 | Phase 1 not started | Print `/sdlc-start "<idea>"` |
-| Phase 1 in progress | Print the missing Phase 1 command (`/sdlc-research`, `/sdlc-epics`, `/sdlc-stories`, `/sdlc-signoff 1`) |
+| Phase 1 in progress | Print the missing Phase 1 command (`/sdlc-epics`, `/sdlc-stories`, `/sdlc-signoff 1`) |
 | Phase 2 in progress | Print the missing Phase 2 command (`/sdlc-architect`, `/sdlc-signoff 2`) |
 | Phase 2 approved — task ready | **Auto-dispatch** `/sdlc-task <TASK-id>` in-process |
 | All tasks done or blocked | Print a reason string (Epic 4 STOP placeholder) |
