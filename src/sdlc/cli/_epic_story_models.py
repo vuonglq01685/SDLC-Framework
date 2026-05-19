@@ -75,16 +75,19 @@ class _StoryEntry(StrictModel):
 
 
 class _TaskEntry(StrictModel):
-    """Private model for /sdlc-break output.
+    """Private model for /sdlc-break output, extended by /sdlc-task (Story 2A.17 AC8).
 
     NOT a wire-format contract (ADR-024 snapshot count unchanged).
+    stage widened to 5-state machine; review_verdict/review_notes added for AC5 review capture.
     """
 
     id: str
     story_id: str
     label: Annotated[str, StringConstraints(min_length=1)]
-    stage: Literal["pending"] = "pending"
+    stage: Literal["pending", "write-tests", "write-code", "review", "done"] = "pending"
     dependencies: list[str] = Field(default_factory=list)
+    review_verdict: Literal["approved", "rejected"] | None = Field(default=None)
+    review_notes: str | None = Field(default=None)
 
     @field_validator("id")
     @classmethod

@@ -1,0 +1,17 @@
+schema_version: 1
+name: phase3-task-tdd-pipeline
+slash_command: /sdlc-task
+primary_agent: test-author
+parallel_agents:
+  - code-author
+  - code-reviewer
+synthesizer_agent: null
+postconditions: []
+write_globs:
+  test-author:
+    - "tests/**"
+  code-author:
+    - "src/**"
+  code-reviewer:
+    - "03-Implementation/tasks/**"
+stop_on_postcondition_failure: true

@@ -1,4 +1,4 @@
-"""Unit tests for ``_TaskEntry`` StrictModel (Story 2A.16, AC4, Task 2.1)."""
+"""Unit tests for ``_TaskEntry`` StrictModel (Story 2A.16, AC4, Task 2.1; extended 2A.17, AC8)."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ def _make_valid_record(
     label: str = "Design the data model.",
     stage: str = "pending",
     dependencies: list[str] | None = None,
+    review_verdict: str | None = None,
+    review_notes: str | None = None,
 ) -> dict[str, object]:
     record: dict[str, object] = {
         "id": task_id,
@@ -27,6 +29,10 @@ def _make_valid_record(
         "stage": stage,
         "dependencies": dependencies if dependencies is not None else [],
     }
+    if review_verdict is not None:
+        record["review_verdict"] = review_verdict
+    if review_notes is not None:
+        record["review_notes"] = review_notes
     return record
 
 
@@ -159,22 +165,14 @@ def test_task_entry_story_id_is_epic_id_raises_error() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_task_entry_stage_not_pending_raises_validation_error() -> None:
+def test_task_entry_stage_unknown_value_raises_validation_error() -> None:
+    """stage must be one of the 5 known values; arbitrary strings are rejected (AC8)."""
     from pydantic import ValidationError
 
     from sdlc.cli._epic_story_models import _TaskEntry
 
     with pytest.raises(ValidationError):
-        _TaskEntry(**_make_valid_record(stage="done"))  # type: ignore[arg-type]
-
-
-def test_task_entry_stage_in_progress_raises_validation_error() -> None:
-    from pydantic import ValidationError
-
-    from sdlc.cli._epic_story_models import _TaskEntry
-
-    with pytest.raises(ValidationError):
-        _TaskEntry(**_make_valid_record(stage="in-progress"))  # type: ignore[arg-type]
+        _TaskEntry(**_make_valid_record(stage="running"))  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -235,3 +233,115 @@ def test_serialize_task_entry_is_deterministic() -> None:
 
     entry = _TaskEntry(**_make_valid_record())  # type: ignore[arg-type]
     assert serialize_task_entry(entry) == serialize_task_entry(entry)
+
+
+# ---------------------------------------------------------------------------
+# Story 2A.17 AC8 — 5-state Literal + review fields
+# ---------------------------------------------------------------------------
+
+
+def test_task_entry_stage_accepts_all_five_values() -> None:
+    """stage Literal widened to 5-state machine (AC8)."""
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    for stage in ("pending", "write-tests", "write-code", "review", "done"):
+        entry = _TaskEntry(**_make_valid_record(stage=stage))  # type: ignore[arg-type]
+        assert entry.stage == stage
+
+
+# Unknown-stage rejection is covered by
+# ``test_task_entry_stage_unknown_value_raises_validation_error`` above.
+
+
+def test_task_entry_review_verdict_defaults_to_none() -> None:
+    """review_verdict defaults to None when omitted (AC8)."""
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    entry = _TaskEntry(**_make_valid_record())  # type: ignore[arg-type]
+    assert entry.review_verdict is None
+
+
+def test_task_entry_review_notes_defaults_to_none() -> None:
+    """review_notes defaults to None when omitted (AC8)."""
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    entry = _TaskEntry(**_make_valid_record())  # type: ignore[arg-type]
+    assert entry.review_notes is None
+
+
+def test_task_entry_review_verdict_approved_accepted() -> None:
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    entry = _TaskEntry(**_make_valid_record(review_verdict="approved"))  # type: ignore[arg-type]
+    assert entry.review_verdict == "approved"
+
+
+def test_task_entry_review_verdict_rejected_accepted() -> None:
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    entry = _TaskEntry(**_make_valid_record(review_verdict="rejected"))  # type: ignore[arg-type]
+    assert entry.review_verdict == "rejected"
+
+
+def test_task_entry_review_verdict_invalid_value_raises_error() -> None:
+    from pydantic import ValidationError
+
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    with pytest.raises(ValidationError):
+        _TaskEntry(**_make_valid_record(review_verdict="unknown"))  # type: ignore[arg-type]
+
+
+def test_task_entry_review_notes_accepts_string() -> None:
+    from sdlc.cli._epic_story_models import _TaskEntry
+
+    entry = _TaskEntry(**_make_valid_record(review_notes="looks good"))  # type: ignore[arg-type]
+    assert entry.review_notes == "looks good"
+
+
+def test_serialize_task_entry_includes_review_fields_when_set() -> None:
+    """serialize_task_entry includes review_verdict and review_notes in JSON (AC8/D1)."""
+    from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
+
+    entry = _TaskEntry(  # type: ignore[call-arg]
+        **_make_valid_record(
+            stage="review",
+            review_verdict="approved",
+            review_notes="LGTM",
+        )
+    )
+    text = serialize_task_entry(entry)
+    parsed = json.loads(text)
+    assert parsed["stage"] == "review"
+    assert parsed["review_verdict"] == "approved"
+    assert parsed["review_notes"] == "LGTM"
+
+
+def test_serialize_task_entry_review_fields_null_when_unset() -> None:
+    """Null review fields are serialized as null (AC8/D1 — key set grows on first advance)."""
+    from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
+
+    entry = _TaskEntry(**_make_valid_record())  # type: ignore[arg-type]
+    text = serialize_task_entry(entry)
+    parsed = json.loads(text)
+    assert parsed["review_verdict"] is None
+    assert parsed["review_notes"] is None
+
+
+def test_serialize_task_entry_round_trips_extended_shape() -> None:
+    """Extended _TaskEntry round-trips through serialize → parse correctly (AC8)."""
+    from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
+
+    original = _TaskEntry(  # type: ignore[call-arg]
+        **_make_valid_record(
+            stage="done",
+            review_verdict="approved",
+            review_notes="All checks passed.",
+        )
+    )
+    text = serialize_task_entry(original)
+    parsed = json.loads(text)
+    restored = _TaskEntry(**parsed)  # type: ignore[arg-type]
+    assert restored.stage == "done"
+    assert restored.review_verdict == "approved"
+    assert restored.review_notes == "All checks passed."

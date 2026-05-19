@@ -263,6 +263,17 @@ def break_command(
     run_break(ctx=ctx, story_id=story_id)
 
 
+@app.command(name="task")
+def task_command(
+    ctx: typer.Context,
+    task_id: str = typer.Argument(..., help="Task identifier (EPIC-...-S<NN>-...-T<NN>-...)."),
+) -> None:
+    """Advance a task one stage through the TDD pipeline (FR17, Story 2A.17)."""
+    from sdlc.cli.task import run_task  # deferred per Architecture §488
+
+    run_task(ctx=ctx, task_id=task_id)
+
+
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""

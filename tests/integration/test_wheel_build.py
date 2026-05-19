@@ -128,6 +128,12 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase3/task-breaker.md").as_posix(),
         Path("sdlc/commands/sdlc-break.md").as_posix(),
         Path("sdlc/workflows_yaml/sdlc-break.yaml").as_posix(),
+        # Story 2A.17 — /sdlc-task phase 3 specialist stubs, command, workflow YAML.
+        Path("sdlc/agents/phase3/test-author.md").as_posix(),
+        Path("sdlc/agents/phase3/code-author.md").as_posix(),
+        Path("sdlc/agents/phase3/code-reviewer.md").as_posix(),
+        Path("sdlc/commands/sdlc-task.md").as_posix(),
+        Path("sdlc/workflows_yaml/sdlc-task.yaml").as_posix(),
     }
 )
 

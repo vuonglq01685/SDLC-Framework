@@ -48,3 +48,12 @@ specialists:
   - name: task-breaker
     phase: 3
     file: phase3/task-breaker.md
+  - name: test-author
+    phase: 3
+    file: phase3/test-author.md
+  - name: code-author
+    phase: 3
+    file: phase3/code-author.md
+  - name: code-reviewer
+    phase: 3
+    file: phase3/code-reviewer.md

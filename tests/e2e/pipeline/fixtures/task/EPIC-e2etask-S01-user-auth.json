@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "EPIC-e2etask-S01-user-auth",
+  "epic_id": "EPIC-e2etask",
+  "seq": 1,
+  "label": "User auth story (e2e)",
+  "as_a": "developer",
+  "i_want": "auth",
+  "so_that": "users log in",
+  "given_when_then": ["Given setup, when login, then token."],
+  "dependencies": [],
+  "drafted_at": "2026-05-18T09:00:00Z",
+  "drafted_by_specialist": "e2e-test"
+}
