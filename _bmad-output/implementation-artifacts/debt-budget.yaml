@@ -37,9 +37,9 @@ items:
     title: Pydantic strict-mode + ADR-025 (closed; StrictModel adopted as default)
   - id: EPIC-1-D3-EINTR-RETRY
     severity: BLOCKING
-    status: open
+    status: closed
     epic_of_origin: epic-1
-    title: EINTR retry for _write_bytes + journal (now BLOCKING Epic 2B per retro §4 — owned by C1)
+    title: EINTR retry for _write_bytes + journal — closed 2026-05-21 prep-sprint C1 via concurrency.io_primitives.atomic_write (16-retry budget on os.write + os.replace); 17 callsites migrated; ADR-031
   - id: EPIC-1-D4-PRECOMMIT-REV-PIN-DRIFT
     severity: MED
     status: open
@@ -66,9 +66,9 @@ items:
   # ---------------------------------------------------------------------------
   - id: EPIC-2A-D1-WRITE-PRIMITIVE
     severity: BLOCKING
-    status: open
+    status: closed
     epic_of_origin: epic-2a
-    title: engine/io_primitives.py atomic raw-text write + EINTR retry; collapses Path.write_text usage across 7 stories (owned by C1)
+    title: concurrency/io_primitives.py atomic raw-text write + EINTR retry — closed 2026-05-21 prep-sprint C1; collapses Path.write_text usage across 9 source files / 17 callsites (canonical EPIC-2A-DEBT-WRITE-PRIMITIVE site at dispatcher/_panel_helpers.py:565); ADR-031
   - id: EPIC-2A-D2-PANEL-V1-PROCESS-LOCAL-SEQ
     severity: BLOCKING
     status: open
