@@ -119,6 +119,92 @@ D1/D2/D3 if the author's reply is unstructured.
 - **−** Strict TDD on substrate may generate "test the test" anti-patterns. Reviewer-B is the
   designated guard against that.
 
+## 4. Amendment 2026-05-21 §1 — Fresh-Context Review Tag
+
+**Source:** Epic 2A retrospective action A2 (Pattern 5 — Round-2 review required at Story 2A.0
+and Story 2A.17 because code-review ran inline with implementation in the same session,
+causing the review to miss findings on its own freshly-authored code).
+
+**Status:** Accepted (2026-05-21, prep-sprint C7).
+
+**Effective:** Epic 2B onward; retroactive enforcement on `main` after C7 merges.
+
+### 4.1 Rule
+
+Code-review MUST run as a *fresh-context* session AFTER the implementation is committed and
+pushed. Inline code-review (in the same session that authored the implementation) is blocked
+by a `commit-msg` hook that enforces two sub-rules:
+
+- **R1 — tag-required-when-review-commit:** Any commit whose message matches a review-trigger
+  phrase (`code-review`, `code review`, `chunked review`, `review patches applied`, `apply
+  review`, `Round-2 review`, `round 2 review`, `bmad-code-review`; case-insensitive substring)
+  MUST contain the literal tag `[fresh-context-review]` in subject or body.
+- **R2 — review-commits-must-not-modify-src:** Any commit carrying `[fresh-context-review]`
+  MUST NOT stage any path under `src/`. Implementation changes belong in a separate `feat`
+  or `fix` commit authored in an earlier (now-pushed) session.
+
+### 4.2 What the tag attests
+
+By adding `[fresh-context-review]` to a commit, the author attests:
+
+1. The review subagent (bmad-code-review or human reviewer) was invoked in a session that did
+   NOT also author the code under review.
+2. The implementation under review is committed and pushed to a branch that the review session
+   pulled fresh (i.e. the reviewer read the merged-in tree, not the author's in-memory edits).
+3. The current commit lands only review-derived artifacts: applied patches in `tests/`, doc
+   updates in `docs/`, `CONTRIBUTING.md`, ADRs, `deferred-work.md` entries, `sprint-status.yaml`
+   audit notes, and any test/lint/format auto-fixes. New implementation does NOT appear here.
+
+Violating any of these three attestations is a process incident that the Project Lead
+escalates at the next retrospective.
+
+### 4.3 Enforcement
+
+- `scripts/check_fresh_context_review_tag.py` is the runner.
+- `.pre-commit-config.yaml` wires it as a `commit-msg`-stage hook with
+  `default_install_hook_types: [pre-commit, commit-msg]`.
+- One-time per clone, contributors run `uv run pre-commit install --hook-type commit-msg`
+  (or `uv run pre-commit install --install-hooks` which installs all configured hook types).
+
+### 4.4 Exit semantics
+
+| Exit | Meaning |
+|---|---|
+| 0 | Pass — either not a review commit, or correctly tagged with no `src/` modifications |
+| 1 | R1 or R2 violated — stderr explains which rule and lists offending paths |
+| 2 | IO error — commit-msg file missing or unreadable |
+
+### 4.5 Worked example
+
+**Before (would have been blocked):**
+
+```
+chore(2A.18): code-review patches applied, status → done
+```
+
+R1 violated (review keywords without tag); R2 would also violate when staged files include
+`src/sdlc/cli/next_.py` plus the test patches.
+
+**After (passes):**
+
+Commit 1 in an earlier session, already pushed:
+```
+feat(2A.18): /sdlc-next phase-aware read-and-route CLI command
+[touches src/sdlc/cli/next_.py + tests/]
+```
+
+Commit 2 in a *fresh* session (bmad-code-review subagent):
+```
+[fresh-context-review] chore(2A.18): code-review patches applied, status → done
+
+[applies patches in tests/ + _bmad-output/deferred-work.md only; any
+src/ patches must be split into a separate fix(2A.18) commit that
+itself does not carry the tag]
+```
+
+Both R1 and R2 satisfied. Audit trail: the tag plus the absence of `src/` in `git show --stat`
+proves the reviewer session was distinct from the authoring session.
+
 ## Revisit-by
 
 2026-11-10 — or after Epic 2A retrospective, whichever comes first.

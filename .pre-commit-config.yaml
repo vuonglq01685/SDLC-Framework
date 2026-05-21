@@ -16,7 +16,7 @@ minimum_pre_commit_version: '4.0.0'
 default_language_version:
   python: python3.12   # matches CI's release/docs/e2e single-cell choice
 
-default_install_hook_types: [pre-commit]
+default_install_hook_types: [pre-commit, commit-msg]
 default_stages: [pre-commit]
 
 repos:
@@ -142,6 +142,20 @@ repos:
         language: system
         pass_filenames: false
         always_run: true        # placeholder: run on every commit even if no agents/ files changed
+        verbose: false
+
+  # ----- fresh-context review tag (ADR-026 §4 amendment, prep-sprint C7) -----
+  # commit-msg-stage hook. Requires `pre-commit install --hook-type commit-msg`
+  # one time per clone (or `pre-commit install --install-hooks` to cover all
+  # types). Receives COMMIT_EDITMSG path as argv[0] per git's hook convention.
+  - repo: local
+    hooks:
+      - id: fresh-context-review-tag
+        name: fresh-context review tag (ADR-026 §4 / CONTRIBUTING §4.4)
+        entry: uv run python scripts/check_fresh_context_review_tag.py
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true   # commit-msg hook gets COMMIT_EDITMSG path
         verbose: false
 
   # ----- standard hygiene -----

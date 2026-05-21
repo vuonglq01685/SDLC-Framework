@@ -128,6 +128,29 @@ Stale worktrees that fail to remove (e.g. due to uncommitted state) are pruned b
 - Reviewer-fatigue protection: a single reviewer SHOULD NOT carry more than two simultaneous
   `review-X` assignments. Project Lead arbitrates capacity at sprint planning.
 
+### 4.4 Fresh-Context Review Tag (per ADR-026 §4)
+
+Every code-review commit MUST run in a *fresh-context* session distinct from the one that
+authored the implementation. The commit-msg hook
+`scripts/check_fresh_context_review_tag.py` enforces this via two sub-rules:
+
+- **R1:** Commits whose message mentions `code-review`, `chunked review`, `review patches`,
+  `bmad-code-review`, etc. MUST contain the literal tag `[fresh-context-review]` in subject
+  or body.
+- **R2:** Commits carrying `[fresh-context-review]` MUST NOT stage any `src/` files —
+  implementation lives in a separate `feat`/`fix` commit in an earlier (now-pushed) session.
+
+One-time install per clone:
+
+```bash
+uv run pre-commit install --hook-type commit-msg
+# or, install every hook type configured:
+uv run pre-commit install --install-hooks
+```
+
+Violating either rule blocks the commit with a stderr explanation listing the offending files
+or the missing tag. See ADR-026 §4 for the worked example and full rationale.
+
 ---
 
 ## 5. Decision Protocol (D1/D2/D3 Option-Labels)
@@ -391,3 +414,4 @@ ships externally.
 | 2026-05-10 | Alice (drafted via sprint-planning skill) | Initial publication — TDD-first + chunked review + worktree workflow + decision protocol per Epic 1 retro DOC4 |
 | 2026-05-10 | Vuonglq01685 + Claude | Added §7 Per-Epic Prerequisites — codifies Team Agreements (A)+(F) as permanent policy for all future epics; Pre-Story N.1 gate with mandatory DAG approval + retro-action closure |
 | 2026-05-21 | Vuonglq01685 + Claude (prep-sprint C6) | Added §7.5 Debt-Decay Policy per Epic 2A retro action A1; renumbered Audit Trail to §7.6; updated §7.4 verification checklist to include debt-budget gate; backed by `scripts/check_debt_decay_budget.py` + `debt-budget.yaml` + `debt-decay-gate` CI job |
+| 2026-05-21 | Vuonglq01685 + Claude (prep-sprint C7) | Added §4.4 Fresh-Context Review Tag per Epic 2A retro action A2; ADR-026 §4 amendment ratified; commit-msg hook `scripts/check_fresh_context_review_tag.py` enforces R1 (tag required when review commit) + R2 (no `src/` in tagged commits); `.pre-commit-config.yaml` gains `commit-msg` stage |
