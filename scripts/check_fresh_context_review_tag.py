@@ -14,12 +14,11 @@ Runs as a ``commit-msg`` pre-commit hook. Enforces two rules:
     docs, deferred-work, and sprint-status updates — never new
     implementation. Implementation lives in a separate ``feat`` or
     ``fix`` commit committed in an earlier (now-pushed) session.
-
-Skeleton only — implementation lands in C7 GREEN step.
 """
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,22 +56,79 @@ class ValidationResult:
 
 def detect_review_keywords(message: str) -> bool:
     """Return True if the commit message matches a review-trigger phrase."""
-    raise NotImplementedError("C7 GREEN")
+    lower = message.lower()
+    return any(phrase in lower for phrase in _REVIEW_TRIGGER_PHRASES)
 
 
 def has_fresh_context_tag(message: str) -> bool:
-    """Return True if the commit message contains the fresh-context tag."""
-    raise NotImplementedError("C7 GREEN")
+    """Return True if the commit message contains the fresh-context tag.
+
+    Tag match is byte-exact (case-sensitive). Capitalisation drift would
+    weaken the audit signal, so ``[Fresh-Context-Review]`` does NOT count.
+    """
+    return FRESH_CONTEXT_TAG in message
 
 
 def partition_staged(files: list[str]) -> tuple[list[str], list[str]]:
     """Split staged files into ``(allowed, disallowed_under_review)`` lists."""
-    raise NotImplementedError("C7 GREEN")
+    allowed: list[str] = []
+    disallowed: list[str] = []
+    for path in files:
+        if any(path.startswith(prefix) for prefix in _DISALLOWED_PREFIXES_UNDER_REVIEW):
+            disallowed.append(path)
+        else:
+            allowed.append(path)
+    return allowed, disallowed
 
 
 def validate(message: str, staged_files: list[str]) -> ValidationResult:
     """Apply R1 + R2 and return a structured pass/fail."""
-    raise NotImplementedError("C7 GREEN")
+    is_review_commit = detect_review_keywords(message)
+    has_tag = has_fresh_context_tag(message)
+
+    # R1 — review-keyword commits MUST carry the tag.
+    if is_review_commit and not has_tag:
+        return ValidationResult(
+            ok=False,
+            reason=(
+                "R1: commit message contains review-trigger keywords but is "
+                f"missing the {FRESH_CONTEXT_TAG} tag. Per ADR-026 §4, "
+                "code-review commits MUST attest fresh-context review by "
+                "carrying the tag. Add it to the commit subject or body."
+            ),
+        )
+
+    # R2 — tagged commits MUST NOT touch src/.
+    if has_tag:
+        _allowed, disallowed = partition_staged(staged_files)
+        if disallowed:
+            offenders = ", ".join(disallowed)
+            return ValidationResult(
+                ok=False,
+                reason=(
+                    f"R2: {FRESH_CONTEXT_TAG} commits MUST NOT modify src/ "
+                    f"files. Offending: {offenders}. Move implementation "
+                    "changes into a separate feat/fix commit."
+                ),
+            )
+
+    return ValidationResult(ok=True, reason="")
+
+
+def _read_staged_files() -> list[str]:
+    """Return the staged-file paths git would commit, or [] on git failure."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if result.returncode != 0:
+        return []
+    return [line for line in result.stdout.splitlines() if line.strip()]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -81,10 +137,36 @@ def main(argv: list[str] | None = None) -> int:
     Exit codes:
       0 — passes (either not a review commit, or correctly tagged with no
           src/ modifications)
-      1 — R1 or R2 violated (missing tag, or src/ in tagged commit)
-      2 — IO error (commit message file missing/unreadable)
+      1 — R1 or R2 violated
+      2 — IO error (commit message file missing/unreadable, no argv)
     """
-    raise NotImplementedError("C7 GREEN")
+    if argv is None or len(argv) < 1:
+        print(
+            "ERROR: expected commit-msg file path as the first argument "
+            "(git invokes this hook with that path)",
+            file=sys.stderr,
+        )
+        return 2
+
+    msg_path = Path(argv[0])
+    try:
+        message = msg_path.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError) as exc:
+        print(f"ERROR: cannot read commit-msg file {msg_path}: {exc}", file=sys.stderr)
+        return 2
+
+    staged_files = _read_staged_files()
+    result = validate(message, staged_files)
+
+    if result.ok:
+        return 0
+
+    print(
+        "BLOCKED by check_fresh_context_review_tag (CONTRIBUTING §4 / ADR-026 §4)",
+        file=sys.stderr,
+    )
+    print(f"  {result.reason}", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":  # pragma: no cover
