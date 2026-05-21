@@ -11,6 +11,7 @@ if sys.platform != "win32":
         allocate_next_seq_for_append_sync,
         append,
         append_sync,
+        append_with_seq_alloc,
     )
 else:
     from sdlc.contracts.journal_entry import JournalEntry
@@ -54,6 +55,22 @@ else:
             },
         )
 
+    from collections.abc import Callable
+
+    async def append_with_seq_alloc(
+        journal_path: Path,
+        entry_factory: Callable[[int], JournalEntry],
+    ) -> int:
+        raise JournalError(
+            _WIN_MSG.replace("append", "append_with_seq_alloc"),
+            details={
+                "path": str(journal_path),
+                "errno": None,
+                "step": "windows_unsupported",
+                "monotonic_seq": -1,
+            },
+        )
+
 
 from sdlc.journal.reader import iter_after, iter_entries
 
@@ -62,6 +79,7 @@ __all__ = (  # noqa: RUF022
     "allocate_next_seq_for_append_sync",
     "append",
     "append_sync",
+    "append_with_seq_alloc",
     "iter_entries",
     "iter_after",
 )

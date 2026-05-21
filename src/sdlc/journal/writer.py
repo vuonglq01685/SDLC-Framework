@@ -22,6 +22,7 @@ import asyncio
 import contextlib
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
@@ -244,6 +245,36 @@ async def append(entry: JournalEntry, journal_path: Path) -> None:
     _validate_absolute(journal_path, entry, "append")
     async with file_lock(_lock_path_for(journal_path)):
         await asyncio.to_thread(_append_protocol_body, entry, journal_path)
+
+
+async def append_with_seq_alloc(
+    journal_path: Path,
+    entry_factory: Callable[[int], JournalEntry],
+) -> int:
+    """Allocate ``seq = highest_on_disk + 1`` AND append the entry atomically.
+
+    Closes EPIC-2A-D2-PANEL-V1-PROCESS-LOCAL-SEQ (prep-sprint C2, ADR-032). The
+    process-local ``_allocate_seq`` racer cannot guarantee seq uniqueness when two
+    Python processes both invoke an ``sdlc`` command against the same journal;
+    each reads the on-disk highest, both compute the same successor, both call
+    ``append`` and both succeed (the per-append flock protects the WRITE but
+    not the READ that preceded it).
+
+    This helper acquires the journal write flock ONCE for the full read +
+    factory + write cycle so the seq the factory builds against is the one
+    that lands on disk. Returns the allocated seq for the caller to log /
+    correlate.
+
+    ``entry_factory`` is called inside the lock; it MUST be pure and fast
+    (no I/O, no further journal interactions). It MUST produce an entry whose
+    ``monotonic_seq`` equals the value it receives, otherwise the protocol
+    body's ``seq <= highest`` check rejects it.
+
+    Raises:
+      JournalError — relative path, factory-produced seq mismatch, or any
+        IO failure during read/write.
+    """
+    raise NotImplementedError("C2 GREEN")
 
 
 def append_sync(entry: JournalEntry, journal_path: Path) -> None:
