@@ -1,0 +1,101 @@
+# Debt-Decay Budget — machine-readable counterpart of deferred-work.md
+#
+# Source of truth for scripts/check_debt_decay_budget.py (CONTRIBUTING §7.5).
+# Each item names a technical-debt ticket the team has explicitly tracked
+# in a retrospective. Process improvements (A-series) and documentation
+# actions (DOC-series) are NOT tracked here — only D-series debt.
+#
+# Severity classification (from Epic 2A retrospective top-of-mind worries):
+#   BLOCKING — must close before Story N.1 of the next epic
+#   HIGH     — should close before Story N.1; ≥50% threshold (Gate B)
+#   MED      — track and close opportunistically
+#   LOW      — nice-to-have
+#
+# Status:
+#   open    — no PR-merged closure recorded
+#   closed  — closure evidenced in retro §4 follow-through table or
+#             in the cited story's Change Log
+#
+# Schema enforced by scripts/check_debt_decay_budget.py::load_budget.
+# Updated by the owner of each prep-sprint critical-path item (C1–C8)
+# when a closure lands; CI gate re-evaluates on every PR touching this
+# file or any deferred-work.md update.
+
+items:
+  # ---------------------------------------------------------------------------
+  # Epic 1 carry-forward (retro §4 follow-through table)
+  # ---------------------------------------------------------------------------
+  - id: EPIC-1-D1-HYPOTHESIS-CANONICALIZATION
+    severity: HIGH
+    status: closed
+    epic_of_origin: epic-1
+    title: Hypothesis canonicalization byte-stability property tests (closed in 2A.7 via sampled_from)
+  - id: EPIC-1-D2-PYDANTIC-STRICT-MODE
+    severity: HIGH
+    status: closed
+    epic_of_origin: epic-1
+    title: Pydantic strict-mode + ADR-025 (closed; StrictModel adopted as default)
+  - id: EPIC-1-D3-EINTR-RETRY
+    severity: BLOCKING
+    status: open
+    epic_of_origin: epic-1
+    title: EINTR retry for _write_bytes + journal (now BLOCKING Epic 2B per retro §4 — owned by C1)
+  - id: EPIC-1-D4-PRECOMMIT-REV-PIN-DRIFT
+    severity: MED
+    status: open
+    epic_of_origin: epic-1
+    title: Pre-commit rev pin drift automation vs uv.lock (owned by P1)
+  - id: EPIC-1-D5-POSIX-HELPER-EXTRACTION
+    severity: MED
+    status: open
+    epic_of_origin: epic-1
+    title: POSIX-only module helper extraction; collapse _is_loc_exempt entries (owned by P2)
+  - id: EPIC-1-D6-TAUTOLOGY-LINTER
+    severity: MED
+    status: closed
+    epic_of_origin: epic-1
+    title: Tautological-test linter spike (closed via anti-tautology RECEIPT enforcement — better outcome than heuristic)
+  - id: EPIC-1-D7-LINTER-TEST-HARNESS
+    severity: MED
+    status: open
+    epic_of_origin: epic-1
+    title: Linter test-harness consolidation; each new linter still copies pattern (owned by P3)
+
+  # ---------------------------------------------------------------------------
+  # Epic 2A debt opened during the epic (retro §6.2 D-series)
+  # ---------------------------------------------------------------------------
+  - id: EPIC-2A-D1-WRITE-PRIMITIVE
+    severity: BLOCKING
+    status: open
+    epic_of_origin: epic-2a
+    title: engine/io_primitives.py atomic raw-text write + EINTR retry; collapses Path.write_text usage across 7 stories (owned by C1)
+  - id: EPIC-2A-D2-PANEL-V1-PROCESS-LOCAL-SEQ
+    severity: BLOCKING
+    status: open
+    epic_of_origin: epic-2a
+    title: journal.append_with_seq_alloc cross-process flock; closes PANEL-V1-PROCESS-LOCAL-SEQ across 5 stories (owned by C2)
+  - id: EPIC-2A-D3-PREEXISTING-FAILURES-AND-COVERAGE
+    severity: HIGH
+    status: open
+    epic_of_origin: epic-2a
+    title: Triage 18 xfails (genuine bugs vs flakies); restore CLAUDE.md ≥90% coverage gate in pyproject.toml (owned by C3)
+  - id: EPIC-2A-D4-PHASE2-PROMPT-BOUNDARY-CHECK
+    severity: HIGH
+    status: open
+    epic_of_origin: epic-2a
+    title: Restore Phase-2 prompt boundary postcondition + SECURITY-INVARIANT once 2B.1 writes agent_runs.jsonl (owned by C4)
+  - id: EPIC-2A-D5-STATE-PROJECTION-TRIO
+    severity: MED
+    status: open
+    epic_of_origin: epic-2a
+    title: TASK-STATE-PROJECTION + NEXT-CONSUME-PROJECTION + REPLAN-DIRTY-PROJECTION; state.json journal projection (owned by P7)
+  - id: EPIC-2A-D7-CROSS-PLATFORM-LOCK
+    severity: BLOCKING
+    status: open
+    epic_of_origin: epic-2a
+    title: WIN32-RUNS-LOCK + SIGNOFF-FLOCK-CONCURRENCY; cross-platform lock primitive (owned by P5)
+  - id: EPIC-2A-D8-BREAK-MANUAL-STATUS-FLIP
+    severity: LOW
+    status: open
+    epic_of_origin: epic-2a
+    title: /sdlc-break writes _StoryEntry.status='in-progress' (manual edit posture today; owned by P8)
