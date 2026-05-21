@@ -100,7 +100,11 @@ def test_trace_includes_replan_event_postdating_task(tmp_path: Path) -> None:
         ts="2026-05-19T10:00:00.000Z",
         kind="replan_invalidated",
         target_id="02-Architecture/02-System/ARCHITECTURE.md",
-        payload={"scope": "02-Architecture/02-System/ARCHITECTURE.md", "scope_phase": 2},
+        payload={
+            "scope": "02-Architecture/02-System/ARCHITECTURE.md",
+            "scope_phase": 2,
+            "downstream_count": 7,
+        },
     )
 
     r = _invoke_trace(tmp_path, task_id)
@@ -108,6 +112,11 @@ def test_trace_includes_replan_event_postdating_task(tmp_path: Path) -> None:
     data = json.loads(r.output)
     kinds = [e["kind"] for e in data["events"]]
     assert "replan_invalidated" in kinds
+    # AC6 (epics.md:1431): the trace output must surface scope + downstream_count,
+    # not merely the event kind.
+    replan_evt = next(e for e in data["events"] if e["kind"] == "replan_invalidated")
+    assert replan_evt["payload"]["scope"] == "02-Architecture/02-System/ARCHITECTURE.md"
+    assert replan_evt["payload"]["downstream_count"] == 7
 
 
 def test_trace_excludes_replan_event_predating_task(tmp_path: Path) -> None:

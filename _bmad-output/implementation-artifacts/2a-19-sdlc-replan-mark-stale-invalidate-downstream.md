@@ -1,6 +1,6 @@
 # Story 2A.19: `sdlc replan --scope=<scope>` (Mark Stale + Invalidate Downstream)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -217,6 +217,23 @@ so that the audit chain reflects reality after a major direction change (FR4).
   - [x] 6.2 Add `sdlc-replan.md` to `tests/integration/test_wheel_build.py:_ALLOWED_CONTENT_FILES`.
   - [x] 6.3 Run the full quality gate; record the baseline.
   - [x] 6.4 Mark `EPIC-2A-DEBT-REPLAN-INVALIDATION-WIRE` CLOSED in `deferred-work.md` (cite AC3 + AC4); author the PR Change Log with D-decisions, the anti-tautology receipt, debt citations.
+
+### Review Findings
+
+> bmad-code-review 2026-05-19 — 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor). ~41 raw → 12 actionable after dedupe (0 decision-needed + 6 patch + 6 defer); 3 dismissed.
+
+- [x] [Review][Patch] `--scope` pointing at a directory crashes with uncaught `IsADirectoryError` — FIXED: added an `is_file()` guard emitting `ERR_USER_INPUT` ("replan scope is not a file"); regression test `test_directory_scope_rejected`. [`src/sdlc/cli/replan_cmd.py`]
+- [x] [Review][Patch] `plan_invalidations` bare `except Exception: continue` swallowed `SignoffError` from a malformed canonical record → silent under-invalidation — FIXED: removed the swallow; `SignoffError` now propagates and `run_replan` converts it to an `ERR_INFRASTRUCTURE` envelope. [`src/sdlc/engine/replan.py`]
+- [x] [Review][Patch] `invalidate_record` failure misclassified as `ERR_USER_INPUT` via over-broad `except Exception` — FIXED: narrowed to `except (SignoffError, OSError)` and mapped to `ERR_INFRASTRUCTURE`. [`src/sdlc/cli/replan_cmd.py`]
+- [x] [Review][Patch] AC6 trace tests asserted only `kind`, never `scope` / `downstream_count` — FIXED: `test_trace_includes_replan_event_postdating_task` now asserts the event payload carries `scope` + `downstream_count`. [`tests/unit/cli/test_trace_replan.py`]
+- [x] [Review][Patch] Anti-tautology receipt did not assert the `replan_invalidated` journal entry persists in the neutralised run — FIXED: added the journal assertion. [`tests/e2e/pipeline/test_sdlc_replan.py`]
+- [x] [Review][Patch] `replan` non-JSON output path untested — FIXED: removed the dead `json_mode` param from the e2e helper; added `test_replan_succeeds_without_json_flag` exercising the non-`--json` invocation. [`tests/unit/cli/test_replan_command.py`, `tests/e2e/pipeline/test_sdlc_replan.py`]
+- [x] [Review][Defer] CR19-W1 — partial-failure leaves an inconsistent audit chain [`src/sdlc/cli/replan_cmd.py:124-173`] — deferred, fail-loud posture is spec-intended (AC9 line 138)
+- [x] [Review][Defer] CR19-W2 — trace global-event passthrough edge cases [`src/sdlc/cli/trace.py:_add_postdating_globals`] — deferred, low-impact boundary cases
+- [x] [Review][Defer] CR19-W3 — hardcoded replan reason, no `--reason` option [`src/sdlc/cli/replan_cmd.py:34`] — deferred, out of spec scope
+- [x] [Review][Defer] CR19-W4 — `before_hash=None` + TOCTOU re-read for `signoff_invalidated.after_hash` [`src/sdlc/cli/replan_cmd.py:147-164`] — deferred, folds under existing flock-concurrency debt
+- [x] [Review][Defer] CR19-W5 — private cross-module imports `_signoff_path` / `_is_safe_repo_relative_posix` [`src/sdlc/cli/replan_cmd.py:29,145`] — deferred, `_is_safe_repo_relative_posix` reuse was spec-sanctioned
+- [x] [Review][Defer] CR19-W6 — `noqa: C901` on `run_replan` masks complexity [`src/sdlc/cli/replan_cmd.py:37`] — deferred, refactor debt, LOC budget met
 
 ## Dev Notes
 

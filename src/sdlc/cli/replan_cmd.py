@@ -25,7 +25,7 @@ from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli.output import emit_error, emit_json
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.engine.replan import compute_downstream, plan_invalidations, resolve_scope_phase
-from sdlc.errors.base import WorkflowError
+from sdlc.errors.base import SignoffError, WorkflowError
 from sdlc.signoff.records import _is_safe_repo_relative_posix, invalidate_record
 
 _JOURNAL_REL: Final[str] = ".claude/state/journal.log"
@@ -78,12 +78,29 @@ def run_replan(*, ctx: typer.Context, scope: str) -> None:  # noqa: C901
             ctx=ctx,
             details={"scope": scope, "abs_path": str(abs_scope)},
         )
+    # A directory-valued scope passes resolve_scope_phase + .exists(); reject it
+    # here so read_bytes() below cannot raise an uncaught IsADirectoryError.
+    if not abs_scope.is_file():
+        emit_error(
+            "ERR_USER_INPUT",
+            f"replan scope is not a file: {scope}; expected a path to an artifact file",
+            ctx=ctx,
+            details={"scope": scope, "abs_path": str(abs_scope)},
+        )
 
     # Step 3 — compute downstream (AC2/D1 phase-based)
     downstream_artifacts, downstream_count = compute_downstream(root, scope_phase)
 
     # Step 4 — plan which phases to invalidate (AC3)
-    phases_to_invalidate = plan_invalidations(root, scope_phase)
+    try:
+        phases_to_invalidate = plan_invalidations(root, scope_phase)
+    except SignoffError as exc:
+        emit_error(
+            "ERR_INFRASTRUCTURE",
+            f"cannot determine phases to invalidate: {exc}",
+            ctx=ctx,
+            details={"scope": scope},
+        )
 
     journal_path = root / _JOURNAL_REL
     now = now_rfc3339_utc_ms()
@@ -131,9 +148,11 @@ def run_replan(*, ctx: typer.Context, scope: str) -> None:  # noqa: C901
                 reason=_DEFAULT_REASON,
                 now_utc=now,
             )
-        except Exception as exc:
+        except (SignoffError, OSError) as exc:
+            # invalidate_record failures are infrastructure / data-integrity
+            # faults (bad record, disk write error) — not user input.
             emit_error(
-                "ERR_USER_INPUT",
+                "ERR_INFRASTRUCTURE",
                 f"failed to invalidate phase {phase} signoff: {exc}",
                 ctx=ctx,
                 details={"phase": phase},

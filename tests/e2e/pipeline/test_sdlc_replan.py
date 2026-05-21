@@ -76,13 +76,8 @@ def _seed_and_approve(tmp_path: Path, phase: int, rel_path: str) -> Path:
     return p
 
 
-def _invoke_replan(
-    tmp_path: Path,
-    scope: str,
-    *,
-    json_mode: bool = True,
-) -> Any:
-    args = ["--json", "replan", "--scope", scope] if json_mode else ["replan", "--scope", scope]
+def _invoke_replan(tmp_path: Path, scope: str) -> Any:
+    args = ["--json", "replan", "--scope", scope]
     with unittest.mock.patch("sdlc.cli.replan_cmd._get_repo_root_or_cwd", return_value=tmp_path):
         return _runner.invoke(app, args)
 
@@ -343,4 +338,13 @@ def test_e2e_replan_invalidation_is_load_bearing(tmp_path: Path) -> None:
     assert p2_mutated.get("invalidated_at") is None, (
         "anti-tautology breach: YAML gained invalidated_at even with invalidate_record "
         "neutralised — the signoff mutation comes from somewhere other than invalidate_record"
+    )
+
+    # The receipt's premise — "the replan_invalidated journal event IS still
+    # written" — must itself be asserted; otherwise a regression that also kills
+    # the journal write would still pass this test (CR review patch).
+    mutated_entries = _read_journal(tmp2)
+    assert any(e["kind"] == "replan_invalidated" for e in mutated_entries), (
+        "neutralised run must still journal replan_invalidated — the receipt proves "
+        "invalidate_record (not the journal write) is the load-bearing signoff mutation"
     )

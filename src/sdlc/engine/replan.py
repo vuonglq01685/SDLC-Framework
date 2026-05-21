@@ -73,10 +73,11 @@ def plan_invalidations(repo_root: Path, scope_phase: int) -> list[int]:
     for p in [1, 2]:
         if p < scope_phase:
             continue
-        try:
-            state = compute_state(p, repo_root=repo_root)
-        except Exception:
-            continue
+        # compute_state raises SignoffError for a malformed canonical record;
+        # let it propagate (fail-loud) — a corrupt phase must NOT be silently
+        # dropped from the invalidation set. The CLI shell converts it to an
+        # ERR_INFRASTRUCTURE envelope.
+        state = compute_state(p, repo_root=repo_root)
         if state == SignoffState.APPROVED:
             phases.append(p)
     return phases

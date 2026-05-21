@@ -165,6 +165,38 @@ def test_scope_outside_phase_dir_rejected(tmp_path: Path) -> None:
     assert "not under a recognized phase directory" in data["error"]["message"]
 
 
+def test_directory_scope_rejected(tmp_path: Path) -> None:
+    """A directory-valued --scope is rejected before read_bytes() (CR review patch).
+
+    A bare phase-subdirectory passes scope-validation, resolve_scope_phase, and
+    the .exists() guard; without an is_file() check it would crash with an
+    uncaught IsADirectoryError. It must fail cleanly with ERR_USER_INPUT.
+    """
+    _init_repo(tmp_path)
+    (tmp_path / "02-Architecture" / "02-System").mkdir(parents=True)
+    r = _invoke_replan(tmp_path, "02-Architecture/02-System")
+    assert r.exit_code != 0
+    data = json.loads(r.output)
+    assert data["error"]["code"] == "ERR_USER_INPUT"
+    assert "not a file" in data["error"]["message"]
+
+
+def test_replan_succeeds_without_json_flag(tmp_path: Path) -> None:
+    """`sdlc replan` (no --json) still completes successfully (CR review patch).
+
+    Exercises the non-JSON invocation path — previously dead test scaffolding.
+    """
+    _init_repo(tmp_path)
+    arch_rel = "02-Architecture/02-System/ARCHITECTURE.md"
+    _seed_artifact(tmp_path, arch_rel)
+    _approve_phase(tmp_path, 2, arch_rel)
+    r = _invoke_replan(tmp_path, arch_rel, json_out=False)
+    assert r.exit_code == 0, r.output
+    data = json.loads(r.output)
+    assert data["command"] == "replan"
+    assert data["outcome"] == "success"
+
+
 # ---------------------------------------------------------------------------
 # Task 3.1 — Phase 2 scope: only Phase 2 invalidated
 # ---------------------------------------------------------------------------
