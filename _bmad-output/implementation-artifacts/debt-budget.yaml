@@ -71,9 +71,9 @@ items:
     title: concurrency/io_primitives.py atomic raw-text write + EINTR retry — closed 2026-05-21 prep-sprint C1; collapses Path.write_text usage across 9 source files / 17 callsites (canonical EPIC-2A-DEBT-WRITE-PRIMITIVE site at dispatcher/_panel_helpers.py:565); ADR-031
   - id: EPIC-2A-D2-PANEL-V1-PROCESS-LOCAL-SEQ
     severity: BLOCKING
-    status: open
+    status: closed
     epic_of_origin: epic-2a
-    title: journal.append_with_seq_alloc cross-process flock; closes PANEL-V1-PROCESS-LOCAL-SEQ across 5 stories (owned by C2)
+    title: journal.append_with_seq_alloc cross-process flock — closed 2026-05-21 prep-sprint C2; new API ships with one flock around full read+build+write cycle; ADR-032; 5 legacy callsites tracked as EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES for per-story refactor
   - id: EPIC-2A-D3-PREEXISTING-FAILURES-AND-COVERAGE
     severity: HIGH
     status: open
