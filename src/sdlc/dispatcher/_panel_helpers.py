@@ -6,9 +6,10 @@ monotonic_seq allocator that fixes panel-dispatch journal regression (P1).
 
 Architecture §821-§824, §1067; ADR-013, ADR-014, ADR-016, ADR-024, ADR-026.
 
-# EPIC-2A-DEBT-WRITE-PRIMITIVE: ``Path.write_text()`` used directly in ``_run_member``.
-# ``state.atomic.write_state_raw_atomic_sync`` is JSON-only + POSIX-only; a raw-text
-# atomic primitive is needed for arbitrary specialist artifacts. Deferred to Epic 2B.
+# EPIC-2A-DEBT-WRITE-PRIMITIVE: CLOSED 2026-05-21 (prep-sprint C1) — specialist
+# artifact write now goes through ``sdlc.concurrency.io_primitives.atomic_write``
+# which provides the 7-step POSIX tmp+rename+fsync protocol with EINTR retry.
+# See ADR-031.
 
 # EPIC-2A-DEBT-SHARED-TIME: ``_now_ts`` duplicates ``cli/_time.py:now_rfc3339_utc_ms``.
 # Boundary §1106 forbids ``cli/`` import here. Deferred to shared-util follow-up.
@@ -37,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
@@ -562,7 +564,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
             outcome="success",
         )
 
-    target_path.write_text(agent_result.output_text, encoding="utf-8")
+    atomic_write(target_path, agent_result.output_text)
 
     artifact_seq = await _allocate_seq(journal_path)
     # D2-B: synthesizer-canonical write — actor reflects the agent that produced

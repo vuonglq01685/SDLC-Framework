@@ -1,4 +1,4 @@
-"""Unit tests for src/sdlc/engine/io_primitives.py (C1 / Epic 2A retro D1).
+"""Unit tests for src/sdlc/concurrency/io_primitives.py (C1 / Epic 2A retro D1).
 
 RED phase per CONTRIBUTING §2 — tests cover the atomic-write contract:
 basic write, idempotency, byte-stability, encoding, absolute-path requirement,
@@ -23,7 +23,7 @@ import pytest
 if sys.platform == "win32":  # pragma: no cover
     pytest.skip("io_primitives is POSIX-only", allow_module_level=True)
 
-from sdlc.engine import io_primitives
+from sdlc.concurrency import io_primitives
 
 # ---------------------------------------------------------------------------
 # atomic_write — happy path
@@ -102,7 +102,7 @@ class TestAtomicWriteProtocol:
 
         with (
             mock.patch(
-                "sdlc.engine.io_primitives.os.write",
+                "sdlc.concurrency.io_primitives.os.write",
                 side_effect=OSError(errno.ENOSPC, "no space"),
             ),
             pytest.raises(OSError),

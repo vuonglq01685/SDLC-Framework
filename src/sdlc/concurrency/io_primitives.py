@@ -5,6 +5,10 @@ Bridges the gap between ``state/atomic.py`` (state.json-specific, JSON-canonical
 ``dispatcher/_panel_helpers.py``. Same 7-step POSIX protocol as ``state/atomic.py``
 PLUS explicit EINTR retry on ``os.write`` and ``os.replace``.
 
+Lives under ``concurrency/`` (rather than ``engine/``) so both ``dispatcher/`` and
+``cli/`` can import it — both depend on ``concurrency`` per the module-boundary table;
+neither may import ``engine/``.
+
 Closes ``EPIC-1-D3-EINTR-RETRY`` + ``EPIC-2A-D1-WRITE-PRIMITIVE``.
 """
 
@@ -14,7 +18,7 @@ import sys
 
 if sys.platform == "win32":  # pragma: no cover - POSIX-only invariant per Architecture §573
     raise ImportError(
-        "sdlc.engine.io_primitives is POSIX-only — fcntl + parent-dir fsync are required"
+        "sdlc.concurrency.io_primitives is POSIX-only — fcntl + parent-dir fsync are required"
     )
 
 import contextlib
