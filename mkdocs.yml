@@ -66,6 +66,7 @@ nav:
       - "ADR-025 — Pydantic strict-mode default": decisions/ADR-025-pydantic-strict-mode-default.md
       - "ADR-026 — TDD-first + chunked-review workflow": decisions/ADR-026-tdd-first-chunked-review-workflow.md
       - "ADR-027 — E2E test framework strategy": decisions/ADR-027-e2e-test-framework-strategy.md
+      - "ADR-028 — journal kind taxonomy + after_hash policy": decisions/ADR-028-journal-kind-taxonomy.md
       - "ADR-029 — MockAIRuntime envelope semantics": decisions/ADR-029-mock-runtime-envelope-semantics.md
       - "ADR-030 — specialist roster freeze + reconciliation": decisions/ADR-030-specialist-roster-freeze.md
       - "ADR template": decisions/adr-template.md
