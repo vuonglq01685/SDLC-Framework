@@ -45,6 +45,7 @@ _EXPECTED_API = {
     "allocate_next_seq_for_append_sync",  # Story 2A.11: locked seq alloc for hook deny/bypass
     "append",
     "append_sync",
+    "append_with_seq_alloc",  # Prep-sprint C2 / ADR-032: atomic read+factory+append under one flock
     "iter_after",
     "iter_entries",
 }
