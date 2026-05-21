@@ -76,9 +76,9 @@ items:
     title: journal.append_with_seq_alloc cross-process flock — closed 2026-05-21 prep-sprint C2; new API ships with one flock around full read+build+write cycle; ADR-032; 5 legacy callsites tracked as EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES for per-story refactor
   - id: EPIC-2A-D3-PREEXISTING-FAILURES-AND-COVERAGE
     severity: HIGH
-    status: open
+    status: closed
     epic_of_origin: epic-2a
-    title: Triage 18 xfails (genuine bugs vs flakies); restore CLAUDE.md ≥90% coverage gate in pyproject.toml (owned by C3)
+    title: Triage 18 xfails — closed 2026-05-21 prep-sprint C3; all 12 xfail markers stripped (DEBT-001..012 root-caused as test bugs, not source bugs); coverage gate raised 85→87 in pyproject.toml + [tool.coverage.report]; final 87→90 split to EPIC-2B-DEBT-COVERAGE-90 per prep-sprint budget
   - id: EPIC-2A-D4-PHASE2-PROMPT-BOUNDARY-CHECK
     severity: HIGH
     status: open
@@ -99,3 +99,18 @@ items:
     status: open
     epic_of_origin: epic-2a
     title: /sdlc-break writes _StoryEntry.status='in-progress' (manual edit posture today; owned by P8)
+
+  # ---------------------------------------------------------------------------
+  # Epic 2B debt opened during the Epic 2B prep-sprint
+  # ---------------------------------------------------------------------------
+  - id: EPIC-2B-DEBT-COVERAGE-90
+    severity: HIGH
+    status: open
+    epic_of_origin: epic-2b
+    title: Final 87→90 coverage push — opened 2026-05-21 prep-sprint C3 after xfail half of EPIC-2A-D3 closed. Top under-covered modules at C3 close (after 2 new focused test files lifted 86.99→87.40%) are cli/bootstrap.py (77%), cli/break_.py (78%), cli/architect.py (77%), cli/_signoff_check.py (78%), cli/_stories_pipeline.py (80%), claude_hooks/pre_tool_use.py (80%), cli/_architect_pipeline.py (73%), cli/_epics_pipeline.py (79%), cli/_ux_pipeline.py (80%). Each focused error-path file lifts ~0.2%; ~13 files needed to hit 90%. Owned by Epic 2B prep continuation or pulled into a 2B story explicitly.
+
+  - id: EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES
+    severity: HIGH
+    status: open
+    epic_of_origin: epic-2b
+    title: Migrate 5 legacy ``_allocate_seq`` callsites to ``append_with_seq_alloc`` — opened 2026-05-21 by prep-sprint C2 (ADR-032 §6 — Story 2B.1+ per-story refactor). New ClaudeAIRuntime in 2B.1 uses the new helper from day one; legacy callsites are race-tolerable for now (process-local) but should consolidate before any new write surface lands.

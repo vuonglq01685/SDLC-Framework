@@ -221,10 +221,10 @@ addopts = [
     "--cov=scripts",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    # DR4 of Story 2A.3 review: pinned at 85 to honour pre-existing baseline depressed by
-    # 50 failing tests outside 2A.3 scope (see EPIC-2A-DEBT-COVERAGE-PRE-EXISTING).
-    # Restore to 90 once those tests are fixed.
-    "--cov-fail-under=85",
+    # Prep-sprint C3 (2026-05-21) raised the floor from 85 → 87 after closing the 18 xfail
+    # markers (EPIC-2A-D3 first half). Final 87 → 90 push tracked in
+    # EPIC-2B-DEBT-COVERAGE-90 (see debt-budget.yaml).
+    "--cov-fail-under=87",
 ]
 xfail_strict = true
 filterwarnings = ["error"]
@@ -267,8 +267,9 @@ branch = true
 # Re-enable together with [tool.coverage.paths] + a `coverage combine` step when xdist lands.
 
 [tool.coverage.report]
-# DR4: see [tool.pytest.ini_options] addopts for rationale + restore plan.
-fail_under = 85
+# Prep-sprint C3 (2026-05-21): mirrors [tool.pytest.ini_options] addopts cov gate;
+# raised 85 → 87 after closing 18 xfails. Final 87 → 90 push: EPIC-2B-DEBT-COVERAGE-90.
+fail_under = 87
 show_missing = true
 skip_covered = false
 exclude_also = [
