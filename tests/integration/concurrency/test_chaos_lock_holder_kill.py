@@ -32,34 +32,32 @@ _HOLDER_SCRIPT_TMPL = (
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-012. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 def test_lock_released_on_holder_kill(tmp_path: Path) -> None:
     """POSIX flock(2): kernel releases orphaned lock when process is killed."""
     lock_file = str(tmp_path / "scratch.lock")
     src_path = str(Path(__file__).resolve().parents[3] / "src")
 
     script = _HOLDER_SCRIPT_TMPL.format(src_path=src_path, lock_file=lock_file)
-    proc = subprocess.Popen(
+    # `with subprocess.Popen(...)` closes proc.stdout on exit — without it the
+    # PIPE FileIO leaks past the test and pytest's unraisable-exception hook
+    # turns the ResourceWarning into a test failure (EPIC-2A-DEBT-012 root).
+    with subprocess.Popen(
         [sys.executable, "-c", script],
         stdout=subprocess.PIPE,
-    )
-    assert proc.stdout is not None
+    ) as proc:
+        assert proc.stdout is not None
 
-    line = proc.stdout.readline()
-    assert line.strip() == b"ACQUIRED", f"Unexpected child output: {line!r}"
+        line = proc.stdout.readline()
+        assert line.strip() == b"ACQUIRED", f"Unexpected child output: {line!r}"
 
-    # Kill the holder mid-lock
-    os.kill(proc.pid, signal.SIGKILL)
-    proc.wait()
+        # Kill the holder mid-lock
+        os.kill(proc.pid, signal.SIGKILL)
+        proc.wait()
 
-    # Parent must acquire within 2s — kernel auto-releases orphaned fds
-    t1 = time.monotonic()
-    with file_lock(lock_file):
-        pass
-    elapsed = time.monotonic() - t1
+        # Parent must acquire within 2s — kernel auto-releases orphaned fds
+        t1 = time.monotonic()
+        with file_lock(lock_file):
+            pass
+        elapsed = time.monotonic() - t1
 
     assert elapsed <= 2.0, f"Lock recovery took {elapsed:.2f}s; expected ≤2s"

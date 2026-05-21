@@ -193,17 +193,21 @@ def _make_min_entries(seqs: list[int]) -> list[object]:
     ]
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-009. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 @given(entries=_sequence_strategy)
 @example(entries=_make_min_entries([0]))
 @example(entries=_make_min_entries([0, 1, 2]))
 @example(entries=_make_min_entries([0, 10**12]))
 @example(entries=_make_min_entries([2**63 - 2, 2**63 - 1]))
-@settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=1000,
+    deadline=None,
+    # ``tmp_path`` is function-scoped intentionally — each hypothesis example
+    # appends sequentially to the same on-disk journal to exercise the
+    # bytes-immutability invariant. Hypothesis warns about function-scoped
+    # fixtures under @given (EPIC-2A-DEBT-009 root cause); the per-example
+    # journal reset is the correct semantics here.
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_file_grows_only_and_bytes_immutable(entries: list[object], tmp_path: Path) -> None:
     """After every append, file bytes start with the prior snapshot (B7 fix).
 
@@ -215,6 +219,13 @@ def test_file_grows_only_and_bytes_immutable(entries: list[object], tmp_path: Pa
     from sdlc.journal import append_sync, iter_entries
 
     journal_path = tmp_path / "test.journal.log"
+    # tmp_path is function-scoped (not example-scoped) — clear prior example's
+    # journal + sibling .lock so each hypothesis example starts on a fresh on-disk
+    # state. Without this reset the second example sees the previous run's
+    # ``highest`` and ``append_sync`` raises ``validate_seq`` (EPIC-2A-DEBT-009
+    # secondary root cause).
+    journal_path.unlink(missing_ok=True)
+    Path(str(journal_path) + ".lock").unlink(missing_ok=True)
     snapshot = b""
 
     for i, entry in enumerate(entries):
@@ -240,19 +251,22 @@ def test_file_grows_only_and_bytes_immutable(entries: list[object], tmp_path: Pa
 # ---------------------------------------------------------------------------
 # Property 2: iter_after(threshold) correctness
 # ---------------------------------------------------------------------------
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-010. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 @given(entries=_sequence_strategy)
-@settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=1000,
+    deadline=None,
+    # See EPIC-2A-DEBT-010 — same function-scoped tmp_path pattern as above.
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_iter_after_correctness(entries: list[object], tmp_path: Path) -> None:
     """``iter_after(t)`` returns exactly entries with ``monotonic_seq > t`` in order."""
     from sdlc.contracts.journal_entry import JournalEntry
     from sdlc.journal import append_sync, iter_after
 
     journal_path = tmp_path / "test.iter_after.log"
+    # tmp_path is function-scoped; reset per example (see DEBT-009 comment).
+    journal_path.unlink(missing_ok=True)
+    Path(str(journal_path) + ".lock").unlink(missing_ok=True)
     for entry in entries:
         assert isinstance(entry, JournalEntry)
         append_sync(entry, journal_path)
@@ -273,17 +287,17 @@ def test_iter_after_correctness(entries: list[object], tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Property 3: Monotonic_seq regression rejected; file size unchanged on failure
 # ---------------------------------------------------------------------------
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-011. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 @given(
     entry=_journal_entry_strategy,
     first_seq=st.integers(min_value=1, max_value=10**6),
     bad_offset=st.sampled_from([0, -1, -10, -(10**5)]),  # 0=duplicate, negatives=true regression
 )
-@settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=1000,
+    deadline=None,
+    # See EPIC-2A-DEBT-011 — same function-scoped tmp_path pattern as above.
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_seq_regression_rejected_and_file_unchanged(
     entry: dict[str, object], first_seq: int, bad_offset: int, tmp_path: Path
 ) -> None:
@@ -297,6 +311,9 @@ def test_seq_regression_rejected_and_file_unchanged(
     from sdlc.journal import append_sync
 
     journal_path = tmp_path / "test.regression.log"
+    # tmp_path is function-scoped; reset per example (see DEBT-009 comment).
+    journal_path.unlink(missing_ok=True)
+    Path(str(journal_path) + ".lock").unlink(missing_ok=True)
     first = JournalEntry.model_validate({**entry, "monotonic_seq": first_seq})
     append_sync(first, journal_path)
     size_after_first = os.path.getsize(str(journal_path))

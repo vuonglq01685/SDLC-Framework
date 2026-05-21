@@ -259,12 +259,6 @@ def test_e2e_extended_cases(tmp_path: Path, command_args: list[str], expected_ex
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv not available")
 @pytest.mark.skipif(sys.platform == "win32", reason="pipe tests skip on Windows")
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10):"
-    " subprocess timeout running 'uv run sdlc logs --follow | head -1'."
-    " Tracked in EPIC-2A-DEBT-005. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 def test_follow_broken_pipe_exits_cleanly_subprocess(tmp_path: Path) -> None:
     """B-P15: sdlc logs --follow | head -1 exits 0, stderr free of Python Traceback."""
     import subprocess as _sp

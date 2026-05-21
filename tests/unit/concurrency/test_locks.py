@@ -58,11 +58,6 @@ class TestFileLockSync:
             raise ValueError("body error")
         assert key not in lock_registry()
 
-    @pytest.mark.xfail(
-        reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-        " tracked in EPIC-2A-DEBT-001. Story 2A.5 DR2 quarantine.",
-        strict=False,
-    )
     def test_cross_process_contention(self, tmp_path: Path) -> None:
         lock_file = str(tmp_path / "test.lock")
         src_path = str(Path(__file__).resolve().parents[3] / "src")
@@ -72,18 +67,21 @@ class TestFileLockSync:
             f"lk = file_lock({lock_file!r}); lk.__enter__(); "
             f"print('ACQUIRED', flush=True); time.sleep(1)"
         )
-        proc = subprocess.Popen(
+        # `with subprocess.Popen(...)` closes proc.stdout on exit — without it the
+        # PIPE FileIO leaks past the test and pytest's unraisable-exception hook
+        # turns the ResourceWarning into a test failure (EPIC-2A-DEBT-001 root).
+        with subprocess.Popen(
             [sys.executable, "-c", script],
             stdout=subprocess.PIPE,
-        )
-        assert proc.stdout is not None
-        line = proc.stdout.readline()
-        assert line.strip() == b"ACQUIRED", f"Child did not signal lock acquired: {line!r}"
-        t1 = time.monotonic()
-        with file_lock(lock_file):
-            pass
-        elapsed = time.monotonic() - t1
-        proc.wait()
+        ) as proc:
+            assert proc.stdout is not None
+            line = proc.stdout.readline()
+            assert line.strip() == b"ACQUIRED", f"Child did not signal lock acquired: {line!r}"
+            t1 = time.monotonic()
+            with file_lock(lock_file):
+                pass
+            elapsed = time.monotonic() - t1
+            proc.wait()
         assert elapsed > 0.1, f"Expected blocking wait; elapsed={elapsed:.3f}s"
 
 

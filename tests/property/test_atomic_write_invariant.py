@@ -41,29 +41,51 @@ state_strategy = st.builds(
 states_sequence_strategy = st.lists(state_strategy, min_size=1, max_size=20)
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-008. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 @given(states=states_sequence_strategy)
-@settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=1000,
+    deadline=None,
+    # ``tmp_path`` is function-scoped intentionally — each example writes a
+    # sequence of states to the same target file. Hypothesis warns about
+    # function-scoped fixtures under @given (EPIC-2A-DEBT-008 root cause);
+    # the per-example state file is the correct semantics here.
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_sequential_writes_two_state_invariant(states: list[Any], tmp_path: Path) -> None:
     """After every sequential write, read_state returns exactly that state.
 
     Simplified single-writer property — concurrent-writer property deferred to Story 1.11
     once journal append is the source of truth (Decision B5).
     """
-    from sdlc.state.atomic import read_state, write_state_atomic_sync
+    from sdlc.state.atomic import _normalize_strings, read_state, write_state_atomic_sync
+    from sdlc.state.model import State
 
     target = tmp_path / "state.json"
+    # tmp_path is function-scoped (not example-scoped) — clear prior example's
+    # state + sibling .lock/.tmp so each hypothesis example starts on a fresh
+    # on-disk surface (EPIC-2A-DEBT-008 secondary root cause).
+    target.unlink(missing_ok=True)
+    Path(str(target) + ".lock").unlink(missing_ok=True)
+    Path(str(target) + ".tmp").unlink(missing_ok=True)
+
+    # The writer NFC-normalizes all strings on serialization (Architecture §513;
+    # ``state.atomic._normalize_strings``). Hypothesis may emit Unicode-equivalent
+    # forms (e.g. CJK compatibility ideographs U+F900-U+FAFF → NFC-canonical), so
+    # round-trip equality must be checked against the NFC-normalized expectation
+    # — comparing the raw pre-write state would fail for non-NFC inputs that the
+    # contract permits but normalizes (EPIC-2A-DEBT-008 secondary root cause).
+    def _expected(s: State) -> State:
+        return State.model_validate(_normalize_strings(s.model_dump(mode="json")))
 
     for i, state in enumerate(states):
         write_state_atomic_sync(state, target)
         result = read_state(target)
         assert result is not None, f"read_state returned None after write {i}"
-        assert result == state, f"After write {i}, expected {state}, got {result}"
+        expected = _expected(state)
+        assert result == expected, f"After write {i}, expected {expected}, got {result}"
 
-    # Final read still returns last state
+    # Final read still returns last state (NFC-normalized).
     final = read_state(target)
-    assert final == states[-1], f"Final read returned {final}, expected {states[-1]}"
+    assert final == _expected(states[-1]), (
+        f"Final read returned {final}, expected {_expected(states[-1])}"
+    )

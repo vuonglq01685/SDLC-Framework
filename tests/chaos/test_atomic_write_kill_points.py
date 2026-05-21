@@ -45,6 +45,14 @@ def _write_initial_state(target: Path) -> None:
 
 def _spawn_and_kill(kill_point_name: str, seed: int, target: Path) -> None:
     """Spawn child process and SIGKILL it at the declared kill point."""
+    # `tests/` has no __init__.py and pytest's ``--import-mode=prepend`` does not
+    # put the project root on ``sys.path``, so ``tests.chaos.<x>`` is not resolvable
+    # from a forked child or even from this body in some pytest versions
+    # (EPIC-2A-DEBT-006 secondary root cause). Add the project root explicitly so
+    # the namespace-package import succeeds in any subprocess inheriting our path.
+    _project_root = str(Path(__file__).resolve().parents[2])
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
     from tests.chaos._kill_protocol import _run_protocol_until_kill_point
 
     ctx = multiprocessing.get_context("fork")
@@ -138,14 +146,17 @@ _INTER_STEP_KPS = [
 ]
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-006. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 @pytest.mark.parametrize("kill_point_name", _INTER_STEP_KPS)
 @given(seed=st.integers(min_value=1, max_value=2**31 - 1))
-@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=100,
+    deadline=None,
+    # ``chaos_target`` is a function-scoped fixture intentionally — each trial
+    # forks a fresh child against a fresh target dir; hypothesis warns about
+    # function-scoped fixtures under @given (EPIC-2A-DEBT-006 root cause), but
+    # the spawn-and-kill pattern is correct here (review patch — keep fixture).
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_kill_point_two_state_invariant(
     kill_point_name: str,
     seed: int,
@@ -170,9 +181,17 @@ def test_kill_point_two_state_invariant(
     reason="OS-crash simulation requires posix_fadvise; CI Linux runners have it",
 )
 @given(seed=st.integers(min_value=1, max_value=2**31 - 1))
-@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=100,
+    deadline=None,
+    # ``chaos_target`` is function-scoped by design; see DEBT-006 note above.
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_kp9_os_crash_pre_fsync(seed: int, chaos_target: Path) -> None:
     """KP9: simulate power-loss (page cache eviction) between rename and parent-dir fsync."""
+    _project_root = str(Path(__file__).resolve().parents[2])
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
     from tests.chaos._os_crash import _simulate_power_loss
 
     prev_seq = 0
@@ -189,13 +208,13 @@ def test_kp9_os_crash_pre_fsync(seed: int, chaos_target: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-007. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 @given(seed=st.integers(min_value=1, max_value=2**31 - 1))
-@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=100,
+    deadline=None,
+    # See EPIC-2A-DEBT-007 — same function-scoped fixture pattern as KP1-KP8.
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
 def test_kp10_recovery_of_recovery(seed: int, chaos_target: Path) -> None:
     """KP10: second write_state_atomic completes cleanly with orphan .tmp from prior kill.
 

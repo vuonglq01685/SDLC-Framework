@@ -45,11 +45,6 @@ def test_append_creates_file_when_missing(tmp_path: Path) -> None:
 
 
 @_POSIX
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-002. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 def test_append_uses_o_append_flag(tmp_path: Path) -> None:
     """Verify os.open is called with O_WRONLY | O_CREAT | O_APPEND flags."""
     from sdlc.journal import append_sync
@@ -59,7 +54,11 @@ def test_append_uses_o_append_flag(tmp_path: Path) -> None:
     original_open = os.open
 
     def fake_open(path: str, flags: int, mode: int = 0o777) -> int:
-        if "journal.log" in str(path):
+        # Only capture the journal write open — `file_lock` opens the sibling
+        # ``journal.log.lock`` file with O_CREAT|O_WRONLY (no O_APPEND), and
+        # ``_verify_terminator`` opens the journal with O_RDONLY. Match on the
+        # exact basename to isolate the write-protocol open (EPIC-2A-DEBT-002).
+        if str(path).endswith("journal.log"):
             captured_flags.append(flags)
         return original_open(path, flags, mode)
 
@@ -86,13 +85,15 @@ def test_append_canonical_bytes_match_model_dump(tmp_path: Path) -> None:
 
 
 @_POSIX
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-003. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 def test_append_fsyncs_after_write(tmp_path: Path) -> None:
-    """os.fsync must be called exactly once per append_sync call."""
+    """os.fsync must be called for the journal fd and (on first create) the parent dir.
+
+    The writer fsyncs the journal fd via ``_fsync_journal`` AND the parent directory
+    via ``_fsync_parent_dir`` when the file did not exist before the open (durable
+    create per ADR-014 D2). The test always starts with a missing journal, so we
+    expect exactly two fsync calls (EPIC-2A-DEBT-003 fix — original test asserted
+    1 and was racing against the parent-dir fsync added in Story 1.11 review).
+    """
     from sdlc.journal import append_sync
 
     journal = tmp_path / "journal.log"
@@ -106,7 +107,9 @@ def test_append_fsyncs_after_write(tmp_path: Path) -> None:
     with patch("sdlc.journal.writer.os.fsync", side_effect=fake_fsync):
         append_sync(_make_entry(1), journal)
 
-    assert len(fsync_calls) == 1
+    assert len(fsync_calls) == 2, (
+        f"Expected 2 fsyncs (journal fd + parent dir on first create); got {fsync_calls}"
+    )
 
 
 @_POSIX
@@ -269,13 +272,19 @@ def test_append_zero_byte_write_raises(tmp_path: Path) -> None:
 
 
 @_POSIX
-@pytest.mark.xfail(
-    reason="Pre-existing failure on main@12374b3 (verified by bisect 2026-05-10);"
-    " tracked in EPIC-2A-DEBT-004. Story 2A.5 DR2 quarantine.",
-    strict=False,
-)
 def test_append_body_exception_preserved_over_close_oserror(tmp_path: Path) -> None:
-    """Body OSError must bubble up; close OSError must NOT mask it."""
+    """Body OSError must bubble up (as JournalError); close OSError must NOT mask it.
+
+    EPIC-2A-DEBT-004 fix: the writer wraps the body ``OSError`` into ``JournalError``
+    with ``details['errno']`` carrying the original errno and ``__cause__`` carrying
+    the original ``OSError``. The close-time ``OSError`` is suppressed in the finally
+    block (writer.py:198-208) so the body exception is the one that surfaces. The
+    test asserts both:
+      1. the surfaced exception is the body's EIO (errno 5), not the close's EBADF (9)
+      2. the ``__cause__`` chain still exposes the raw ``OSError`` to callers
+         who want to react to errno directly.
+    """
+    from sdlc.errors import JournalError
     from sdlc.journal import append_sync
 
     journal = tmp_path / "journal.log"
@@ -297,11 +306,18 @@ def test_append_body_exception_preserved_over_close_oserror(tmp_path: Path) -> N
     with (
         patch("sdlc.journal.writer.os.write", side_effect=raising_write),
         patch("sdlc.journal.writer.os.close", side_effect=raising_close),
-        pytest.raises(OSError) as exc,
+        pytest.raises(JournalError) as exc,
     ):
         append_sync(_make_entry(1), journal)
-    # EIO (errno 5) must bubble up, not EBADF (errno 9)
-    assert exc.value.errno == 5, f"Expected EIO(5), got errno {exc.value.errno}"
+    # JournalError details carry the body errno (EIO=5), NOT the close errno (EBADF=9).
+    assert exc.value.details.get("errno") == 5, (
+        f"Expected body EIO(5) in JournalError details, got errno {exc.value.details.get('errno')}"
+    )
+    assert exc.value.details.get("step") == "write_journal"
+    # __cause__ chain preserves the raw OSError for callers that introspect errno.
+    cause = exc.value.__cause__
+    assert isinstance(cause, OSError), f"Expected __cause__ to be OSError, got {type(cause)}"
+    assert cause.errno == 5, f"Expected __cause__ EIO(5), got errno {cause.errno}"
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows stub test only")
