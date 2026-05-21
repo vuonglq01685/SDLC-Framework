@@ -143,3 +143,49 @@ jobs:
 
       - name: Run parity latency benchmarks (p95 ≤ 500ms gate)
         run: uv run pytest -m parity_perf --benchmark-only --no-cov -v
+
+  debt-decay-gate:
+    name: Debt-Decay Budget Gate (CONTRIBUTING §7.5)
+    # Runs on every PR. Mode is "warn" by default (advisory output, exit 0)
+    # unless the PR carries a `before-story-<N>.1` label — then strict
+    # (exit 1 on budget violation), gating the Story N.1 worktree opening.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Audit debt-decay budget
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          # Extract a `before-story-<target>.1` label if present.
+          label=$(printf '%s' "$PR_LABELS" \
+            | grep -oE 'before-story-[0-9]+[a-z]?\.1' \
+            | head -1 || true)
+          if [ -n "$label" ]; then
+            target=$(printf '%s' "$label" \
+              | sed -E 's/before-story-([0-9]+[a-z]?)\.1/\1/')
+            mode=strict
+            echo "::notice::Story N.1 gate active — target epic=$target, mode=strict"
+          else
+            target=2b   # current next-epic prep target; update per epic
+            mode=warn
+            echo "::notice::Advisory debt audit — target epic=$target, mode=warn"
+          fi
+          uv run python scripts/check_debt_decay_budget.py \
+            --target-epic "$target" \
+            --mode "$mode"

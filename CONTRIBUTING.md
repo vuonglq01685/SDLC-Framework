@@ -265,13 +265,94 @@ The story author (or AI agent) verifies the gate is satisfied immediately before
 - [ ] Previous epic's retro: all "Before Story N.1" DOC-items published (ADR Accepted)
 - [ ] Wire-format snapshots green (`scripts/freeze_wireformat_snapshots.py --check`)
 - [ ] Quality gate green on `main` (`pre-commit run --all-files && pytest -q`)
+- [ ] Debt-decay budget gate green (`scripts/check_debt_decay_budget.py --target-epic <N> --mode strict`)
 ```
 
 If any item is unchecked, **stop and escalate to Project Lead**. Do not proceed with story
 creation under "I'll backfill later" rationale — the prerequisites exist precisely because Epic
 1 demonstrated the cost of skipping them.
 
-### 7.5 Audit Trail
+### 7.5 Debt-Decay Policy
+
+**Status:** Permanent policy from Epic 2B onward (Epic 2A retrospective action A1).
+**Source:** Epic 2A retro top concern — debt accumulation across epics with no closure gate.
+
+**Purpose:** Prevent unbounded debt accumulation across epics by enforcing a machine-checkable
+budget before each `Story N.1` opens. Each prep sprint MUST close enough carry-forward debt to
+keep the next epic from inheriting a load-bearing burden.
+
+**Three policy gates:**
+
+| Gate | Rule | Threshold |
+|---|---|---|
+| A | BLOCKING items currently closed (any `epic_of_origin`) | ≥5 |
+| B | HIGH carry-forward items closed (`epic_of_origin != target_epic`) | ≥50% |
+| C | Items open from two epics back (N-2 zero-out, any severity) | 0 open |
+
+Gate A is absolute — it does NOT scope to "closed during this cycle"; the rolling count of
+BLOCKING-closed items across the whole budget must reach 5. Gate B treats *all* non-target
+epics as carry-forward (consistent with retro wording — not scoped to N-1 alone). Gate C is the
+zero-tolerance heel-drag check: anything that has lingered for two epics must close.
+
+**Budget tracker:** `_bmad-output/implementation-artifacts/debt-budget.yaml` is the
+machine-readable inventory the gate consumes. Each item declares `id`, `severity`, `status`,
+`epic_of_origin`, and `title`. Owners update the file when a closure lands (linked to the
+corresponding PR or commit). Free-form context stays in `deferred-work.md`; the YAML is the
+single source of truth for severity + status.
+
+**Runner:** `scripts/check_debt_decay_budget.py` renders a markdown audit table and exits:
+
+| Exit | Meaning |
+|---|---|
+| 0 | All three gates pass, OR `--mode warn` (default — advisory) |
+| 1 | One or more gates fail AND `--mode strict` |
+| 2 | IO error (missing budget file, malformed YAML, unknown target epic) |
+
+```bash
+# Advisory run (default — used by CI on every PR)
+uv run python scripts/check_debt_decay_budget.py --target-epic 2b
+
+# Strict run (used during prep-sprint close-out, gates Story N.1)
+uv run python scripts/check_debt_decay_budget.py --target-epic 2b --mode strict
+```
+
+**CI integration:** The `debt-decay-gate` job in `.github/workflows/ci.yml` runs the script on
+every PR. Mode defaults to `warn` (audit visibility without blocking); a PR carrying a label
+matching `before-story-<N>.1` (e.g. `before-story-2b.1`) is upgraded to `--mode strict` and
+hard-fails if any gate is red. Label the PR that gates the Story N.1 worktree opening so the
+gate fires at the right moment.
+
+**Audit table example** (live output for target Epic 2B at end of Epic 2A close-out):
+
+```markdown
+# Debt-Decay Audit — Target Epic 2b
+
+| Gate | Status | Observed | Threshold |
+|---|---|---|---|
+| Gate A (BLOCKING absolute) | FAIL | 0 closed | ≥5 |
+| Gate B (HIGH carry-forward) | PASS | 2/4 closed | ≥50% |
+| Gate C (N-2 zero-out) | FAIL | 4 open | 0 |
+
+**Overall:** FAIL
+```
+
+**Lineage table** — known target epics and their `(previous, two_back)` mapping (extend in
+`scripts/check_debt_decay_budget.py::EPIC_LINEAGE` as new epics open):
+
+| Target | Previous (N-1) | Two-back (N-2) |
+|---|---|---|
+| 2a | 1 | — (sentinel) |
+| 2b | 2a | 1 |
+| 3  | 2b | 2a |
+| 4  | 3  | 2b |
+| 5  | 4  | 3 |
+
+**Integration with §7.4 checklist:** Every Story N.1 verification cycle MUST include a
+`--mode strict` invocation. The debt-budget green check is a peer of the wire-format snapshot
+check and the pre-commit quality gate — not an optional add-on. The Project Lead's signoff in
+DAG §8 implicitly attests that the budget check passed at gate time.
+
+### 7.6 Audit Trail
 
 Each epic's prerequisite verification SHALL leave one of:
 
@@ -309,3 +390,4 @@ ships externally.
 |---|---|---|
 | 2026-05-10 | Alice (drafted via sprint-planning skill) | Initial publication — TDD-first + chunked review + worktree workflow + decision protocol per Epic 1 retro DOC4 |
 | 2026-05-10 | Vuonglq01685 + Claude | Added §7 Per-Epic Prerequisites — codifies Team Agreements (A)+(F) as permanent policy for all future epics; Pre-Story N.1 gate with mandatory DAG approval + retro-action closure |
+| 2026-05-21 | Vuonglq01685 + Claude (prep-sprint C6) | Added §7.5 Debt-Decay Policy per Epic 2A retro action A1; renumbered Audit Trail to §7.6; updated §7.4 verification checklist to include debt-budget gate; backed by `scripts/check_debt_decay_budget.py` + `debt-budget.yaml` + `debt-decay-gate` CI job |
