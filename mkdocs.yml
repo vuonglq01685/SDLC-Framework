@@ -72,6 +72,7 @@ nav:
       - "ADR template": decisions/adr-template.md
   - Reference:
       - "Specialists matrix (canonical roster)": specialists-matrix.md
+      - "Boundary-line postcondition audit (pre-2B)": boundary-postcondition-audit.md
   - Sprints:
       - "Epic 2A — story DAG & parallelism plan": sprints/epic-2a-dag.md
   - Runbooks:
