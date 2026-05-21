@@ -211,7 +211,22 @@ The MVP must include all of:
 - **Adopt-mode** — `sdlc init --adopt` with three-pass detection / symlink offer / `imported-from-existing` verifier marking. Source code is never modified; the invariant is enforced and tested.
 - **Local dashboard** — all sections present: masthead, DORA strip (per-project), phase tracker, backlog tree, activity feed, side panel with resume card and STOP banners. Kanban view is **rendered read-only** in MVP (full Kanban interactions are Growth).
 - **Hook system** — naming validator, phase-gate enforcer, post-write journal, post-write state refresh; `PreToolUse` hook installed in `.claude/`.
-- **Specialist library** — ~25 markdown specialist agents shipped via `package_data`, including the orchestrator, Phase-1 specialists (requirement-analyst, product-strategist, market-researcher, technical-researcher, requirement-validator, stakeholder-simulator, epic-planner, dependency-mapper, prioritizer, story-writer, acceptance-criteria-author, story-prioritizer), Phase-2 specialists (ux-researcher, ux-designer, design-system-author, a11y-reviewer, solution-architect, security-architect, infra-architect, devex-architect, data-modeler, api-designer), Phase-3 specialists (codebase-scaffolder, task-breaker, tdd-strategist, test-author, developer-agent, code-reviewer, security-reviewer, edge-case-reviewer, pr-author), plus support agents (signoff-summarizer, devil-advocate, synthesizer, clarification-triager).
+- **Specialist library** — markdown specialist agents shipped via `package_data`. The full
+  canonical roster — names, files, status (shipped vs planned), phase grouping, and the
+  renames reconciled by prep-sprint C5 (Epic 2A retro A4) — lives in
+  [`docs/specialists-matrix.md`](../../docs/specialists-matrix.md). As of 2026-05-21 the
+  matrix records 19 shipped specialists and 18 planned (targets for Epic 2B.8/2B.9/2B.10).
+  The PRD's earlier inline list — Phase-1: `requirement-analyst, product-strategist,
+  market-researcher, technical-researcher, requirement-validator, stakeholder-simulator,
+  epic-planner, dependency-mapper, prioritizer, story-writer, acceptance-criteria-author,
+  story-prioritizer`; Phase-2: `ux-researcher, ux-designer, design-system-author,
+  a11y-reviewer, solution-architect, security-architect, infra-architect, devex-architect,
+  data-modeler, api-designer`; Phase-3: `codebase-scaffolder, task-breaker, tdd-strategist,
+  test-author, developer-agent, code-reviewer, security-reviewer, edge-case-reviewer,
+  pr-author`; support: `signoff-summarizer, devil-advocate, synthesizer, clarification-triager`
+  — remains the v0.1 declared intent. The matrix is the operative source of truth: where the
+  shipped name differs (e.g. `code-bootstrapper` ← `codebase-scaffolder`), the matrix's
+  shipped name wins per ADR-030.
 - **Full test pyramid** — unit + integration + nightly E2E + property tests + benchmark suite, meeting coverage targets above.
 - **PyPI distribution** — `pip install --upgrade sdlc-framework`, console script `sdlc`, Python 3.10+ wheel, `sdlc migrate-vN` for breaking changes.
 - **AI-Native Risk Profile** — explicit, documented threat model covering prompt injection, agent cascade failure, state corruption, schema drift across releases, and hook execution as arbitrary code (v1 in-process is documented technical debt).

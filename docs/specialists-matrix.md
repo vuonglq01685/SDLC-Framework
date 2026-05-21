@@ -1,0 +1,132 @@
+# Specialists Matrix — Canonical Roster
+
+**Status:** Frozen (prep-sprint C5, 2026-05-21). Epic 2A retro action A4 success criterion.
+**Source of truth:** This document, paired with `src/sdlc/agents/index.yaml` (machine-readable).
+**Update rule (per ADR-026 §4 + retro A4):** Adding or renaming a specialist requires either
+(a) an entry here and in `index.yaml`, paired with the implementation PR, OR (b) an ADR.
+**Reconciliation reference:** ADR-030 (drafted under prep-sprint C5) records the one-time
+amendment that promoted shipped names over PRD §214 declared names.
+
+This matrix is the canonical list referenced from PRD §214 ("~25 markdown specialist agents")
+and Architecture.md (§932/933/934 phase-counts). When the prose in those documents disagrees
+with this matrix, **this matrix wins**.
+
+---
+
+## 1. Shipped Specialists (19 — verified against `src/sdlc/agents/index.yaml`)
+
+| Name | Phase | File | Story | Notes |
+|---|---|---|---|---|
+| `product-strategist` | 1 | `phase1/product-strategist.md` | 2A.8 | Compound prompt PRODUCT.md author |
+| `technical-researcher` | 1 | `phase1/technical-researcher.md` | 2A.9 | `/sdlc-research` workhorse |
+| `devil-advocate` | 1 | `phase1/devil-advocate.md` | 2A.8 | Adversarial panel role |
+| `requirement-synthesizer` | 1 | `phase1/requirement-synthesizer.md` | 2A.8 | Renamed from PRD `synthesizer` (Phase-1 specialised) |
+| `artifact-verifier` | 1 | `phase1/artifact-verifier.md` | 2A.10 | Renamed from PRD `requirement-validator` |
+| `epic-generator` | 1 | `phase1/epic-generator.md` | 2A.11 | Renamed from PRD `epic-planner` |
+| `story-writer` | 1 | `phase1/story-writer.md` | 2A.11 | |
+| `phase1-signoff-summarizer` | 1 | `phase1/phase1-signoff-summarizer.md` | 2A.12 | Renamed from PRD `signoff-summarizer` (phase-1-scoped) |
+| `ux-designer` | 2 | `phase2/ux-designer.md` | 2A.13 | |
+| `ux-reviewer` | 2 | `phase2/ux-reviewer.md` | 2A.13 | New (not in PRD §214); pairs with ux-designer |
+| `system-architect` | 2 | `phase2/system-architect.md` | 2A.14 | Renamed from PRD `solution-architect` |
+| `database-architect` | 2 | `phase2/database-architect.md` | 2A.14 | Renamed from PRD `data-modeler`; sub-track |
+| `security-architect` | 2 | `phase2/security-architect.md` | 2A.14 | Sub-track |
+| `observability-architect` | 2 | `phase2/observability-architect.md` | 2A.14 | New (not in PRD §214); sub-track |
+| `code-bootstrapper` | 3 | `phase3/code-bootstrapper.md` | 2A.15 | Renamed from PRD `codebase-scaffolder` (Pattern 7 in retro) |
+| `task-breaker` | 3 | `phase3/task-breaker.md` | 2A.16 | |
+| `test-author` | 3 | `phase3/test-author.md` | 2A.17 | TDD pipeline stage 1 |
+| `code-author` | 3 | `phase3/code-author.md` | 2A.17 | Renamed from PRD `developer-agent` |
+| `code-reviewer` | 3 | `phase3/code-reviewer.md` | 2A.17 | TDD pipeline stage 3 |
+
+---
+
+## 2. Reconciled Renames (drift closed by C5)
+
+The following PRD §214 names were drifted vs the shipped code. Per retro A4, the shipped
+name is now canonical:
+
+| PRD §214 name | Shipped name | Phase | Rationale |
+|---|---|---|---|
+| `codebase-scaffolder` | `code-bootstrapper` | 3 | "Bootstrap" emphasises one-shot init posture; called out as Pattern 7 in Epic 2A retro |
+| `developer-agent` | `code-author` | 3 | Aligns with `test-author` / `code-reviewer` naming pattern (role-verb suffix) |
+| `signoff-summarizer` | `phase1-signoff-summarizer` | 1 | Explicit phase scope; phase-2/3 may grow analogues later |
+| `requirement-validator` | `artifact-verifier` | 1 | Broader scope than just requirements; verifies hash + presence on all phase-1 artifacts |
+| `epic-planner` | `epic-generator` | 1 | Closer to actual behaviour (generates the epic file, doesn't plan capacity) |
+| `solution-architect` | `system-architect` | 2 | "System" matches Architecture.md vocabulary |
+| `data-modeler` | `database-architect` | 2 | Aligns with `*-architect` Phase-2 pattern |
+| `synthesizer` (generic) | `requirement-synthesizer` (Phase 1) | 1 | Generic synthesizer role lives in the dispatcher (PRD FR26); the shipped specialist is the Phase-1 requirement-focused variant |
+
+---
+
+## 3. Planned Specialists (18 — targets for Epic 2B.8 / 2B.9 / 2B.10)
+
+These names appear in PRD §214 but have NO file in `src/sdlc/agents/`. They are scheduled to
+be authored in Epic 2B.8 (Phase 1), 2B.9 (Phase 2), and 2B.10 (Phase 3). Names listed here are
+*tentative* — Epic 2B authoring may rename to match the shipped-naming convention. Any rename
+at authoring time updates this matrix and removes the planned-row simultaneously.
+
+### Phase 1 planned (7)
+
+| Name | Target story | Notes |
+|---|---|---|
+| `requirement-analyst` | 2B.8 | Distinct from `requirement-synthesizer` (analysis pass before synthesis) |
+| `market-researcher` | 2B.8 | Pairs with `technical-researcher` |
+| `stakeholder-simulator` | 2B.8 | Adversarial role; pairs with `devil-advocate` |
+| `dependency-mapper` | 2B.8 | Cross-epic dependency tracking |
+| `prioritizer` | 2B.8 | Story / epic priority synthesis |
+| `acceptance-criteria-author` | 2B.8 | BDD-format AC authoring |
+| `story-prioritizer` | 2B.8 | Differs from `prioritizer` (story-level vs epic-level) |
+
+### Phase 2 planned (6)
+
+| Name | Target story | Notes |
+|---|---|---|
+| `ux-researcher` | 2B.9 | Distinct from `ux-designer` (research vs design pass) |
+| `design-system-author` | 2B.9 | Pairs with ux-designer for token systems |
+| `a11y-reviewer` | 2B.9 | Accessibility audit role |
+| `infra-architect` | 2B.9 | Sub-track sibling of `system-architect` |
+| `devex-architect` | 2B.9 | Sub-track sibling |
+| `api-designer` | 2B.9 | Wire-format + endpoint design role |
+
+### Phase 3 planned (4)
+
+| Name | Target story | Notes |
+|---|---|---|
+| `tdd-strategist` | 2B.10 | Strategy-layer role above `test-author` |
+| `security-reviewer` | 2B.10 | Pairs with `code-reviewer` for security-sensitive stories |
+| `edge-case-reviewer` | 2B.10 | Pairs with `code-reviewer`; closes Edge Case Hunter layer |
+| `pr-author` | 2B.10 | GH PR creation; consumes `GH_TOKEN` per PRD NFR-SEC-2 |
+
+### Support planned (1)
+
+| Name | Target story | Notes |
+|---|---|---|
+| `clarification-triager` | 2B.8 | Routes open-clarification STOP triggers to the right specialist |
+
+---
+
+## 4. Roster Totals
+
+| Category | Count |
+|---|---|
+| Shipped (table 1) | 19 |
+| Planned (table 3) | 18 |
+| **Grand total (post-Epic-2B authoring target)** | **37** |
+
+The PRD §214 prose "~25 markdown specialist agents" reflects the original v0.1 plan. Actual
+total has grown via Epic 2A sub-track design (Phase 2 sub-architects) and the deliberate
+addition of pair-reviewers (ux-reviewer, ux-designer pairing; edge-case-reviewer + code-reviewer).
+This matrix is the authoritative count.
+
+---
+
+## 5. Cross-References
+
+- `src/sdlc/agents/index.yaml` — machine-readable manifest the dispatcher consumes
+- `scripts/validate_specialists.py` — cross-reference validator (placeholder; activates in
+  Story 2A-2 / next round)
+- ADR-010 — module boundary + LOC cap policy (specialists are content, not modules)
+- ADR-030 (drafted under C5) — reconciliation direction record
+- Epic 2A retrospective §4 Pattern 7 — original Pattern-7 drift call-out
+- Epic 2A retrospective §6.1 A4 — freeze ceremony action
+- PRD §214 — original target list
+- Architecture.md §932/933/934 — phase-count prose (now subordinate to this matrix)
