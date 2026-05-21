@@ -274,7 +274,36 @@ async def append_with_seq_alloc(
       JournalError — relative path, factory-produced seq mismatch, or any
         IO failure during read/write.
     """
-    raise NotImplementedError("C2 GREEN")
+    if not journal_path.is_absolute():
+        raise _je(
+            "journal.append_with_seq_alloc requires an absolute journal_path",
+            path=str(journal_path),
+            errno=None,
+            step="validate_path",
+            monotonic_seq=-1,
+        )
+
+    def _alloc_and_append() -> int:
+        highest = _read_highest_seq(journal_path)
+        seq = highest + 1
+        entry = entry_factory(seq)
+        # Defensive: the factory MUST honour the allocated seq. The protocol
+        # body's `seq <= highest` check below will catch mismatches too, but a
+        # focused error here is friendlier than the generic JournalError raised
+        # by the protocol.
+        if entry.monotonic_seq != seq:
+            raise _je(
+                "append_with_seq_alloc: entry_factory returned mismatched seq",
+                path=str(journal_path),
+                errno=None,
+                step="factory_seq_mismatch",
+                monotonic_seq=entry.monotonic_seq,
+            )
+        _append_protocol_body(entry, journal_path)
+        return seq
+
+    async with file_lock(_lock_path_for(journal_path)):
+        return await asyncio.to_thread(_alloc_and_append)
 
 
 def append_sync(entry: JournalEntry, journal_path: Path) -> None:
