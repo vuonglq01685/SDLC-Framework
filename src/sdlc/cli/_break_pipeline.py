@@ -18,6 +18,7 @@ import yaml
 from pydantic import ValidationError
 
 from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -194,8 +195,9 @@ def mock_task_batch_body(story_id: str) -> str:
 
 def write_mock_fixture(dest_dir: Path, name: str, h: str, body: str) -> None:
     records = {h: {"output_text": body, "tokens_in": 1, "tokens_out": 1, "tool_calls": []}}
-    (dest_dir / f"{name}.yaml").write_text(
-        yaml.safe_dump(records, sort_keys=True, allow_unicode=True), encoding="utf-8"
+    atomic_write(
+        dest_dir / f"{name}.yaml",
+        yaml.safe_dump(records, sort_keys=True, allow_unicode=True),
     )
 
 
@@ -283,7 +285,7 @@ async def break_dispatch_write(
                 )
 
             text = serialize_task_entry(entry)
-            path.write_text(text, encoding="utf-8")
+            atomic_write(path, text)
             written.append(path)
 
             seq_aw = await allocate_seq(journal_path)

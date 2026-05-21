@@ -11,6 +11,7 @@ from pathlib import Path
 
 import yaml
 
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -133,8 +134,9 @@ def build_sub_track_prompt(
 
 def _write_fixture(dest_dir: Path, name: str, h: str, body: str) -> None:
     records = {h: {"output_text": body, "tokens_in": 1, "tokens_out": 1, "tool_calls": []}}
-    (dest_dir / f"{name}.yaml").write_text(
-        yaml.safe_dump(records, sort_keys=True, allow_unicode=True), encoding="utf-8"
+    atomic_write(
+        dest_dir / f"{name}.yaml",
+        yaml.safe_dump(records, sort_keys=True, allow_unicode=True),
     )
 
 
@@ -277,7 +279,7 @@ async def dispatch_and_write(
             details={"hook": decision.hook_name, "reason": decision.reason, "path": rel_path},
         )
 
-    target_path.write_text(output_text, encoding="utf-8")
+    atomic_write(target_path, output_text)
     after = content_hash(output_text)
 
     seq_aw = await allocate_seq(journal_path)

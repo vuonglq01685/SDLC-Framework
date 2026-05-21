@@ -32,6 +32,7 @@ import yaml
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli.output import echo, emit_error, emit_json
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
     PanelObserver,
@@ -170,9 +171,9 @@ def _materialize_research_mock_fixtures(
             "tool_calls": [],
         }
     }
-    (dest_dir / f"{spec.name}.yaml").write_text(
+    atomic_write(
+        dest_dir / f"{spec.name}.yaml",
         yaml.safe_dump(records, sort_keys=True, allow_unicode=True),
-        encoding="utf-8",
     )
 
 
@@ -279,7 +280,7 @@ async def _research_dispatch_async(
     # an orphan ``artifact_written`` journal entry pointing at an unshippable
     # file because the postcondition ran in the outer scope.
     validate_research_md_text(final_text, source_label=str(target_path))
-    target_path.write_text(final_text, encoding="utf-8")
+    atomic_write(target_path, final_text)
     rel = target_path.resolve().relative_to(root.resolve()).as_posix()
     seq_aw = await allocate_seq(journal_path)
     run_id = str(uuid.uuid4())

@@ -26,6 +26,7 @@ from typing import Final
 import typer
 
 from sdlc.cli.output import emit_error
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -279,7 +280,7 @@ async def ux_dispatch_and_write_async(  # noqa: C901, PLR0915
                 },
             )
 
-        target.write_text(file_content, encoding="utf-8")
+        atomic_write(target, file_content)
         after = content_hash(file_content)
 
         seq_aw = await allocate_seq(journal_path)
@@ -346,6 +347,7 @@ def materialize_ux_mock_fixture(
     records = {
         h: {"output_text": placeholder_body, "tokens_in": 1, "tokens_out": 1, "tool_calls": []}
     }
-    (dest_dir / f"{spec.name}.yaml").write_text(
-        yaml.safe_dump(records, sort_keys=True, allow_unicode=True), encoding="utf-8"
+    atomic_write(
+        dest_dir / f"{spec.name}.yaml",
+        yaml.safe_dump(records, sort_keys=True, allow_unicode=True),
     )

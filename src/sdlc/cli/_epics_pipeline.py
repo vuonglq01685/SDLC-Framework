@@ -26,6 +26,7 @@ from typing import Final
 import yaml
 
 from sdlc.cli._epic_story_models import _EpicEntry, serialize_entry
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -139,9 +140,9 @@ def materialize_mock(
             "tool_calls": [],
         }
     }
-    (dest_dir / f"{spec.name}.yaml").write_text(
+    atomic_write(
+        dest_dir / f"{spec.name}.yaml",
         yaml.safe_dump(records, sort_keys=True, allow_unicode=True),
-        encoding="utf-8",
     )
 
 
@@ -231,7 +232,7 @@ async def dispatch_and_write(  # noqa: C901
                     },
                 )
             text = serialize_entry(entry)
-            path.write_text(text, encoding="utf-8")
+            atomic_write(path, text)
             written.append(path)
             seq_aw = await allocate_seq(journal_path)
             await journal_append(

@@ -24,6 +24,7 @@ from sdlc.cli._task_pipeline_parsers import (
     parse_review_result,
     validate_file_prefix,
 )
+from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -213,7 +214,7 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
                             },
                         )
 
-                    path.write_text(fspec.content, encoding="utf-8")
+                    atomic_write(path, fspec.content)
                     written.append(path)
 
                     seq_aw = await allocate_seq(journal_path)
@@ -282,7 +283,7 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
         # Rewrite task JSON via model_copy (StrictModel is frozen — no direct mutation, AC7)
         updated_task = task.model_copy(update=update_fields)
         task_text_new = serialize_task_entry(updated_task)
-        task_path.write_text(task_text_new, encoding="utf-8")
+        atomic_write(task_path, task_text_new)
         task_rewritten = True
 
         # Journal task_stage_advanced
@@ -317,7 +318,7 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
         # (AC7: the stage field must be left UNCHANGED on any stage-transition failure).
         if task_rewritten:
             with contextlib.suppress(OSError):
-                task_path.write_text(task_text, encoding="utf-8")
+                atomic_write(task_path, task_text)
         # Journal task_stage_failed (AC7) — best-effort; ignore journal I/O errors
         with contextlib.suppress(Exception):
             seq_fail = await allocate_seq(journal_path)
