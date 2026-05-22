@@ -16,9 +16,11 @@ import contextlib
 import uuid
 from collections.abc import Callable
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.cli._task_pipeline_parsers import (
     parse_files_result,
     parse_review_result,
@@ -40,7 +42,7 @@ from sdlc.errors import SpecialistError, WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime
+from sdlc.runtime.abc import AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 
@@ -74,9 +76,10 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
     task_path: Path,
     task_text: str,
     story_text: str,
-    runtime: MockAIRuntime | None,
+    runtime: AIRuntime | None,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...],
+    allow_mock_invoked: bool = False,
 ) -> str | None:
     """Execute one stage advance: dispatch specialist (if any), write files, update task JSON,
     and journal.
@@ -117,7 +120,13 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
                     f"no runtime provided for dispatch stage {current_stage!r}",
                     details={"task_id": task_id, "stage": current_stage},
                 )
-            observer = PanelObserver(slash_command=_SLASH_CMD, emit_agent_dispatched=False)
+            observer_ctx: dict[str, object] = {}
+            merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
+            observer = PanelObserver(
+                slash_command=_SLASH_CMD,
+                extra_context=MappingProxyType(observer_ctx),
+                emit_agent_dispatched=False,
+            )
             result = await dispatch(
                 spec,
                 runtime=runtime,

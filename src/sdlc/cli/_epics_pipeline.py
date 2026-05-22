@@ -26,6 +26,7 @@ from typing import Final
 import yaml
 
 from sdlc.cli._epic_story_models import _EpicEntry, serialize_entry
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
@@ -42,7 +43,8 @@ from sdlc.errors import WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime, compute_prompt_hash
+from sdlc.runtime.abc import AIRuntime
+from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.specialists import SpecialistRegistry
 
 _EPICS_DIR_REL: Final[str] = "01-Requirement/04-Epics"
@@ -50,8 +52,8 @@ _USE_MOCK_ENV: Final[str] = "SDLC_USE_MOCK_RUNTIME"
 
 
 def use_mock_runtime() -> bool:
-    """v1 default-on gate; flip to ``0`` to require a real runtime (2B.1+)."""
-    return os.environ.get(_USE_MOCK_ENV, "1") == "1"
+    """Mock dispatch when ``SDLC_USE_MOCK_RUNTIME=1`` (default off post-2B.1)."""
+    return os.environ.get(_USE_MOCK_ENV, "0") == "1"
 
 
 def mock_epics_body() -> str:
@@ -154,9 +156,10 @@ async def dispatch_and_write(  # noqa: C901
     agent_runs_path: Path,
     product_text: str,
     epics_dir: Path,
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...],
+    allow_mock_invoked: bool = False,
 ) -> list[tuple[str, str]]:
     epics_dir.mkdir(parents=True, exist_ok=True)
     anchor = epics_dir / "EPIC-sdlc-dispatch-anchor.json"
@@ -173,10 +176,12 @@ async def dispatch_and_write(  # noqa: C901
             upstream_outputs=(),
         )
 
+    observer_ctx: dict[str, object] = {}
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
     observer = PanelObserver(
         slash_command="/sdlc-epics",
         idea_text=product_text,
-        extra_context=MappingProxyType({}),
+        extra_context=MappingProxyType(observer_ctx),
         emit_agent_dispatched=True,
     )
     result = await dispatch(

@@ -11,7 +11,6 @@ AC8/D1: review_verdict/review_notes are real serialized fields on _TaskEntry
 from __future__ import annotations
 
 import asyncio
-import os
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -23,6 +22,11 @@ from pydantic import ValidationError
 from sdlc.cli._boundary import artifact_contains_boundary
 from sdlc.cli._epic_story_models import _TaskEntry
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.cli._runtime_selection import (
+    build_runtime,
+    enforce_allow_mock_gate,
+    use_mock_runtime,
+)
 from sdlc.cli._task_pipeline import (
     _NEXT_STAGE,
     _SLASH_CMD,
@@ -40,7 +44,7 @@ from sdlc.cli.output import emit_error, emit_json, emit_warning
 from sdlc.dispatcher import build_pre_write_hook_chain
 from sdlc.errors import SignoffError, SpecialistError, WorkflowError
 from sdlc.ids.parsers import TASK_ID_PATTERN, TASK_ID_REGEX, parse_task_id
-from sdlc.runtime.mock import MockAIRuntime, compute_prompt_hash
+from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.signoff import SignoffState, compute_state
 from sdlc.specialists import load_registry
 from sdlc.specialists.frontmatter import Specialist
@@ -51,11 +55,6 @@ _STATE_REL: Final[str] = ".claude/state/state.json"
 _AGENTS_REL: Final[str] = ".claude/agents"
 _RUNS_REL: Final[str] = "03-Implementation/agent_runs.jsonl"
 _STORIES_ROOT_REL: Final[str] = "01-Requirement/05-Stories"
-_USE_MOCK_ENV: Final[str] = "SDLC_USE_MOCK_RUNTIME"
-
-
-def _use_mock_runtime() -> bool:
-    return os.environ.get(_USE_MOCK_ENV, "1") == "1"
 
 
 def _workflows_package_dir() -> Path:
@@ -78,8 +77,9 @@ def _task_file_path(root: Path, task_id: str) -> Path:
     return root / _TASKS_ROOT_REL / story_id / fname
 
 
-def run_task(*, ctx: typer.Context, task_id: str) -> None:  # noqa: C901, PLR0912, PLR0915
+def run_task(*, ctx: typer.Context, task_id: str, allow_mock: bool = False) -> None:  # noqa: C901, PLR0912, PLR0915
     """Phase 3 TDD pipeline — one stage per invocation (FR17)."""
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     root = _get_repo_root_or_cwd()
     journal_path = root / _JOURNAL_REL
     agent_runs_path = root / _RUNS_REL
@@ -252,11 +252,11 @@ def run_task(*, ctx: typer.Context, task_id: str) -> None:  # noqa: C901, PLR091
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
-        runtime: MockAIRuntime | None = None
+        runtime = None
 
         if specialist_name is not None:
             try:
-                if _use_mock_runtime():
+                if use_mock_runtime():
                     # Hash must match what dispatch computes internally: dispatch always
                     # calls spec.primary_agent ("test-author") — AC9/D1 nominal-only.
                     sp_obj = registry.get(spec.primary_agent)
@@ -283,7 +283,7 @@ def run_task(*, ctx: typer.Context, task_id: str) -> None:  # noqa: C901, PLR091
                         body = mock_code_reviewer_body()
 
                     write_mock_fixture(tmp_path, spec.name, h, body)
-                    runtime = MockAIRuntime(tmp_path)
+                    runtime = build_runtime(fixtures_dir=tmp_path)
                 else:
                     emit_error("ERR_INFRASTRUCTURE", "real runtime not available in v1", ctx=ctx)
             except (WorkflowError, SpecialistError, OSError) as exc:
@@ -310,6 +310,7 @@ def run_task(*, ctx: typer.Context, task_id: str) -> None:  # noqa: C901, PLR091
                     runtime=runtime,
                     registry=registry,
                     hooks=hooks,
+                    allow_mock_invoked=allow_mock_invoked,
                 )
             )
         except WorkflowError as exc:

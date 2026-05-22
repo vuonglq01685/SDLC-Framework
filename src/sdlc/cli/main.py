@@ -1,6 +1,6 @@
-"""Typer application entry — registers all `sdlc <subcommand>` handlers.
+"""Typer application entry ? registers all `sdlc <subcommand>` handlers.
 
-Per Architecture §488, command-body imports are deferred to keep the
+Per Architecture ?488, command-body imports are deferred to keep the
 cold-start budget under 200 ms; only the Typer machinery is imported at
 module level.
 """
@@ -20,7 +20,7 @@ __all__ = ("app",)
 def _version_callback(value: bool) -> None:
     if value:
         if "--json" in sys.argv:
-            from sdlc.cli.output import canonical_dumps  # deferred per Architecture §488
+            from sdlc.cli.output import canonical_dumps  # deferred per Architecture ?488
 
             typer.echo(canonical_dumps({"command": "version", "version": get_version()}))
         else:
@@ -79,7 +79,7 @@ def init_command(
             "sdlc init --adopt is not implemented yet (Story 3.1+).",
             ctx=ctx,
         )
-    from sdlc.cli.init import run_init  # deferred per Architecture §488
+    from sdlc.cli.init import run_init  # deferred per Architecture ?488
 
     run_init(ctx=ctx)
 
@@ -88,11 +88,16 @@ def init_command(
 def research_command(
     ctx: typer.Context,
     topic: str = typer.Argument(..., help="The research topic"),
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
 ) -> None:
     """Phase 1 topic research (FR7)."""
-    from sdlc.cli.research import run_research  # deferred per Architecture §488
+    from sdlc.cli.research import run_research  # deferred per Architecture ?488
 
-    run_research(ctx=ctx, topic=topic)
+    run_research(ctx=ctx, topic=topic, allow_mock=allow_mock)
 
 
 @app.command(name="start")
@@ -103,19 +108,24 @@ def start_command(
         False,
         "--quiet",
         "-q",
-        help="Suppress MockAIRuntime v1 stderr warning.",
+        help="Suppress mock-runtime stderr warning when SDLC_USE_MOCK_RUNTIME=1.",
+    ),
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
     ),
 ) -> None:
     """Initiate Phase 1 product discovery (FR6)."""
-    from sdlc.cli.start import run_start  # deferred per Architecture §488
+    from sdlc.cli.start import run_start  # deferred per Architecture ?488
 
-    run_start(ctx=ctx, idea=idea, quiet=quiet)
+    run_start(ctx=ctx, idea=idea, quiet=quiet, allow_mock=allow_mock)
 
 
 @app.command(name="scan")
 def scan_command(ctx: typer.Context) -> None:
     """Refresh state.json from the artifact tree (FR3)."""
-    from sdlc.cli.scan import run_scan  # deferred per Architecture §488
+    from sdlc.cli.scan import run_scan  # deferred per Architecture ?488
 
     run_scan(ctx=ctx)
 
@@ -128,28 +138,40 @@ def verify_command(
     ),
 ) -> None:
     """Verify a Phase 1 artifact (FR8, Story 2A.10)."""
-    from sdlc.cli.verify import run_verify  # deferred per Architecture §488
+    from sdlc.cli.verify import run_verify  # deferred per Architecture ?488
 
     run_verify(ctx=ctx, artifact_id=artifact_id)
 
 
 @app.command(name="epics")
-def epics_command(ctx: typer.Context) -> None:
+def epics_command(
+    ctx: typer.Context,
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
+) -> None:
     """Generate epic JSON files from the draft PRD (FR9, Story 2A.11)."""
-    from sdlc.cli.epics import run_epics  # deferred per Architecture §488
+    from sdlc.cli.epics import run_epics  # deferred per Architecture ?488
 
-    run_epics(ctx=ctx)
+    run_epics(ctx=ctx, allow_mock=allow_mock)
 
 
 @app.command(name="stories")
 def stories_command(
     ctx: typer.Context,
     epic_id: str = typer.Argument(..., help="The EPIC-<slug> id to generate stories for"),
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
 ) -> None:
     """Generate story JSON files for a given epic (FR10, Story 2A.11)."""
-    from sdlc.cli.stories import run_stories  # deferred per Architecture §488
+    from sdlc.cli.stories import run_stories  # deferred per Architecture ?488
 
-    run_stories(ctx=ctx, epic_id=epic_id)
+    run_stories(ctx=ctx, epic_id=epic_id, allow_mock=allow_mock)
 
 
 @app.command(name="status")
@@ -166,7 +188,7 @@ def trace_command(
     task_id: str = typer.Argument(..., help="Task identifier (EPIC-...-S<NN>-...-T<NN>-...)."),
 ) -> None:
     """Reconstruct chronological history of a task (FR33)."""
-    from sdlc.cli.trace import run_trace  # deferred per Architecture §488
+    from sdlc.cli.trace import run_trace  # deferred per Architecture ?488
 
     run_trace(ctx=ctx, task_id=task_id)
 
@@ -212,7 +234,7 @@ def logs_command(
 @app.command(name="rebuild-state")
 def _rebuild_state_cmd(ctx: typer.Context) -> None:
     """Rebuild state.json from the journal (FR35)."""
-    from sdlc.cli.rebuild_state import run_rebuild_state  # deferred per Architecture §488
+    from sdlc.cli.rebuild_state import run_rebuild_state  # deferred per Architecture ?488
 
     run_rebuild_state(ctx=ctx)
 
@@ -223,50 +245,76 @@ def signoff_command(
     phase: int = typer.Argument(..., help="Phase number to sign off (1 or 2)"),
 ) -> None:
     """Generate a phase signoff draft for human approval (FR11, Story 2A.12)."""
-    from sdlc.cli.signoff import run_signoff  # deferred per Architecture §488
+    from sdlc.cli.signoff import run_signoff  # deferred per Architecture ?488
 
     run_signoff(ctx=ctx, phase=phase)
 
 
 @app.command(name="ux")
-def ux_command(ctx: typer.Context) -> None:
+def ux_command(
+    ctx: typer.Context,
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
+) -> None:
     """Initiate Phase 2 UX track (FR13)."""
-    from sdlc.cli.ux import run_ux  # deferred per Architecture §488
+    from sdlc.cli.ux import run_ux  # deferred per Architecture ?488
 
-    run_ux(ctx=ctx)
+    run_ux(ctx=ctx, allow_mock=allow_mock)
 
 
 @app.command(name="architect")
-def architect_command(ctx: typer.Context) -> None:
+def architect_command(
+    ctx: typer.Context,
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
+) -> None:
     """Initiate Phase 2 system architecture track (FR14)."""
-    from sdlc.cli.architect import run_architect  # deferred per Architecture §488
+    from sdlc.cli.architect import run_architect  # deferred per Architecture ?488
 
-    run_architect(ctx=ctx)
+    run_architect(ctx=ctx, allow_mock=allow_mock)
 
 
 @app.command(name="bootstrap")
-def bootstrap_command(ctx: typer.Context) -> None:
+def bootstrap_command(
+    ctx: typer.Context,
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
+) -> None:
     """Initiate Phase 3 codebase scaffolding (FR15)."""
-    from sdlc.cli.bootstrap import run_bootstrap  # deferred per Architecture §488
+    from sdlc.cli.bootstrap import run_bootstrap  # deferred per Architecture ?488
 
-    run_bootstrap(ctx=ctx)
+    run_bootstrap(ctx=ctx, allow_mock=allow_mock)
 
 
 @app.command(name="break")
 def break_command(
     ctx: typer.Context,
     story_id: str = typer.Argument(..., help="Story identifier (EPIC-<slug>-S<NN>-<slug>)."),
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
 ) -> None:
     """Generate task files for an active story (FR16, Story 2A.16)."""
-    from sdlc.cli.break_ import run_break  # deferred per Architecture §488
+    from sdlc.cli.break_ import run_break  # deferred per Architecture ?488
 
-    run_break(ctx=ctx, story_id=story_id)
+    run_break(ctx=ctx, story_id=story_id, allow_mock=allow_mock)
 
 
 @app.command(name="next")
 def next_command(ctx: typer.Context) -> None:
     """Select and advance the highest-priority ready item (FR18, Story 2A.18)."""
-    from sdlc.cli.next_ import run_next  # deferred per Architecture §488
+    from sdlc.cli.next_ import run_next  # deferred per Architecture ?488
 
     run_next(ctx=ctx)
 
@@ -281,7 +329,7 @@ def replan_command(
     ),
 ) -> None:
     """Mark an artifact + its downstream stale and invalidate downstream signoffs (FR4)."""
-    from sdlc.cli.replan_cmd import run_replan  # deferred per Architecture §488
+    from sdlc.cli.replan_cmd import run_replan  # deferred per Architecture ?488
 
     run_replan(ctx=ctx, scope=scope)
 
@@ -290,17 +338,22 @@ def replan_command(
 def task_command(
     ctx: typer.Context,
     task_id: str = typer.Argument(..., help="Task identifier (EPIC-...-S<NN>-...-T<NN>-...)."),
+    allow_mock: bool = typer.Option(
+        False,
+        "--allow-mock",
+        help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+    ),
 ) -> None:
     """Advance a task one stage through the TDD pipeline (FR17, Story 2A.17)."""
-    from sdlc.cli.task import run_task  # deferred per Architecture §488
+    from sdlc.cli.task import run_task  # deferred per Architecture ?488
 
-    run_task(ctx=ctx, task_id=task_id)
+    run_task(ctx=ctx, task_id=task_id, allow_mock=allow_mock)
 
 
 @app.command(name="trust-hooks")
 def trust_hooks_command(ctx: typer.Context) -> None:
     """Record current hook file hashes to establish trust baseline (FR39)."""
-    from sdlc.cli.trust_hooks import run_trust_hooks  # deferred per Architecture §488
+    from sdlc.cli.trust_hooks import run_trust_hooks  # deferred per Architecture ?488
 
     run_trust_hooks(ctx=ctx)
 
@@ -308,7 +361,7 @@ def trust_hooks_command(ctx: typer.Context) -> None:
 @app.command(name="hook-check")
 def hook_check_command(ctx: typer.Context) -> None:
     """Run the engine hook chain against a HookPayload JSON (AC2, Story 2A.6)."""
-    from sdlc.cli.hook_check import run_hook_check  # deferred per Architecture §488
+    from sdlc.cli.hook_check import run_hook_check  # deferred per Architecture ?488
 
     run_hook_check(ctx=ctx)
 
@@ -316,7 +369,7 @@ def hook_check_command(ctx: typer.Context) -> None:
 def _register_migrate_commands(app: typer.Typer) -> None:
     """Register one Typer command per discovered migration script.
 
-    Called at module import — fast (one filesystem listing of the migrations
+    Called at module import ? fast (one filesystem listing of the migrations
     package). For v1 with no migration scripts, this is a no-op.
     """
     from sdlc.migrations import discover_migrations  # deferred to function; called once
@@ -325,7 +378,7 @@ def _register_migrate_commands(app: typer.Typer) -> None:
 
         def _make_command(version: int) -> typer.models.CommandFunctionType:  # type: ignore[type-var, misc]
             def _migrate_command(ctx: typer.Context) -> None:
-                from sdlc.cli.migrate import run_migrate  # deferred per Architecture §488
+                from sdlc.cli.migrate import run_migrate  # deferred per Architecture ?488
 
                 run_migrate(ctx=ctx, target_version=version)
 

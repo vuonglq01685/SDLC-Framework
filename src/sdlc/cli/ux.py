@@ -41,7 +41,6 @@ from sdlc.cli.output import emit_error, emit_json
 from sdlc.dispatcher import build_pre_write_hook_chain
 from sdlc.dispatcher.postconditions import evaluate_postconditions
 from sdlc.errors import SignoffError, SpecialistError, WorkflowError
-from sdlc.runtime.mock import MockAIRuntime
 from sdlc.signoff import SignoffState, compute_state
 from sdlc.specialists import load_registry
 from sdlc.workflows.registry import WorkflowRegistry
@@ -62,7 +61,7 @@ def _workflows_package_dir() -> Path:
     return Path(pkg.__file__).resolve().parent
 
 
-def run_ux(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR0915
+def run_ux(*, ctx: typer.Context, allow_mock: bool = False) -> None:  # noqa: C901, PLR0912, PLR0915
     """Initiate Phase 2 UX track (FR13, AC5).
 
     Note on exception flow: ``emit_error`` always raises ``typer.Exit``, which
@@ -71,6 +70,9 @@ def run_ux(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR0915
     ``except Exception`` cannot swallow inner ``emit_error`` calls from the
     pipeline and re-wrap them as ``ERR_UX_DISPATCH_FAILED``.
     """
+    from sdlc.cli._runtime_selection import build_runtime, enforce_allow_mock_gate, use_mock_runtime
+
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     root = _get_repo_root_or_cwd()
     state_path = root / _STATE_REL
     journal_path = root / _JOURNAL_REL
@@ -192,10 +194,11 @@ def run_ux(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR0915
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         try:
-            materialize_ux_mock_fixture(
-                tmp_path, spec=spec, registry=registry, product_text=product_text
-            )
-            runtime = MockAIRuntime(tmp_path)
+            if use_mock_runtime():
+                materialize_ux_mock_fixture(
+                    tmp_path, spec=spec, registry=registry, product_text=product_text
+                )
+            runtime = build_runtime(fixtures_dir=tmp_path)
             artifacts = asyncio.run(
                 ux_dispatch_and_write_async(
                     spec=spec,
@@ -208,6 +211,7 @@ def run_ux(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR0915
                     registry=registry,
                     hooks=hooks,
                     ctx=ctx,
+                    allow_mock_invoked=allow_mock_invoked,
                 )
             )
         except WorkflowError as exc:

@@ -30,6 +30,7 @@ import typer
 import yaml
 
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.concurrency.io_primitives import atomic_write
@@ -50,7 +51,8 @@ from sdlc.dispatcher.postconditions import (
 )
 from sdlc.errors import StateError, WorkflowError
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime, compute_prompt_hash
+from sdlc.runtime.abc import AIRuntime
+from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.specialists import SpecialistRegistry, load_registry
 from sdlc.state.reader import read_state_or_refuse
 from sdlc.workflows.registry import WorkflowRegistry
@@ -213,9 +215,10 @@ async def _research_dispatch_async(
     topic: str,
     slug: str,
     target_path: Path,
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     registry: SpecialistRegistry,
     topic_hash: str,
+    allow_mock_invoked: bool = False,
 ) -> str:
     """Run the dispatch + frontmatter wrap + journal emit.
 
@@ -237,17 +240,17 @@ async def _research_dispatch_async(
             upstream_outputs=(),
         )
 
+    observer_ctx: dict[str, object] = {
+        "agent_dispatched_extras": {
+            "topic_hash": topic_hash,
+            "slug": slug,
+        },
+    }
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
     observer = PanelObserver(
         slash_command="/sdlc-research",
         idea_text=topic,
-        extra_context=MappingProxyType(
-            {
-                "agent_dispatched_extras": {
-                    "topic_hash": topic_hash,
-                    "slug": slug,
-                },
-            }
-        ),
+        extra_context=MappingProxyType(observer_ctx),
         emit_agent_dispatched=True,
     )
     result = await dispatch(
@@ -299,6 +302,7 @@ async def _research_dispatch_async(
                 "target": rel,
                 "writer": "cli",
                 "run_id": run_id,
+                "mock": result.agent_result.mock,
             },
             after_hash=content_hash(final_text),
             actor="cli",
@@ -309,13 +313,17 @@ async def _research_dispatch_async(
 
 
 def run_research(  # noqa: C901, PLR0912, PLR0915 — CLI orchestration; Story 2A.9 (mirrors start.py posture).
-    *, ctx: typer.Context, topic: str
+    *, ctx: typer.Context, topic: str, allow_mock: bool = False
 ) -> None:
     """Run Phase 1 topical research; write under ``01-Requirement/02-Research/``."""
+    from sdlc.cli._runtime_selection import build_runtime, enforce_allow_mock_gate, use_mock_runtime
     from sdlc.journal._seq import _read_highest_seq
+
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     from sdlc.state import read_state_or_recover, write_state_atomic_sync
 
     ctx_obj: Mapping[str, object] = ctx.obj if isinstance(ctx.obj, Mapping) else {}
+    json_mode = bool(ctx_obj.get("json", False))
     if not topic.strip():
         emit_error("ERR_USER_INPUT", "topic must be non-empty", ctx=ctx)
 
@@ -392,48 +400,25 @@ def run_research(  # noqa: C901, PLR0912, PLR0915 — CLI orchestration; Story 2
             details={"agents_dir": str(agents_dir)},
         )
 
-    json_mode = bool(ctx_obj.get("json", False))
-    if not json_mode:
-        # P18 (code review): the warning must be unambiguous — the artifact body
-        # is a literal placeholder, NOT the output of a real research agent. The
-        # user should not commit this file as a research deliverable. Strict
-        # ``--allow-mock`` gating is deferred to v1.x (see
-        # EPIC-2A-DEBT-RESEARCH-MOCK-GATE in deferred-work.md).
-        echo(
-            "[WARN] sdlc research v1 writes a PLACEHOLDER body via MockAIRuntime.",
-            err=True,
-            ctx=ctx,
-        )
-        echo(
-            "       The on-disk artifact is a structural stub, NOT research content.",
-            err=True,
-            ctx=ctx,
-        )
-        echo(
-            "       Real Claude dispatch ships in Story 2B.1 (ClaudeAIRuntime).",
-            err=True,
-            ctx=ctx,
-        )
-
     topic_hash = "sha256:" + hashlib.sha256(topic.encode("utf-8")).hexdigest()
     mock_body = (
         "## Research Findings\n\n"
         "**PLACEHOLDER** — this body was written by `sdlc research` running against "
-        "MockAIRuntime in v1. It is not a research deliverable. Real Claude dispatch "
-        "ships in Story 2B.1.\n"
+        "MockAIRuntime. It is not a research deliverable when mock mode is enabled.\n"
     )
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         try:
-            _materialize_research_mock_fixtures(
-                tmp_path,
-                spec=spec,
-                registry=registry,
-                topic=topic,
-                output_text=mock_body,
-            )
-            runtime = MockAIRuntime(tmp_path)
+            if use_mock_runtime():
+                _materialize_research_mock_fixtures(
+                    tmp_path,
+                    spec=spec,
+                    registry=registry,
+                    topic=topic,
+                    output_text=mock_body,
+                )
+            runtime = build_runtime(fixtures_dir=tmp_path)
             # P20 (code review): capture the rel_art string at write time inside
             # _research_dispatch_async; do NOT recompute resolve()/relative_to()
             # in the outer scope where a symlink TOCTOU would crash AFTER the
@@ -450,6 +435,7 @@ def run_research(  # noqa: C901, PLR0912, PLR0915 — CLI orchestration; Story 2
                     runtime=runtime,
                     registry=registry,
                     topic_hash=topic_hash,
+                    allow_mock_invoked=allow_mock_invoked,
                 )
             )
         except WorkflowError as exc:

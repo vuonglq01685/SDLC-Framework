@@ -12,12 +12,14 @@ import json
 import uuid
 from collections.abc import Callable
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 import yaml
 from pydantic import ValidationError
 
 from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
@@ -35,7 +37,7 @@ from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 from sdlc.ids.parsers import parse_task_id
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime
+from sdlc.runtime.abc import AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 
@@ -211,9 +213,10 @@ async def break_dispatch_write(
     story_text: str,
     product_text: str,
     tasks_dir: Path,
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...],
+    allow_mock_invoked: bool = False,
 ) -> list[str]:
     """Dispatch task-breaker, validate, write task files, journal entries. Returns task ids."""
     seq_ad = await allocate_seq(journal_path)
@@ -229,7 +232,13 @@ async def break_dispatch_write(
         journal_path,
     )
 
-    observer = PanelObserver(slash_command=_SLASH_CMD, emit_agent_dispatched=False)
+    observer_ctx: dict[str, object] = {}
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
+    observer = PanelObserver(
+        slash_command=_SLASH_CMD,
+        extra_context=MappingProxyType(observer_ctx),
+        emit_agent_dispatched=False,
+    )
     result = await dispatch(
         spec,
         runtime=runtime,

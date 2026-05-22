@@ -10,10 +10,12 @@ import json
 import uuid
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 from typing import Final
 
 import yaml
 
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -28,7 +30,7 @@ from sdlc.errors import WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime
+from sdlc.runtime.abc import AIRuntime
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 
@@ -99,8 +101,9 @@ async def _bootstrap_dispatch_write(
     source_root: Path,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[..., HookDecision], ...],
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     prompt_builder: Callable[[Specialist, WorkflowSpec], str],
+    allow_mock_invoked: bool = False,
 ) -> int:
     """Dispatch code-bootstrapper, write each record, journal entries. Returns files_written."""
     seq_ad = await allocate_seq(journal_path)
@@ -116,7 +119,13 @@ async def _bootstrap_dispatch_write(
         journal_path,
     )
 
-    observer = PanelObserver(slash_command=_SLASH_CMD, emit_agent_dispatched=False)
+    observer_ctx: dict[str, object] = {}
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
+    observer = PanelObserver(
+        slash_command=_SLASH_CMD,
+        extra_context=MappingProxyType(observer_ctx),
+        emit_agent_dispatched=False,
+    )
     result = await dispatch(
         spec,
         runtime=runtime,

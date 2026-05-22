@@ -136,7 +136,7 @@ development_status:
   # Epic 2B: Real Claude Dispatch + Safety Boundary (11 stories)
   # ============================================================
   epic-2b: in-progress
-  2b-1-claudeairuntime-implementation-subprocess-management: ready-for-dev
+  2b-1-claudeairuntime-implementation-subprocess-management: review
   2b-2-refuse-to-start-below-claude-code-minimum-version: ready-for-dev
   2b-3-behavioral-conformance-mock-vs-claude: backlog
   2b-4-prompt-injection-corpus-ci-regression: ready-for-dev

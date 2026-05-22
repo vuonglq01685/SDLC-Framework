@@ -12,7 +12,6 @@ AC1/D3: CLI pre-flight is Phase-2 gate; phase_gate hook is permissive on src/
 from __future__ import annotations
 
 import asyncio
-import os
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -29,6 +28,11 @@ from sdlc.cli._bootstrap_pipeline import (
 )
 from sdlc.cli._boundary import artifact_contains_boundary
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
+from sdlc.cli._runtime_selection import (
+    build_runtime,
+    enforce_allow_mock_gate,
+    use_mock_runtime,
+)
 from sdlc.cli.output import emit_error, emit_json
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
@@ -37,7 +41,7 @@ from sdlc.dispatcher import (
 )
 from sdlc.dispatcher.postconditions import evaluate_postconditions
 from sdlc.errors import SignoffError, SpecialistError, WorkflowError
-from sdlc.runtime.mock import MockAIRuntime, compute_prompt_hash
+from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.signoff import SignoffState, compute_state
 from sdlc.specialists import load_registry
 from sdlc.specialists.frontmatter import Specialist
@@ -49,15 +53,8 @@ _AGENTS_REL: Final[str] = ".claude/agents"
 _RUNS_REL: Final[str] = "03-Implementation/agent_runs.jsonl"
 _PRODUCT_REL: Final[str] = "01-Requirement/01-PRODUCT.md"
 _ARCH_REL: Final[str] = "02-Architecture/02-System/ARCHITECTURE.md"
-_USE_MOCK_ENV: Final[str] = "SDLC_USE_MOCK_RUNTIME"
-
 # AC2/D1: explicit placeholder allowlist — files that do NOT count as "real source".
 _BOOTSTRAP_PLACEHOLDER_ALLOWLIST: Final[frozenset[str]] = frozenset({".gitkeep", "README.md"})
-
-
-def _use_mock_runtime() -> bool:
-    """v1 default-on gate; set SDLC_USE_MOCK_RUNTIME=0 to require a real runtime."""
-    return os.environ.get(_USE_MOCK_ENV, "1") == "1"
 
 
 def _source_exists(src_root: Path) -> bool:
@@ -76,8 +73,9 @@ def _workflows_package_dir() -> Path:
     return Path(pkg.__file__).resolve().parent
 
 
-def run_bootstrap(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR0915
+def run_bootstrap(*, ctx: typer.Context, allow_mock: bool = False) -> None:  # noqa: C901, PLR0912, PLR0915
     """Initiate Phase 3 codebase scaffolding (FR15, AC5)."""
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     root = _get_repo_root_or_cwd()
     source_root = root / "src"
     journal_path = root / _JOURNAL_REL
@@ -208,7 +206,7 @@ def run_bootstrap(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         try:
-            if _use_mock_runtime():
+            if use_mock_runtime():
                 sp_obj = registry.get(_PRIMARY_SPECIALIST)
                 if not isinstance(sp_obj, Specialist):
                     raise WorkflowError(
@@ -219,9 +217,7 @@ def run_bootstrap(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
                 _write_mock_fixture(
                     tmp_path, spec.name, compute_prompt_hash(mock_prompt), _mock_bootstrap_body()
                 )
-                runtime: MockAIRuntime = MockAIRuntime(tmp_path)
-            else:
-                emit_error("ERR_INFRASTRUCTURE", "real runtime not available in v1", ctx=ctx)
+            runtime = build_runtime(fixtures_dir=tmp_path)
         except (WorkflowError, SpecialistError, OSError) as exc:
             emit_error(
                 "ERR_INFRASTRUCTURE",
@@ -242,6 +238,7 @@ def run_bootstrap(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
                     hooks=hooks,
                     runtime=runtime,
                     prompt_builder=_prompt_builder,
+                    allow_mock_invoked=allow_mock_invoked,
                 )
             )
         except WorkflowError as exc:

@@ -29,7 +29,6 @@ from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.dispatcher import build_pre_write_hook_chain
 from sdlc.dispatcher.postconditions import evaluate_postconditions
 from sdlc.errors import SignoffError, StateError, WorkflowError
-from sdlc.runtime.mock import MockAIRuntime
 from sdlc.signoff import SignoffState, compute_state  # re-export for test patching
 from sdlc.specialists import load_registry
 from sdlc.state.reader import read_state_or_refuse
@@ -125,12 +124,16 @@ def _map_workflow_error(exc: WorkflowError, ctx: Context) -> None:
         emit_error("ERR_INFRASTRUCTURE", str(exc), ctx=ctx, details=details)
 
 
-def run_epics(*, ctx: Context) -> None:  # noqa: C901, PLR0912, PLR0915
+def run_epics(*, ctx: Context, allow_mock: bool = False) -> None:  # noqa: C901, PLR0912, PLR0915
     """Generate epic JSON files from the Phase 1 product brief."""
+    from sdlc.cli._runtime_selection import build_runtime, enforce_allow_mock_gate
+
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     from sdlc.journal._seq import _read_highest_seq
     from sdlc.state import read_state_or_recover, write_state_atomic_sync
 
     ctx_obj: Mapping[str, object] = ctx.obj if isinstance(ctx.obj, Mapping) else {}
+    json_mode = bool(ctx_obj.get("json", False))
     root = _get_repo_root_or_cwd()
     state_path = root / _STATE_REL
     journal_path = (root / _JOURNAL_REL).resolve()
@@ -212,23 +215,6 @@ def run_epics(*, ctx: Context) -> None:  # noqa: C901, PLR0912, PLR0915
             details={"agents_dir": str(agents_dir)},
         )
 
-    if not _pipeline.use_mock_runtime():
-        emit_error(
-            "ERR_INFRASTRUCTURE",
-            "SDLC_USE_MOCK_RUNTIME=0 but no real specialist runtime is wired in v1; "
-            "set SDLC_USE_MOCK_RUNTIME=1 or wait for Story 2B.1 ClaudeAIRuntime",
-            ctx=ctx,
-            details={"env": "SDLC_USE_MOCK_RUNTIME"},
-        )
-
-    json_mode = bool(ctx_obj.get("json", False))
-    if not json_mode:
-        echo(
-            "[WARN] sdlc epics v1 uses MockAIRuntime; output is a structural placeholder.",
-            err=True,
-            ctx=ctx,
-        )
-
     epics_dir = root / _EPICS_DIR_REL
     hooks = build_pre_write_hook_chain(repo_root=root)
 
@@ -236,13 +222,14 @@ def run_epics(*, ctx: Context) -> None:  # noqa: C901, PLR0912, PLR0915
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         try:
-            _pipeline.materialize_mock(
-                tmp_path,
-                spec=spec,
-                registry=registry,
-                product_text=product_text,
-            )
-            runtime = MockAIRuntime(tmp_path)
+            if _pipeline.use_mock_runtime():
+                _pipeline.materialize_mock(
+                    tmp_path,
+                    spec=spec,
+                    registry=registry,
+                    product_text=product_text,
+                )
+            runtime = build_runtime(fixtures_dir=tmp_path)
             created = asyncio.run(
                 _pipeline.dispatch_and_write(
                     spec=spec,
@@ -254,6 +241,7 @@ def run_epics(*, ctx: Context) -> None:  # noqa: C901, PLR0912, PLR0915
                     runtime=runtime,
                     registry=registry,
                     hooks=hooks,
+                    allow_mock_invoked=allow_mock_invoked,
                 ),
             )
         except WorkflowError as exc:

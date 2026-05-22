@@ -37,7 +37,6 @@ from sdlc.dispatcher import (
 )
 from sdlc.dispatcher.postconditions import evaluate_postconditions
 from sdlc.errors import SignoffError, SpecialistError, WorkflowError
-from sdlc.runtime.mock import MockAIRuntime
 from sdlc.signoff import SignoffState, compute_state
 from sdlc.specialists import load_registry
 from sdlc.specialists.frontmatter import Specialist
@@ -68,8 +67,11 @@ def _workflows_package_dir() -> Path:
     return Path(pkg.__file__).resolve().parent
 
 
-def run_architect(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR0915
+def run_architect(*, ctx: typer.Context, allow_mock: bool = False) -> None:  # noqa: C901, PLR0912, PLR0915
     """Initiate Phase 2 system architecture track (FR14, AC5)."""
+    from sdlc.cli._runtime_selection import build_runtime, enforce_allow_mock_gate, use_mock_runtime
+
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     root = _get_repo_root_or_cwd()
     state_path = root / _STATE_REL
     journal_path = root / _JOURNAL_REL
@@ -174,10 +176,11 @@ def run_architect(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         try:
-            materialize_primary_mock(
-                tmp_path, spec=spec, registry=registry, product_text=product_text
-            )
-            runtime = MockAIRuntime(tmp_path)
+            if use_mock_runtime():
+                materialize_primary_mock(
+                    tmp_path, spec=spec, registry=registry, product_text=product_text
+                )
+            runtime = build_runtime(fixtures_dir=tmp_path)
 
             def _primary_prompt(sp: Specialist, wf: WorkflowSpec) -> str:
                 return phase1_prompt_builder(
@@ -200,6 +203,7 @@ def run_architect(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
                     hooks=hooks,
                     specialist_name=_PRIMARY_SPECIALIST,
                     slash_cmd=_SLASH_CMD,
+                    allow_mock_invoked=allow_mock_invoked,
                 )
             )
         except WorkflowError as exc:
@@ -277,16 +281,17 @@ def run_architect(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
             tmp_path = Path(tmp)
             try:
                 arch_text = arch_path.read_text(encoding="utf-8")
-                materialize_sub_track_mock(
-                    tmp_path,
-                    sub_track=sub_track,
-                    specialist_name=specialist_name,
-                    sub_spec=sub_spec,
-                    registry=registry,
-                    product_text=product_text,
-                    arch_text=arch_text,
-                )
-                runtime = MockAIRuntime(tmp_path)
+                if use_mock_runtime():
+                    materialize_sub_track_mock(
+                        tmp_path,
+                        sub_track=sub_track,
+                        specialist_name=specialist_name,
+                        sub_spec=sub_spec,
+                        registry=registry,
+                        product_text=product_text,
+                        arch_text=arch_text,
+                    )
+                runtime = build_runtime(fixtures_dir=tmp_path)
 
                 # ``_at`` is default-bound to dodge loop late-binding; the
                 # shared builder keeps this prompt byte-identical to the
@@ -312,6 +317,7 @@ def run_architect(*, ctx: typer.Context) -> None:  # noqa: C901, PLR0912, PLR091
                         hooks=hooks,
                         specialist_name=specialist_name,
                         slash_cmd=f"{_SLASH_CMD}/{sub_track}",
+                        allow_mock_invoked=allow_mock_invoked,
                     )
                 )
                 sub_track_artifacts.append({"track": sub_track, "path": sub_rel})

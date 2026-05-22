@@ -31,7 +31,8 @@ from sdlc.dispatcher import (
 from sdlc.dispatcher.core import PanelResult
 from sdlc.dispatcher.postconditions import evaluate_postconditions
 from sdlc.errors import StateError, WorkflowError
-from sdlc.runtime.mock import MockAIRuntime, compute_prompt_hash
+from sdlc.runtime.abc import AIRuntime
+from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.specialists import SpecialistRegistry, load_registry
 from sdlc.workflows.registry import WorkflowRegistry
 
@@ -147,7 +148,7 @@ async def _dispatch_phase1_panel(
     root: Path,
     journal_path: Path,
     agent_runs_path: Path,
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     observer: PanelObserver,
 ) -> PanelResult:
     return await dispatch_panel(
@@ -165,9 +166,17 @@ async def _dispatch_phase1_panel(
 
 
 def run_start(  # noqa: C901, PLR0912, PLR0915 — CLI orchestration; Story 2A.8 caps LOC not branch count
-    *, ctx: typer.Context, idea: str, quiet: bool = False
+    *, ctx: typer.Context, idea: str, quiet: bool = False, allow_mock: bool = False
 ) -> None:
     """Run Phase 1 product-discovery panel; write ``01-Requirement/01-PRODUCT.md``."""
+    from sdlc.cli._runtime_selection import (
+        build_runtime,
+        enforce_allow_mock_gate,
+        merge_observer_mock_audit,
+        use_mock_runtime,
+    )
+
+    allow_mock_invoked = enforce_allow_mock_gate(allow_mock=allow_mock, ctx=ctx)
     # P16: validate ctx.obj shape once; downstream reads use the local Mapping.
     ctx_obj: Mapping[str, object] = ctx.obj if isinstance(ctx.obj, Mapping) else {}
     if not idea.strip():
@@ -226,39 +235,34 @@ def run_start(  # noqa: C901, PLR0912, PLR0915 — CLI orchestration; Story 2A.8
         )
 
     agent_runs_path = root / _RUNS_REL
+    json_mode = bool(ctx_obj.get("json", False))
 
     # P16: use the pre-validated ctx_obj Mapping.
-    json_mode = bool(ctx_obj.get("json", False))
-    if not quiet and not json_mode:
-        echo(
-            "[WARN] sdlc start runs against MockAIRuntime in v1; "
-            "real Claude dispatch ships in Story 2B.1",
-            err=True,
-            ctx=ctx,
-        )
-
     # D3-A: assemble frontmatter values once; pass to BOTH the mock fixture
     # materializer (so the synth prompt hash matches) AND the observer (so the
     # live synth prompt embeds the same canonical bytes).
     frontmatter_context = _build_frontmatter_context(idea, spec)
+    observer_ctx: dict[str, object] = dict(frontmatter_context)
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
     observer = PanelObserver(
         slash_command="/sdlc-start",
         idea_text=idea,
-        extra_context=MappingProxyType(dict(frontmatter_context)),
+        extra_context=MappingProxyType(observer_ctx),
         emit_agent_dispatched=True,
     )
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         try:
-            _materialize_phase1_mock_fixtures(
-                tmp_path,
-                spec=spec,
-                registry=registry,
-                idea_text=idea,
-                extra_context=frontmatter_context,
-            )
-            runtime = MockAIRuntime(tmp_path)
+            if use_mock_runtime():
+                _materialize_phase1_mock_fixtures(
+                    tmp_path,
+                    spec=spec,
+                    registry=registry,
+                    idea_text=idea,
+                    extra_context=frontmatter_context,
+                )
+            runtime = build_runtime(fixtures_dir=tmp_path)
             panel = asyncio.run(
                 _dispatch_phase1_panel(
                     spec=spec,

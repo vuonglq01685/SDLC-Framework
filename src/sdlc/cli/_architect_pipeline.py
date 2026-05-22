@@ -8,9 +8,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from types import MappingProxyType
 
 import yaml
 
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.workflow_spec import WorkflowSpec
@@ -29,7 +31,8 @@ from sdlc.errors import SpecialistError, WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime, compute_prompt_hash
+from sdlc.runtime.abc import AIRuntime
+from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.specialists.frontmatter import Specialist
 from sdlc.specialists.registry import SpecialistRegistry
 
@@ -211,11 +214,12 @@ async def dispatch_and_write(
     journal_path: Path,
     agent_runs_path: Path,
     prompt_builder: LegacyPromptBuilder,
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...],
     specialist_name: str,
     slash_cmd: str,
+    allow_mock_invoked: bool = False,
 ) -> str:
     """Dispatch one specialist and write the result to disk. Returns output_text."""
     seq_ad = await allocate_seq(journal_path)
@@ -231,7 +235,13 @@ async def dispatch_and_write(
         journal_path,
     )
 
-    observer = PanelObserver(slash_command=slash_cmd, emit_agent_dispatched=False)
+    observer_ctx: dict[str, object] = {}
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
+    observer = PanelObserver(
+        slash_command=slash_cmd,
+        extra_context=MappingProxyType(observer_ctx),
+        emit_agent_dispatched=False,
+    )
     result = await dispatch(
         spec,
         runtime=runtime,

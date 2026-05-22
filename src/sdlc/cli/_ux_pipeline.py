@@ -21,10 +21,12 @@ import json
 import re
 from collections.abc import Callable
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 import typer
 
+from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.cli.output import emit_error
 from sdlc.concurrency.io_primitives import atomic_write
 from sdlc.contracts.hook_payload import HookPayload
@@ -42,7 +44,7 @@ from sdlc.errors import WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
 from sdlc.journal import append as journal_append
-from sdlc.runtime.mock import MockAIRuntime
+from sdlc.runtime.abc import AIRuntime
 from sdlc.specialists import SpecialistRegistry
 
 _SLASH_CMD: Final[str] = "/sdlc-ux"
@@ -121,10 +123,11 @@ async def ux_dispatch_and_write_async(  # noqa: C901, PLR0915
     agent_runs_path: Path,
     product_text: str,
     ux_dir: Path,
-    runtime: MockAIRuntime,
+    runtime: AIRuntime,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...],
     ctx: typer.Context,
+    allow_mock_invoked: bool = False,
 ) -> list[dict[str, str]]:
     """Dispatch ux-designer, parse JSON array, write files. Returns [{path, hash}, ...]."""
     from sdlc.specialists.frontmatter import Specialist
@@ -161,9 +164,12 @@ async def ux_dispatch_and_write_async(  # noqa: C901, PLR0915
         journal_path,
     )
 
+    observer_ctx: dict[str, object] = {}
+    merge_observer_mock_audit(observer_ctx, allow_mock_invoked=allow_mock_invoked)
     observer = PanelObserver(
         slash_command=_SLASH_CMD,
         idea_text=product_text,
+        extra_context=MappingProxyType(observer_ctx),
         emit_agent_dispatched=False,  # written explicitly above
     )
     result = await dispatch(

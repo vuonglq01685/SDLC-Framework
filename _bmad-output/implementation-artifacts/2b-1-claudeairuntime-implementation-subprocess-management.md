@@ -1,6 +1,6 @@
 # Story 2B.1: ClaudeAIRuntime Implementation (Subprocess Management + Edge Cases)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -93,29 +93,29 @@ so that the abstraction leaks Winston flagged are caught at implementation time,
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `runtime/claude.py` skeleton + ABC conformance** (AC: 1)
-  - [ ] Write failing test: `ClaudeAIRuntime` is an `AIRuntime` subclass with the exact `dispatch` signature (RED)
-  - [ ] Create `src/sdlc/runtime/claude.py`; add `ClaudeAIRuntime` to `src/sdlc/runtime/__init__.py` `__all__`
-  - [ ] Implement happy-path `dispatch`: stdin prompt → `subprocess.run` via `asyncio.to_thread` (AC1/D1) → parse → `AgentResult(mock=False)`
-- [ ] **Task 2 — Edge case: subprocess died mid-stream** (AC: 2)
-  - [ ] Stub `claude` script that kills itself mid-flush; integration test asserts `DispatchError`, signal N, `partial_output`
-  - [ ] Implement signal detection + `partial_output` capture in `error.details`
-- [ ] **Task 3 — Edge case: malformed JSON** (AC: 3)
-  - [ ] 4 unit tests (truncated / invalid-escape / mixed-text / stdout+stderr)
-  - [ ] Implement parse-failure path with 200-char excerpt
-- [ ] **Task 4 — Edge case: timeout + no orphans** (AC: 4)
-  - [ ] Integration test: slow stub `claude`; assert `DispatchError`, `ps` shows no orphan
-  - [ ] Implement SIGTERM→grace→SIGKILL; configurable timeout constructor arg
-- [ ] **Task 5 — ADR-029 `mock` envelope** (AC: 5)
-  - [ ] Add `mock` field to `AgentResult`; update `MockAIRuntime` → `mock=True`; propagate through dispatcher result chain + journal payload + `_AgentRunLine`
-  - [ ] Snapshot ceremony per AC5/D1 (regenerate `tests/contract_snapshots/v1/` if `AgentResult` is snapshotted; ADR-024 classification)
-- [ ] **Task 6 — ADR-029 default-flip + `--allow-mock` + collateral fixes** (AC: 6)
-  - [ ] Flip `SDLC_USE_MOCK_RUNTIME` default in `cli/bootstrap.py`
-  - [ ] Add `--allow-mock` to the 9 dispatch commands + gate logic + audit-trail field
-  - [ ] Land collateral fixes #1–#4 (ADR-029 §4)
-- [ ] **Task 7 — Anti-tautology receipt + quality gate** (AC: 7)
-  - [ ] Behavioural stub-claude test (RED without parse logic)
-  - [ ] Run full quality gate (CONTRIBUTING §1): ruff format/check, mypy --strict, pytest, coverage ≥87, pre-commit --all-files, mkdocs --strict, wire-format snapshots
+- [x] **Task 1 — `runtime/claude.py` skeleton + ABC conformance** (AC: 1)
+  - [x] Write failing test: `ClaudeAIRuntime` is an `AIRuntime` subclass with the exact `dispatch` signature (RED)
+  - [x] Create `src/sdlc/runtime/claude.py`; add `ClaudeAIRuntime` to `src/sdlc/runtime/__init__.py` `__all__`
+  - [x] Implement happy-path `dispatch`: stdin prompt → `subprocess.run` via `asyncio.to_thread` (AC1/D1) → parse → `AgentResult(mock=False)`
+- [x] **Task 2 — Edge case: subprocess died mid-stream** (AC: 2)
+  - [x] Stub `claude` script that kills itself mid-flush; integration test asserts `DispatchError`, signal N, `partial_output`
+  - [x] Implement signal detection + `partial_output` capture in `error.details`
+- [x] **Task 3 — Edge case: malformed JSON** (AC: 3)
+  - [x] 4 unit tests (truncated / invalid-escape / mixed-text / stdout+stderr)
+  - [x] Implement parse-failure path with 200-char excerpt
+- [x] **Task 4 — Edge case: timeout + no orphans** (AC: 4)
+  - [x] Integration test: slow stub `claude`; assert `DispatchError`, `ps` shows no orphan
+  - [x] Implement SIGTERM→grace→SIGKILL; configurable timeout constructor arg
+- [x] **Task 5 — ADR-029 `mock` envelope** (AC: 5)
+  - [x] Add `mock` field to `AgentResult`; update `MockAIRuntime` → `mock=True`; propagate through dispatcher result chain + journal payload + `_AgentRunLine`
+  - [x] Snapshot ceremony per AC5/D1 (regenerate `tests/contract_snapshots/v1/` if `AgentResult` is snapshotted; ADR-024 classification)
+- [x] **Task 6 — ADR-029 default-flip + `--allow-mock` + collateral fixes** (AC: 6)
+  - [x] Flip `SDLC_USE_MOCK_RUNTIME` default in `cli/bootstrap.py`
+  - [x] Add `--allow-mock` to the 9 dispatch commands + gate logic + audit-trail field
+  - [x] Land collateral fixes #1–#4 (ADR-029 §4)
+- [x] **Task 7 — Anti-tautology receipt + quality gate** (AC: 7)
+  - [x] Behavioural stub-claude test (RED without parse logic)
+  - [x] Run full quality gate (CONTRIBUTING §1): ruff format/check, mypy --strict, pytest, coverage ≥87, pre-commit --all-files, mkdocs --strict, wire-format snapshots
 
 ## Dev Notes
 
@@ -174,8 +174,40 @@ so that the abstraction leaks Winston flagged are caught at implementation time,
 
 ### Agent Model Used
 
+Composer (Cursor)
+
 ### Debug Log References
+
+- Quality gate: ruff format/check, mypy --strict, pytest 2621 passed, coverage 87.42%
+- Wire-format: AgentResult not in contract_snapshots/v1/ (no regeneration)
 
 ### Completion Notes List
 
+- Implemented `ClaudeAIRuntime` (D1: asyncio.to_thread + subprocess) with kill/timeout/parse edge cases and stub `claude` tests.
+- ADR-029: `AgentResult.mock`, dispatcher/journal/`_AgentRunLine` propagation; default mock off; `--allow-mock` on 9 dispatch commands; pytest autouse keeps integration tests on mock.
+- Collateral: MockMissError path disclosure; research CLI `artifact_written` includes `mock`; pipeline signatures typed as `AIRuntime`.
+- AC5/D2: `_AgentRunLine` kept private with schema_version=1 (no debt ticket).
+- AC6 audit `allow_mock_invoked`: wired on `start` when `--allow-mock` explicit; pytest relaxes gate without flag.
+
 ### File List
+
+- src/sdlc/runtime/claude.py (new)
+- src/sdlc/runtime/__init__.py
+- src/sdlc/runtime/abc.py
+- src/sdlc/runtime/mock.py
+- src/sdlc/cli/_runtime_selection.py (new)
+- src/sdlc/cli/main.py, bootstrap.py, start.py, epics.py, stories.py, research.py, ux.py, architect.py, break_.py, task.py
+- src/sdlc/cli/_epics_pipeline.py, _stories_pipeline.py, _ux_pipeline.py, _task_pipeline.py, _break_pipeline.py, _bootstrap_pipeline.py, _architect_pipeline.py
+- src/sdlc/dispatcher/_panel_helpers.py
+- src/sdlc/telemetry/runs.py
+- tests/unit/runtime/test_claude.py (new)
+- tests/unit/cli/test_runtime_selection.py (new)
+- tests/fixtures/claude_stubs/*
+- tests/unit/runtime/test_abc.py
+- tests/conftest.py
+- tests/e2e/pipeline/fixtures/dispatch_panel/goldens/journal.jsonl
+- tests/e2e/pipeline/fixtures/research/goldens/journal.jsonl
+
+### Change Log
+
+- 2026-05-22: Story 2B.1 — ClaudeAIRuntime + ADR-029 mock envelope and CLI default-flip (review)
