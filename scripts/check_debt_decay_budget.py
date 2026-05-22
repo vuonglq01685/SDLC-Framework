@@ -2,8 +2,9 @@
 
 Enforces three gates before Story `N.1` of each epic:
 
-  Gate A (BLOCKING absolute):
-    ≥5 BLOCKING items currently closed across the whole budget.
+  Gate A (BLOCKING zero-open):
+    Every BLOCKING-severity item across the whole budget is closed
+    (zero open). Inventory-relative — see ADR-033.
 
   Gate B (HIGH carry-forward):
     Among HIGH items where ``epic_of_origin != target_epic``, at least
@@ -47,7 +48,6 @@ EPIC_LINEAGE: Final[dict[str, tuple[str, str]]] = {
 VALID_SEVERITIES: Final[frozenset[str]] = frozenset({"BLOCKING", "HIGH", "MED", "LOW"})
 VALID_STATUSES: Final[frozenset[str]] = frozenset({"open", "closed"})
 
-_BLOCKING_THRESHOLD: Final[int] = 5
 _HIGH_CARRY_FORWARD_RATIO_NUM: Final[int] = 1
 _HIGH_CARRY_FORWARD_RATIO_DEN: Final[int] = 2  # ratio = 1/2 ⇒ ≥50%
 
@@ -153,13 +153,13 @@ def evaluate_gates(items: list[DebtItem], target_epic: str) -> BudgetReport:
     _previous, two_back = resolve_lineage(target_epic)
     two_back_key = f"epic-{two_back}" if two_back else ""
 
-    # Gate A — BLOCKING absolute (≥5 closed across whole budget).
-    blocking_closed = sum(1 for it in items if it.severity == "BLOCKING" and it.status == "closed")
+    # Gate A — BLOCKING zero-open: every BLOCKING item closed (ADR-033).
+    blocking_open = sum(1 for it in items if it.severity == "BLOCKING" and it.status == "open")
     gate_a = GateResult(
-        name="Gate A (BLOCKING absolute)",
-        passed=blocking_closed >= _BLOCKING_THRESHOLD,
-        observed=f"{blocking_closed} closed",
-        threshold=f"≥{_BLOCKING_THRESHOLD}",
+        name="Gate A (BLOCKING zero-open)",
+        passed=blocking_open == 0,
+        observed=f"{blocking_open} open",
+        threshold="0 open",
     )
 
     # Gate B — HIGH carry-forward (≥50% of non-target HIGH items closed).
