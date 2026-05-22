@@ -244,11 +244,11 @@ class TestGateC:
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.gate_c.passed is True
 
-    def test_one_open_n_minus_2_item_fails(self) -> None:
+    def test_one_open_high_n_minus_2_item_fails(self) -> None:
         items = [
             *_gate_b_baseline_items(),
-            # epic-1 is two-back from target 2b; any open item fails gate C.
-            gate.DebtItem("LO1", "LOW", "open", "epic-1", "t"),
+            # epic-1 is two-back; an open BLOCKING/HIGH N-2 item fails gate C.
+            gate.DebtItem("HO1", "HIGH", "open", "epic-1", "t"),
         ]
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.gate_c.passed is False
@@ -257,7 +257,7 @@ class TestGateC:
         items = [
             *_gate_b_baseline_items(),
             # epic-2a is N-1, not N-2 — open is fine for gate C.
-            gate.DebtItem("LO1", "LOW", "open", "epic-2a", "t"),
+            gate.DebtItem("HO1", "HIGH", "open", "epic-2a", "t"),
         ]
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.gate_c.passed is True
@@ -265,20 +265,17 @@ class TestGateC:
     def test_gate_c_ignores_target_epic_open_items(self) -> None:
         items = [
             *_gate_b_baseline_items(),
-            gate.DebtItem("LO1", "LOW", "open", "epic-2b", "t"),
+            gate.DebtItem("HO1", "HIGH", "open", "epic-2b", "t"),
         ]
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.gate_c.passed is True
 
-    def test_gate_c_severity_independent(self) -> None:
-        # Any severity from N-2 with status=open fails gate C.
-        for sev in ("BLOCKING", "HIGH", "MED", "LOW"):
-            items = [
-                *_gate_b_baseline_items(),
-                gate.DebtItem("X", sev, "open", "epic-1", "t"),
-            ]
+    def test_gate_c_gates_blocking_high_only(self) -> None:
+        # ADR-035: only BLOCKING/HIGH N-2 items gate; MED/LOW may stay open.
+        for sev, expect in (("BLOCKING", False), ("HIGH", False), ("MED", True), ("LOW", True)):
+            items = [*_gate_b_baseline_items(), gate.DebtItem("X", sev, "open", "epic-1", "t")]
             report = gate.evaluate_gates(items, target_epic="2b")
-            assert report.gate_c.passed is False, f"severity={sev} should fail gate C"
+            assert report.gate_c.passed is expect, f"open {sev} N-2 / gate C"
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +293,8 @@ class TestOverallPass:
     def test_gate_c_fail_blocks_overall_pass(self) -> None:
         items = [
             *_gate_b_baseline_items(),
-            gate.DebtItem("X", "LOW", "open", "epic-1", "t"),  # fails gate C
+            gate.DebtItem("HO1", "HIGH", "open", "epic-1", "t"),  # open HIGH N-2 fails gate C
+            gate.DebtItem("HC1", "HIGH", "closed", "epic-1", "t"),  # holds gate B at 1/2 = 50%
         ]
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.passed is False
