@@ -11,8 +11,8 @@ Enforces three gates before Story `N.1` of each epic:
     50% are closed.
 
   Gate C (N-2 zero-out):
-    Items whose ``epic_of_origin`` is two epics back from the target
-    must all be closed (zero open).
+    BLOCKING/HIGH items whose ``epic_of_origin`` is two epics back from
+    the target must all be closed; MED/LOW may remain open — ADR-035.
 
 The budget lives in
 ``_bmad-output/implementation-artifacts/debt-budget.yaml`` and is the
@@ -48,6 +48,7 @@ EPIC_LINEAGE: Final[dict[str, tuple[str, str]]] = {
 VALID_SEVERITIES: Final[frozenset[str]] = frozenset({"BLOCKING", "HIGH", "MED", "LOW"})
 VALID_STATUSES: Final[frozenset[str]] = frozenset({"open", "closed"})
 
+_GATE_C_SEVERITIES: Final[frozenset[str]] = frozenset({"BLOCKING", "HIGH"})  # ADR-035
 _HIGH_CARRY_FORWARD_RATIO_NUM: Final[int] = 1
 _HIGH_CARRY_FORWARD_RATIO_DEN: Final[int] = 2  # ratio = 1/2 ⇒ ≥50%
 
@@ -184,13 +185,18 @@ def evaluate_gates(items: list[DebtItem], target_epic: str) -> BudgetReport:
         threshold="≥50%",
     )
 
-    # Gate C — N-2 zero-out (no open items from two epics back).
+    # Gate C — N-2 zero-out: open BLOCKING/HIGH items from two epics back.
+    # MED/LOW N-2 items may remain open (CONTRIBUTING §7.2 — ADR-035).
     if not two_back_key:
         gate_c_pass = True
         n2_open = 0
     else:
         n2_open = sum(
-            1 for it in items if it.epic_of_origin == two_back_key and it.status == "open"
+            1
+            for it in items
+            if it.epic_of_origin == two_back_key
+            and it.status == "open"
+            and it.severity in _GATE_C_SEVERITIES
         )
         gate_c_pass = n2_open == 0
     gate_c = GateResult(
