@@ -310,13 +310,14 @@ keep the next epic from inheriting a load-bearing burden.
 |---|---|---|
 | A | BLOCKING items still open (any `epic_of_origin`) | 0 |
 | B | HIGH carry-forward items closed (`epic_of_origin != target_epic`) | ≥50% |
-| C | Items open from two epics back (N-2 zero-out, any severity) | 0 open |
+| C | BLOCKING/HIGH items open from two epics back (N-2 zero-out) | 0 open |
 
 Gate A is inventory-relative (ADR-033): every BLOCKING-severity item in the budget —
 regardless of `epic_of_origin` — must be `closed`. It is not an absolute count; a budget
 with zero open BLOCKING items passes, and a single open BLOCKING item fails. Gate B treats *all* non-target
 epics as carry-forward (consistent with retro wording — not scoped to N-1 alone). Gate C is the
-zero-tolerance heel-drag check: anything that has lingered for two epics must close.
+heel-drag check (ADR-035): any **BLOCKING or HIGH** item that has lingered two epics must close;
+MED/LOW N-2 items may remain open, consistent with §7.2's parallel-prep allowance.
 
 **Budget tracker:** `_bmad-output/implementation-artifacts/debt-budget.yaml` is the
 machine-readable inventory the gate consumes. Each item declares `id`, `severity`, `status`,
@@ -346,18 +347,18 @@ matching `before-story-<N>.1` (e.g. `before-story-2b.1`) is upgraded to `--mode 
 hard-fails if any gate is red. Label the PR that gates the Story N.1 worktree opening so the
 gate fires at the right moment.
 
-**Audit table example** (live output for target Epic 2B, 2026-05-22 — `EPIC-2A-D7` still open):
+**Audit table example** (live output for target Epic 2B, 2026-05-22 — all gates green):
 
 ```markdown
 # Debt-Decay Audit — Target Epic 2b
 
 | Gate | Status | Observed | Threshold |
 |---|---|---|---|
-| Gate A (BLOCKING zero-open) | FAIL | 1 open | 0 open |
+| Gate A (BLOCKING zero-open) | PASS | 0 open | 0 open |
 | Gate B (HIGH carry-forward) | PASS | 3/4 closed | ≥50% |
-| Gate C (N-2 zero-out) | FAIL | 3 open | 0 |
+| Gate C (N-2 zero-out) | PASS | 0 open | 0 |
 
-**Overall:** FAIL
+**Overall:** PASS
 ```
 
 **Lineage table** — known target epics and their `(previous, two_back)` mapping (extend in
@@ -424,3 +425,4 @@ ships externally.
 | 2026-05-21 | Vuonglq01685 + Claude (prep-sprint C2) | Cross-process atomic seq allocation shipped — new `journal.append_with_seq_alloc(journal_path, entry_factory)` holds the journal write flock ONCE across read→factory→append, closing the PANEL-V1 process-local race; ADR-032 ratified; closes EPIC-2A-D2-PANEL-V1-PROCESS-LOCAL-SEQ (BLOCKING); 5 legacy callsites deferred to `EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES` (per-story refactor as touched); 7 RED → 7 GREEN tests; Windows stub mirrors append/append_sync fallback pattern |
 | 2026-05-22 | Vuonglq01685 + Claude (Epic 2B prep — Gate A threshold) | ADR-033 ratified — Gate A redefined from the unreachable `≥5 BLOCKING closed` absolute count to the inventory-relative `zero open BLOCKING` rule; `scripts/check_debt_decay_budget.py` evaluates `blocking_open == 0`; supersedes the `≥5` wording inherited from Epic 2A retro action A1; surfaced by the Epic 2B §7.4 Pre-Story-2B.1 verification; test(RED) → feat(GREEN) → docs on branch `epic-2b-prep/gate-a-threshold` |
 | 2026-05-22 | Vuonglq01685 + Claude (Epic 2B prep — D7 split) | ADR-034 ratified — `EPIC-2A-D7-CROSS-PLATFORM-LOCK` split into `EPIC-2A-D7A-SIGNOFF-FLOCK-CONCURRENCY` (BLOCKING, **closed**: `signoff/records.py` `write_record`/`invalidate_record` now hold a per-phase POSIX flock) and `EPIC-2A-D7B-WIN32-RUNS-LOCK` (downgraded BLOCKING→LOW, deferred — no Windows CI runner, framework POSIX-only in v1); `signoff/` gains a declared `concurrency/` module dependency; closing D7A leaves zero open BLOCKING → debt-decay Gate A passes |
+| 2026-05-22 | Vuonglq01685 + Claude (Epic 2B prep — Gate C) | ADR-035 ratified — §7.5 Gate C ("N-2 zero-out") severity-scoped to **BLOCKING/HIGH only**, resolving its contradiction with §7.2 ("MEDIUM/LOW MAY remain open"); `scripts/check_debt_decay_budget.py` filters the N-2 open count by `severity in {BLOCKING, HIGH}`; the three open Epic-1 N-2 items (`D4`/`D5`/`D7`, all MED) no longer gate Story 2B.1 → debt-decay strict run is now green for target 2B |
