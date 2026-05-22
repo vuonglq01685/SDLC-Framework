@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -268,3 +271,66 @@ def test_list_records_ignores_phase3(tmp_path: Path, capsys: pytest.CaptureFixtu
 
     records = list_records(tmp_path)
     assert records == ()
+
+
+# ---------------------------------------------------------------------------
+# EPIC-2A-D7A — SIGNOFF-FLOCK-CONCURRENCY: per-target exclusive write lock
+#
+# write_record / invalidate_record must hold a per-phase flock across the
+# exists-check + tmp+replace so two concurrent writers cannot both pass the
+# guard and clobber the shared .tmp path. POSIX-only (ci.yml matrix has no
+# Windows runner — Windows lock-free path is deferred as EPIC-2A-D7B).
+# The RED-without-fix behaviour of these tests IS the anti-tautology receipt.
+# ---------------------------------------------------------------------------
+
+_WIN32 = pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX flock; Windows path deferred to EPIC-2A-D7B"
+)
+
+
+@_WIN32
+def test_write_record_waits_for_per_target_lock(tmp_path: Path) -> None:
+    from sdlc.concurrency.locks import file_lock
+    from sdlc.signoff.records import _signoff_path, write_record
+
+    target = _signoff_path(1, tmp_path)
+    lock_path = str(target) + ".lock"
+    done = threading.Event()
+
+    def _writer() -> None:
+        write_record(_make_record(1), repo_root=tmp_path)  # type: ignore[arg-type]
+        done.set()
+
+    with file_lock(lock_path):
+        thread = threading.Thread(target=_writer, daemon=True)
+        thread.start()
+        time.sleep(0.3)
+        # While the lock is held externally the writer must be blocked.
+        assert not done.is_set(), "write_record did not wait for the per-target lock"
+        assert not target.exists(), "write_record wrote while the lock was held"
+    thread.join(timeout=5.0)
+    assert done.is_set(), "write_record never completed after the lock released"
+    assert target.exists()
+
+
+@_WIN32
+def test_invalidate_record_waits_for_per_target_lock(tmp_path: Path) -> None:
+    from sdlc.concurrency.locks import file_lock
+    from sdlc.signoff.records import _signoff_path, invalidate_record, write_record
+
+    write_record(_make_record(1), repo_root=tmp_path)  # type: ignore[arg-type]
+    target = _signoff_path(1, tmp_path)
+    lock_path = str(target) + ".lock"
+    done = threading.Event()
+
+    def _invalidator() -> None:
+        invalidate_record(1, repo_root=tmp_path, reason="replan", now_utc=_TS3)
+        done.set()
+
+    with file_lock(lock_path):
+        thread = threading.Thread(target=_invalidator, daemon=True)
+        thread.start()
+        time.sleep(0.3)
+        assert not done.is_set(), "invalidate_record did not wait for the per-target lock"
+    thread.join(timeout=5.0)
+    assert done.is_set(), "invalidate_record never completed after the lock released"
