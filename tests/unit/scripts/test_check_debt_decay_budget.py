@@ -1,9 +1,7 @@
 """Unit tests for scripts/check_debt_decay_budget.py (C6 / Epic 2A retro A1).
 
-RED phase per CONTRIBUTING.md §2 — tests describe the public surface and
-fail until C6 GREEN implements it. Three policy gates are exercised at
-their boundaries so a future shift in any threshold (e.g. BLOCKING from
-≥5 → ≥7) is caught by a focused regression rather than silent drift.
+Gate A is the inventory-relative zero-open rule per ADR-033 — it superseded
+the unreachable ``≥5 BLOCKING closed`` count. Each gate is boundary-tested.
 """
 
 from __future__ import annotations
@@ -17,31 +15,16 @@ import check_debt_decay_budget as gate
 
 _FIVE_BLOCKING_CLOSED_BUDGET = """\
 items:
-  - id: B1
-    severity: BLOCKING
-    status: closed
-    epic_of_origin: epic-1
-    title: closed blocking 1
-  - id: B2
-    severity: BLOCKING
-    status: closed
-    epic_of_origin: epic-1
-    title: closed blocking 2
-  - id: B3
-    severity: BLOCKING
-    status: closed
-    epic_of_origin: epic-2a
-    title: closed blocking 3
-  - id: B4
-    severity: BLOCKING
-    status: closed
-    epic_of_origin: epic-2a
-    title: closed blocking 4
-  - id: B5
-    severity: BLOCKING
-    status: closed
-    epic_of_origin: epic-2a
-    title: closed blocking 5
+  - {id: B1, severity: BLOCKING, status: closed, epic_of_origin: epic-1, title: b1}
+  - {id: B2, severity: BLOCKING, status: closed, epic_of_origin: epic-1, title: b2}
+  - {id: B3, severity: BLOCKING, status: closed, epic_of_origin: epic-2a, title: b3}
+  - {id: B4, severity: BLOCKING, status: closed, epic_of_origin: epic-2a, title: b4}
+  - {id: B5, severity: BLOCKING, status: closed, epic_of_origin: epic-2a, title: b5}
+"""
+
+_ONE_OPEN_BLOCKING_BUDGET = """\
+items:
+  - {id: B1, severity: BLOCKING, status: open, epic_of_origin: epic-2a, title: open blocker}
 """
 
 
@@ -66,7 +49,7 @@ class TestLoadBudget:
         assert items[0].severity == "BLOCKING"
         assert items[0].status == "closed"
         assert items[0].epic_of_origin == "epic-1"
-        assert items[0].title == "closed blocking 1"
+        assert items[0].title == "b1"
 
     def test_missing_file_raises_file_not_found(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
@@ -149,28 +132,43 @@ class TestResolveLineage:
 
 @pytest.mark.unit
 class TestGateA:
-    def test_empty_budget_fails_gate_a(self) -> None:
-        # No BLOCKING closed at all → gate A fails (threshold is ≥5).
-        report = gate.evaluate_gates([], target_epic="2b")
-        assert report.gate_a.passed is False
+    """Gate A — inventory-relative zero-open rule (ADR-033): all BLOCKING closed."""
 
-    def test_exactly_five_blocking_closed_passes(self, tmp_path: Path) -> None:
+    def test_empty_budget_passes_gate_a(self) -> None:
+        # No BLOCKING items at all → zero open → gate A passes vacuously.
+        report = gate.evaluate_gates([], target_epic="2b")
+        assert report.gate_a.passed is True
+
+    def test_all_blocking_closed_passes(self, tmp_path: Path) -> None:
         items = gate.load_budget(_write_budget(tmp_path, _FIVE_BLOCKING_CLOSED_BUDGET))
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.gate_a.passed is True
 
-    def test_four_blocking_closed_fails(self) -> None:
+    def test_four_blocking_closed_zero_open_passes(self) -> None:
+        # ADR-033 regression: four closed + zero open passes (≥5 wrongly failed).
         items = [gate.DebtItem(f"B{i}", "BLOCKING", "closed", "epic-2a", "t") for i in range(4)]
+        report = gate.evaluate_gates(items, target_epic="2b")
+        assert report.gate_a.passed is True
+
+    def test_one_open_blocking_fails(self) -> None:
+        items = [
+            gate.DebtItem("B1", "BLOCKING", "closed", "epic-1", "t"),
+            gate.DebtItem("B2", "BLOCKING", "open", "epic-2a", "t"),
+        ]
         report = gate.evaluate_gates(items, target_epic="2b")
         assert report.gate_a.passed is False
 
-    def test_open_blocking_does_not_count(self) -> None:
+    def test_open_count_gates_not_closed_count(self) -> None:
+        # Ten open + four closed → fails; H1 (open HIGH) ignored — only BLOCKING gates A.
         items = [
             *(gate.DebtItem(f"O{i}", "BLOCKING", "open", "epic-2a", "t") for i in range(10)),
             *(gate.DebtItem(f"C{i}", "BLOCKING", "closed", "epic-2a", "t") for i in range(4)),
+            gate.DebtItem("H1", "HIGH", "open", "epic-2a", "t"),
         ]
         report = gate.evaluate_gates(items, target_epic="2b")
-        assert report.gate_a.passed is False  # only 4 closed, 10 open ignored
+        assert report.gate_a.passed is False
+        assert report.gate_a.observed == "10 open"
+        assert report.gate_a.threshold == "0 open"
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +177,7 @@ class TestGateA:
 
 
 def _gate_b_baseline_items() -> list[gate.DebtItem]:
-    """Five BLOCKING closed so gate A is satisfied; gate B is the focus."""
+    """Five BLOCKING closed → zero open → gate A satisfied; gate B is the focus."""
     return [gate.DebtItem(f"B{i}", "BLOCKING", "closed", "epic-1", "t") for i in range(5)]
 
 
@@ -347,13 +345,14 @@ class TestMainCli:
         assert rc == 0
 
     def test_failing_budget_strict_exit_1(self, tmp_path: Path) -> None:
-        # Empty budget — gate A fails immediately.
-        path = _write_budget(tmp_path, "items: []\n")
+        # One open BLOCKING item — gate A fails (ADR-033 zero-open rule).
+        path = _write_budget(tmp_path, _ONE_OPEN_BLOCKING_BUDGET)
         rc = gate.main(["--target-epic", "2b", "--budget", str(path), "--mode", "strict"])
         assert rc == 1
 
     def test_failing_budget_warn_exit_0(self, tmp_path: Path) -> None:
-        path = _write_budget(tmp_path, "items: []\n")
+        # Same failing budget — warn mode reports rc 0 by design.
+        path = _write_budget(tmp_path, _ONE_OPEN_BLOCKING_BUDGET)
         rc = gate.main(["--target-epic", "2b", "--budget", str(path), "--mode", "warn"])
         assert rc == 0
 
@@ -385,9 +384,9 @@ class TestAntiTautologyReceipt:
         path = _write_budget(tmp_path, _FIVE_BLOCKING_CLOSED_BUDGET)
         forced_fail = gate.BudgetReport(
             target_epic="2b",
-            gate_a=gate.GateResult("Gate A", False, "0", "≥5"),
+            gate_a=gate.GateResult("Gate A", False, "1 open", "0 open"),
             gate_b=gate.GateResult("Gate B", False, "0/0", "≥50%"),
-            gate_c=gate.GateResult("Gate C", False, "1", "0"),
+            gate_c=gate.GateResult("Gate C", False, "1 open", "0"),
         )
         with mock.patch.object(gate, "evaluate_gates", return_value=forced_fail):
             rc = gate.main(["--target-epic", "2b", "--budget", str(path), "--mode", "strict"])
