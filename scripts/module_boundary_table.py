@@ -45,7 +45,9 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
     ),
     "signoff": ModuleSpec(
-        depends_on=frozenset({"errors", "contracts", "state", "journal"}),
+        # concurrency: per-phase flock for write_record/invalidate_record
+        # (EPIC-2A-D7A / ADR-034). state + journal already depend on it.
+        depends_on=frozenset({"errors", "contracts", "state", "journal", "concurrency"}),
         forbidden_from=frozenset({"engine", "dispatcher", "cli"}),
     ),
     "runtime": ModuleSpec(

@@ -20,6 +20,7 @@ import datetime
 import logging
 import os
 import re
+import sys
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 
@@ -30,6 +31,25 @@ from sdlc.contracts._strict_model import StrictModel
 from sdlc.errors import SignoffError
 
 _log = logging.getLogger(__name__)
+
+
+# EPIC-2A-D7A — per-phase exclusive write lock. A POSIX flock serialises
+# concurrent write_record / invalidate_record against one phase file so two
+# writers cannot both pass the exists-check and clobber the shared .tmp path.
+if sys.platform != "win32":
+    from sdlc.concurrency.locks import file_lock
+
+    def _signoff_write_lock(target: Path) -> contextlib.AbstractContextManager[object]:
+        """Per-target exclusive flock at ``<target>.lock`` (POSIX)."""
+        return file_lock(str(target) + ".lock")
+
+else:  # pragma: no cover — POSIX-only CI matrix (ci.yml: ubuntu + macos)
+
+    def _signoff_write_lock(target: Path) -> contextlib.AbstractContextManager[object]:
+        """Windows: no flock — EPIC-2A-D7B-WIN32-RUNS-LOCK (deferred; the
+        framework is POSIX-only in v1, journal/writer.py raises on Windows)."""
+        return contextlib.nullcontext()
+
 
 _SIGNOFF_DIR = ".claude/state/signoffs"
 _PHASE_DIR_MAP = {1: "01-Requirement", 2: "02-Architecture"}
@@ -273,31 +293,36 @@ def write_record(record: SignoffRecord, *, repo_root: Path) -> None:
             details={"step": "write_record", "phase": record.phase},
         )
     target = _signoff_path(record.phase, repo_root)
-    if target.exists():
-        try:
-            existing = read_record(record.phase, repo_root=repo_root)
-        except SignoffError:
-            # Existing file is malformed — refuse silently to overwrite to avoid
-            # masking corruption with a fresh write.
-            raise SignoffError(
-                f"cannot overwrite phase-{record.phase} record: existing file is "
-                "malformed; inspect manually before overwriting",
-                details={"step": "write_record", "phase": record.phase, "path": str(target)},
-            ) from None
-        if existing is not None and existing.invalidated_at is None:
-            raise SignoffError(
-                f"cannot overwrite phase-{record.phase} approved record; "
-                "use invalidate_record first",
-                details={"step": "write_record", "phase": record.phase, "path": str(target)},
-            )
     canonical = _canonicalize_record(record)
-    try:
-        _write_bytes_to_disk(target, canonical)
-    except OSError as exc:
-        raise SignoffError(
-            f"failed to write canonical record: {exc}",
-            details={"step": "write_record", "path": str(target)},
-        ) from exc
+    # The lock file lives beside the target — its directory must exist first.
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Hold the per-target write lock across the exists-check + write so two
+    # concurrent writers cannot both pass the guard (EPIC-2A-D7A).
+    with _signoff_write_lock(target):
+        if target.exists():
+            try:
+                existing = read_record(record.phase, repo_root=repo_root)
+            except SignoffError:
+                # Existing file is malformed — refuse silently to overwrite to
+                # avoid masking corruption with a fresh write.
+                raise SignoffError(
+                    f"cannot overwrite phase-{record.phase} record: existing file is "
+                    "malformed; inspect manually before overwriting",
+                    details={"step": "write_record", "phase": record.phase, "path": str(target)},
+                ) from None
+            if existing is not None and existing.invalidated_at is None:
+                raise SignoffError(
+                    f"cannot overwrite phase-{record.phase} approved record; "
+                    "use invalidate_record first",
+                    details={"step": "write_record", "phase": record.phase, "path": str(target)},
+                )
+        try:
+            _write_bytes_to_disk(target, canonical)
+        except OSError as exc:
+            raise SignoffError(
+                f"failed to write canonical record: {exc}",
+                details={"step": "write_record", "path": str(target)},
+            ) from exc
 
 
 def invalidate_record(
@@ -322,41 +347,46 @@ def invalidate_record(
             details={"step": "invalidate_record", "now_utc": now_utc},
         )
     target = _signoff_path(phase, repo_root)
-    existing = read_record(phase, repo_root=repo_root)
-    if existing is None:
-        raise SignoffError(
-            f"no canonical record found for phase-{phase}; cannot invalidate",
-            details={"step": "invalidate_record", "phase": phase},
+    # The lock file lives beside the target — its directory must exist first.
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Hold the per-target write lock across the TOCTOU read + rewrite + re-read
+    # (EPIC-2A-D7A).
+    with _signoff_write_lock(target):
+        existing = read_record(phase, repo_root=repo_root)
+        if existing is None:
+            raise SignoffError(
+                f"no canonical record found for phase-{phase}; cannot invalidate",
+                details={"step": "invalidate_record", "phase": phase},
+            )
+        # Rebuild record with invalidated_at + reason; preserve all other fields
+        updated = SignoffRecord(
+            schema_version=existing.schema_version,
+            phase=existing.phase,
+            artifacts=existing.artifacts,
+            approved_by=existing.approved_by,
+            approved_at=existing.approved_at,
+            drafted_at=existing.drafted_at,
+            validated_at=existing.validated_at,
+            invalidated_at=now_utc,
+            invalidated_reason=reason,
         )
-    # Rebuild record with invalidated_at + reason; preserve all other fields
-    updated = SignoffRecord(
-        schema_version=existing.schema_version,
-        phase=existing.phase,
-        artifacts=existing.artifacts,
-        approved_by=existing.approved_by,
-        approved_at=existing.approved_at,
-        drafted_at=existing.drafted_at,
-        validated_at=existing.validated_at,
-        invalidated_at=now_utc,
-        invalidated_reason=reason,
-    )
-    canonical = _canonicalize_record(updated)
-    try:
-        _write_bytes_to_disk(target, canonical)
-    except OSError as exc:
-        raise SignoffError(
-            f"failed to write invalidated record: {exc}",
-            details={"step": "invalidate_record", "path": str(target)},
-        ) from exc
-    # Re-read from disk so the returned record matches future read_record output
-    # byte-for-byte (catches any normalization round-trip drift early).
-    refreshed = read_record(phase, repo_root=repo_root)
-    if refreshed is None:  # pragma: no cover — write succeeded means file exists
-        raise SignoffError(
-            f"phase-{phase} record vanished immediately after write",
-            details={"step": "invalidate_record", "path": str(target)},
-        )
-    return refreshed
+        canonical = _canonicalize_record(updated)
+        try:
+            _write_bytes_to_disk(target, canonical)
+        except OSError as exc:
+            raise SignoffError(
+                f"failed to write invalidated record: {exc}",
+                details={"step": "invalidate_record", "path": str(target)},
+            ) from exc
+        # Re-read from disk so the returned record matches future read_record
+        # output byte-for-byte (catches any normalization round-trip drift).
+        refreshed = read_record(phase, repo_root=repo_root)
+        if refreshed is None:  # pragma: no cover — write succeeded means file exists
+            raise SignoffError(
+                f"phase-{phase} record vanished immediately after write",
+                details={"step": "invalidate_record", "path": str(target)},
+            )
+        return refreshed
 
 
 def list_records(repo_root: Path) -> tuple[SignoffRecord, ...]:

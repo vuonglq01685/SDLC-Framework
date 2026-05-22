@@ -294,6 +294,7 @@ def test_write_record_waits_for_per_target_lock(tmp_path: Path) -> None:
     from sdlc.signoff.records import _signoff_path, write_record
 
     target = _signoff_path(1, tmp_path)
+    target.parent.mkdir(parents=True, exist_ok=True)  # lock file needs the dir
     lock_path = str(target) + ".lock"
     done = threading.Event()
 
