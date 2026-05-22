@@ -78,6 +78,7 @@ nav:
       - "Boundary-line postcondition audit (pre-2B)": boundary-postcondition-audit.md
   - Sprints:
       - "Epic 2A — story DAG & parallelism plan": sprints/epic-2a-dag.md
+      - "Epic 2B — story DAG & parallelism plan": sprints/epic-2b-dag.md
   - Runbooks:
       - "Handle hook hash drift (FR39 / NFR-SEC-5)": runbooks/handle-hash-drift.md
       - "Diagnose hook rejection (Story 2A.4)": runbooks/diagnose-hook-rejection.md
