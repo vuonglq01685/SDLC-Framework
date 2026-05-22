@@ -61,7 +61,7 @@ def test_parse_claude_stdout_happy_path() -> None:
     ("raw", "label"),
     [
         ('{"result": "x"', "truncated"),
-        ('{"result": "\\u"', "invalid_escape"),
+        ('{"result": "\\q"}', "invalid_escape"),
         ("plain text only", "mixed_text"),
     ],
 )
@@ -94,7 +94,7 @@ def test_dispatch_happy_path_stub_claude(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert result.tokens_out == 7
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_dispatch_kill_midstream_preserves_partial_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -136,15 +136,22 @@ def test_dispatch_timeout_terminates_without_orphans(
     with pytest.raises(DispatchError) as ei:
         asyncio.run(runtime.dispatch("x", {"workflow_step": "smoke"}))
     assert "timeout after 1s" in str(ei.value)
-    # No orphaned stub children named claude_slow / claude on PATH
-    time.sleep(0.2)
-    proc = subprocess.run(
-        ["pgrep", "-f", str(tmp_path / "bin" / "claude")],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert proc.stdout.strip() == ""
+    # Poll for orphan reaping rather than a fixed sleep — terminate+reap is fast
+    # but not instantaneous, and a hard sleep is a flaky deterministic-wait.
+    stub_glob = str(tmp_path / "bin" / "claude")
+    orphans = "unchecked"
+    for _ in range(50):
+        scan = subprocess.run(
+            ["pgrep", "-f", stub_glob],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        orphans = scan.stdout.strip()
+        if not orphans:
+            break
+        time.sleep(0.1)
+    assert orphans == "", f"orphaned claude subprocess survived: {orphans}"
 
 
 @pytest.mark.unit

@@ -2,8 +2,11 @@
 
 Architecture §888-§892, §1066; ADR-024, ADR-026.
 
-AgentRun is a 2A placeholder; full wire-format lock arrives in Epic 2B Story 2B.1.
-Format may evolve in 2A without ADR-024 ceremony.
+``_AgentRunLine`` is a private internal model, not a frozen wire-format contract.
+Per ADR-029 §4 (divergence #4) and Story 2B.1 AC5/D2 it is intentionally kept
+private — ``schema_version`` is carried as an in-band field, not an ADR-024
+``tests/contract_snapshots/v1/`` snapshot — and the format may still evolve
+without an ADR-024 ceremony.
 
 Boundary: ``telemetry/`` depends on ``errors``, ``contracts``, ``journal``,
 ``concurrency``. Forbidden from ``engine``, ``dispatcher``, ``runtime``, ``cli``.

@@ -245,9 +245,11 @@ def run_break(*, ctx: typer.Context, story_id: str, allow_mock: bool = False) ->
                     compute_prompt_hash(mock_prompt),
                     mock_task_batch_body(story_id),
                 )
-                runtime = build_runtime(fixtures_dir=tmp_path)
-            else:
-                emit_error("ERR_INFRASTRUCTURE", "real runtime not available in v1", ctx=ctx)
+            # build_runtime runs unconditionally — it selects MockAIRuntime or
+            # ClaudeAIRuntime per the env gate. After the ADR-029 default-flip the
+            # real runtime is the default; gating this on use_mock_runtime() would
+            # abort `sdlc break` in normal operation.
+            runtime = build_runtime(fixtures_dir=tmp_path)
         except (WorkflowError, SpecialistError, OSError) as exc:
             emit_error(
                 "ERR_INFRASTRUCTURE",

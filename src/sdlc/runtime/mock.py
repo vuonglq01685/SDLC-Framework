@@ -43,12 +43,15 @@ class _Fixture(BaseModel):
     mock: bool = Field(default=True, strict=True)
 
     def as_agent_result(self) -> AgentResult:
+        # MockAIRuntime output is mock-sourced by construction — force mock=True
+        # rather than trusting the fixture field, so a fixture file cannot emit a
+        # result that falsely claims to be real-model output (ADR-029 provenance).
         return AgentResult(
             output_text=self.output_text,
             tool_calls=self.tool_calls,
             tokens_in=self.tokens_in,
             tokens_out=self.tokens_out,
-            mock=self.mock,
+            mock=True,
         )
 
 

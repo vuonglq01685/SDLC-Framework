@@ -15,5 +15,11 @@ if _scripts_dir not in sys.path:
 
 @pytest.fixture(autouse=True)
 def _sdlc_mock_runtime_for_cli_tests(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep CLI integration/e2e on MockAIRuntime after ADR-029 default-flip (Story 2B.1)."""
+    """Keep CLI integration/e2e on MockAIRuntime after the ADR-029 default-flip.
+
+    Sets the explicit ``SDLC_MOCK_GATE_BYPASS`` opt-in so the ``--allow-mock``
+    gate is waived in tests without production code detecting pytest (Story 2B.1
+    review P16). Tests that exercise the gate's exit-1 path delete it explicitly.
+    """
     monkeypatch.setenv("SDLC_USE_MOCK_RUNTIME", "1")
+    monkeypatch.setenv("SDLC_MOCK_GATE_BYPASS", "1")

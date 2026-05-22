@@ -52,11 +52,11 @@ def test_build_runtime_selects_mock_when_env_on(
     assert isinstance(runtime, MockAIRuntime)
 
 
-def test_enforce_allow_mock_gate_exits_without_flag_outside_pytest(
+def test_enforce_allow_mock_gate_exits_without_flag_when_no_bypass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SDLC_USE_MOCK_RUNTIME", "1")
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("SDLC_MOCK_GATE_BYPASS", raising=False)
     ctx = typer.Context(command=typer.core.TyperCommand("x"))
     ctx.ensure_object(dict)
     with unittest.mock.patch("sdlc.cli._runtime_selection.emit_error") as mock_err:
@@ -82,12 +82,12 @@ def test_enforce_allow_mock_gate_returns_true_when_allow_mock(
     assert enforce_allow_mock_gate(allow_mock=True, ctx=ctx) is True
 
 
-def test_bootstrap_mock_without_allow_mock_fails_outside_pytest(
+def test_bootstrap_mock_without_allow_mock_fails_when_no_bypass(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("SDLC_USE_MOCK_RUNTIME", "1")
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("SDLC_MOCK_GATE_BYPASS", raising=False)
     with unittest.mock.patch("sdlc.cli.bootstrap._get_repo_root_or_cwd", return_value=tmp_path):
         result = _runner.invoke(app, ["--json", "bootstrap"])
     assert result.exit_code == 1

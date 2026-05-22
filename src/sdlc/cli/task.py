@@ -283,9 +283,11 @@ def run_task(*, ctx: typer.Context, task_id: str, allow_mock: bool = False) -> N
                         body = mock_code_reviewer_body()
 
                     write_mock_fixture(tmp_path, spec.name, h, body)
-                    runtime = build_runtime(fixtures_dir=tmp_path)
-                else:
-                    emit_error("ERR_INFRASTRUCTURE", "real runtime not available in v1", ctx=ctx)
+                # build_runtime runs unconditionally — it selects MockAIRuntime or
+                # ClaudeAIRuntime per the env gate. After the ADR-029 default-flip
+                # the real runtime is the default; gating this on use_mock_runtime()
+                # would abort `sdlc task` in normal operation.
+                runtime = build_runtime(fixtures_dir=tmp_path)
             except (WorkflowError, SpecialistError, OSError) as exc:
                 emit_error(
                     "ERR_INFRASTRUCTURE",
