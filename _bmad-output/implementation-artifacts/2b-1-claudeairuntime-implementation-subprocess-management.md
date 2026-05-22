@@ -1,6 +1,6 @@
 # Story 2B.1: ClaudeAIRuntime Implementation (Subprocess Management + Edge Cases)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -32,6 +32,7 @@ so that the abstraction leaks Winston flagged are caught at implementation time,
   - **D1 (Recommended):** call the blocking `subprocess.run(["claude", ...])` inside `await asyncio.to_thread(...)`. **Pros:** honours the epic's explicit `subprocess.run` wording verbatim; keeps `async def dispatch` non-blocking for the `asyncio.gather` panel path (Decision A2); minimal surface. **Cons:** one worker thread per in-flight dispatch.
   - **D2:** `asyncio.create_subprocess_exec`. **Cons:** diverges from the epic's literal `subprocess.run` instruction; re-implements timeout/kill semantics the dev would otherwise get from `subprocess.run(timeout=...)`.
   - **Recommended: D1.** Record as the first PR Change Log line.
+  - **Implemented (2026-05-22, code review P17):** neither D1 nor D2 verbatim — the blocking call uses `subprocess.Popen` + `communicate(timeout=...)` inside `await asyncio.to_thread(...)`. `subprocess.run(timeout=...)` SIGKILLs the child directly with no grace period, which cannot satisfy AC4's mandated **SIGTERM → grace → SIGKILL** sequence; the `Popen` handle is required for graceful termination. D1's async strategy (`asyncio.to_thread` keeping `dispatch` non-blocking) is preserved.
 
 ### AC2 — Subprocess dies mid-stream (kill -9 during stdout flush)
 
@@ -211,3 +212,46 @@ Composer (Cursor)
 ### Change Log
 
 - 2026-05-22: Story 2B.1 — ClaudeAIRuntime + ADR-029 mock envelope and CLI default-flip (review)
+- 2026-05-22: Code review P17 — AC1/D1 deviation ratified: `runtime/claude.py` uses `subprocess.Popen` + `communicate()` rather than `subprocess.run`. `subprocess.run(timeout=...)` kills directly with no SIGTERM grace; AC4 mandates SIGTERM → grace → SIGKILL, which requires the `Popen` handle. The blocking call still runs inside `asyncio.to_thread` per D1's async strategy. AC1/D1 wording amended accordingly.
+- 2026-05-22: Code review P18 — AC7/ADR-026 §1: RED-before-GREEN commit ordering for `dispatch` is not visible in `git log --reverse` (first commit `f431224` bundles `runtime/claude.py` + `tests/unit/runtime/test_claude.py`). The behavioural anti-tautology test `test_dispatch_happy_path_stub_claude` is genuine — it fails if `_parse_claude_stdout` is removed. Deviation accepted at review; the 3 story commits are already FF-merged to `main`, so the ordering is recorded rather than rewritten.
+
+## Review Findings — Code Review (2026-05-22)
+
+> `bmad-code-review` · 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor) · diff range `1e74f27..HEAD` (37 files, +1007/−277).
+> 53 raw findings → 24 actionable (3 decision-needed · 15 patch · 6 defer) + 14 dismissed as noise.
+
+### Decision-Needed (Resolved 2026-05-22)
+
+All three decisions were resolved at review time and reclassified as patches P16–P18.
+
+- [x] [Review][Patch] P16 [HIGH] (was D1) Test-runtime strategy — **applied 2026-05-22:** production `_pytest_active()` (which branched on `PYTEST_CURRENT_TEST`) replaced with the explicit `SDLC_MOCK_GATE_BYPASS` env opt-in; `conftest.py` sets it; the two gate tests updated to `delenv` it. Production code no longer detects the test framework. **Follow-up CR2B1-W7:** narrowing the root `autouse` mock fixture to per-area conftests + a CLI-level real-`ClaudeAIRuntime` integration test are tracked as deferred test-infra hardening. [src/sdlc/cli/_runtime_selection.py, tests/conftest.py]
+- [x] [Review][Patch] P17 [MEDIUM] (was D2) Ratify the `subprocess.Popen` deviation — `Popen` is required for AC4's SIGTERM→grace→SIGKILL (unachievable with `subprocess.run(timeout=)`); amend the AC1/D1 wording to acknowledge `Popen` and add a Change Log line recording the rationale [_bmad-output/implementation-artifacts/2b-1-claudeairuntime-implementation-subprocess-management.md]
+- [x] [Review][Patch] P18 [MEDIUM] (was D3) Accept the AC7 TDD-first ordering deviation — the behavioural anti-tautology test is genuine and the commits are FF-merged to `main`; add a Change Log note acknowledging that RED-before-GREEN ordering for `dispatch` is not visible in `git log --reverse` [_bmad-output/implementation-artifacts/2b-1-claudeairuntime-implementation-subprocess-management.md]
+
+### Patch
+
+- [x] [Review][Patch] P1 [CRITICAL] `sdlc break` / `sdlc task` abort in the default real-runtime mode via a dead `else` branch — `build_runtime` must run unconditionally (cf. `bootstrap.py:220`) [src/sdlc/cli/break_.py:249-250, src/sdlc/cli/task.py:287-288]
+- [x] [Review][Patch] P2 [HIGH] Missing `claude` binary raises an uncaught `FileNotFoundError` — `subprocess.Popen` sits outside the `try`, no preflight; wrap spawn → `DispatchError(stage="spawn")` [src/sdlc/runtime/claude.py:85, src/sdlc/cli/_runtime_selection.py:71-75]
+- [x] [Review][Patch] P3 [MEDIUM] `main.py` encoding corruption — 22× `§` and the em-dash mangled to `?` across the module docstring and deferred-import comments [src/sdlc/cli/main.py]
+- [x] [Review][Patch] P4 [MEDIUM] Subprocess not killed/reaped on non-timeout exception paths; post-SIGKILL `proc.wait()` is unbounded [src/sdlc/runtime/claude.py:113-116]
+- [x] [Review][Patch] P5 [MEDIUM] `_parse_claude_stdout` coerces a non-string `result` via `str()` and never checks `is_error`/`type` — a Claude error result is laundered into a success `AgentResult` [src/sdlc/runtime/claude.py:49-50]
+- [x] [Review][Patch] P6 [MEDIUM] Exit 0 with empty stdout → misleading `malformed JSON from claude:` with an empty excerpt; needs a distinct empty-output path [src/sdlc/runtime/claude.py:141]
+- [x] [Review][Patch] P7 [MEDIUM] Non-UTF-8 subprocess output raises an uncaught `UnicodeDecodeError` — `Popen(text=True)` carries no `encoding`/`errors` policy [src/sdlc/runtime/claude.py:90]
+- [x] [Review][Patch] P8 [MEDIUM] `_Fixture.mock` is a fixture-author-controllable field; `as_agent_result()` should hard-set `mock=True` so a mock result cannot emit `mock=False` [src/sdlc/runtime/mock.py:43]
+- [x] [Review][Patch] P9 [MEDIUM] AC5/D2 keep-`_AgentRunLine`-private decision is missing the ADR-029 §4#4-required ADR-028 §scope note; `telemetry/runs.py` docstring still claims the wire-format lock "arrives in Story 2B.1" [src/sdlc/telemetry/runs.py:5]
+- [x] [Review][Patch] P10 [LOW] `bool` token values pass the `isinstance(int)` check → uncaught pydantic `ValidationError` (strict) at `AgentResult` construction [src/sdlc/runtime/claude.py:55]
+- [x] [Review][Patch] P11 [LOW] `_excerpt` applies the 200-char cap before newline-escaping, so the excerpt exceeds the AC3 200-char contract for newline-bearing output [src/sdlc/runtime/claude.py:21-23]
+- [x] [Review][Patch] P12 [LOW] Dispatch `stage` mislabeled — `"stream" if stdout else "spawn"` guess + timeout hardcoded to `"stream"` [src/sdlc/runtime/claude.py:143,106]
+- [x] [Review][Patch] P13 [LOW] AC2/AC3 test fidelity — kill test marked `@pytest.mark.unit` (AC2 requires an integration test); the AC3 "invalid escape" fixture is actually a truncated string [tests/unit/runtime/test_claude.py:97,64]
+- [x] [Review][Patch] P14 [LOW] Timeout integration test robustness — flaky `time.sleep(0.2)` before `pgrep`; `claude_slow` stub sleeps 120 s (CI stall risk on regression) [tests/unit/runtime/test_claude.py:140]
+- [x] [Review][Patch] P15 [LOW] Parse-failure inner `error` detail (the `JSONDecodeError` message) is dropped when the mixed-stream case is re-wrapped `from None` [src/sdlc/runtime/claude.py:164-174]
+
+### Defer
+
+- [x] [Review][Defer] CR2B1-W1 — `asyncio.CancelledError` orphans the `claude` subprocess: `asyncio.to_thread` cannot cancel the worker thread, so caller cancellation leaves the child running [src/sdlc/runtime/claude.py:135] — deferred, needs a cancellation-bridge design
+- [x] [Review][Defer] CR2B1-W2 — `mock` field absent from `dispatch_attempt` journal entries on failed/retry outcomes [src/sdlc/dispatcher/_panel_helpers.py:506-507] — deferred, the obvious fix (runtime-type introspection) is prohibited by ADR-029 §Alternatives
+- [x] [Review][Defer] CR2B1-W3 — no `cwd` control on the `claude` subprocess; it inherits the `sdlc` process working directory [src/sdlc/runtime/claude.py:85] — deferred, future hardening
+- [x] [Review][Defer] CR2B1-W4 — a temp `fixtures_dir` is created and threaded to `ClaudeAIRuntime`, which ignores it (real mode) [src/sdlc/cli/_runtime_selection.py:71] — deferred, cross-cutting cleanup
+- [x] [Review][Defer] CR2B1-W5 — brittle coupling to `claude --output-format json`; no stream-json / output-contract guard [src/sdlc/runtime/claude.py:83] — deferred, mitigated by the Story 2B.2 min-version pin
+- [x] [Review][Defer] CR2B1-W6 — `--json` command output carries no mock-mode signal (the flag reaches only the journal/trace) [src/sdlc/cli/_runtime_selection.py:51-53] — deferred, enhancement
+- [x] [Review][Defer] CR2B1-W7 — P16 test-infra residual: narrow the root `autouse` mock fixture to per-area conftests, and add a CLI-level real-`ClaudeAIRuntime` integration test (stub `claude` on PATH through `build_runtime`) so a P1-class regression cannot hide from CI [tests/conftest.py:16-21] — deferred, larger test-infrastructure change
