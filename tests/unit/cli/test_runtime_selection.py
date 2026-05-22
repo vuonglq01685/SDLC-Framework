@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from sdlc.cli._runtime_selection import (
     build_runtime,
     enforce_allow_mock_gate,
+    merge_observer_mock_audit,
     use_mock_runtime,
 )
 from sdlc.cli.main import app
@@ -62,6 +63,14 @@ def test_enforce_allow_mock_gate_exits_without_flag_outside_pytest(
         enforce_allow_mock_gate(allow_mock=False, ctx=ctx)
     mock_err.assert_called_once()
     assert mock_err.call_args.args[0] == "ERR_USER_INPUT"
+
+
+def test_merge_observer_mock_audit_adds_dispatch_attempt_extras() -> None:
+    ctx: dict[str, object] = {"agent_dispatched_extras": {"topic_hash": "sha256:x"}}
+    merge_observer_mock_audit(ctx, allow_mock_invoked=True)
+    da = ctx.get("dispatch_attempt_extras")
+    assert isinstance(da, dict)
+    assert da.get("allow_mock_invoked") is True
 
 
 def test_enforce_allow_mock_gate_returns_true_when_allow_mock(
