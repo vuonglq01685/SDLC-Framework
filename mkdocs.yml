@@ -72,6 +72,7 @@ nav:
       - "ADR-031 — atomic-write primitive (io_primitives)": decisions/ADR-031-atomic-write-primitive.md
       - "ADR-032 — journal append_with_seq_alloc (cross-process)": decisions/ADR-032-append-with-seq-alloc.md
       - "ADR-033 — debt-decay Gate A zero-open threshold": decisions/ADR-033-debt-decay-gate-a-zero-open.md
+      - "ADR-034 — EPIC-2A-D7 split (signoff flock / Windows defer)": decisions/ADR-034-debt-d7-split-signoff-flock.md
       - "ADR template": decisions/adr-template.md
   - Reference:
       - "Specialists matrix (canonical roster)": specialists-matrix.md

@@ -89,11 +89,19 @@ items:
     status: open
     epic_of_origin: epic-2a
     title: TASK-STATE-PROJECTION + NEXT-CONSUME-PROJECTION + REPLAN-DIRTY-PROJECTION; state.json journal projection (owned by P7)
-  - id: EPIC-2A-D7-CROSS-PLATFORM-LOCK
+  # EPIC-2A-D7 split 2026-05-22 (ADR-034) — the bundled cross-platform-lock
+  # ticket separated into a real, testable POSIX race (D7A, closed) and an
+  # unverifiable + v1-moot Windows gap (D7B, downgraded LOW, deferred).
+  - id: EPIC-2A-D7A-SIGNOFF-FLOCK-CONCURRENCY
     severity: BLOCKING
+    status: closed
+    epic_of_origin: epic-2a
+    title: signoff/records.py write_record/invalidate_record raced the tmp+replace — closed 2026-05-22 prep-item d7-signoff-flock (ADR-034) via per-phase POSIX flock _signoff_write_lock; signoff/ gains a declared concurrency/ module dep
+  - id: EPIC-2A-D7B-WIN32-RUNS-LOCK
+    severity: LOW
     status: open
     epic_of_origin: epic-2a
-    title: WIN32-RUNS-LOCK + SIGNOFF-FLOCK-CONCURRENCY; cross-platform lock primitive (owned by P5)
+    title: telemetry/runs.py + signoff/records.py Windows branches write lock-free — downgraded BLOCKING→LOW + deferred 2026-05-22 (ADR-034); no Windows CI runner exists and the framework is POSIX-only in v1 (journal/writer.py raises on Windows); reactivate when Windows is a supported target
   - id: EPIC-2A-D8-BREAK-MANUAL-STATUS-FLIP
     severity: LOW
     status: open
