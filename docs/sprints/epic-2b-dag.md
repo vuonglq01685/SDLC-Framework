@@ -18,11 +18,11 @@ implementation.
 This document is the canonical sprint-planning output for Epic 2B. It satisfies CONTRIBUTING.md
 §7.1 row 1 (mandatory artifact: Story DAG document) and §7.3 (DAG-first rule).
 
-**Gate status note.** This document being `Draft` is **not sufficient** to clear the §7.4
-Pre-Story 2B.1 gate. The gate additionally requires (a) §8 below carrying all 4 approvals, and
-(b) a green debt-decay strict run (`scripts/check_debt_decay_budget.py --target-epic 2b --mode
-strict`). See §7 (Risks) for the currently-open gate items. Prep-sprint critical path C1–C8 is
-**closed** (sprint-status `last_action`, 2026-05-21).
+**Gate status note.** As of 2026-05-22 the §7.4 Pre-Story 2B.1 gate is satisfied except for one
+item: §8 below needs the 3 technical-reviewer signoffs (Charlie / Alice / Winston) — the Project
+Lead directive sign-off is recorded. The debt-decay strict run is **green** for Epic 2B (Gate A
+ADR-033, EPIC-2A-D7 split ADR-034, Gate C ADR-035 — all landed this session); prep-sprint
+critical path C1–C8 is **closed**; wire-format snapshots + quality gate green on `main`.
 
 ---
 
@@ -180,8 +180,8 @@ availability for chunked review-A/B/C, and linear-merge discipline on `main`.
 | MockAIRuntime ↔ ClaudeAIRuntime divergence (ADR-029): `SDLC_USE_MOCK_RUNTIME` default-flip is scheduled "post-2B.1". | 2B.1 implements the `mock: true` success-envelope flag + the 4 collateral divergence fixes inside its own scope per ADR-029 / prep-sprint C8. |
 | `EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES` — 5 legacy callsites still use process-local seq allocation. | Forward rule (prep-sprint C2): Story 2B.1 `ClaudeAIRuntime` uses `append_with_seq_alloc` from day one; the 5 legacy callsites migrate per-story across Epic 2B. |
 | Specialist name drift across 2B.8–2B.11 vs `architecture.md` / frozen matrix. | `docs/specialists-matrix.md` (C5) is canonical; ADR-030 governs reconciliation; 2B.11 count gate (`≥23, ≤27`) is the backstop. |
-| **§7.4 GATE — debt-decay strict run currently FAILS.** Gate A (BLOCKING closed ≥5) reports 3/5, and the budget contains only 4 BLOCKING items total — the threshold is **structurally unreachable** without expanding `debt-budget.yaml` inventory. Gate C (N-2 zero-out) reports 3 open (Epic-1 D4/D5/D7). | **Escalate to Project Lead.** Two decisions needed: (1) expand BLOCKING inventory in `debt-budget.yaml` or amend the Gate A threshold; (2) resolve the contradiction between retro §7.2 (P1/P2/P3 = Epic-1 D4/D5/D7 run "concurrent with Story 2B.1") and §7.5 Gate C (N-2 items must be 0 open before Story N.1). |
-| §7.4 GATE — §8 approvals (below) are not yet collected. | This document must be reviewed and signed by all 4 approvers before `bmad-create-story` is invoked for Story 2B.1. |
+| §7.4 GATE — debt-decay strict run. **RESOLVED 2026-05-22.** Gate A's unreachable `≥5` threshold was redefined to inventory-relative `zero-open` (ADR-033); `EPIC-2A-D7` was split — D7A SIGNOFF-FLOCK closed, D7B WIN32 deferred LOW (ADR-034); Gate C was severity-scoped to BLOCKING/HIGH, resolving the §7.2/§7.5 contradiction (ADR-035). | Strict run for target 2B is now **Gate A + B + C all PASS**. Epic-1 D4/D5/D7 remain open MED debt (parallel-prep pace) but no longer gate Story 2B.1. |
+| §7.4 GATE — §8 approvals: 1 of 4 collected (Project Lead signed 2026-05-22). | The 3 technical-reviewer signoffs (Charlie / Alice / Winston) remain — this is the sole open §7.4 item. Collect them before `bmad-create-story` is invoked for Story 2B.1. |
 
 ---
 
@@ -193,7 +193,7 @@ Per CONTRIBUTING.md §7.1 rows 3–4 — minimum 3 reviewers + Project Lead dire
 - [ ] Charlie — DAG correctness + dispatcher/runtime dependency checks (verify 2B.3→2B.1 and 2B.6→2B.1 edges; verify 2B.8/9/10→2B.3 conformance dependency)
 - [ ] Alice — sprint capacity + reviewer assignment plan (Layers 1 & 3 saturate the 4-agent cap; confirm CI headroom and review-A/B/C reviewer roster)
 - [ ] Winston — architectural cross-reference (ADR-029 mock-envelope scope inside 2B.1; ADR-031/032 primitives consumed; `runtime/` module boundary; ADR-030 specialist-roster canonical names)
-- [ ] Vuonglq01685 (Project Lead) — directive sign-off on parallelism plan, worktree policy, and resolution of the §7 debt-decay gate items
+- [x] Vuonglq01685 (Project Lead) — directive sign-off on parallelism plan, worktree policy, and resolution of the §7 debt-decay gate items (2026-05-22: §7 debt-decay items resolved this session — ADR-033 / ADR-034 / ADR-035, strict run green for Epic 2B; parallelism plan + worktree-per-layer policy approved. The 3 technical-reviewer signoffs above remain pending.)
 
 ---
 
@@ -202,3 +202,4 @@ Per CONTRIBUTING.md §7.1 rows 3–4 — minimum 3 reviewers + Project Lead dire
 | Date | Author | Change |
 |---|---|---|
 | 2026-05-22 | Alice + Charlie (drafted via Claude, per Epic 2A retro DOC3) | Initial draft — DAG (11 stories) + 4 parallelism layers + critical path `2B.1→2B.3→2B.10→2B.11` + preliminary worktree assignments + risk register. §8 approvals OPEN. Gate note: §7.4 Pre-Story 2B.1 gate remains blocked pending §8 4/4 approvals and a green debt-decay strict run (Gate A structurally unreachable — escalated to Project Lead in §7). |
+| 2026-05-22 | Vuonglq01685 (Project Lead) + Claude | §8 Project Lead directive sign-off recorded. The §7 debt-decay gate items are all resolved this session — Gate A (ADR-033), `EPIC-2A-D7` split (ADR-034), Gate C (ADR-035); `check_debt_decay_budget.py --target-epic 2b --mode strict` is green (Gate A + B + C all PASS). §1 gate-status note + §7 risk rows updated to the post-resolution state. §8 still needs the 3 technical-reviewer signoffs (Charlie / Alice / Winston) before Story 2B.1. |
