@@ -83,6 +83,7 @@ def test_agent_result_canonical_serialization_is_byte_stable() -> None:
     serialized = json.dumps(r.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     expected = json.dumps(
         {
+            "mock": False,
             "output_text": "hello",
             "tool_calls": [{"name": "x", "args": {}}],
             "tokens_in": 10,

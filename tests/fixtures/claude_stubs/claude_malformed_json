@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Stub ``claude`` — returns non-JSON stdout (AC3 mixed-text case)."""
+
+from __future__ import annotations
+
+print("not-json at all — model went off the rails")

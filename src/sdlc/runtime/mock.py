@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, ClassVar, Final
@@ -39,6 +40,7 @@ class _Fixture(BaseModel):
     # strict=True rejects bool → int coercion (True/False are int subclasses in Python).
     tokens_in: int = Field(ge=0, strict=True)
     tokens_out: int = Field(ge=0, strict=True)
+    mock: bool = Field(default=True, strict=True)
 
     def as_agent_result(self) -> AgentResult:
         return AgentResult(
@@ -46,6 +48,7 @@ class _Fixture(BaseModel):
             tool_calls=self.tool_calls,
             tokens_in=self.tokens_in,
             tokens_out=self.tokens_out,
+            mock=self.mock,
         )
 
 
@@ -255,14 +258,18 @@ class MockAIRuntime(AIRuntime):
         key = (workflow_step, prompt_hash)
         fixture = self._fixtures.get(key)
         if fixture is None:
+            rel_dir = f"<fixtures>/{workflow_step}.yaml"
+            details: dict[str, object] = {
+                "step": "fixture_lookup",
+                "workflow_step": workflow_step,
+                "prompt_hash": prompt_hash,
+                "fixtures_dir": rel_dir,
+            }
+            if os.environ.get("SDLC_DEBUG", "") == "1":
+                details["debug_abs_path"] = str(self.fixtures_dir)
             raise MockMissError(
                 f"no fixture for (step={workflow_step}, prompt_hash={prompt_hash});"
-                f" add a YAML at {self.fixtures_dir}/{workflow_step}.yaml under key {prompt_hash}",
-                details={
-                    "step": "fixture_lookup",
-                    "workflow_step": workflow_step,
-                    "prompt_hash": prompt_hash,
-                    "fixtures_dir": str(self.fixtures_dir),
-                },
+                f" add a YAML at {rel_dir} under key {prompt_hash}",
+                details=details,
             )
         return fixture.as_agent_result()

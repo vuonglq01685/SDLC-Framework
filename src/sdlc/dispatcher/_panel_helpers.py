@@ -422,6 +422,12 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
     observer_extra_context: dict[str, object] = (
         {} if observer is None else dict(observer.extra_context)
     )
+    _da_from_observer = observer_extra_context.get("dispatch_attempt_extras")
+    if isinstance(_da_from_observer, Mapping):
+        ej = dict(extra_journal_payload or {})
+        for k, v in _da_from_observer.items():
+            ej[str(k)] = v
+        extra_journal_payload = ej
 
     if _is_phase1_prompt_builder(prompt_builder):
         builder_kwargs: dict[str, Any] = {
@@ -485,6 +491,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
         context.update(extra_context)
 
     actual_attempts = 0
+    resolved_agent_result: AgentResult | None = None
 
     async def _on_attempt(attempt_num: int, outcome: str) -> None:
         nonlocal actual_attempts
@@ -496,6 +503,8 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
             "attempt": attempt_num,
             "target_kind": target_kind,
         }
+        if outcome == "success" and resolved_agent_result is not None:
+            attempt_payload["mock"] = resolved_agent_result.mock
         if extra_journal_payload:
             attempt_payload.update(extra_journal_payload)
         await journal_append(
@@ -522,8 +531,15 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
 
     t_start = time.monotonic()
     try:
+
+        async def _dispatch_once() -> AgentResult:
+            nonlocal resolved_agent_result
+            result = await runtime.dispatch(prompt, context)
+            resolved_agent_result = result
+            return result
+
         agent_result: AgentResult = await with_retries(
-            lambda: runtime.dispatch(prompt, context),
+            _dispatch_once,
             max_attempts=max_attempts,
             sleep=sleep,
             on_attempt=_on_attempt,
@@ -554,6 +570,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
             tokens_out=agent_result.tokens_out,
             target_path=rel_target,
             duration_ms=duration_ms,
+            mock=agent_result.mock,
             dispatch_prompt=prompt,
         )
         return DispatchMemberResult(
@@ -576,6 +593,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
         "writer": "dispatcher",
         "specialist": specialist_name,
         "run_id": run_id,
+        "mock": agent_result.mock,
     }
     if slash_command:
         art_payload["slash_command"] = slash_command
@@ -608,6 +626,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
         tokens_out=agent_result.tokens_out,
         target_path=rel_target,
         duration_ms=duration_ms,
+        mock=agent_result.mock,
         dispatch_prompt=prompt,
     )
 

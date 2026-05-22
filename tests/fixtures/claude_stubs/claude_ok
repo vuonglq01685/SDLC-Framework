@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Stub ``claude`` CLI — emits valid JSON for happy-path tests."""
+
+from __future__ import annotations
+
+import json
+import sys
+
+_PROMPT = sys.stdin.read()
+_PAYLOAD = {
+    "type": "result",
+    "subtype": "success",
+    "is_error": False,
+    "result": f"stub-ok:{_PROMPT[:32]}",
+    "usage": {"input_tokens": 11, "output_tokens": 7},
+}
+print(json.dumps(_PAYLOAD))

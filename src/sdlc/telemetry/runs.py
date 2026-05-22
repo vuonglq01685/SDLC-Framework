@@ -39,6 +39,7 @@ class _AgentRunLine:
     tokens_out: int
     ts: str
     workflow_step: str
+    mock: bool = False
     dispatch_prompt: str | None = None
 
     def to_json_line(self) -> str:
@@ -99,6 +100,7 @@ def _build_line(
     tokens_out: int,
     target_path: str,
     duration_ms: int,
+    mock: bool = False,
     dispatch_prompt: str | None = None,
 ) -> str:
     return _AgentRunLine(
@@ -114,6 +116,7 @@ def _build_line(
         tokens_out=tokens_out,
         ts=ts,
         workflow_step=workflow_step,
+        mock=mock,
         dispatch_prompt=dispatch_prompt,
     ).to_json_line()
 
@@ -145,6 +148,7 @@ if sys.platform != "win32":
         tokens_out: int,
         target_path: str,
         duration_ms: int,
+        mock: bool = False,
         dispatch_prompt: str | None = None,
     ) -> None:
         """Append one JSONL line to ``runs_path`` under ``file_lock`` (POSIX).
@@ -177,6 +181,7 @@ if sys.platform != "win32":
             tokens_out=tokens_out,
             target_path=target_path,
             duration_ms=duration_ms,
+            mock=mock,
             dispatch_prompt=dispatch_prompt,
         )
         _ensure_parent_dir(runs_path)
@@ -202,6 +207,7 @@ else:
         tokens_out: int,
         target_path: str,
         duration_ms: int,
+        mock: bool = False,
         dispatch_prompt: str | None = None,
     ) -> None:
         """Append one JSONL line to ``runs_path`` (Windows — no file_lock)."""
@@ -229,6 +235,7 @@ else:
             tokens_out=tokens_out,
             target_path=target_path,
             duration_ms=duration_ms,
+            mock=mock,
             dispatch_prompt=dispatch_prompt,
         )
         _ensure_parent_dir(runs_path)

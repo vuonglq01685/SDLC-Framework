@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from sdlc.errors import MockMissError
 from sdlc.runtime.abc import AgentResult, AIRuntime
+from sdlc.runtime.claude import ClaudeAIRuntime
 from sdlc.runtime.mock import MockAIRuntime
 
 # Semantic order: ABC -> return-type -> mock-impl -> mock-error.
@@ -16,6 +17,7 @@ from sdlc.runtime.mock import MockAIRuntime
 __all__ = (
     "AIRuntime",
     "AgentResult",
+    "ClaudeAIRuntime",
     "MockAIRuntime",
     "MockMissError",
 )

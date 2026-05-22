@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Stub ``claude`` — sleeps past any reasonable test timeout (AC4)."""
+
+from __future__ import annotations
+
+import time
+
+time.sleep(120)

@@ -30,6 +30,7 @@ class AgentResult(BaseModel):
     # strict=True rejects bool → int coercion (True/False are int subclasses in Python).
     tokens_in: int = Field(ge=0, strict=True)
     tokens_out: int = Field(ge=0, strict=True)
+    mock: bool = Field(default=False, strict=True)
 
 
 class AIRuntime(ABC):
