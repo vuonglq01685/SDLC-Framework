@@ -1,6 +1,6 @@
 # generated: 2026-05-07
-# last_updated: 2026-05-22 (Epic 2B Layer 1 create-story — 2B.1/2B.2/2B.4/2B.5 ready-for-dev; epic-2b in-progress; §7.4 gate satisfied)
-# previously_updated: 2026-05-22 (Epic 2B prep — Gate C: ADR-035 severity-scoped BLOCKING/HIGH; debt-decay strict all-green)
+# last_updated: 2026-05-25 (code-review 2b-2-refuse-to-start-below-claude-code-minimum-version: review → done — bmad-code-review 3 adversarial layers; 61 raw findings → 19 patches applied + 5 decisions resolved + 12 dismissed + 3 deferred [CR2B2-W1 no-audit-trail (F25 spec-intentional), CR2B2-W2 worktree migration completed via TDD-first 4-commit ordering on epic-2b/2b-2-version-refuse, EPIC-2B-DEBT-COVERAGE-90-FLOOR pre-existing 87.41% vs CONTRIBUTING ≥90 gap]; quality gate: ruff/format/check + mypy --strict + pytest 2665p/4s + coverage 87.41% [operational 87 gate PASS] + pre-commit + mkdocs --strict + wireformat 5/5 PASS)
+# previously_updated: 2026-05-22 (Epic 2B Layer 1 create-story — 2B.1/2B.2/2B.4/2B.5 ready-for-dev; epic-2b in-progress; §7.4 gate satisfied)
 # project: SDLC-Framework
 # project_key: NOKEY
 # tracking_system: file-system
@@ -137,7 +137,7 @@ development_status:
   # ============================================================
   epic-2b: in-progress
   2b-1-claudeairuntime-implementation-subprocess-management: done
-  2b-2-refuse-to-start-below-claude-code-minimum-version: ready-for-dev
+  2b-2-refuse-to-start-below-claude-code-minimum-version: done
   2b-3-behavioral-conformance-mock-vs-claude: backlog
   2b-4-prompt-injection-corpus-ci-regression: ready-for-dev
   2b-5-automated-boundary-line-presence-test: ready-for-dev
