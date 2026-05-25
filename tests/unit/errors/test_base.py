@@ -7,6 +7,7 @@ import pytest
 from sdlc.errors import (
     EXIT_CODE_MAP,
     AdoptError,
+    CompatibilityError,
     ConfigError,
     DispatchError,
     HookError,
@@ -29,6 +30,7 @@ _ALL_SUBCLASSES = [
     AdoptError,
     ConfigError,
     IdsError,
+    CompatibilityError,
 ]
 
 
@@ -118,6 +120,11 @@ def test_config_error_exit_code_is_1() -> None:
 @pytest.mark.unit
 def test_ids_error_exit_code_is_1() -> None:
     assert IdsError("x").exit_code == 1
+
+
+@pytest.mark.unit
+def test_compatibility_error_exit_code_is_3() -> None:
+    assert CompatibilityError("x").exit_code == 3
 
 
 @pytest.mark.unit

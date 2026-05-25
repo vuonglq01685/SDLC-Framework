@@ -238,6 +238,7 @@ markers = [
     "e2e: full end-to-end scenarios spanning the CLI + filesystem",
     "parity: engine-vs-claude-hooks parity gate (Story 2A.6)",
     "parity_perf: latency budget benchmarks for the Claude-side hook roundtrip (Story 2A.6)",
+    "claude_version_gate: exercises real Claude Code version pre-flight (Story 2B.2)",
 ]
 
 [tool.coverage.run]
@@ -282,6 +283,12 @@ partial_branches = [
     "if TYPE_CHECKING:",   # exclude_also drops the line; this drops the branch arc too
     "if sys\\.platform",   # POSIX-only guards; covered on Linux CI
 ]
+
+# =============================================================================
+# SDLC tool config (Story 2B.2 — NFR-COMPAT-5 minimum Claude Code version)
+# =============================================================================
+[tool.sdlc]
+claude_code_min_version = "2.0.0"
 
 # =============================================================================
 # Hook registry (AC2, Story 2A.4)

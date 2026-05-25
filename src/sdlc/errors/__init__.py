@@ -6,6 +6,7 @@ from typing import Final
 
 from sdlc.errors.base import (
     AdoptError,
+    CompatibilityError,
     ConfigError,
     DispatchError,
     HookError,
@@ -33,6 +34,7 @@ __all__ = (  # noqa: RUF022
     "SchemaError",
     "SignoffError",
     "AdoptError",
+    "CompatibilityError",
     "ConfigError",
     "IdsError",
     "MockMissError",

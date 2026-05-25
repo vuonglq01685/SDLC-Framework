@@ -17,6 +17,7 @@ class SdlcError(Exception):
         "ERR_SIGNOFF": 2,
         "ERR_HOOK": 2,
         "ERR_ADOPT": 2,
+        "ERR_COMPATIBILITY": 3,
     }
 
     def __init__(self, message: str, *, details: dict[str, object] | None = None) -> None:
@@ -92,3 +93,9 @@ class SpecialistError(SdlcError):
     """Specialist registry / manifest / frontmatter validation error (Story 2A.2)."""
 
     code: ClassVar[str] = "ERR_SPECIALIST"
+
+
+class CompatibilityError(SdlcError):
+    """External Claude Code binary missing or below the documented minimum (Story 2B.2)."""
+
+    code: ClassVar[str] = "ERR_COMPATIBILITY"

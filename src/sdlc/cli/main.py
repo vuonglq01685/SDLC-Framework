@@ -60,9 +60,15 @@ def _root(
     ),
 ) -> None:
     """SDLC framework CLI."""
+    # ctx.obj MUST be populated BEFORE the compat gate fires so the error
+    # envelope honors --json / --no-color (Story 2B.2 review R1).
     ctx.ensure_object(dict)
     ctx.obj["no_color"] = no_color or os.environ.get("NO_COLOR", "") != ""
     ctx.obj["json"] = json_output
+
+    from sdlc.cli._compat_check import run_pre_flight  # deferred per Architecture §488
+
+    run_pre_flight(ctx)
 
 
 @app.command(name="init")
