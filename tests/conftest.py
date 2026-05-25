@@ -23,3 +23,15 @@ def _sdlc_mock_runtime_for_cli_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setenv("SDLC_USE_MOCK_RUNTIME", "1")
     monkeypatch.setenv("SDLC_MOCK_GATE_BYPASS", "1")
+
+
+@pytest.fixture(autouse=True)
+def _sdlc_claude_compat_default_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the Claude compat gate stays bypassed by default in tests (Story 2B.2 D1).
+
+    The gate auto-bypasses under pytest (``PYTEST_CURRENT_TEST`` is set), so this
+    fixture just clears any leaked ``SDLC_TEST_FORCE_COMPAT_CHECK`` value from a
+    prior test or developer shell. Tests that exercise the real gate (e.g. the
+    ``claude_version_gate`` matrix) re-set the force env var via their own fixture.
+    """
+    monkeypatch.delenv("SDLC_TEST_FORCE_COMPAT_CHECK", raising=False)

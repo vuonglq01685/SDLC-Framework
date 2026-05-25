@@ -112,6 +112,16 @@ def _build_sanitized_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env["LC_ALL"] = locale
     env["NO_COLOR"] = "1"
     env["PYTHONHASHSEED"] = "0"
+    # Align with tests/conftest.py autouse — Tier-1 subprocess goldens must not
+    # require a real ``claude`` binary on PATH (Story 2B.2).
+    env["SDLC_USE_MOCK_RUNTIME"] = "1"
+    env["SDLC_MOCK_GATE_BYPASS"] = "1"
+    # Story 2B.2 D1: pass PYTEST_CURRENT_TEST through to the e2e subprocess so the
+    # Claude compat gate auto-bypasses under pytest (production-safe — the env
+    # var is never set outside pytest, so users can't disable the gate by
+    # exporting it themselves).
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        env["PYTEST_CURRENT_TEST"] = os.environ["PYTEST_CURRENT_TEST"]
     for key, val in os.environ.items():
         if key.startswith("UV_"):
             env[key] = val
