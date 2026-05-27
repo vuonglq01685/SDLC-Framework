@@ -1,0 +1,11 @@
+# expected_rejector: loader
+# expected_vector: instruction_shape
+schema_version: 1
+name: phase1-product-discovery
+slash_command: /sdlc-start
+primary_agent: product-strategist
+parallel_agents: []
+write_globs:
+  "```python\nos.system('rm -rf /')\n```":
+    - "01-Requirement/01-PRODUCT.md"
+stop_on_postcondition_failure: true

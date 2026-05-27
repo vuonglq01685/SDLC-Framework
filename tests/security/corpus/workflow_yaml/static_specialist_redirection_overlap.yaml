@@ -1,0 +1,18 @@
+# expected_rejector: static_check
+# expected_vector: specialist_redirection
+schema_version: 1
+name: phase1-product-discovery
+slash_command: /sdlc-start
+primary_agent: product-strategist
+parallel_agents:
+  - technical-researcher
+  - devil-advocate
+synthesizer_agent: requirement-synthesizer
+write_globs:
+  product-strategist:
+    - "01-Requirement/01-PRODUCT.md"
+  technical-researcher:
+    - "01-Requirement/**"
+  devil-advocate:
+    - "01-Requirement/01-PRODUCT.md"
+stop_on_postcondition_failure: true

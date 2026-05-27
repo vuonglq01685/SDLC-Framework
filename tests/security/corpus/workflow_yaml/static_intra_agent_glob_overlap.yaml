@@ -1,0 +1,12 @@
+# expected_rejector: static_check
+# expected_vector: glob_overlap
+schema_version: 1
+name: phase1-product-discovery
+slash_command: /sdlc-start
+primary_agent: product-strategist
+parallel_agents: []
+write_globs:
+  product-strategist:
+    - "01-Requirement/**"
+    - "01-Requirement/04-Epics/*.json"
+stop_on_postcondition_failure: true
