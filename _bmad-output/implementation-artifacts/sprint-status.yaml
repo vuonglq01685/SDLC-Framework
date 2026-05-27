@@ -139,7 +139,7 @@ development_status:
   2b-1-claudeairuntime-implementation-subprocess-management: done
   2b-2-refuse-to-start-below-claude-code-minimum-version: done
   2b-3-behavioral-conformance-mock-vs-claude: backlog
-  2b-4-prompt-injection-corpus-ci-regression: review
+  2b-4-prompt-injection-corpus-ci-regression: done
   2b-5-automated-boundary-line-presence-test: ready-for-dev
   2b-6-tool-safety-contract-tests: backlog
   2b-7-docs-threat-model-ai-native-risk-profile: backlog
