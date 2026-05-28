@@ -15,6 +15,12 @@ adding a pattern.
 Complements (does not duplicate) `tests/fixtures/workflows/adversarial/sec7/`
 — enforced at test time by `test_workflow_corpus_complements_existing_sec7_fixtures`.
 
+**Template census (Story 2B.5):** `tests/security/test_boundary_line_presence.py`
+statically asserts every `*_prompt_builder` in `src/sdlc/dispatcher/prompts.py`
+that interpolates CLI user text references `BOUNDARY_LINE` with
+`<BOUNDARY>` ordered before `<USER_IDEA>`. This corpus exercises runtime
+disposition; 2B.5 is the authoritative template gate per AC3/D2.
+
 ## User-text format
 
 Each `user_text/*.txt` file consists of:

@@ -121,6 +121,8 @@ _ERR_CODE_TO_EXIT_CODE: Final[Mapping[str, int]] = MappingProxyType(
         "ERR_STATE_WRITE_FAILED": 2,
         "ERR_INFRASTRUCTURE": 3,
         "ERR_COMPATIBILITY": 3,
+        # Story 2B.5 — static security invariant checks.
+        "ERR_SECURITY": 2,
         # Added in Story 1.18 — see ADR-021.
         "ERR_JOURNAL_READ_FAILED": 2,
         "ERR_AGENT_RUNS_READ_FAILED": 2,

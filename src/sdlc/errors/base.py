@@ -18,6 +18,7 @@ class SdlcError(Exception):
         "ERR_HOOK": 2,
         "ERR_ADOPT": 2,
         "ERR_COMPATIBILITY": 3,
+        "ERR_SECURITY": 2,
     }
 
     def __init__(self, message: str, *, details: dict[str, object] | None = None) -> None:
@@ -99,3 +100,9 @@ class CompatibilityError(SdlcError):
     """External Claude Code binary missing or below the documented minimum (Story 2B.2)."""
 
     code: ClassVar[str] = "ERR_COMPATIBILITY"
+
+
+class SecurityError(SdlcError):
+    """Security invariant violated in framework source (Story 2B.5, 2B.6)."""
+
+    code: ClassVar[str] = "ERR_SECURITY"

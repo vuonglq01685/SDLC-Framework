@@ -16,6 +16,7 @@ from sdlc.errors import (
     MockMissError,
     SchemaError,
     SdlcError,
+    SecurityError,
     SignoffError,
     StateError,
 )
@@ -31,6 +32,7 @@ _ALL_SUBCLASSES = [
     ConfigError,
     IdsError,
     CompatibilityError,
+    SecurityError,
 ]
 
 
