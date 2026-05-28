@@ -6,6 +6,7 @@ plus a handful that need a real journal file (POSIX-only for the write-path test
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import MappingProxyType
@@ -362,3 +363,25 @@ def test_project_from_journal_propagates_reader_invariant_error(tmp_path: Path) 
     with pytest.raises(JournalError) as exc_info:
         project_from_journal(journal_path)
     assert exc_info.value.details.get("step") == "reader_invariant"
+
+
+@pytest.mark.unit
+def test_projection_strips_mock_from_state_mutation_payload() -> None:
+    """ADR-029 §1: ``mock`` is journal audit-trail only.
+
+    It must not be projected into state.json (2B.3 AC4).
+    """
+    base_payload = {"output_text": "same", "tokens_in": 1, "tokens_out": 2}
+    entry_mock_true = _entry(
+        seq=0,
+        payload={**base_payload, "mock": True},
+    )
+    entry_mock_false = _entry(
+        seq=0,
+        payload={**base_payload, "mock": False},
+    )
+    state_true = _project_entries([entry_mock_true])
+    state_false = _project_entries([entry_mock_false])
+    canonical_true = json.dumps(state_true.model_dump(mode="json"), sort_keys=True).encode()
+    canonical_false = json.dumps(state_false.model_dump(mode="json"), sort_keys=True).encode()
+    assert canonical_true == canonical_false

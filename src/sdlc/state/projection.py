@@ -91,7 +91,9 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
         if entry.kind == "state_mutation" and _EPIC_ID_PATTERN.match(entry.target_id):
             # dict() unwraps MappingProxyType from Story 1.7's _freeze_payload so that
             # state.json serialization works (json.dumps doesn't handle MappingProxyType).
-            epics[entry.target_id] = dict(entry.payload)
+            # ADR-029 §1: ``mock`` is audit-trail only — never project into state.json.
+            projected_payload = {k: v for k, v in entry.payload.items() if k != "mock"}
+            epics[entry.target_id] = projected_payload
     return State(next_monotonic_seq=next_seq, epics=epics)
 
 

@@ -5,7 +5,8 @@ in tests/integration/test_abstraction_adequacy.py is built on a trusted foundati
 
 If _SEED_PROMPT changes → test_seed_prompt_hash_is_byte_stable catches it.
 If _canonicalize_state_for_hash drifts → test_canonical_state_hash_is_stable catches it.
-If _synthesize_hook_payload is non-pure → test_synthesize_hook_payload_is_pure catches it.
+If _hook_payload_from_agent_result is non-pure →
+test_hook_payload_from_agent_result_is_pure catches it.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Mapping
+from pathlib import Path
 
 import pytest
 
@@ -20,8 +22,9 @@ from integration._abstraction_adequacy_helpers import (
     _SEED_PROMPT,
     _TARGET_ID,
     _canonicalize_state_for_hash,
+    _hook_payload_from_agent_result,
     _state_hash,
-    _synthesize_hook_payload,
+    seed_fixture_has_extensibility_doc,
 )
 from sdlc.runtime import AgentResult
 from sdlc.state.model import State
@@ -62,22 +65,22 @@ def test_seed_prompt_hash_is_byte_stable() -> None:
     assert actual == expected
 
 
-def test_synthesize_hook_payload_is_pure() -> None:
+def test_hook_payload_from_agent_result_is_pure() -> None:
     result = _make_seed_result()
-    hp_a = _synthesize_hook_payload(result, seq=0)
-    hp_b = _synthesize_hook_payload(result, seq=0)
+    hp_a = _hook_payload_from_agent_result(result, seq=0)
+    hp_b = _hook_payload_from_agent_result(result, seq=0)
     assert hp_a.model_dump(mode="json") == hp_b.model_dump(mode="json")
 
 
-def test_synthesize_hook_payload_seq0_has_none_before_hash() -> None:
+def test_hook_payload_from_agent_result_seq0_has_none_before_hash() -> None:
     result = _make_seed_result()
-    hp = _synthesize_hook_payload(result, seq=0)
+    hp = _hook_payload_from_agent_result(result, seq=0)
     assert hp.content_hash_before is None
 
 
-def test_synthesize_hook_payload_seq1_has_content_hash_before() -> None:
+def test_hook_payload_from_agent_result_seq1_has_content_hash_before() -> None:
     result = _make_seed_result()
-    hp = _synthesize_hook_payload(result, seq=1)
+    hp = _hook_payload_from_agent_result(result, seq=1)
     assert hp.content_hash_before == _ZERO_HASH
 
 
@@ -91,22 +94,24 @@ def test_canonical_state_hash_is_stable() -> None:
     assert actual_hex == expected_hex
 
 
-def test_synthesize_hook_payload_handles_missing_tool_calls() -> None:
+def test_hook_payload_from_agent_result_uses_seed_target_when_tool_calls_empty() -> None:
+    """ClaudeAIRuntime v1 leaves tool_calls empty — conformance uses seed-stable targets."""
     result = _make_result(tool_calls=())
-    with pytest.raises(ValueError, match="exactly one tool_call"):
-        _synthesize_hook_payload(result, seq=0)
+    hp = _hook_payload_from_agent_result(result, seq=0)
+    assert hp.target_path == "01-Requirement/04-Epics/EPIC-abstraction-adequacy.json"
+    assert hp.content_hash_before is None
 
 
-def test_synthesize_hook_payload_rejects_missing_args_target() -> None:
+def test_hook_payload_from_agent_result_rejects_missing_args_target() -> None:
     """Typed validation: missing 'target' key surfaces a clear ValueError, not raw KeyError."""
     bad_result = _make_result(
         tool_calls=({"name": "write_artifact", "args": {"content_hash": _ZERO_HASH}},)
     )
     with pytest.raises(ValueError, match="tool_call shape mismatch"):
-        _synthesize_hook_payload(bad_result, seq=0)
+        _hook_payload_from_agent_result(bad_result, seq=0)
 
 
-def test_synthesize_hook_payload_rejects_non_string_content_hash() -> None:
+def test_hook_payload_from_agent_result_rejects_non_string_content_hash() -> None:
     """Typed validation: non-string content_hash surfaces a clear ValueError, not silent str()."""
     bad_result = _make_result(
         tool_calls=(
@@ -117,7 +122,17 @@ def test_synthesize_hook_payload_rejects_non_string_content_hash() -> None:
         )
     )
     with pytest.raises(ValueError, match=r"content_hash.* must be str"):
-        _synthesize_hook_payload(bad_result, seq=1)
+        _hook_payload_from_agent_result(bad_result, seq=1)
+
+
+def test_seed_fixture_documents_extensibility_procedure() -> None:
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures"
+        / "mock_responses"
+        / "abstraction-adequacy.yaml"
+    )
+    assert seed_fixture_has_extensibility_doc(fixture)
 
 
 def test_state_hash_is_deterministic_within_process() -> None:
