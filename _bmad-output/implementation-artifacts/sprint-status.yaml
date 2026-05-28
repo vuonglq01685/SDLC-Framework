@@ -141,7 +141,7 @@ development_status:
   2b-3-behavioral-conformance-mock-vs-claude: in-progress
   2b-4-prompt-injection-corpus-ci-regression: done
   2b-5-automated-boundary-line-presence-test: done
-  2b-6-tool-safety-contract-tests: ready-for-dev
+  2b-6-tool-safety-contract-tests: review
   2b-7-docs-threat-model-ai-native-risk-profile: backlog
   2b-8-author-phase-1-specialists: backlog
   2b-9-author-phase-2-specialists: backlog

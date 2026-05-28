@@ -72,6 +72,8 @@ nullable in the schema (`Optional[str]`) and the natural absent-meaning is `None
 | `agent_dispatched` | 2A.3 | nullable | sha256 of agent output_text | `agent_name`, `tool_calls`, `tokens_in/out` |
 | `dispatch_attempt` | 2A.3 | n/a (sentinel) | sentinel | `agent_name`, `attempt_n`, `outcome` |
 | `dispatch_task` | 2A.3 | nullable | sha256 of dispatched task json | `task_id`, `stage` |
+| `destructive_op_reconfirmed` | 2B.6 | n/a (sentinel) | sentinel | `category`, `tool_call_excerpt`, `outcome="accepted"`, `nonce` |
+| `destructive_op_rejected` | 2B.6 | n/a (sentinel) | sentinel | `category`, `tool_call_excerpt`, `outcome="rejected"`, `nonce` |
 | `stop_trigger_raised` | 2A.3 | n/a (sentinel) | sentinel | `trigger_kind`, `reason`, `epic_4_placeholder` |
 | `write_intent` | 2A.4 | sha256 of current file | sha256 of intended content | `target_kind`, `target_path` |
 | `hooks_trusted` | 2A.6 | n/a (sentinel) | sentinel | `manifest_sha`, `installer` |
@@ -133,6 +135,7 @@ When Epic 2B+ adds a new emission:
 | Date | Author | Change |
 |---|---|---|
 | 2026-05-21 | Vuonglq01685 + Claude (prep-sprint DOC1) | Initial ratification — 20 kinds catalogued from Epic 1+2A code base; zero-hash sentinel convention codified; forward rule for Epic 2B+ kind additions established |
+| 2026-05-28 | Vuonglq01685 + Claude (Story 2B.6) | Added `destructive_op_reconfirmed` and `destructive_op_rejected` — dispatcher-side nonce-echo gate (AC3); closes CR2B5-W1 and CR2B5-W2 |
 
 ## Revisit-by
 

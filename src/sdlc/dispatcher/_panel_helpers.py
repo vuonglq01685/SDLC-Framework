@@ -31,6 +31,7 @@ import datetime
 import fnmatch
 import hashlib
 import inspect
+import secrets
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
@@ -43,6 +44,15 @@ from sdlc.contracts.hook_payload import HookPayload
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher.retry import with_retries
+from sdlc.dispatcher.safety import (
+    is_destructive as _is_destructive,
+)
+from sdlc.dispatcher.safety import (
+    prompt_for_reconfirmation as _prompt_for_reconfirmation,
+)
+from sdlc.dispatcher.safety import (
+    tool_call_excerpt as _tool_call_excerpt,
+)
 from sdlc.errors import DispatchError, WorkflowError
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import BypassRequest, HookDecision, run_hook_chain
@@ -429,6 +439,8 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
             ej[str(k)] = v
         extra_journal_payload = ej
 
+    _nonce = secrets.token_urlsafe(16)
+
     if _is_phase1_prompt_builder(prompt_builder):
         builder_kwargs: dict[str, Any] = {
             "idea_text": idea_text,
@@ -549,6 +561,38 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
         details["specialist"] = specialist_name
         details["step"] = step.name
         raise DispatchError(str(exc), details=details) from exc
+
+    # AC3: destructive-op pause — check each tool_call returned by the agent.
+    for _tc in agent_result.tool_calls:
+        _flagged, _category = _is_destructive(_tc)
+        if _flagged and _category:
+            _excerpt = _tool_call_excerpt(_tc)
+            _confirmed = await asyncio.to_thread(
+                _prompt_for_reconfirmation, _nonce, _category, _excerpt
+            )
+            _outcome_str = "accepted" if _confirmed else "rejected"
+            _dest_kind = "destructive_op_reconfirmed" if _confirmed else "destructive_op_rejected"
+            _dest_seq = await _allocate_seq(journal_path)
+            await journal_append(
+                _make_journal_entry(
+                    seq=_dest_seq,
+                    ts=_now_ts(),
+                    kind=_dest_kind,
+                    target_id=f"{step.name}/{specialist_name}",
+                    payload={
+                        "category": _category,
+                        "tool_call_excerpt": _excerpt,
+                        "outcome": _outcome_str,
+                        "nonce": _nonce,
+                    },
+                ),
+                journal_path,
+            )
+            if not _confirmed:
+                raise DispatchError(
+                    f"destructive operation rejected by user at {step.name}",
+                    details={"category": _category, "stage": step.name},
+                )
 
     duration_ms = int((time.monotonic() - t_start) * 1000)
     ts = _now_ts()
