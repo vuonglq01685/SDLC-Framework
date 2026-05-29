@@ -92,28 +92,55 @@ def test_phase1_prompt_builder_nonce_appears_in_prompt() -> None:
 
 
 @pytest.mark.unit
-def test_phase1_prompt_builder_nonce_replaces_or_qualifies_static_tokens() -> None:
+def test_phase1_prompt_builder_nonce_qualifies_static_tokens() -> None:
     """With a nonce, static tokens are qualified so they are no longer predictable."""
     nonce = "random-nonce-99"
     prompt_with_nonce = phase1_prompt_builder(
         _specialist(), _spec(), idea_text="Build app", role="primary", nonce=nonce
     )
-    prompt_without_nonce = phase1_prompt_builder(
-        _specialist(), _spec(), idea_text="Build app", role="primary"
-    )
-    # Without nonce → static tokens present
-    assert DESTRUCTIVE_FILE_DELETE_TOKEN in prompt_without_nonce
-    # With nonce → nonce appears; the block is nonce-qualified
+    # With nonce → nonce appears AND the static tokens carry the per-dispatch
+    # suffix (the bare static token is no longer emitted in v2 — CR2B5-W1 is
+    # closed via the post-review D1+D2 hardening).
     assert nonce in prompt_with_nonce
+    assert f"{DESTRUCTIVE_FILE_DELETE_TOKEN}_{nonce}" in prompt_with_nonce
 
 
 @pytest.mark.unit
-def test_phase1_prompt_builder_no_nonce_keeps_static_tokens() -> None:
-    """Omitting nonce keeps the static token text (backward-compat)."""
+def test_phase1_prompt_builder_no_nonce_emits_static_block_v1() -> None:
+    """V1 architectural pivot: when no nonce is supplied, the destructive-ops
+    block emits the STATIC tokens (same as 2B.5 baseline). Per-dispatch
+    nonce-suffixed tokens are reserved for the (future) agent-side
+    verification work — see EPIC-2B-DEBT-NONCE-VERIFICATION-AGENT-SIDE.
+    """
     prompt = phase1_prompt_builder(_specialist(), _spec(), idea_text="Build app", role="primary")
+    assert "<DESTRUCTIVE_OPS>" in prompt
     assert DESTRUCTIVE_FILE_DELETE_TOKEN in prompt
     assert DESTRUCTIVE_FORCE_PUSH_TOKEN in prompt
     assert DESTRUCTIVE_DROP_DATABASE_TOKEN in prompt
+
+
+@pytest.mark.unit
+def test_phase1_prompt_builder_with_nonce_includes_qualified_block_d1_d2() -> None:
+    """With nonce supplied, the destructive-ops block is emitted with
+    per-dispatch suffix on every token (no bare static token remains).
+    """
+    nonce = "session-nonce-abc"
+    prompt = phase1_prompt_builder(
+        _specialist(), _spec(), idea_text="Build app", role="primary", nonce=nonce
+    )
+    assert "<DESTRUCTIVE_OPS>" in prompt
+    assert f"{DESTRUCTIVE_FILE_DELETE_TOKEN}_{nonce}" in prompt
+    assert f"{DESTRUCTIVE_FORCE_PUSH_TOKEN}_{nonce}" in prompt
+    assert f"{DESTRUCTIVE_DROP_DATABASE_TOKEN}_{nonce}" in prompt
+
+
+@pytest.mark.unit
+def test_phase1_prompt_builder_readonly_specialist_does_not_need_nonce_d1_d2() -> None:
+    """Read-only specialists skip the destructive block; nonce is not required."""
+    prompt = phase1_prompt_builder(
+        _readonly_specialist(), _spec(), idea_text="Build app", role="primary"
+    )
+    assert "<DESTRUCTIVE_OPS>" not in prompt
 
 
 @pytest.mark.unit
@@ -177,7 +204,11 @@ def test_should_inject_true_when_mixed_globs() -> None:
 def test_phase1_prompt_no_destructive_block_for_readonly_specialist() -> None:
     """phase1_prompt_builder does NOT include destructive-ops block for read-only specialist."""
     prompt = phase1_prompt_builder(
-        _readonly_specialist(), _spec(), idea_text="Build app", role="primary"
+        _readonly_specialist(),
+        _spec(),
+        idea_text="Build app",
+        role="primary",
+        nonce="readonly-test-nonce",
     )
     assert DESTRUCTIVE_FILE_DELETE_TOKEN not in prompt
     assert DESTRUCTIVE_FORCE_PUSH_TOKEN not in prompt
@@ -189,7 +220,11 @@ def test_phase1_prompt_no_destructive_block_for_readonly_specialist() -> None:
 def test_phase1_prompt_no_destructive_block_for_bmad_only_specialist() -> None:
     """phase1_prompt_builder omits destructive-ops block for _bmad-output/-only globs."""
     prompt = phase1_prompt_builder(
-        _bmad_specialist(), _spec(), idea_text="Build app", role="primary"
+        _bmad_specialist(),
+        _spec(),
+        idea_text="Build app",
+        role="primary",
+        nonce="bmad-test-nonce",
     )
     assert DESTRUCTIVE_FILE_DELETE_TOKEN not in prompt
     assert "<DESTRUCTIVE_OPS>" not in prompt
@@ -203,6 +238,7 @@ def test_phase1_compound_no_destructive_block_for_readonly_specialist() -> None:
         _spec(),
         primary_input="epic",
         secondary_input="brief",
+        nonce="compound-readonly-test-nonce",
     )
     assert DESTRUCTIVE_FILE_DELETE_TOKEN not in prompt
     assert "<DESTRUCTIVE_OPS>" not in prompt

@@ -91,6 +91,9 @@ def test_missing_scan_target_raises_security_error() -> None:
 
 @pytest.mark.unit
 def test_destructive_tokens_present_in_phase1_prompt_builder() -> None:
+    # V1: when no nonce is supplied (the dispatcher does not thread the nonce
+    # into the builder in v1 — see EPIC-2B-DEBT-NONCE-VERIFICATION-AGENT-SIDE),
+    # the static tokens are emitted (same as 2B.5 baseline).
     prompt = phase1_prompt_builder(_specialist(), _spec(), idea_text="Build app", role="primary")
     assert DESTRUCTIVE_FILE_DELETE_TOKEN in prompt
     assert DESTRUCTIVE_FORCE_PUSH_TOKEN in prompt

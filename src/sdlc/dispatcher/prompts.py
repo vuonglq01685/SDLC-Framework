@@ -18,6 +18,7 @@ from sdlc.dispatcher.safety import (
     DESTRUCTIVE_DROP_DATABASE_TOKEN,  # noqa: F401 — re-exported for callers
     DESTRUCTIVE_FILE_DELETE_TOKEN,  # noqa: F401 — re-exported for callers
     DESTRUCTIVE_FORCE_PUSH_TOKEN,  # noqa: F401 — re-exported for callers
+    DESTRUCTIVE_FORCE_PUSH_WITH_LEASE_TOKEN,  # noqa: F401 — re-exported for callers
     _build_destructive_ops_block,
     _should_inject_destructive_block,
 )
@@ -266,6 +267,11 @@ def phase1_prompt_builder(
 
     parts: list[str] = [system_block, instructions_block]
     if _should_inject_destructive_block(specialist):
+        # Post-review D1+D2: when ``nonce`` is supplied (dispatcher path), the
+        # block is per-dispatch nonce-suffixed (real CR2B5-W1 closure). When
+        # ``nonce`` is None (CLI fast-paths that bypass ``_run_member``), the
+        # block falls back to static tokens — those paths have no nonce-echo
+        # gate that token smuggling could defeat.
         parts.append(_build_destructive_ops_block(nonce))
     parts += [boundary_block, user_block]
 
@@ -352,6 +358,11 @@ def phase1_compound_prompt_builder(
 
     parts: list[str] = [system_block, instructions_block]
     if _should_inject_destructive_block(specialist):
+        # Post-review D1+D2: when ``nonce`` is supplied (dispatcher path), the
+        # block is per-dispatch nonce-suffixed (real CR2B5-W1 closure). When
+        # ``nonce`` is None (CLI fast-paths that bypass ``_run_member``), the
+        # block falls back to static tokens — those paths have no nonce-echo
+        # gate that token smuggling could defeat.
         parts.append(_build_destructive_ops_block(nonce))
     parts += [boundary_block, primary_block, secondary_block]
 

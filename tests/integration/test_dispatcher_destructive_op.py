@@ -10,6 +10,7 @@ Proves:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 from types import MappingProxyType
@@ -28,6 +29,7 @@ from sdlc.specialists.registry import SpecialistRegistry
 _SPECIALIST_NAME = "code-author"
 _TARGET = "src/app/main.py"
 _FIXED_NONCE = "FIXED_NONCE_FOR_TESTS"
+_FIXED_NONCE_SHA256 = hashlib.sha256(_FIXED_NONCE.encode("utf-8")).hexdigest()
 
 
 def _make_specialist(write_globs: tuple[str, ...] = (_TARGET,)) -> Specialist:
@@ -95,7 +97,9 @@ class TestDestructiveOpDispatcherPause:
         _reset_seq_cache_for_test()
 
         with (
-            patch("secrets.token_urlsafe", return_value=_FIXED_NONCE),
+            patch(
+                "sdlc.dispatcher._panel_helpers.secrets.token_urlsafe", return_value=_FIXED_NONCE
+            ),
             patch("builtins.input", return_value="wrong-nonce"),
             pytest.raises(DispatchError) as exc_info,
         ):
@@ -129,7 +133,9 @@ class TestDestructiveOpDispatcherPause:
         _reset_seq_cache_for_test()
 
         with (
-            patch("secrets.token_urlsafe", return_value=_FIXED_NONCE),
+            patch(
+                "sdlc.dispatcher._panel_helpers.secrets.token_urlsafe", return_value=_FIXED_NONCE
+            ),
             patch("builtins.input", return_value=_FIXED_NONCE),
         ):
             asyncio.run(
@@ -162,7 +168,9 @@ class TestDestructiveOpDispatcherPause:
         payload = reconfirmed["payload"]
         assert payload["category"] == "file_delete"
         assert payload["outcome"] == "accepted"
-        assert payload["nonce"] == _FIXED_NONCE
+        # D4 (review): payload carries ``nonce_sha256`` (hex digest), NOT raw nonce.
+        assert payload["nonce_sha256"] == _FIXED_NONCE_SHA256
+        assert "nonce" not in payload, "raw nonce must not leak into journal"
 
     def test_rejected_nonce_emits_rejected_journal_entry(self, tmp_path: Path) -> None:
         """Wrong nonce → destructive_op_rejected journal entry recorded before DispatchError."""
@@ -175,7 +183,9 @@ class TestDestructiveOpDispatcherPause:
         _reset_seq_cache_for_test()
 
         with (
-            patch("secrets.token_urlsafe", return_value=_FIXED_NONCE),
+            patch(
+                "sdlc.dispatcher._panel_helpers.secrets.token_urlsafe", return_value=_FIXED_NONCE
+            ),
             patch("builtins.input", return_value="bad-nonce"),
             pytest.raises(DispatchError),
         ):
@@ -222,7 +232,9 @@ class TestDestructiveOpDispatcherPause:
             return "nonce"
 
         with (
-            patch("secrets.token_urlsafe", return_value=_FIXED_NONCE),
+            patch(
+                "sdlc.dispatcher._panel_helpers.secrets.token_urlsafe", return_value=_FIXED_NONCE
+            ),
             patch("builtins.input", side_effect=spy_input),
         ):
             asyncio.run(
@@ -260,7 +272,9 @@ class TestDestructiveOpDispatcherPause:
             return ""
 
         with (
-            patch("secrets.token_urlsafe", return_value=_FIXED_NONCE),
+            patch(
+                "sdlc.dispatcher._panel_helpers.secrets.token_urlsafe", return_value=_FIXED_NONCE
+            ),
             patch("builtins.input", side_effect=spy_input),
         ):
             asyncio.run(

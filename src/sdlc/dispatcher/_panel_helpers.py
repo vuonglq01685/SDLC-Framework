@@ -45,6 +45,12 @@ from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher.retry import with_retries
 from sdlc.dispatcher.safety import (
+    DESTRUCTIVE_PAUSE_LOCK,
+)
+from sdlc.dispatcher.safety import (
+    _should_inject_destructive_block as _readonly_block_predicate,
+)
+from sdlc.dispatcher.safety import (
     is_destructive as _is_destructive,
 )
 from sdlc.dispatcher.safety import (
@@ -442,6 +448,19 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
     _nonce = secrets.token_urlsafe(16)
 
     if _is_phase1_prompt_builder(prompt_builder):
+        # P1 (review) — intentionally NOT threaded: the per-dispatch nonce in
+        # the prompt is only meaningful when there is agent-side verification
+        # that the agent actually echoed it back before issuing the destructive
+        # tool_call. v1 has no such verification (open as
+        # ``EPIC-2B-DEBT-NONCE-VERIFICATION-AGENT-SIDE`` per spec AC3/D3), so
+        # the human-side TTY gate (``_prompt_for_reconfirmation`` below) is
+        # the sole nonce consumer. Threading the nonce into the builder would
+        # shift every prompt hash per-dispatch and invalidate every
+        # MockAIRuntime fixture without buying any v1 security. When
+        # agent-side verification lands, this kwarg returns + the
+        # ``_should_inject_destructive_block(specialist)`` predicate in
+        # ``prompts.py`` switches from the static-tokens branch to the
+        # nonce-suffixed branch.
         builder_kwargs: dict[str, Any] = {
             "idea_text": idea_text,
             "role": target_kind,
@@ -562,37 +581,111 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
         details["step"] = step.name
         raise DispatchError(str(exc), details=details) from exc
 
-    # AC3: destructive-op pause — check each tool_call returned by the agent.
-    for _tc in agent_result.tool_calls:
+    # AC3 (review hardening): destructive-op pause — all-or-nothing (D6).
+    # - D3: read-only specialist that emits a destructive op is an integrity
+    #   violation; raise WITHOUT prompting + emit
+    #   ``destructive_op_from_readonly_specialist`` for each tool_call.
+    # - D5: hold ``DESTRUCTIVE_PAUSE_LOCK`` across the entire prompt sequence
+    #   so concurrent panel members can not interleave stdin reads.
+    # - D6: gather ALL destructive tool_calls first; ask for every nonce
+    #   upfront. If any rejected → emit ``destructive_op_rejected`` for the
+    #   entire set + raise BEFORE any artifact write. If all accepted →
+    #   emit ``destructive_op_reconfirmed`` for each + continue.
+    # - D4: payload carries ``nonce_sha256`` (hex digest) — never the raw
+    #   nonce; the journal is an append-only audit artifact that may be
+    #   committed to VCS.
+    # - P8: defensive iteration — non-Mapping tool_call → DispatchError, not
+    #   AttributeError.
+    # - P34: ``journal_append`` failures surface as DispatchError so audit
+    #   trail is never silently lost.
+    _nonce_sha256 = hashlib.sha256(_nonce.encode("utf-8")).hexdigest()
+    _destructive_findings: list[tuple[str, str, Mapping[str, object]]] = []
+    for _tc in agent_result.tool_calls or ():
+        if not isinstance(_tc, Mapping):
+            raise DispatchError(
+                f"malformed tool_call at {step.name}: expected Mapping",
+                details={"specialist": specialist_name, "step": step.name},
+            )
         _flagged, _category = _is_destructive(_tc)
         if _flagged and _category:
-            _excerpt = _tool_call_excerpt(_tc)
-            _confirmed = await asyncio.to_thread(
-                _prompt_for_reconfirmation, _nonce, _category, _excerpt
-            )
-            _outcome_str = "accepted" if _confirmed else "rejected"
-            _dest_kind = "destructive_op_reconfirmed" if _confirmed else "destructive_op_rejected"
-            _dest_seq = await _allocate_seq(journal_path)
+            _destructive_findings.append((_category, _tool_call_excerpt(_tc), _tc))
+
+    async def _emit_destructive_entry(
+        *, kind: str, category: str, excerpt: str, outcome: str
+    ) -> None:
+        _seq = await _allocate_seq(journal_path)
+        try:
             await journal_append(
                 _make_journal_entry(
-                    seq=_dest_seq,
+                    seq=_seq,
                     ts=_now_ts(),
-                    kind=_dest_kind,
+                    kind=kind,
                     target_id=f"{step.name}/{specialist_name}",
                     payload={
-                        "category": _category,
-                        "tool_call_excerpt": _excerpt,
-                        "outcome": _outcome_str,
-                        "nonce": _nonce,
+                        "category": category,
+                        "tool_call_excerpt": excerpt,
+                        "outcome": outcome,
+                        "nonce_sha256": _nonce_sha256,
                     },
                 ),
                 journal_path,
             )
-            if not _confirmed:
-                raise DispatchError(
-                    f"destructive operation rejected by user at {step.name}",
-                    details={"category": _category, "stage": step.name},
+        except OSError as exc:  # P34
+            raise DispatchError(
+                f"journal_append failed during destructive-op record at {step.name}: {exc}",
+                details={"specialist": specialist_name, "step": step.name},
+            ) from exc
+
+    if _destructive_findings:
+        # D3: read-only specialist + destructive op = integrity violation.
+        if not _readonly_block_predicate(specialist):
+            for _category, _excerpt, _tc in _destructive_findings:
+                await _emit_destructive_entry(
+                    kind="destructive_op_from_readonly_specialist",
+                    category=_category,
+                    excerpt=_excerpt,
+                    outcome="blocked",
                 )
+            raise DispatchError(
+                f"destructive operation from read-only specialist at {step.name}",
+                details={
+                    "specialist": specialist_name,
+                    "step": step.name,
+                    "categories": [c for c, _, _ in _destructive_findings],
+                },
+            )
+
+        # D5+D6: collect all confirmations under the lock, all-or-nothing.
+        _confirmations: list[bool] = []
+        async with DESTRUCTIVE_PAUSE_LOCK:
+            for _category, _excerpt, _ in _destructive_findings:
+                _ok = await asyncio.to_thread(
+                    _prompt_for_reconfirmation, _nonce, _category, _excerpt
+                )
+                _confirmations.append(_ok)
+
+        _all_accepted = all(_confirmations)
+        _kind = "destructive_op_reconfirmed" if _all_accepted else "destructive_op_rejected"
+        _outcome = "accepted" if _all_accepted else "rejected"
+        for _category, _excerpt, _ in _destructive_findings:
+            await _emit_destructive_entry(
+                kind=_kind, category=_category, excerpt=_excerpt, outcome=_outcome
+            )
+
+        if not _all_accepted:
+            _rejected_cats = [
+                c
+                for (c, _, _), ok in zip(_destructive_findings, _confirmations, strict=True)
+                if not ok
+            ]
+            raise DispatchError(
+                f"destructive operation rejected by user at {step.name}",
+                details={
+                    "specialist": specialist_name,
+                    "step": step.name,
+                    "rejected_categories": _rejected_cats,
+                },
+            )
 
     duration_ms = int((time.monotonic() - t_start) * 1000)
     ts = _now_ts()
