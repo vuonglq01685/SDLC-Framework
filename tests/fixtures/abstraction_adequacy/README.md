@@ -21,7 +21,7 @@ failure (Decision C2, Architecture §1424).
 Regeneration is needed when any of these deliberately changes:
 - `_SEED_PROMPT` or `_SEED_CONTEXT` constants in `_abstraction_adequacy_helpers.py`
 - The seed fixture at `tests/fixtures/mock_responses/abstraction-adequacy.yaml`
-- The `_synthesize_hook_payload` stub logic
+- The `_build_pre_chain_input_payload` / `run_pre_write_hooks_for_dispatches` hook-chain logic
 - The `_build_journal_entry` payload shape
 - The `State` model's field layout
 - pydantic v2's `model_dump(mode="json")` output format

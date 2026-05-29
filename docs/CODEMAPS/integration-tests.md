@@ -13,14 +13,14 @@ The abstraction-adequacy CI gate (Story 1.14 / ADR-017). Runs a deterministic 8-
 **Pipeline steps:**
 1. init — create `.claude/state/` via `tmp_path`
 2. scan stub — returns `State(schema_version=1, next_monotonic_seq=0, epics={})` (Story 1.15 replaces this)
-3. mock dispatch ×2 — `MockAIRuntime.dispatch(_SEED_PROMPT, _SEED_CONTEXT)` twice (same input; exercises determinism)
-4. hook synthesis stub — `_synthesize_hook_payload(result, seq)` per dispatch (Story 2A.4 replaces this)
+3. dispatch ×2 — `dispatch_twice(runtime)` runs `runtime.dispatch(_SEED_PROMPT, _SEED_CONTEXT)` twice in one event loop (same input; exercises determinism). `runtime` is parametrized over `_mock_factory` and `_claude_factory`.
+4. pre-write hook chain — `run_pre_write_hooks_for_dispatches(...)` runs the real `run_hook_chain` per dispatch (Story 2B.3 replaced the synth stub)
 5. journal append ×2 — `journal.append_sync(entry, journal_path)` with chained before/after hashes
 6. state projection — `project_from_journal(journal_path)` (pure function)
 7. atomic state write — `write_state_atomic_sync(final_state, target=state_path)`
-8. golden assertions — byte-equality to `tests/fixtures/abstraction_adequacy/expected_*.json`
+8. golden assertions — byte-equality to `tests/fixtures/abstraction_adequacy/expected_*.json`; bytes recorded per runtime, then `test_cross_runtime_byte_identity` (ordered last by `conftest.py`) asserts mock-vs-claude byte identity (AC2/D2)
 
-**Parameterization:** `_RUNTIME_FACTORIES = [_mock_factory]`. Story 2B.3 extends to `[_mock_factory, _claude_factory]` — one-line change (ADR-017, Decision 3).
+**Parameterization:** `_RUNTIME_FACTORIES = [_mock_factory, _claude_factory]` (Story 2B.3 — both runtimes asserted to produce byte-identical hook payloads + state.json; ADR-017, Decision 3). `# DO NOT add a third factory in v1`.
 
 **POSIX-only:** skipped on Windows (`journal.append_sync` + `write_state_atomic_sync` require `fcntl`/`O_APPEND`).
 
@@ -31,7 +31,9 @@ Private helper module (non-test, importable by unit tests). Contains:
 - `_SEED_PROMPT`, `_SEED_CONTEXT`, `_FROZEN_TS`, `_ACTOR`, `_TARGET_ID` — determinism constants
 - `_canonicalize_state_for_hash(state)` — canonical bytes without trailing `\n` (Architecture §513 hash variant)
 - `_state_hash(state)` — `"sha256:" + hexdigest`
-- `_synthesize_hook_payload(result, seq)` — builds `HookPayload` from `AgentResult.tool_calls[0]`
+- `_build_pre_chain_input_payload(result, seq)` — builds the `HookPayload` fed into `run_hook_chain`; falls back to seed-stable target/hash when `tool_calls` is empty (Claude v1)
+- `dispatch_twice(runtime)` / `run_pre_write_hooks_for_dispatches(...)` — one-loop double dispatch + real pre-write hook chain
+- `fail_if_xdist_parallel(config)` — fail-loud guard: the capture registry is a module global incompatible with pytest-xdist
 - `_build_journal_entry(seq, before_hash, after_hash, agent_result)` — builds `JournalEntry`
 
 ## Fixtures

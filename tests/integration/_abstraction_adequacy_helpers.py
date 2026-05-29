@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import textwrap
 import unicodedata
 from collections.abc import Callable, Mapping
@@ -20,6 +21,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Final
 
+import pytest
 import yaml
 
 from sdlc.contracts.hook_payload import HookPayload
@@ -28,7 +30,7 @@ from sdlc.hooks.builtin.naming_validator import naming_validator
 from sdlc.hooks.builtin.phase_gate import phase_gate
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
-from sdlc.runtime import AgentResult
+from sdlc.runtime import AgentResult, AIRuntime
 from sdlc.signoff import compute_state
 from sdlc.state.model import State
 
@@ -47,7 +49,9 @@ _ZERO_HASH: Final[str] = "sha256:" + "0" * 64
 # of the pin lives in tests/unit/integration/test_abstraction_adequacy_helpers.py.
 _TARGET_ID: Final[str] = "epic-1"
 
-_EXTENSIBILITY_DOC_MARKER: Final[str] = "Story 2B.3 — add a specialist (3-step checklist)"
+# ASCII "--" not em-dash: an editor unicode-normalization pass must not silently break the
+# AC3 marker match (review P22). The seed YAML's leading comment carries the same ASCII form.
+_EXTENSIBILITY_DOC_MARKER: Final[str] = "Story 2B.3 -- add a specialist (3-step checklist)"
 
 
 def _normalize_strings(obj: Any) -> Any:
@@ -89,11 +93,14 @@ def _state_hash(state: State) -> str:
 
 
 def _format_diff(label: str, expected: bytes, actual: bytes) -> str:
-    """Unified diff of two UTF-8 byte streams (AC2/D1)."""
+    """Unified diff of two UTF-8 byte streams (AC2/D1).
+
+    Relies on ``difflib``'s own ``--- ``/``+++ `` file headers; a manual header is NOT
+    prepended (that duplicated difflib's output — review P7).
+    """
     expected_lines = expected.decode("utf-8").splitlines(keepends=True)
     actual_lines = actual.decode("utf-8").splitlines(keepends=True)
-    header = f"--- expected ({label})\n+++ actual ({label})\n"
-    body = "".join(
+    diff = "".join(
         difflib.unified_diff(
             expected_lines,
             actual_lines,
@@ -101,7 +108,23 @@ def _format_diff(label: str, expected: bytes, actual: bytes) -> str:
             tofile=f"actual ({label})",
         )
     )
-    return header + body
+    return f"{label} diverged:\n{diff}"
+
+
+def fail_if_xdist_parallel(config: Any) -> None:
+    """Fail loud if running under pytest-xdist (review P31 / Story 2B.3 D2=b).
+
+    Per-runtime bytes live in a module-global dict (``_abstraction_adequacy_capture``); under
+    xdist each worker gets its own copy, so the mock/claude captures never meet and the
+    cross-runtime check would silently no-op. Fail loud rather than pass vacuously.
+    """
+    if getattr(config, "workerinput", None) is not None:
+        pytest.fail(
+            "abstraction-adequacy conformance harness is incompatible with pytest-xdist "
+            "(per-runtime captures live in a module-global dict that does not cross workers); "
+            "run it on a single worker, e.g. `-p no:xdist` or `-n0`",
+            pytrace=False,
+        )
 
 
 def _signoff_reader(phase: int, repo_root: Path) -> str:
@@ -147,11 +170,22 @@ def _tool_call_target_and_hash(result: AgentResult) -> tuple[str, str]:
     return target, content_hash
 
 
-def _hook_payload_from_agent_result(result: AgentResult, seq: int) -> HookPayload:
-    """Build production-shaped HookPayload for the pre-write chain (Story 2B.3)."""
+def _build_pre_chain_input_payload(result: AgentResult, seq: int) -> HookPayload:
+    """Build the HookPayload that is the INPUT to ``run_hook_chain`` (Story 2B.3).
+
+    This helper SYNTHESISES the payload fed into the pre-write chain; it does NOT capture
+    what the chain emits. AC1/D2 D1 ("the dispatched chain emits HookPayloads") is honoured
+    via the load-bearing ``decision == "allow"`` invariant asserted in
+    ``run_pre_write_hooks_for_dispatches`` — not via emission capture. Full emission capture
+    is deferred to CR2B3-W13 / EPIC-2B-DEBT-CHAIN-EMISSION-CAPTURE (see deferred-work.md).
+    """
     if not result.tool_calls:
-        # ClaudeAIRuntime v1 parses stdout only — tool_calls stay empty while output/tokens
-        # match the seed YAML (AC1/D1). Hook targets are fixture-stable for conformance.
+        # COINCIDENCE-COUPLING (CR2B3-W12): Claude v1 parses stdout only, so its tool_calls
+        # stay empty and this fallback hard-codes the seed's target/hash (_SEED_TARGET_PATH /
+        # _ZERO_HASH); Mock reaches the same values via _tool_call_target_and_hash. A seed edit
+        # changing either would silently DECOUPLE the runtimes — pinned RED by
+        # test_seed_fixture_tool_call_matches_conformance_fallback_constants. Resolved by
+        # surfacing tool_calls from the Claude parser: EPIC-2B-DEBT-CLAUDE-TOOL-CALLS.
         target = _SEED_TARGET_PATH
         content_hash = _ZERO_HASH
     else:
@@ -164,6 +198,18 @@ def _hook_payload_from_agent_result(result: AgentResult, seq: int) -> HookPayloa
     )
 
 
+async def dispatch_twice(runtime: AIRuntime) -> tuple[AgentResult, AgentResult]:
+    """Await two sequential dispatches inside a SINGLE event loop (review P24/P25).
+
+    One ``asyncio.run`` wrapping two awaits — two separate ``asyncio.run`` calls churn the loop
+    and trip a teardown DeprecationWarning under ``filterwarnings=["error"]`` (spec line 131).
+    Shared by the main conformance test and the anti-tautology receipt. Do NOT split it.
+    """
+    first = await runtime.dispatch(_SEED_PROMPT, _SEED_CONTEXT)
+    second = await runtime.dispatch(_SEED_PROMPT, _SEED_CONTEXT)
+    return first, second
+
+
 async def run_pre_write_hooks_for_dispatches(
     *,
     repo_root: Path,
@@ -174,7 +220,7 @@ async def run_pre_write_hooks_for_dispatches(
     hooks = build_conformance_hook_chain(repo_root)
     payloads: list[HookPayload] = []
     for seq, result in enumerate(results):
-        payload = _hook_payload_from_agent_result(result, seq)
+        payload = _build_pre_chain_input_payload(result, seq)
         decision = await run_hook_chain(
             payload,
             hooks=hooks,
@@ -189,12 +235,17 @@ async def run_pre_write_hooks_for_dispatches(
 
 
 def _build_claude_stub_script(responses_yaml: Path, target_dir: Path) -> Path:
-    """Write executable ``claude`` stub reading ``responses_yaml`` (AC1/D1)."""
-    target_dir.mkdir(parents=True, exist_ok=True)
+    """Write executable ``claude`` stub reading ``responses_yaml`` (AC1/D1).
+
+    Callers mkdir ``target_dir`` first, so this writer does not (P28). The stub uses
+    ``sys.executable`` (P11 — a bare ``python3`` may lack PyYAML), reads stdin as bytes then
+    decodes UTF-8 (P12), writes stdout with no trailing newline (P14 — byte-stable), and emits
+    an ``is_error=True`` envelope on failure (P13 — actionable CI diagnostic).
+    """
     stub_path = target_dir / "claude"
     script = textwrap.dedent(
         f'''\
-        #!/usr/bin/env python3
+        #!{sys.executable}
         """Auto-generated stub: echo Claude CLI JSON for abstraction-adequacy seed."""
         from __future__ import annotations
 
@@ -205,25 +256,42 @@ def _build_claude_stub_script(responses_yaml: Path, target_dir: Path) -> Path:
 
         import yaml
 
-        _FIXTURE = Path({str(responses_yaml)!r})
-        _PROMPT = sys.stdin.read()
-        _PROMPT_HASH = "sha256:" + hashlib.sha256(_PROMPT.encode("utf-8")).hexdigest()
-        _DATA = yaml.safe_load(_FIXTURE.read_text(encoding="utf-8"))
-        if not isinstance(_DATA, dict) or _PROMPT_HASH not in _DATA:
-            sys.stderr.write(f"no fixture for prompt_hash={{_PROMPT_HASH}}\\n")
-            raise SystemExit(1)
-        row = _DATA[_PROMPT_HASH]
-        envelope = {{
-            "type": "result",
-            "subtype": "success",
-            "is_error": False,
-            "result": row["output_text"],
-            "usage": {{
-                "input_tokens": row["tokens_in"],
-                "output_tokens": row["tokens_out"],
-            }},
-        }}
-        print(json.dumps(envelope))
+
+        def _emit_error(message: str) -> "int":
+            sys.stdout.write(
+                json.dumps(
+                    {{"type": "result", "subtype": "error", "is_error": True, "result": message}}
+                )
+            )
+            return 1
+
+
+        def _main() -> "int":
+            fixture = Path({str(responses_yaml)!r})
+            prompt = sys.stdin.buffer.read().decode("utf-8")
+            prompt_hash = "sha256:" + hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            data = yaml.safe_load(fixture.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or prompt_hash not in data:
+                return _emit_error(f"no fixture for prompt_hash={{prompt_hash}}")
+            row = data[prompt_hash]
+            try:
+                envelope = {{
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "result": row["output_text"],
+                    "usage": {{
+                        "input_tokens": row["tokens_in"],
+                        "output_tokens": row["tokens_out"],
+                    }},
+                }}
+            except (KeyError, TypeError) as exc:
+                return _emit_error(f"malformed fixture row for {{prompt_hash}}: {{exc!r}}")
+            sys.stdout.write(json.dumps(envelope))
+            return 0
+
+
+        raise SystemExit(_main())
         '''
     )
     stub_path.write_text(script, encoding="utf-8")
@@ -243,17 +311,29 @@ def _build_claude_stub_for_fixture(fixture_path: Path, target_dir: Path) -> Path
     return _build_claude_stub_script(responses_copy, target_dir)
 
 
-def _build_claude_stub_with_mutated_output(fixture_path: Path, target_dir: Path) -> Path:
-    """Stub like AC1/D1 but mutates ``output_text`` by one byte (AC5 receipt #1)."""
+def _build_claude_stub_with_mutated_output(
+    fixture_path: Path, target_dir: Path, *, target_key: str | None = None
+) -> Path:
+    """Stub like AC1/D1 but mutates ONE row's ``output_text`` by one byte (AC5 receipt #1).
+
+    Single-row mutation (``target_key`` or the first row) keeps divergence localised; mutating
+    ALL rows would break AC3 extensibility once the seed grows past one specialist (review P9).
+    """
     target_dir.mkdir(parents=True, exist_ok=True)
     raw = yaml.safe_load(fixture_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise TypeError("fixture must be a mapping")
+    mutable_rows = [
+        key for key, row in raw.items() if isinstance(row, dict) and "output_text" in row
+    ]
+    if not mutable_rows:
+        raise ValueError("fixture has no row with an 'output_text' field to mutate")
+    key_to_mutate = target_key if target_key is not None else mutable_rows[0]
+    if key_to_mutate not in mutable_rows:
+        raise KeyError(f"target_key={key_to_mutate!r} not a mutable row in fixture")
     mutated = dict(raw)
-    for key, row in raw.items():
-        if isinstance(row, dict) and "output_text" in row:
-            text = str(row["output_text"])
-            mutated[key] = {**row, "output_text": text + "X"}
+    row = raw[key_to_mutate]
+    mutated[key_to_mutate] = {**row, "output_text": str(row["output_text"]) + "X"}
     mutated_path = target_dir / "abstraction_adequacy_responses.yaml"
     mutated_path.write_text(
         yaml.safe_dump(mutated, sort_keys=False, allow_unicode=True),
@@ -279,6 +359,11 @@ def _build_journal_entry(
     tool_calls are intentionally NOT in the payload — they are captured by HookPayload
     synthesis. Duplicating them here would make the journal a secondary source of truth
     for the hook surface, violating the substrate's separation of concerns.
+
+    ``mock`` IS written into the payload (mirroring the production dispatcher; review P34/D5)
+    so the projection strip (AC4) is exercised by the integration pipeline — Mock writes
+    ``mock=True``, Claude ``mock=False``, yet state.json stays byte-identical (the projection
+    filters _AUDIT_ONLY_KEYS).
     """
     return JournalEntry(
         schema_version=1,
@@ -293,6 +378,7 @@ def _build_journal_entry(
             "output_text": agent_result.output_text,
             "tokens_in": agent_result.tokens_in,
             "tokens_out": agent_result.tokens_out,
+            "mock": agent_result.mock,
         },
     )
 

@@ -27,6 +27,14 @@ from sdlc.state.model import State
 # Other patterns (story-, task-) are reserved for later stories.
 _EPIC_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"\Aepic-[0-9]+\Z")
 
+# Journal payload keys that are audit-trail-only and MUST NOT appear in the state.json
+# projection (ADR-029 §1). ``mock`` records whether an AgentResult came from MockAIRuntime
+# vs ClaudeAIRuntime — a runtime-provenance fact for the journal/telemetry, never a piece
+# of projected state (a downstream consumer of state.json MUST NOT branch on mock-vs-real).
+# This frozenset is the authoritative registry; ADR-029 §1 references it by name. Story
+# 2B.3 AC4 pins the strip via test_projection_strips_mock_from_state_mutation_payload.
+_AUDIT_ONLY_KEYS: Final[frozenset[str]] = frozenset({"mock"})
+
 # Documents the v1 kind surface; NOT used to reject unknown kinds (forward-compat — kind drift
 # within a schema version is permissive by design; schema_version drift is the strict detector).
 _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
@@ -91,9 +99,11 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
         if entry.kind == "state_mutation" and _EPIC_ID_PATTERN.match(entry.target_id):
             # dict() unwraps MappingProxyType from Story 1.7's _freeze_payload so that
             # state.json serialization works (json.dumps doesn't handle MappingProxyType).
-            # ADR-029 §1: ``mock`` is audit-trail only — never project into state.json.
-            projected_payload = {k: v for k, v in entry.payload.items() if k != "mock"}
-            epics[entry.target_id] = projected_payload
+            # ADR-029 §1: keys in _AUDIT_ONLY_KEYS (e.g. ``mock``) are journal audit-trail
+            # only — never project into state.json. sorted() pins canonical key order
+            # independent of journal-writer insertion order (belt-and-braces vs golden drift).
+            filtered = {k: v for k, v in entry.payload.items() if k not in _AUDIT_ONLY_KEYS}
+            epics[entry.target_id] = dict(sorted(filtered.items(), key=lambda kv: kv[0]))
     return State(next_monotonic_seq=next_seq, epics=epics)
 
 

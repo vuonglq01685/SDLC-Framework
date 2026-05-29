@@ -6,8 +6,9 @@ ClaudeAIRuntime and asserts a golden HookPayload sequence and golden final state
 
 Contract (Story 2B.3): Mock and Claude produce IDENTICAL HookPayload sequences and
 IDENTICAL final state.json bytes for the same input. Per-runtime golden asserts run
-inside each parametrized body; mock-vs-claude byte identity is asserted in
-``tests/integration/conftest.py`` via ``pytest_sessionfinish`` (AC2/D2).
+inside each parametrized body; mock-vs-claude byte identity is asserted by
+``test_cross_runtime_byte_identity``, ordered after both parametrized runs via
+``conftest.py``'s ``pytest_collection_modifyitems`` (AC2/D2).
 
 POSIX-only: journal.append_sync + state.write_state_atomic_sync require fcntl + O_APPEND.
 """
@@ -24,20 +25,20 @@ from typing import Final
 
 import pytest
 
-from integration._abstraction_adequacy_capture import record_runtime_bytes
+from integration._abstraction_adequacy_capture import pop_captured, record_runtime_bytes
 from integration._abstraction_adequacy_helpers import (
-    _SEED_CONTEXT,
-    _SEED_PROMPT,
     _ZERO_HASH,
     _build_journal_entry,
     _format_diff,
     _state_hash,
+    dispatch_twice,
+    fail_if_xdist_parallel,
     install_claude_stub_on_path,
     run_pre_write_hooks_for_dispatches,
 )
 from sdlc.engine import scan
 from sdlc.journal import append_sync
-from sdlc.runtime import AgentResult, AIRuntime, ClaudeAIRuntime, MockAIRuntime
+from sdlc.runtime import AIRuntime, ClaudeAIRuntime, MockAIRuntime
 from sdlc.state import write_state_atomic_sync
 from sdlc.state.projection import project_from_journal
 
@@ -69,10 +70,15 @@ def _claude_factory(fixtures_dir: Path) -> AIRuntime:
     return ClaudeAIRuntime()
 
 
-# EPIC 2B GATE — Story 2B.3 extends this list to [_mock_factory, _claude_factory].
+# EPIC 2B GATE — Story 2B.3 extended this list to [_mock_factory, _claude_factory].
 # Both factories MUST produce identical HookPayload sequences and identical final state.json
-# bytes (Decision C2, Architecture §1424, FR29). DO NOT add a third factory in v1.
+# bytes (Decision C2, Architecture §1424, FR29).
+# DO NOT add a third factory in v1.
 _RUNTIME_FACTORIES: list[Callable[[Path], AIRuntime]] = [_mock_factory, _claude_factory]
+
+# Parametrization ids, derived from the factories (review P3): a factory rename stays in sync
+# with the cross-runtime identity check instead of drifting from hardcoded string keys.
+_FACTORY_IDS: Final[tuple[str, ...]] = tuple(f.__name__.lstrip("_") for f in _RUNTIME_FACTORIES)
 
 
 @pytest.fixture
@@ -94,6 +100,7 @@ def runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> AIRuntime:
+    fail_if_xdist_parallel(request.config)
     factory: Callable[[Path], AIRuntime] = request.param
     if factory is _claude_factory:
         install_claude_stub_on_path(
@@ -104,19 +111,17 @@ def runtime(
     return factory(isolated_fixtures_dir)
 
 
-async def _dispatch_twice(rt: AIRuntime) -> tuple[AgentResult, AgentResult]:
-    """One asyncio.run, two awaited dispatches."""
-    first = await rt.dispatch(_SEED_PROMPT, _SEED_CONTEXT)
-    second = await rt.dispatch(_SEED_PROMPT, _SEED_CONTEXT)
-    return first, second
-
-
 def test_abstraction_adequacy_pipeline(
     tmp_path: Path,
     runtime: AIRuntime,
     request: pytest.FixtureRequest,
 ) -> None:
-    factory_id = request.node.callspec.id if request.node.callspec else "runtime"
+    # Drop the "runtime" fallback (review P5): this test is only meaningful when run
+    # parametrized via the runtime fixture; a missing callspec means misconfiguration.
+    assert request.node.callspec is not None, (
+        "test_abstraction_adequacy_pipeline must run parametrized via the `runtime` fixture"
+    )
+    factory_id = request.node.callspec.id
     state_dir = tmp_path / ".claude" / "state"
     state_dir.mkdir(parents=True, exist_ok=False)
     journal_path = state_dir / "journal.log"
@@ -125,7 +130,9 @@ def test_abstraction_adequacy_pipeline(
     initial_state = scan(tmp_path)
     assert project_from_journal(journal_path) == initial_state
 
-    result_1, result_2 = asyncio.run(_dispatch_twice(runtime))
+    # One asyncio.run wrapping two awaited dispatches — see dispatch_twice() for why two
+    # separate asyncio.run calls would trip the loop-teardown DeprecationWarning (P25).
+    result_1, result_2 = asyncio.run(dispatch_twice(runtime))
     assert result_1.model_dump(mode="json") == result_2.model_dump(mode="json"), (
         "non-deterministic dispatch — Story 1.13 AC3 violated"
     )
@@ -184,6 +191,13 @@ def test_abstraction_adequacy_pipeline(
             pytrace=False,
         )
 
+    # Capture BEFORE the per-runtime golden asserts (review P4): the cross-runtime identity
+    # check (test_cross_runtime_byte_identity) must observe both runtimes' bytes even when a
+    # per-runtime golden assert fails. A common drift (both runtimes diverge from the golden
+    # the same way) would otherwise be hidden behind whichever runtime's golden-mismatch ran
+    # first, masking the mock-vs-claude delta this gate exists to surface.
+    record_runtime_bytes(factory_id, actual_hp_bytes, actual_state_bytes)
+
     expected_hp_bytes = (_GOLDEN_DIR / "expected_hook_payloads.json").read_bytes()
     expected_state_bytes = (_GOLDEN_DIR / "expected_state.json").read_bytes()
     assert actual_hp_bytes == expected_hp_bytes, _format_diff(
@@ -193,7 +207,35 @@ def test_abstraction_adequacy_pipeline(
         "state.json vs golden", expected_state_bytes, actual_state_bytes
     )
 
-    record_runtime_bytes(factory_id, actual_hp_bytes, actual_state_bytes)
+
+def test_cross_runtime_byte_identity(request: pytest.FixtureRequest) -> None:
+    """AC2/D2: mock and claude produce byte-identical hook payloads AND state.json.
+
+    This is the cross-run assertion. It is a regular test (NOT a ``pytest_sessionfinish``
+    hook — review P30 / D1=b) so a divergence reports as a normal test failure with a unified
+    diff, not a version-dependent INTERNALERROR. ``conftest.py``'s
+    ``pytest_collection_modifyitems`` orders this test AFTER both parametrized
+    ``test_abstraction_adequacy_pipeline`` runs so the capture registry is fully populated.
+    """
+    fail_if_xdist_parallel(request.config)
+    captured = pop_captured()
+    missing = [fid for fid in _FACTORY_IDS if fid not in captured]
+    assert not missing, (
+        f"cross-runtime identity check is missing captures for {missing}; expected one per "
+        f"runtime factory {list(_FACTORY_IDS)} (captured: {sorted(captured)}). Did the "
+        "parametrized pipeline runs execute, and is the test ordered last?"
+    )
+    # Exactly two factories (the "DO NOT add a third factory in v1" invariant). Unpacking two
+    # ids fails loud if a third factory is ever added without revisiting this check.
+    first_id, second_id = _FACTORY_IDS
+    first_hp, first_state = captured[first_id]
+    second_hp, second_state = captured[second_id]
+    assert first_hp == second_hp, _format_diff(
+        f"hook payloads ({first_id} vs {second_id})", first_hp, second_hp
+    )
+    assert first_state == second_state, _format_diff(
+        f"state.json ({first_id} vs {second_id})", first_state, second_state
+    )
 
 
 # To regenerate goldens (e.g., after a deliberate fixture change):

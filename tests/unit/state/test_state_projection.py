@@ -385,3 +385,14 @@ def test_projection_strips_mock_from_state_mutation_payload() -> None:
     canonical_true = json.dumps(state_true.model_dump(mode="json"), sort_keys=True).encode()
     canonical_false = json.dumps(state_false.model_dump(mode="json"), sort_keys=True).encode()
     assert canonical_true == canonical_false
+    # Positive proof the strip happened (review P6): byte-equality alone could be coincidence.
+    assert b"mock" not in canonical_true, canonical_true
+    assert b"mock" not in canonical_false, canonical_false
+
+
+@pytest.mark.unit
+def test_audit_only_keys_registry_contains_mock() -> None:
+    """Pin the _AUDIT_ONLY_KEYS registry (review P35 / D6=a): ``mock`` is the v1 entry."""
+    from sdlc.state.projection import _AUDIT_ONLY_KEYS
+
+    assert "mock" in _AUDIT_ONLY_KEYS

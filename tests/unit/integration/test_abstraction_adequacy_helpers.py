@@ -5,8 +5,8 @@ in tests/integration/test_abstraction_adequacy.py is built on a trusted foundati
 
 If _SEED_PROMPT changes → test_seed_prompt_hash_is_byte_stable catches it.
 If _canonicalize_state_for_hash drifts → test_canonical_state_hash_is_stable catches it.
-If _hook_payload_from_agent_result is non-pure →
-test_hook_payload_from_agent_result_is_pure catches it.
+If _build_pre_chain_input_payload is non-pure →
+test_build_pre_chain_input_payload_is_pure catches it.
 """
 
 from __future__ import annotations
@@ -20,9 +20,11 @@ import pytest
 
 from integration._abstraction_adequacy_helpers import (
     _SEED_PROMPT,
+    _SEED_TARGET_PATH,
     _TARGET_ID,
+    _ZERO_HASH,
+    _build_pre_chain_input_payload,
     _canonicalize_state_for_hash,
-    _hook_payload_from_agent_result,
     _state_hash,
     seed_fixture_has_extensibility_doc,
 )
@@ -41,16 +43,15 @@ def _make_result(tool_calls: tuple[Mapping[str, object], ...] = ()) -> AgentResu
     )
 
 
-_ZERO_HASH = "sha256:" + "0" * 64
-
-
 def _make_seed_result() -> AgentResult:
     return _make_result(
         tool_calls=(
             {
                 "name": "write_artifact",
+                # Import the constants from the helper module (review P23) — duplicating the
+                # literal target/hash here was a silent drift hazard against the seed fixture.
                 "args": {
-                    "target": "01-Requirement/04-Epics/EPIC-abstraction-adequacy.json",
+                    "target": _SEED_TARGET_PATH,
                     "content_hash": _ZERO_HASH,
                 },
             },
@@ -65,22 +66,22 @@ def test_seed_prompt_hash_is_byte_stable() -> None:
     assert actual == expected
 
 
-def test_hook_payload_from_agent_result_is_pure() -> None:
+def test_build_pre_chain_input_payload_is_pure() -> None:
     result = _make_seed_result()
-    hp_a = _hook_payload_from_agent_result(result, seq=0)
-    hp_b = _hook_payload_from_agent_result(result, seq=0)
+    hp_a = _build_pre_chain_input_payload(result, seq=0)
+    hp_b = _build_pre_chain_input_payload(result, seq=0)
     assert hp_a.model_dump(mode="json") == hp_b.model_dump(mode="json")
 
 
-def test_hook_payload_from_agent_result_seq0_has_none_before_hash() -> None:
+def test_build_pre_chain_input_payload_seq0_has_none_before_hash() -> None:
     result = _make_seed_result()
-    hp = _hook_payload_from_agent_result(result, seq=0)
+    hp = _build_pre_chain_input_payload(result, seq=0)
     assert hp.content_hash_before is None
 
 
-def test_hook_payload_from_agent_result_seq1_has_content_hash_before() -> None:
+def test_build_pre_chain_input_payload_seq1_has_content_hash_before() -> None:
     result = _make_seed_result()
-    hp = _hook_payload_from_agent_result(result, seq=1)
+    hp = _build_pre_chain_input_payload(result, seq=1)
     assert hp.content_hash_before == _ZERO_HASH
 
 
@@ -94,24 +95,24 @@ def test_canonical_state_hash_is_stable() -> None:
     assert actual_hex == expected_hex
 
 
-def test_hook_payload_from_agent_result_uses_seed_target_when_tool_calls_empty() -> None:
+def test_build_pre_chain_input_payload_uses_seed_target_when_tool_calls_empty() -> None:
     """ClaudeAIRuntime v1 leaves tool_calls empty — conformance uses seed-stable targets."""
     result = _make_result(tool_calls=())
-    hp = _hook_payload_from_agent_result(result, seq=0)
-    assert hp.target_path == "01-Requirement/04-Epics/EPIC-abstraction-adequacy.json"
+    hp = _build_pre_chain_input_payload(result, seq=0)
+    assert hp.target_path == _SEED_TARGET_PATH
     assert hp.content_hash_before is None
 
 
-def test_hook_payload_from_agent_result_rejects_missing_args_target() -> None:
+def test_build_pre_chain_input_payload_rejects_missing_args_target() -> None:
     """Typed validation: missing 'target' key surfaces a clear ValueError, not raw KeyError."""
     bad_result = _make_result(
         tool_calls=({"name": "write_artifact", "args": {"content_hash": _ZERO_HASH}},)
     )
     with pytest.raises(ValueError, match="tool_call shape mismatch"):
-        _hook_payload_from_agent_result(bad_result, seq=0)
+        _build_pre_chain_input_payload(bad_result, seq=0)
 
 
-def test_hook_payload_from_agent_result_rejects_non_string_content_hash() -> None:
+def test_build_pre_chain_input_payload_rejects_non_string_content_hash() -> None:
     """Typed validation: non-string content_hash surfaces a clear ValueError, not silent str()."""
     bad_result = _make_result(
         tool_calls=(
@@ -122,17 +123,48 @@ def test_hook_payload_from_agent_result_rejects_non_string_content_hash() -> Non
         )
     )
     with pytest.raises(ValueError, match=r"content_hash.* must be str"):
-        _hook_payload_from_agent_result(bad_result, seq=1)
+        _build_pre_chain_input_payload(bad_result, seq=1)
 
 
-def test_seed_fixture_documents_extensibility_procedure() -> None:
-    fixture = (
+def _seed_fixture_path() -> Path:
+    return (
         Path(__file__).resolve().parents[2]
         / "fixtures"
         / "mock_responses"
         / "abstraction-adequacy.yaml"
     )
+
+
+def test_seed_fixture_documents_extensibility_procedure() -> None:
+    fixture = _seed_fixture_path()
     assert seed_fixture_has_extensibility_doc(fixture)
+    # AC3 "zero test code edit" contract: the leading comment must spell out the actual
+    # 3-step checklist, not merely contain the marker (review P21). A future rewrite that
+    # strips the steps or the regen-flag reference must fail this guard.
+    text = fixture.read_text(encoding="utf-8")
+    assert "1." in text and "2." in text and "3." in text, text
+    assert "_REGENERATE_GOLDENS" in text, text
+
+
+def test_seed_fixture_tool_call_matches_conformance_fallback_constants() -> None:
+    """AC1/D1 coupling invariant (review P32 / CR2B3-W12).
+
+    Mock-vs-Claude hook-payload identity holds only because the seed YAML's single
+    tool_call encodes EXACTLY the target/hash that ``_build_pre_chain_input_payload``'s
+    empty-tool_calls fallback hard-codes (_SEED_TARGET_PATH / _ZERO_HASH). Any seed edit
+    that changes those values would silently DECOUPLE the two runtimes; this turns that
+    silent decoupling into a RED test.
+    """
+    import yaml
+
+    data = yaml.safe_load(_seed_fixture_path().read_text(encoding="utf-8"))
+    assert isinstance(data, dict) and len(data) == 1, data
+    (row,) = data.values()
+    tool_calls = row["tool_calls"]
+    assert len(tool_calls) == 1, tool_calls
+    args = tool_calls[0]["args"]
+    assert args["target"] == _SEED_TARGET_PATH, args
+    assert args["content_hash"] == _ZERO_HASH, args
 
 
 def test_state_hash_is_deterministic_within_process() -> None:

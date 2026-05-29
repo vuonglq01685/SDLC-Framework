@@ -1,4 +1,4 @@
-# Story 2B.3 — add a specialist (3-step checklist)
+# Story 2B.3 -- add a specialist (3-step checklist)
 # 1. Append a ``(workflow_step, prompt_hash) → response`` row below (prompt_hash = sha256(prompt)).
 # 2. Set ``_REGENERATE_GOLDENS = True`` in tests/integration/test_abstraction_adequacy.py and run
 #    ``uv run pytest tests/integration/test_abstraction_adequacy.py -m integration`` (POSIX only).

@@ -55,6 +55,19 @@ Downstream propagation:
 - Dashboard + `sdlc trace` SHOULD surface a visible "MOCK" badge on any entry carrying the
   flag (Epic 5 surface work).
 
+**v1 state-projection strip (Story 2B.3 AC4).** `mock` lives in the journal payload (audit
+trail) but MUST NOT appear in the projected `state.json` — state is the runtime-neutral view
+and a downstream consumer must not branch on mock-vs-real. v1 realises this with a **filter on
+projection** (deny-list) rather than structural independence: `src/sdlc/state/projection.py`
+defines `_AUDIT_ONLY_KEYS: frozenset[str] = frozenset({"mock"})` as the authoritative registry
+of audit-only payload keys, and `_project_entries` drops any payload key in that set before
+building `state.epics`. This is a guard, not a contract change (state.json already excludes
+`mock` by design). The strip is pinned behaviourally by
+`tests/unit/state/test_state_projection.py::test_projection_strips_mock_from_state_mutation_payload`
+and the registry by `test_audit_only_keys_registry_contains_mock`. A future migration to
+structural independence (never carrying `mock` into the projected branch in the first place)
+would retire the deny-list — tracked as the D6 migration path.
+
 ### 2. `SDLC_USE_MOCK_RUNTIME` default-flip (post-2B.1)
 
 | Phase | Behaviour |
