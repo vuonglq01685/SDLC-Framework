@@ -31,12 +31,21 @@ validation:
 
 theme:
   name: readthedocs
-  # NO mkdocs-material per ADR-009 revisit-by — plugin upgrade is deferred to "first
-  # non-ADR doc surface (runbooks, threat-model.md, prompt-library) ships".
+  # ADR-009/ADR-011 Revisit-by FIRED (Story 2B.7, 2026-05-29): threat-model.md ships a Mermaid
+  # trust-boundary diagram, so the deferred plugin upgrade is now active. ONLY mkdocs-mermaid2 is
+  # adopted (it is theme-agnostic) — mkdocs-material remains deferred and readthedocs is retained.
+
+# mkdocs-mermaid2 (ADR-011 canonical plugin set) renders ```mermaid fenced blocks client-side so
+# the threat-model trust-boundary diagram displays as a diagram, not raw source (Story 2B.7 AC4).
+# `search` must be listed explicitly once a plugins: block exists (it is otherwise implicit).
+plugins:
+  - search
+  - mermaid2
 
 nav:
   - Home: index.md
   - Architecture Overview: architecture-overview.md
+  - Threat Model: threat-model.md
   - Decisions:
       - decisions/index.md
       - "ADR-001 — pyproject metadata": decisions/ADR-001-pyproject-metadata.md

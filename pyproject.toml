@@ -31,6 +31,7 @@ dev = [
     "pytest-benchmark>=5.0.0,<6",  # floor: 4.x had pedantic(rounds=1) regressions; cap: 6.x may shift pedantic API (Story 1.15 perf gate)
     "pytest-asyncio>=0.23",     # async test support for hooks/runner async surface (Story 2A.4)
     "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
+    "mkdocs-mermaid2-plugin>=1.2.3",
 ]
 
 [build-system]

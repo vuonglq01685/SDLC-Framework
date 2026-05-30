@@ -56,3 +56,10 @@ satisfies AC5 of Story 1.5: the 2027-05-01 floor is the hard ceiling per the 12-
 authoring rule (ADR-009 authored 2026-05-08, Story 1.3); the event clause fires earlier if
 the doc-surface trigger lands first. At that point, the `[dependency-groups] dev` entry in
 `pyproject.toml` gains plugin deps, and this workflow activates them via `uv sync --frozen`.
+
+> **Event FIRED — 2026-05-29 (Story 2B.7 / CR2B7-W3):** `docs/threat-model.md` shipped a Mermaid
+> trust-boundary diagram, triggering the event clause. `mkdocs-mermaid2-plugin` (1.2.3) was added
+> to `[dependency-groups] dev` and registered in `mkdocs.yml`; `docs.yml` CI activates it via the
+> existing `uv sync --frozen --group dev` step (no workflow edit required). **Only `mkdocs-mermaid2`
+> was adopted** — `mkdocs-material` and `mkdocs-include-markdown-plugin` remain deferred under this
+> Revisit-by. Full decision + scope recorded in [ADR-011](ADR-011-mkdocs-setup.md) Revision Log.

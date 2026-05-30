@@ -1,6 +1,6 @@
 # ADR-011: MkDocs Setup
 
-**Status:** Accepted (2026-05-09, Story 1.5).
+**Status:** Accepted (2026-05-09, Story 1.5); amended 2026-05-29 (Story 2B.7 / CR2B7-W3 — ADR-009 "first non-ADR doc surface" trigger fired; `mkdocs-mermaid2` adopted — see Revision Log).
 
 ## Context
 
@@ -37,9 +37,11 @@ The following configuration choices are made for `mkdocs.yml`:
   feature); upper bound `<2` is forward-defensive matching the Story 1.2 `mypy <3`
   and `pytest <10` convention. Lift when MkDocs 2.0 ships and the four-key validation
   block is shown stable. Resolved version on disk: **1.6.1** (from `uv.lock`).
-- **`theme: name: readthedocs`**: Stock theme — NO `mkdocs-material` per
-  [ADR-009](ADR-009-docs-yml.md) revisit-by. Plugin upgrade deferred to "first non-ADR
-  doc surface (runbooks, threat-model.md, prompt-library) ships".
+- **`theme: name: readthedocs`**: Stock theme retained. `mkdocs-material` remains deferred per
+  [ADR-009](ADR-009-docs-yml.md) revisit-by; however **`mkdocs-mermaid2` is now adopted** (Story
+  2B.7, 2026-05-29) because `threat-model.md` ships a Mermaid trust-boundary diagram — the exact
+  trigger named in ADR-009's revisit-by. The plugin is theme-agnostic, so `readthedocs` is kept
+  and no theme switch is required (`plugins: [search, mermaid2]` in `mkdocs.yml`). See Revision Log.
 - **`strict: true`**: Parity with `docs.yml --strict` flag; every validation `warn`
   becomes a hard error.
 - **`validation:` four-key block**: `omitted_files: warn`, `absolute_links: warn`,
@@ -114,3 +116,24 @@ The following configuration choices are made for `mkdocs.yml`:
 trigger fires and `mkdocs-material` / `mkdocs-mermaid2` / `mkdocs-include-markdown-plugin`
 become required, or when planning artifacts are re-emitted into `docs/architecture/` and
 the AC6 plain-text scoping needs to be lifted, whichever first.
+
+> **Partially actioned 2026-05-29** (see Revision Log): the `mkdocs-mermaid2` half of the
+> trigger fired and was adopted. `mkdocs-material` + `mkdocs-include-markdown-plugin` remain
+> open under this Revisit-by.
+
+## Revision Log
+
+- **2026-05-29 (Story 2B.7, CR2B7-W3):** Adopted `mkdocs-mermaid2-plugin` (resolved **1.2.3**,
+  added to `[dependency-groups] dev` in `pyproject.toml`; `uv.lock` updated) and registered the
+  `mermaid2` plugin in `mkdocs.yml` (`plugins: [search, mermaid2]` — `search` re-listed explicitly
+  now that a `plugins:` block exists). This fires the [ADR-009](ADR-009-docs-yml.md) / ADR-011
+  "first non-ADR doc surface ships" Revisit-by trigger: `docs/threat-model.md` requires a rendered
+  Mermaid trust-boundary diagram (Story 2B.7 AC4). The plugin converts ` ```mermaid ` fences to
+  `<div class="mermaid">` and injects `mermaid@10.4.0` (ESM, unpkg CDN) at view time;
+  `mkdocs build --strict` stays green (exit 0). **Scope limited to `mkdocs-mermaid2`** —
+  `mkdocs-material` and `mkdocs-include-markdown-plugin` remain deferred (not yet required). Side
+  effect: the previously non-rendering Mermaid diagrams in `docs/sprints/epic-2a-dag.md` and
+  `epic-2b-dag.md` now render too. The line 107–109 `mkdocs-macros-plugin` / `{{double-brace}}`
+  caveat is unaffected — `mkdocs-mermaid2` does not interpret Jinja syntax (full `--strict` build
+  across the ADR template passed). Note: mermaid.js loads from a CDN at view time (acceptable for
+  the docs site; vendoring is a possible future hardening).
