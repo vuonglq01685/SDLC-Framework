@@ -108,3 +108,15 @@ specialists:
   - name: edge-case-reviewer
     phase: 3
     file: phase3/edge-case-reviewer.md
+  # Story 2B.11 — 3 net-new cross-cutting support specialists (D1=(a), D2=(a))
+  # phase: 0 = cross-cutting support (schema-legal per manifest.py:24 Literal[0,1,2,3])
+  # registered-but-not-dispatched-in-v1 (no caller until Epic 4 wiring)
+  - name: clarification-triager
+    phase: 0
+    file: support/clarification-triager.md
+  - name: agent-failure-recovery
+    phase: 0
+    file: support/agent-failure-recovery.md
+  - name: orchestrator-helper
+    phase: 0
+    file: support/orchestrator-helper.md
