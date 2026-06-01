@@ -213,9 +213,12 @@ def test_run_trust_hooks_happy_path_writes_hash_store(tmp_path: Path) -> None:
     store = root / ".claude" / "state" / "hook-hashes.json"
     assert store.exists()
     data = json.loads(store.read_text(encoding="utf-8"))
-    # hook-hashes.json format: {"schema_version": 1, "hashes": {<filename>: <sha256>}, ...}
-    hashes = data.get("hashes", data)
-    assert any("pre_tool_use" in k for k in hashes)
+    # hook-hashes.json shape: {"schema_version", "trusted_at", "hooks_root",
+    #                          "hashes": {<filename>: <sha256>}}
+    assert data["schema_version"] == 1
+    hashes = data["hashes"]  # exact shape — assert structure, no dual-shape fallback
+    assert any(k.endswith("pre_tool_use.py") for k in hashes), hashes
+    assert all(isinstance(v, str) and v for v in hashes.values())
 
 
 def test_run_trust_hooks_json_mode_emits_structured_output(
@@ -238,7 +241,12 @@ def test_run_trust_hooks_json_mode_emits_structured_output(
 
     captured = capsys.readouterr()
     output = json.loads(captured.out)
-    assert output.get("command") == "trust-hooks" or "project_root" in str(output)
+    # emit_json envelope: payload augmented with a "command" field.
+    assert output["command"] == "trust-hooks"
+    assert output["project_root"] == str(root)
+    assert isinstance(output["files"], list)
+    assert output["file_count"] == len(output["files"])
+    assert "trusted_at" in output
 
 
 # ---------------------------------------------------------------------------

@@ -93,18 +93,23 @@ def test_occupied_suffixes_nonexistent_dir(tmp_path: Path) -> None:
     assert occupied == {1}
 
 
-def test_occupied_suffixes_non_matching_glob_result(tmp_path: Path) -> None:
-    """Line 104: glob returns a file whose stem doesn't start with the slug prefix."""
+def test_occupied_suffixes_lone_non_integer_suffix(tmp_path: Path) -> None:
+    """ValueError branch (lines 108-109): a sole glob-matched file with a
+    non-integer suffix is skipped, leaving only the implicit {1}.
+
+    Note: the line-103/104 ``startswith`` guard is unreachable here (and in
+    general) because ``glob(f"{slug}-*.md")`` only yields names that already
+    start with the prefix — it is a defensive guard, marked ``no cover`` in
+    research.py. This case therefore exercises the integer-parse failure path,
+    distinct from ``test_occupied_suffixes_non_integer_suffix`` which also has a
+    valid integer sibling."""
     from sdlc.cli.research import _occupied_research_suffixes
 
     d = tmp_path / "research"
     d.mkdir()
-    # File matches glob pattern "mytopic-*.md" but stem "othertopic-2" doesn't
-    # start with "mytopic-" — would not normally happen but tests the guard.
     (d / "mytopic-abc.md").write_text("x", encoding="utf-8")
-    # "abc" is not an integer — exercises the ValueError branch (lines 108-109).
     occupied = _occupied_research_suffixes("mytopic", d)
-    assert occupied == {1}  # no valid suffixes found
+    assert occupied == {1}  # "abc" is not an integer → no valid suffix added
 
 
 def test_occupied_suffixes_non_integer_suffix(tmp_path: Path) -> None:

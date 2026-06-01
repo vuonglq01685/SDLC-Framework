@@ -100,7 +100,7 @@ def _occupied_research_suffixes(slug: str, research_dir: Path) -> set[int]:
     prefix = f"{slug}-"
     for p in research_dir.glob(f"{slug}-*.md"):
         stem = p.stem
-        if not stem.startswith(prefix):
+        if not stem.startswith(prefix):  # pragma: no cover - glob guarantees prefix
             continue
         suffix = stem[len(prefix) :]
         try:

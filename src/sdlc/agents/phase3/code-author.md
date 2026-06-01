@@ -96,7 +96,7 @@ class Feature:
 
 ## Architecture Rules
 
-- Respect module boundary constraints from the story (Architecture §1052-§1112).
+- Respect module boundary constraints from the story's Architecture context (the component-to-module allocation / module-boundary section — reference it by name, not by absolute line numbers, which drift as the doc changes).
 - Files must be ≤ 400 LOC (NFR-MAINT-3).
 - Pydantic models that form wire-format contracts must inherit from `StrictModel` (ADR-025).
 - Do not add network calls, subprocess invocations, or file I/O beyond what tests require.

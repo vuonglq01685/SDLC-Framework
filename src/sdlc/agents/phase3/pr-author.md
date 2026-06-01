@@ -92,10 +92,10 @@ Respond with a **markdown document** and nothing else. Structure it as follows:
 
 # GH_TOKEN Posture
 
-This specialist reads `GH_TOKEN` from the environment for authentication context only.
-It does NOT use `GH_TOKEN` to make API calls, push commits, or create PRs. All network
-and VCS operations are out of scope for this specialist and belong to a subsequent human-
-or automation-driven step outside the SDLC AI pipeline.
+This specialist MUST NOT read or use `GH_TOKEN`. With `tools: []` it has no shell,
+network, or environment access: it does NOT make API calls, push commits, or create PRs.
+All network and VCS operations are out of scope for this specialist and belong to a
+subsequent human- or automation-driven step outside the SDLC AI pipeline.
 
 ## Inputs
 

@@ -332,7 +332,7 @@ def test_invalidate_record_waits_for_per_target_lock(tmp_path: Path) -> None:
         thread = threading.Thread(target=_invalidator, daemon=True)
         thread.start()
         time.sleep(0.3)
-        assert not done.is_set(), "invalidate_record did not wait for the per-task lock"
+        assert not done.is_set(), "invalidate_record did not wait for the per-target lock"
     thread.join(timeout=5.0)
     assert done.is_set(), "invalidate_record never completed after the lock released"
 
@@ -381,15 +381,18 @@ def test_normalize_yaml_plain_date_to_midnight_utc() -> None:
     assert _normalize_yaml_data(datetime.date(2026, 6, 1)) == "2026-06-01T00:00:00.000Z"
 
 
-def test_write_bytes_to_disk_oserror_cleans_up(tmp_path: Path) -> None:
-    """Lines 235-241: OSError during write triggers cleanup and re-raises."""
+@pytest.mark.parametrize(
+    "patch_fn,err", [("os.write", "disk full"), ("os.replace", "cross-device link")]
+)
+def test_write_bytes_to_disk_error_arms_clean_up(tmp_path: Path, patch_fn: str, err: str) -> None:
+    """fd != -1 (write-fail) and fd == -1 (replace-fail) arms both unlink the tmp."""
     from unittest.mock import patch
 
     from sdlc.signoff.records import _write_bytes_to_disk
 
     target = tmp_path / "out.yaml"
-    with (
-        patch("os.write", side_effect=OSError("disk full")),
-        pytest.raises(OSError, match="disk full"),
-    ):
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    with patch(patch_fn, side_effect=OSError(err)), pytest.raises(OSError, match=err):
         _write_bytes_to_disk(target, b"data")
+    assert not tmp.exists(), "tmp file leaked on error"
+    assert not target.exists()

@@ -38,7 +38,7 @@ from integration._abstraction_adequacy_helpers import (
 )
 from sdlc.engine import scan
 from sdlc.journal import append_sync
-from sdlc.runtime import AIRuntime, ClaudeAIRuntime, MockAIRuntime
+from sdlc.runtime import AgentResult, AIRuntime, ClaudeAIRuntime, MockAIRuntime
 from sdlc.state import write_state_atomic_sync
 from sdlc.state.projection import project_from_journal
 
@@ -265,6 +265,85 @@ def test_phase3_conformance_representative_registered() -> None:
     )
     assert s.frontmatter.schema_version == 1
     assert s.frontmatter.name == _PHASE3_CONFORMANCE_REPRESENTATIVE
+
+
+def test_phase3_representative_dispatched_byte_identical_mock_vs_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Story 2B.10 AC9: the enriched Phase-3 representative (``code-author``) is
+    *exercised* under the mock-vs-claude byte-identity contract — not merely
+    registered.
+
+    Its real authored prompt body is dispatched through both ``MockAIRuntime``
+    and ``ClaudeAIRuntime`` (via the deterministic claude stub) and the
+    runtime-neutral ``AgentResult`` (everything except the audit-only ``mock``
+    flag, which the state projection strips) must be byte-identical. The mock
+    half is dispatched twice to also pin determinism.
+
+    Self-contained: it builds its own single-row fixture keyed to the
+    representative's prompt hash, so it does NOT touch the seed golden ceremony
+    above (no ``_REGENERATE_GOLDENS`` interaction).
+    """
+    import yaml
+
+    from sdlc.runtime.mock import compute_prompt_hash
+    from sdlc.specialists import load_registry
+
+    agents_dir = Path(__file__).resolve().parents[2] / "src" / "sdlc" / "agents"
+    spec = load_registry(agents_dir).get(_PHASE3_CONFORMANCE_REPRESENTATIVE)
+    prompt = spec.body  # the real authored specialist prompt — this is the "exercise"
+    workflow_step = "phase3-conformance"
+    context = {"workflow_step": workflow_step}
+
+    # One row keyed by the representative prompt's hash — the schema is shared by
+    # MockAIRuntime (_Fixture) and the claude stub (output_text/tokens_in/tokens_out).
+    fixture_row = {
+        compute_prompt_hash(prompt): {
+            "output_text": "phase3-conformance representative artifact",
+            "tokens_in": 7,
+            "tokens_out": 11,
+        }
+    }
+    fixtures_dir = tmp_path / "mock_responses"
+    fixtures_dir.mkdir()
+    fixture_path = fixtures_dir / f"{workflow_step}.yaml"
+    fixture_path.write_text(
+        yaml.safe_dump(fixture_row, sort_keys=True, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    mock_rt = MockAIRuntime(fixtures_dir=fixtures_dir)
+    install_claude_stub_on_path(monkeypatch, fixture_path, tmp_path)
+    claude_rt = ClaudeAIRuntime()
+
+    async def _dispatch_all() -> tuple[AgentResult, AgentResult, AgentResult]:
+        # Single event loop wrapping all awaits (review P24/P25): separate
+        # asyncio.run calls trip the loop-teardown DeprecationWarning under
+        # filterwarnings=["error"].
+        m1 = await mock_rt.dispatch(prompt, context)
+        m2 = await mock_rt.dispatch(prompt, context)
+        c = await claude_rt.dispatch(prompt, context)
+        return m1, m2, c
+
+    mock_1, mock_2, claude_result = asyncio.run(_dispatch_all())
+
+    # Determinism: the mock dispatch is byte-stable across two runs.
+    assert mock_1.model_dump(mode="json") == mock_2.model_dump(mode="json"), (
+        "non-deterministic dispatch of the Phase-3 representative prompt"
+    )
+
+    # Mock-vs-claude byte identity of the runtime-neutral result (the audit-only
+    # `mock` flag is expected to differ — True vs False — and is stripped by the
+    # state projection, mirroring the seed conformance gate above).
+    def _neutral(result: AgentResult) -> dict[str, object]:
+        return {k: v for k, v in result.model_dump(mode="json").items() if k != "mock"}
+
+    assert _neutral(mock_1) == _neutral(claude_result), _format_diff(
+        f"AgentResult ({_PHASE3_CONFORMANCE_REPRESENTATIVE}: mock vs claude)",
+        json.dumps(_neutral(mock_1), sort_keys=True).encode("utf-8"),
+        json.dumps(_neutral(claude_result), sort_keys=True).encode("utf-8"),
+    )
+    assert mock_1.mock is True and claude_result.mock is False
 
 
 # To regenerate goldens (e.g., after a deliberate fixture change):
