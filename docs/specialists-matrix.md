@@ -13,18 +13,25 @@ with this matrix, **this matrix wins**.
 
 ---
 
-## 1. Shipped Specialists (19 — verified against `src/sdlc/agents/index.yaml`)
+## 1. Shipped Specialists (26 — verified against `src/sdlc/agents/index.yaml`)
 
 | Name | Phase | File | Story | Notes |
 |---|---|---|---|---|
-| `product-strategist` | 1 | `phase1/product-strategist.md` | 2A.8 | Compound prompt PRODUCT.md author |
-| `technical-researcher` | 1 | `phase1/technical-researcher.md` | 2A.9 | `/sdlc-research` workhorse |
-| `devil-advocate` | 1 | `phase1/devil-advocate.md` | 2A.8 | Adversarial panel role |
-| `requirement-synthesizer` | 1 | `phase1/requirement-synthesizer.md` | 2A.8 | Renamed from PRD `synthesizer` (Phase-1 specialised) |
-| `artifact-verifier` | 1 | `phase1/artifact-verifier.md` | 2A.10 | Renamed from PRD `requirement-validator` |
-| `epic-generator` | 1 | `phase1/epic-generator.md` | 2A.11 | Renamed from PRD `epic-planner` |
-| `story-writer` | 1 | `phase1/story-writer.md` | 2A.11 | |
-| `phase1-signoff-summarizer` | 1 | `phase1/phase1-signoff-summarizer.md` | 2A.12 | Renamed from PRD `signoff-summarizer` (phase-1-scoped) |
+| `product-strategist` | 1 | `phase1/product-strategist.md` | 2A.8 / 2B.8 | Compound prompt PRODUCT.md author; production body authored 2B.8 |
+| `technical-researcher` | 1 | `phase1/technical-researcher.md` | 2A.9 / 2B.8 | `/sdlc-research` workhorse; production body authored 2B.8 |
+| `devil-advocate` | 1 | `phase1/devil-advocate.md` | 2A.8 / 2B.8 | Adversarial panel role; production body authored 2B.8 |
+| `requirement-synthesizer` | 1 | `phase1/requirement-synthesizer.md` | 2A.8 / 2B.8 | Renamed from PRD `synthesizer`; production body authored 2B.8 |
+| `artifact-verifier` | 1 | `phase1/artifact-verifier.md` | 2A.10 / 2B.8 | Renamed from PRD `requirement-validator`; production body authored 2B.8 |
+| `epic-generator` | 1 | `phase1/epic-generator.md` | 2A.11 / 2B.8 | Renamed from PRD `epic-planner`; production body authored 2B.8 |
+| `story-writer` | 1 | `phase1/story-writer.md` | 2A.11 / 2B.8 | Production body authored 2B.8 |
+| `phase1-signoff-summarizer` | 1 | `phase1/phase1-signoff-summarizer.md` | 2A.12 / 2B.8 | Renamed from PRD `signoff-summarizer`; registered, not dispatched v1; production body authored 2B.8 |
+| `requirement-analyst` | 1 | `phase1/requirement-analyst.md` | 2B.8 | New in 2B.8; analysis pass before synthesis |
+| `market-researcher` | 1 | `phase1/market-researcher.md` | 2B.8 | New in 2B.8; pairs with `technical-researcher` |
+| `stakeholder-simulator` | 1 | `phase1/stakeholder-simulator.md` | 2B.8 | New in 2B.8; adversarial role, pairs with `devil-advocate` |
+| `dependency-mapper` | 1 | `phase1/dependency-mapper.md` | 2B.8 | New in 2B.8; cross-epic dependency tracking |
+| `prioritizer` | 1 | `phase1/prioritizer.md` | 2B.8 | New in 2B.8; epic-level priority synthesis |
+| `acceptance-criteria-author` | 1 | `phase1/acceptance-criteria-author.md` | 2B.8 | New in 2B.8; BDD-format AC authoring |
+| `story-prioritizer` | 1 | `phase1/story-prioritizer.md` | 2B.8 | New in 2B.8; story-level MoSCoW prioritization |
 | `ux-designer` | 2 | `phase2/ux-designer.md` | 2A.13 | |
 | `ux-reviewer` | 2 | `phase2/ux-reviewer.md` | 2A.13 | New (not in PRD §214); pairs with ux-designer |
 | `system-architect` | 2 | `phase2/system-architect.md` | 2A.14 | Renamed from PRD `solution-architect` |
@@ -57,24 +64,16 @@ name is now canonical:
 
 ---
 
-## 3. Planned Specialists (18 — targets for Epic 2B.8 / 2B.9 / 2B.10)
+## 3. Planned Specialists (11 — targets for Epic 2B.9 / 2B.10)
 
 These names appear in PRD §214 but have NO file in `src/sdlc/agents/`. They are scheduled to
-be authored in Epic 2B.8 (Phase 1), 2B.9 (Phase 2), and 2B.10 (Phase 3). Names listed here are
-*tentative* — Epic 2B authoring may rename to match the shipped-naming convention. Any rename
-at authoring time updates this matrix and removes the planned-row simultaneously.
+be authored in Epic 2B.9 (Phase 2) and 2B.10 (Phase 3). Names listed here are *tentative* —
+Epic 2B authoring may rename to match the shipped-naming convention. Any rename at authoring
+time updates this matrix and removes the planned-row simultaneously.
 
-### Phase 1 planned (7)
-
-| Name | Target story | Notes |
-|---|---|---|
-| `requirement-analyst` | 2B.8 | Distinct from `requirement-synthesizer` (analysis pass before synthesis) |
-| `market-researcher` | 2B.8 | Pairs with `technical-researcher` |
-| `stakeholder-simulator` | 2B.8 | Adversarial role; pairs with `devil-advocate` |
-| `dependency-mapper` | 2B.8 | Cross-epic dependency tracking |
-| `prioritizer` | 2B.8 | Story / epic priority synthesis |
-| `acceptance-criteria-author` | 2B.8 | BDD-format AC authoring |
-| `story-prioritizer` | 2B.8 | Differs from `prioritizer` (story-level vs epic-level) |
+> **Phase 1 planned (7) removed**: all 7 Phase-1 planned specialists were authored in Story
+> 2B.8 and promoted to §1 Shipped above. `clarification-triager` (Support, target 2B.8)
+> was deferred per D1=(a) and remains planned — see Support planned below.
 
 ### Phase 2 planned (6)
 
@@ -108,13 +107,14 @@ at authoring time updates this matrix and removes the planned-row simultaneously
 
 | Category | Count |
 |---|---|
-| Shipped (table 1) | 19 |
-| Planned (table 3) | 18 |
+| Shipped (table 1) | 26 |
+| Planned (table 3) | 11 |
 | **Grand total (post-Epic-2B authoring target)** | **37** |
 
 The PRD §214 prose "~25 markdown specialist agents" reflects the original v0.1 plan. Actual
-total has grown via Epic 2A sub-track design (Phase 2 sub-architects) and the deliberate
-addition of pair-reviewers (ux-reviewer, ux-designer pairing; edge-case-reviewer + code-reviewer).
+total has grown via Epic 2A sub-track design (Phase 2 sub-architects), the deliberate addition
+of pair-reviewers (ux-reviewer, ux-designer pairing; edge-case-reviewer + code-reviewer), and
+the 7 Phase-1 net-new specialists authored in Story 2B.8.
 This matrix is the authoritative count.
 
 ---

@@ -138,6 +138,14 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/commands/sdlc-next.md").as_posix(),
         # Story 2A.19 — /sdlc-replan state-machinery command (no workflow YAML, no specialist).
         Path("sdlc/commands/sdlc-replan.md").as_posix(),
+        # Story 2B.8 — 7 net-new Phase-1 specialist production prompts.
+        Path("sdlc/agents/phase1/requirement-analyst.md").as_posix(),
+        Path("sdlc/agents/phase1/market-researcher.md").as_posix(),
+        Path("sdlc/agents/phase1/stakeholder-simulator.md").as_posix(),
+        Path("sdlc/agents/phase1/dependency-mapper.md").as_posix(),
+        Path("sdlc/agents/phase1/prioritizer.md").as_posix(),
+        Path("sdlc/agents/phase1/acceptance-criteria-author.md").as_posix(),
+        Path("sdlc/agents/phase1/story-prioritizer.md").as_posix(),
     }
 )
 

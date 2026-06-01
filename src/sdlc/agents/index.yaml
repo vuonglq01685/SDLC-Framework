@@ -24,6 +24,27 @@ specialists:
   - name: phase1-signoff-summarizer
     phase: 1
     file: phase1/phase1-signoff-summarizer.md
+  - name: requirement-analyst
+    phase: 1
+    file: phase1/requirement-analyst.md
+  - name: market-researcher
+    phase: 1
+    file: phase1/market-researcher.md
+  - name: stakeholder-simulator
+    phase: 1
+    file: phase1/stakeholder-simulator.md
+  - name: dependency-mapper
+    phase: 1
+    file: phase1/dependency-mapper.md
+  - name: prioritizer
+    phase: 1
+    file: phase1/prioritizer.md
+  - name: acceptance-criteria-author
+    phase: 1
+    file: phase1/acceptance-criteria-author.md
+  - name: story-prioritizer
+    phase: 1
+    file: phase1/story-prioritizer.md
   - name: ux-designer
     phase: 2
     file: phase2/ux-designer.md
