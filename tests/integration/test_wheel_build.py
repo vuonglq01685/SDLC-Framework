@@ -153,6 +153,11 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase2/infra-architect.md").as_posix(),
         Path("sdlc/agents/phase2/devex-architect.md").as_posix(),
         Path("sdlc/agents/phase2/api-designer.md").as_posix(),
+        # Story 2B.10 — 4 net-new Phase-3 specialist production prompts.
+        Path("sdlc/agents/phase3/pr-author.md").as_posix(),
+        Path("sdlc/agents/phase3/tdd-strategist.md").as_posix(),
+        Path("sdlc/agents/phase3/security-reviewer.md").as_posix(),
+        Path("sdlc/agents/phase3/edge-case-reviewer.md").as_posix(),
     }
 )
 
