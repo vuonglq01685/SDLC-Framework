@@ -239,3 +239,133 @@ def test_run_trust_hooks_json_mode_emits_structured_output(
     captured = capsys.readouterr()
     output = json.loads(captured.out)
     assert output.get("command") == "trust-hooks" or "project_root" in str(output)
+
+
+# ---------------------------------------------------------------------------
+# Error-path tests for _journal_and_advance_seq — except branches.
+# ---------------------------------------------------------------------------
+
+
+def test_journal_and_advance_seq_state_error_emits_error(tmp_path: Path) -> None:
+    """_journal_and_advance_seq calls emit_error on StateError from read_state_or_recover."""
+    import click
+
+    from sdlc.cli.trust_hooks import _journal_and_advance_seq
+
+    _, state_path, journal_path = _make_workspace(tmp_path)
+    ctx = _make_ctx()
+    _ZERO = "sha256:" + "0" * 64
+
+    from sdlc.errors import StateError
+
+    with (
+        patch(
+            "sdlc.state.read_state_or_recover",
+            side_effect=StateError("malformed"),
+        ),
+        pytest.raises((SystemExit, click.exceptions.Exit)),
+    ):
+        _journal_and_advance_seq(
+            hashes={},
+            before_hash=_ZERO,
+            after_hash=_ZERO,
+            now="2026-06-01T00:00:00.000Z",
+            state_path=state_path,
+            journal_path=journal_path,
+            ctx=ctx,
+        )
+
+
+def test_journal_and_advance_seq_journal_error_emits_error(tmp_path: Path) -> None:
+    """_journal_and_advance_seq calls emit_error on JournalError from append_sync."""
+    import click
+
+    from sdlc.cli.trust_hooks import _journal_and_advance_seq
+    from sdlc.errors import JournalError
+
+    _, state_path, journal_path = _make_workspace(tmp_path)
+    ctx = _make_ctx()
+    _ZERO = "sha256:" + "0" * 64
+
+    with (
+        patch("sdlc.journal.append_sync", side_effect=JournalError("write failed")),
+        pytest.raises((SystemExit, click.exceptions.Exit)),
+    ):
+        _journal_and_advance_seq(
+            hashes={},
+            before_hash=_ZERO,
+            after_hash=_ZERO,
+            now="2026-06-01T00:00:00.000Z",
+            state_path=state_path,
+            journal_path=journal_path,
+            ctx=ctx,
+        )
+
+
+def test_journal_and_advance_seq_os_error_on_state_write(tmp_path: Path) -> None:
+    """_journal_and_advance_seq calls emit_error on OSError from write_state_atomic_sync."""
+    import click
+
+    from sdlc.cli.trust_hooks import _journal_and_advance_seq
+
+    _, state_path, journal_path = _make_workspace(tmp_path)
+    ctx = _make_ctx()
+    _ZERO = "sha256:" + "0" * 64
+
+    with (
+        patch(
+            "sdlc.state.write_state_atomic_sync",
+            side_effect=OSError("disk full"),
+        ),
+        pytest.raises((SystemExit, click.exceptions.Exit)),
+    ):
+        _journal_and_advance_seq(
+            hashes={},
+            before_hash=_ZERO,
+            after_hash=_ZERO,
+            now="2026-06-01T00:00:00.000Z",
+            state_path=state_path,
+            journal_path=journal_path,
+            ctx=ctx,
+        )
+
+
+def test_run_trust_hooks_hook_error_on_compute(tmp_path: Path) -> None:
+    """run_trust_hooks emits error when compute_hook_hashes raises HookError."""
+    import click
+
+    from sdlc.cli.trust_hooks import run_trust_hooks
+    from sdlc.errors import HookError
+
+    root, _, _ = _make_workspace(tmp_path)
+    ctx = _make_ctx()
+
+    with (
+        patch("sdlc.cli.trust_hooks._get_repo_root_or_cwd", return_value=root),
+        patch("sdlc.hooks.compute_hook_hashes", side_effect=HookError("no hooks")),
+        pytest.raises((SystemExit, click.exceptions.Exit)),
+    ):
+        run_trust_hooks(ctx=ctx)
+
+
+def test_run_trust_hooks_hook_error_on_write_atomic(tmp_path: Path) -> None:
+    """run_trust_hooks emits error when write_hook_hashes_atomic raises HookError."""
+    import click
+
+    from sdlc.cli.trust_hooks import run_trust_hooks
+    from sdlc.errors import HookError
+
+    root, _, _ = _make_workspace(tmp_path)
+    hooks_dir = root / ".claude" / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    ctx = _make_ctx()
+
+    with (
+        patch("sdlc.cli.trust_hooks._get_repo_root_or_cwd", return_value=root),
+        patch(
+            "sdlc.cli.trust_hooks.write_hook_hashes_atomic",
+            side_effect=HookError("atomic write failed"),
+        ),
+        pytest.raises((SystemExit, click.exceptions.Exit)),
+    ):
+        run_trust_hooks(ctx=ctx)
