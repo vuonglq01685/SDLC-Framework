@@ -1,6 +1,6 @@
 # Story 2B.9: Author Phase 2 Specialists
 
-**Status:** review
+**Status:** done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -226,6 +226,27 @@ so that **the Epic 2B real-Claude dispatch path produces real design output (arc
         → 2B.8 already merged to main (branched from e5c72a0). 2B.10 not yet started.
           No rebase needed at this point; T6 gate satisfied.
 
+### Review Findings
+
+> Source: `bmad-code-review` (2026-06-01) — 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor) over `main...epic-2b/2b-9-phase2-specialists`.
+> Triage: 3 decision-needed, 2 patch, 1 defer, 7 dismissed. Acceptance Auditor: all 13 ACs + D1–D5 PASS, TDD RED→GREEN ordering verified (61421b2 test → 53d5be0 feat).
+> **Resolution (2026-06-01, user = "recommend"):** DN1 → deferred (intended; tracked in deferred-work.md as CR2B9-DN1). DN2 → deferred (CR2B9-W2). DN3 → debt kept OPEN; Completion Notes reworded.
+
+**Decision-needed (resolved):**
+
+- [x] [Review][Decision] CR2B9-DN1 — Wiring deferral for the 4 standalone net-new specialists — `api-designer`, `ux-researcher`, `design-system-author`, `a11y-reviewer` are authored but have NO dispatch path (no workflow-YAML reference, and `api-designer` is not a `requires:` sub-track value nor in `architect.py` `_SUBTRACK_SPECIALISTS`). Asymmetry noted: `infra`/`devex` WERE wired this story (AC8), these 4 were not. **Resolved → DEFER (intended):** story scope is "author, don't wire" (mirrors 2B.8's market-researcher/stakeholder-simulator deferral); wiring belongs to the dispatch-integration story. Latent risks recorded in deferred-work.md: (a) `write_globs` (`00-RESEARCH.md`, `design-system.md`, `API.md`) overlap `ux-designer`'s broad `02-Architecture/01-UX/*.md` with no single-owner/cleanup guarantee; (b) `a11y-reviewer`/`ux-reviewer` carry `write_globs: []` → `dispatch_and_write` indexes `write_globs[0]` and would fault on the empty tuple unless review-only roles are special-cased.
+- [x] [Review][Decision] CR2B9-DN2 — Cross-reviewer accessibility contract is internally inconsistent — `ux-reviewer.md` grades touch-target (min 44×44) as BLOCKER/WARNING while `a11y-reviewer.md` grades the same check WARNING/NOTE (can never BLOCK); and both audit a "declared size" that `ux-designer.md`'s screen-spec template never emits. **Resolved → DEFER (CR2B9-W2):** the severity contradiction only manifests once `a11y-reviewer` is wired alongside `ux-reviewer`; harmonizing the full UX reviewer/designer/a11y contract (winning severity model + a touch-target size field in the ux-designer screen-spec) is best done coherently with the UX-track wiring story rather than piecemeal now.
+- [x] [Review][Decision] CR2B9-DN3 — `EPIC-2A-DEBT-UX-PARALLEL-REVIEWER` closure was bodies-only — D3=(a) / Completion Notes claimed the debt closed, but the diff authors only the `ux-reviewer` prompt body; no synthesizer / parallel-dispatch wiring is added. **Resolved → debt kept OPEN:** Completion Notes reworded (line ~473) to state the debt closes only when the UX-track wiring lands; the production prompt body is delivered as scoped.
+
+**Patch (unambiguous code fixes):**
+
+- [x] [Review][Patch] CR2B9-P1 — `test_net_new_phase2_schema_version_is_one` aborted on first offender instead of aggregating [tests/unit/specialists/test_phase2_2b9_authoring.py:114-124] — `assert s.frontmatter.schema_version == 1` sat inside `try/except SpecialistError`, so a wrong version raised `AssertionError` that escaped the loop and bypassed the `violations` list. **APPLIED:** version check moved into `violations` (report-all pattern, mirrors `test_..._have_correct_phase`). 9/9 tests green.
+- [x] [Review][Patch] CR2B9-P2 — `_PLACEHOLDER_MARKERS` was redundant + over-broad [tests/unit/specialists/test_phase2_2b9_authoring.py:65-72] — `"Placeholder until Story 2B.9"` duplicated `"placeholder until Story 2B.9"` under the case-insensitive match, and bare `"PLACEHOLDER"` matched ANY "placeholder" substring (latent AC1 false-positive on legitimate UX "placeholder text" vocabulary). **APPLIED:** dropped the redundant case-variant; anchored the sentinel to the real stub form `**PLACEHOLDER**`; added an explanatory comment. 9/9 tests green.
+
+**Deferred (tracked, low risk):**
+
+- [x] [Review][Defer] CR2B9-W1 — Inconsistent registry-absence handling across receipts [tests/unit/specialists/test_phase2_2b9_authoring.py:133-153 vs 170-192] — `test_no_phase2_body_contains_placeholder_marker` does `except SpecialistError: continue` (silent skip) while `test_no_phase2_body_contains_boundary_line` treats the same absence as a violation. Low risk: global `load_registry` + the boundary-line receipt catch any absence loudly. Mirrors the previously-deferred CR2B8-W1 — track together. — deferred, pre-existing pattern.
+
 ## Dev Notes
 
 ### Context & Provenance
@@ -450,7 +471,10 @@ All 13 ACs satisfied. D1=(b)/D2=(a)/D3=(a)/D4=no-rename.
 - security-architect: threat model + auth/authz + data protection + controls
 - observability-architect: logging/RED metrics/tracing/SLO definitions
 - ux-designer: design tokens/user flows/screen specs; JSON-array output contract preserved
-- ux-reviewer: full parallel review report; D3=(a) closes EPIC-2A-DEBT-UX-PARALLEL-REVIEWER
+- ux-reviewer: full parallel review report; D3=(a) authors the production prompt body.
+  NOTE (code review CR2B9-DN3): EPIC-2A-DEBT-UX-PARALLEL-REVIEWER remains OPEN — this story
+  delivers the prompt body only; the body still "feeds the UX synthesizer (when wired)" and no
+  synthesizer/parallel-dispatch wiring is added here. Debt closes when the UX-track wiring lands.
 
 **T3 (6 net-new specialists):**
 - ux-researcher: user needs synthesis, interaction patterns, IA recommendations

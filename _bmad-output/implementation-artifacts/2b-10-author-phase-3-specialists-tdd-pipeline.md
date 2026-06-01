@@ -1,6 +1,6 @@
 # Story 2B.10: Author Phase 3 Specialists (TDD Pipeline)
 
-**Status:** review
+**Status:** done
 
 **Epic:** 2B — Specialist Authoring & Conformance
 **Layer:** 3 (`docs/sprints/epic-2b-dag.md` §3)
@@ -80,6 +80,37 @@ so that **the `/sdlc-task` 5-stage TDD pipeline (`test-author` → `code-author`
 - [x] **(AC11, §1)** Full quality gate to green.
 - [ ] **(§3 rebase)** Rebase onto merged 2B.8/2B.9 before merging — `index.yaml` is the shared file (2B.8/2B.9/2B.10 all append to it). DAG §6: 2B.10 is the last NCP writer; rebase, never merge-commit.
 - [ ] **(§4 chunked review)** review-A (correctness) → review-B (boundary/tool-safety) → review-C (naming/matrix/registry reconciliation); no skipping.
+
+### Review Findings
+
+_Source: bmad-code-review (2026-06-01) — 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor) over `git diff main...epic-2b/2b-10-phase3-specialists`. 25 unique findings after dedupe: 3 decision-needed, 7 patch, 7 deferred, 8 dismissed._
+
+**Decision-needed (resolved 2026-06-01):**
+
+- [x] [Review][Decision→Patch] AC9 — "exercises" vs "registers" under byte-identity → **RESOLVED: add a real dispatch test.** `test_phase3_conformance_representative_registered` only asserts `code-author` is loadable; AC9 requires it be **exercised** under the mock-vs-claude byte-identity contract. Resolution: add a byte-identity assertion binding `code-author` through `dispatch_twice`. See Patch P8 below. [tests/integration/test_abstraction_adequacy.py:248]
+- [x] [Review][Decision→Defer] Roster count (30) overshoots 2B.11 count gate (`≥23,≤27`) → **RESOLVED: accept + flag to 2B.11.** 2B.10 does not unilaterally change another story's gate; handoff note recorded for 2B.11/Elena that roster=30 exceeds the documented bound and the bound/matrix (target 37) need reconciliation under ADR-030. Tracked as CR2B10-W8 in deferred-work.md. [src/sdlc/agents/index.yaml]
+- [x] [Review][Decision→Defer] Matrix planned→shipped rows not reconciled → **RESOLVED: defer to 2B.11.** DAG line 145 assigns "matrix regen" to 2B.11; the `(§3 rebase)`/`(§4 review-C)` tasks remain open. Planned rows kept; tracked as CR2B10-W9 in deferred-work.md. [docs/specialists-matrix.md]
+
+**Patch:**
+
+- [x] [Review][Patch] P8 (from AC9 decision) — add a byte-identity dispatch assertion that exercises `code-author` through `dispatch_twice` (mock vs claude runtime), not just registry load. [tests/integration/test_abstraction_adequacy.py]
+- [x] [Review][Patch] Lock assertion message reverted from "per-target" to "per-task" contradicts code vocab (records.py uses "per-target" throughout; test name is `..._per_target_lock`) [tests/unit/signoff/test_records.py:~1589]
+- [x] [Review][Patch] `test_occupied_suffixes_non_matching_glob_result` is mislabeled — writes `mytopic-abc.md` (matches prefix) so it exercises the ValueError branch (108-109), NOT the line-104 prefix-mismatch `continue` its docstring/comment claim; the `othertopic-2` stem is never created and line 104 is unreachable given the glob guarantee. Fix docstring/comment; consider `# pragma: no cover` on the unreachable startswith guard. [tests/unit/cli/test_research_slug.py:96]
+- [x] [Review][Patch] Weak near-tautological assertion `output.get("command") == "trust-hooks" or "project_root" in str(output)` — the `or` + whole-object substring search can pass for the wrong reasons; assert the structure directly. [tests/unit/cli/test_trust_hooks_unit.py:~1449]
+- [x] [Review][Patch] `data.get("hashes", data)` tolerates two different shapes, so it can't detect a format regression — assert the real hash-store shape. [tests/unit/cli/test_trust_hooks_unit.py:~1425]
+- [x] [Review][Patch] OSError-cleanup test asserts only re-raise, not the cleanup it names (no assert that the partial temp file was unlinked / fd closed), and does not cover the `os.replace`-failure (`fd == -1`) branch — strengthen to assert cleanup + add the replace-failure case. [tests/unit/signoff/test_records.py:~1638]
+- [x] [Review][Patch] Brittle absolute line-range citation "Architecture §1052-§1112" in a runtime prompt will silently rot when the doc changes — reference a stable section/anchor name instead. [src/sdlc/agents/phase3/code-author.md:~125]
+- [x] [Review][Patch] pr-author "GH_TOKEN Posture" narrates "reads `GH_TOKEN` from the environment" but declares `tools: []` (no mechanism to read env) — reword to state it MUST NOT read/use GH_TOKEN (preserve the AC3 read-only/no-call posture without the literal impossibility). [src/sdlc/agents/phase3/pr-author.md:~567]
+
+**Deferred:**
+
+- [x] [Review][Defer] code-author contract forces `tests_status:"green"` with no "blocked/infeasible" escape for impossible tasks — JSON contract is frozen (AC1 + ADR-024/025); raise as a pipeline-resilience design item. [src/sdlc/agents/phase3/code-author.md] — deferred, frozen-contract / out of scope
+- [x] [Review][Defer] Net-new specialists enumerated in 3 places (index.yaml, wheel `_ALLOWED_CONTENT_FILES`, test `_NET_NEW_PHASE3_NAMES`) — triple-maintenance drift hazard; consider a single source of truth. — deferred, not a present defect
+- [x] [Review][Defer] security-reviewer & edge-case-reviewer carry `write_globs: tasks/**` though they emit markdown-only — least-privilege smell, but matches shipped code-reviewer precedent (not a regression). [src/sdlc/agents/phase3/security-reviewer.md, edge-case-reviewer.md] — deferred, cross-cutting reviewer-family concern
+- [x] [Review][Defer] task-breaker DAG/≤400-LOC rules have no escape for an irreducible task (oversized AC or cyclic deps). [src/sdlc/agents/phase3/task-breaker.md] — deferred, minor prompt-completeness
+- [x] [Review][Defer] security-reviewer/edge-case-reviewer binary verdict swallows the MEDIUM/advisory band (PASS if no CRIT/HIGH); no "PASS-with-advisories" state. — deferred, by-design
+- [x] [Review][Defer] code-bootstrapper instructed to "skip files that exist (check read_globs)" but `pyproject.toml` is at repo root, outside `read_globs` (src/**, tests/**) — no observation channel; near-moot for greenfield. [src/sdlc/agents/phase3/code-bootstrapper.md] — deferred, minor prompt-accuracy
+- [x] [Review][Defer] `_make_ctx` builds a hand-rolled `typer.Context` divorced from the real command params; happy-path tests assert on FS side-effects, not real CLI-invocation fidelity. [tests/unit/cli/test_trust_hooks_unit.py:~1265] — deferred, test-architecture concern
 
 ---
 
@@ -321,3 +352,4 @@ Modified files:
 ## Change Log
 
 - 2026-06-01: Story implemented on `wt-2b-10` (branch `epic-2b/2b-10-phase3-specialists`). 5 Phase-3 stubs enriched to production + 4 net-new specialists authored + index.yaml updated + conformance test extended + quality gate 87.01% PASS. Status: in-progress → review.
+- 2026-06-01: bmad-code-review (3 adversarial layers) — 25 unique findings [3 decision-needed + 7 patch + 7 defer + 8 dismissed]. 3 decisions resolved (D1 AC9→add real byte-identity dispatch test; D2 count gate + D3 matrix→deferred to 2B.11 as CR2B10-W8/W9). 8 patches applied + verified on `wt-2b-10` (P1 lock-message revert; P2 research_slug test relabel + no-cover guard; P3/P4 trust_hooks assertion tightening; P5 OSError-cleanup + os.replace-failure tests; P6 code-author line-range cite; P7 pr-author GH_TOKEN posture; P8 `test_phase3_representative_dispatched_byte_identical_mock_vs_claude` binding code-author under the mock-vs-claude byte-identity contract). 9 deferred CR2B10-W1..W9. Verification: 73 unit + 5 integration pass; ruff format+check clean; mypy --strict clean. Status: review → done. Open at merge: §3 rebase + §4 chunked-review.
