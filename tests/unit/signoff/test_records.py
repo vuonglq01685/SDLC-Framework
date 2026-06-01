@@ -379,3 +379,17 @@ def test_normalize_yaml_plain_date_to_midnight_utc() -> None:
     from sdlc.signoff.records import _normalize_yaml_data
 
     assert _normalize_yaml_data(datetime.date(2026, 6, 1)) == "2026-06-01T00:00:00.000Z"
+
+
+def test_write_bytes_to_disk_oserror_cleans_up(tmp_path: Path) -> None:
+    """Lines 235-241: OSError during write triggers cleanup and re-raises."""
+    from unittest.mock import patch
+
+    from sdlc.signoff.records import _write_bytes_to_disk
+
+    target = tmp_path / "out.yaml"
+    with (
+        patch("os.write", side_effect=OSError("disk full")),
+        pytest.raises(OSError, match="disk full"),
+    ):
+        _write_bytes_to_disk(target, b"data")
