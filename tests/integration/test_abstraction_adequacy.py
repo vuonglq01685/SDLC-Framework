@@ -55,6 +55,13 @@ pytestmark = [
 
 _REGENERATE_GOLDENS: Final[bool] = False
 
+# Story 2B.10 AC9/D3=(a): Phase-3 conformance representative.
+# code-author (GREEN phase, TDD pipeline) is pinned as the Phase-3 specialist exercised
+# by the 2B.3 mock-vs-claude byte-identity contract. Phase-3 markdown authoring adds no
+# new Python dispatch logic — no golden regeneration is needed. The Phase-3 registry is
+# independently verified in tests/unit/specialists/test_phase3_2b10_authoring.py.
+_PHASE3_CONFORMANCE_REPRESENTATIVE: Final[str] = "code-author"
+
 _TESTS_DIR: Final[Path] = Path(__file__).resolve().parent.parent
 _GOLDEN_DIR: Final[Path] = _TESTS_DIR / "fixtures" / "abstraction_adequacy"
 _SEED_FIXTURE_NAME: Final[str] = "abstraction-adequacy.yaml"
@@ -236,6 +243,28 @@ def test_cross_runtime_byte_identity(request: pytest.FixtureRequest) -> None:
     assert first_state == second_state, _format_diff(
         f"state.json ({first_id} vs {second_id})", first_state, second_state
     )
+
+
+def test_phase3_conformance_representative_registered() -> None:
+    """Story 2B.10 AC9/D3=(a): code-author is registered as Phase-3 conformance rep.
+
+    Verifies the Phase-3 representative specialist is loadable via load_registry and
+    that Phase-3 authoring did not disturb the conformance pipeline golden outputs
+    (the three parametrized / cross-runtime tests above remain the byte-identity gate).
+    """
+    from pathlib import Path
+
+    from sdlc.specialists import load_registry
+
+    agents_dir = Path(__file__).resolve().parents[2] / "src" / "sdlc" / "agents"
+    reg = load_registry(agents_dir)
+    s = reg.get(_PHASE3_CONFORMANCE_REPRESENTATIVE)
+    assert s.phase == 3, (
+        f"Phase-3 conformance representative {_PHASE3_CONFORMANCE_REPRESENTATIVE!r} "
+        f"has phase={s.phase}, expected 3"
+    )
+    assert s.frontmatter.schema_version == 1
+    assert s.frontmatter.name == _PHASE3_CONFORMANCE_REPRESENTATIVE
 
 
 # To regenerate goldens (e.g., after a deliberate fixture change):

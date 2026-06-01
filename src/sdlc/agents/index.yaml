@@ -96,3 +96,15 @@ specialists:
   - name: code-reviewer
     phase: 3
     file: phase3/code-reviewer.md
+  - name: pr-author
+    phase: 3
+    file: phase3/pr-author.md
+  - name: tdd-strategist
+    phase: 3
+    file: phase3/tdd-strategist.md
+  - name: security-reviewer
+    phase: 3
+    file: phase3/security-reviewer.md
+  - name: edge-case-reviewer
+    phase: 3
+    file: phase3/edge-case-reviewer.md
