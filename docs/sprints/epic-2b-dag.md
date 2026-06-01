@@ -43,7 +43,7 @@ graph TD
   B9["2B.9 — Phase 2 specialists<br/>(~6 markdown files)"]:::layer3
   B10["2B.10 — Phase 3 specialists<br/>TDD pipeline (~6 markdown files)"]:::layer3
 
-  B11["2B.11 — Support specialists<br/>(~6 files) + 25-specialist count gate"]:::layer4
+  B11["2B.11 — Support specialists<br/>(3 net-new) + 39-specialist count gate [≥39,≤45]"]:::layer4
 
   %% layer 1 → layer 2
   B1 --> B3
@@ -105,7 +105,7 @@ both saturate this cap** — confirm 4-agent CI capacity before each, or batch (
 - **2B.8 / 2B.9 / 2B.10** each have an AC requiring the abstraction-adequacy conformance test
   (2B.3) to exercise the new specialists Mock-vs-Claude — so they depend on 2B.3, not merely on
   the registry contract.
-- **2B.11**'s count gate (`≥23, ≤27` specialists) and `docs/specialists-matrix.md` regeneration
+- **2B.11**'s count gate (`≥39, ≤45` specialists — re-derived from matrix §4; original `≥23, ≤27` was stale per 2B.11 D3=(a)) and `docs/specialists-matrix.md` regeneration
   require 2B.8 + 2B.9 + 2B.10 complete; its final "first external ship signal" AC re-runs the
   2B.3 conformance test end-to-end.
 
@@ -142,7 +142,7 @@ foundation — any slip in 2B.1 delays both branches.
 | `epic-2b/2b-8-phase1-specialists` | 2B.8 | Alice | 3 | ~7 Phase-1 markdowns; names per frozen `docs/specialists-matrix.md` (C5 / ADR-030). |
 | `epic-2b/2b-9-phase2-specialists` | 2B.9 | Winston | 3 | ~6 Phase-2 markdowns incl. sub-track architects. |
 | `epic-2b/2b-10-phase3-specialists` | 2B.10 | Charlie | 3 | ~6 Phase-3 TDD-pipeline markdowns; `pr-author` reads `GH_TOKEN` only. |
-| `epic-2b/2b-11-support-specialists` | 2B.11 | Elena | 4 | ~6 support markdowns; 25-count gate + matrix regen; runs 2B.3 as ship signal. |
+| `epic-2b/2b-11-support-specialists` | 2B.11 | Elena | 4 | 3 net-new support markdowns; 39-count gate [≥39,≤45] + matrix regen; runs 2B.3 as ship signal. |
 
 Owners are tentative — the Sprint Planning meeting locks the roster. Specialist file naming
 across 2B.8–2B.11 MUST follow the canonical `docs/specialists-matrix.md` (frozen in prep-sprint
@@ -179,7 +179,7 @@ availability for chunked review-A/B/C, and linear-merge discipline on `main`.
 | 2B.3 (conformance harness) is on the critical path AND gates all Layer-3 specialist authoring — flaky golden-file diffs would stall 2B.8/9/10. | 2B.3 must land byte-stable golden `state.json` + deterministic unified-diff output before Layer 3 worktrees branch off. |
 | MockAIRuntime ↔ ClaudeAIRuntime divergence (ADR-029): `SDLC_USE_MOCK_RUNTIME` default-flip is scheduled "post-2B.1". | 2B.1 implements the `mock: true` success-envelope flag + the 4 collateral divergence fixes inside its own scope per ADR-029 / prep-sprint C8. |
 | `EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES` — 5 legacy callsites still use process-local seq allocation. | Forward rule (prep-sprint C2): Story 2B.1 `ClaudeAIRuntime` uses `append_with_seq_alloc` from day one; the 5 legacy callsites migrate per-story across Epic 2B. |
-| Specialist name drift across 2B.8–2B.11 vs `architecture.md` / frozen matrix. | `docs/specialists-matrix.md` (C5) is canonical; ADR-030 governs reconciliation; 2B.11 count gate (`≥23, ≤27`) is the backstop. |
+| Specialist name drift across 2B.8–2B.11 vs `architecture.md` / frozen matrix. | `docs/specialists-matrix.md` (C5) is canonical; ADR-030 governs reconciliation; 2B.11 count gate (`≥39, ≤45`, re-derived from matrix §4) is the backstop. |
 | §7.4 GATE — debt-decay strict run. **RESOLVED 2026-05-22.** Gate A's unreachable `≥5` threshold was redefined to inventory-relative `zero-open` (ADR-033); `EPIC-2A-D7` was split — D7A SIGNOFF-FLOCK closed, D7B WIN32 deferred LOW (ADR-034); Gate C was severity-scoped to BLOCKING/HIGH, resolving the §7.2/§7.5 contradiction (ADR-035). | Strict run for target 2B is now **Gate A + B + C all PASS**. Epic-1 D4/D5/D7 remain open MED debt (parallel-prep pace) but no longer gate Story 2B.1. |
 | §7.4 GATE — §8 approvals. **RESOLVED 2026-05-22.** All 4 signoffs collected — 3 technical reviewers (Charlie / Alice / Winston) + Project Lead directive sign-off. | The §7.4 Pre-Story 2B.1 gate is fully satisfied — `bmad-create-story` may be invoked for the Layer 1 stories. |
 

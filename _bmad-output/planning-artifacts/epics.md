@@ -1731,11 +1731,12 @@ So that orchestration patterns (auto-brainstorm, signoff summary, clarification 
 - `agent-failure-recovery.md` (used by retry policy, Story 2A.3)
 - `orchestrator-helper.md` (used by complex multi-step workflow consolidation)
 
-**Given** all 25 specialists are now authored across 2B.8–2B.11
+**Given** all 39 specialists are now authored across 2B.8–2B.11
 **When** I run the registry validator (Story 2A.2)
-**Then** the count matches PRD's "approximately 25 specialists" (≥23, ≤27)
+**Then** the count falls within the re-derived band (≥39, ≤45) — see 2B.11 D3=(a); the
+original ≥23, ≤27 bound was stale (written for PRD v0.1 "~25" plan; matrix §4 is authoritative)
 **And** every workflow YAML reference resolves to a loaded specialist
-**And** the cross-reference matrix (specialist ↔ workflow ↔ phase) is generated under `docs/specialists-matrix.md`
+**And** the cross-reference matrix (specialist ↔ workflow ↔ phase) is updated under `docs/specialists-matrix.md`
 
 **Given** the full specialist suite
 **When** the abstraction-adequacy test (Story 2B.3) runs end-to-end

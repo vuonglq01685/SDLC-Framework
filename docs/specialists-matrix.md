@@ -13,7 +13,7 @@ with this matrix, **this matrix wins**.
 
 ---
 
-## 1. Shipped Specialists (32 — verified against `src/sdlc/agents/index.yaml`)
+## 1. Shipped Specialists (39 — verified against `src/sdlc/agents/index.yaml`)
 
 | Name | Phase | File | Story | Notes |
 |---|---|---|---|---|
@@ -49,6 +49,13 @@ with this matrix, **this matrix wins**.
 | `test-author` | 3 | `phase3/test-author.md` | 2A.17 | TDD pipeline stage 1 |
 | `code-author` | 3 | `phase3/code-author.md` | 2A.17 | Renamed from PRD `developer-agent` |
 | `code-reviewer` | 3 | `phase3/code-reviewer.md` | 2A.17 | TDD pipeline stage 3 |
+| `pr-author` | 3 | `phase3/pr-author.md` | 2B.10 | GH PR creation; consumes `GH_TOKEN` per PRD NFR-SEC-2; production body authored 2B.10 |
+| `tdd-strategist` | 3 | `phase3/tdd-strategist.md` | 2B.10 | Strategy-layer role above `test-author`; production body authored 2B.10 |
+| `security-reviewer` | 3 | `phase3/security-reviewer.md` | 2B.10 | Pairs with `code-reviewer` for security-sensitive stories; production body authored 2B.10 |
+| `edge-case-reviewer` | 3 | `phase3/edge-case-reviewer.md` | 2B.10 | Pairs with `code-reviewer`; closes Edge Case Hunter layer; production body authored 2B.10 |
+| `clarification-triager` | 0 | `support/clarification-triager.md` | 2B.11 | Cross-cutting; routes open-clarification STOP triggers; registered, not dispatched v1 |
+| `agent-failure-recovery` | 0 | `support/agent-failure-recovery.md` | 2B.11 | Cross-cutting; post-retry failure diagnosis and recovery planning; registered, not dispatched v1 |
+| `orchestrator-helper` | 0 | `support/orchestrator-helper.md` | 2B.11 | Cross-cutting; complex multi-step workflow consolidation; registered, not dispatched v1 |
 
 ---
 
@@ -67,53 +74,50 @@ name is now canonical:
 | `solution-architect` | `system-architect` | 2 | "System" matches Architecture.md vocabulary |
 | `data-modeler` | `database-architect` | 2 | Aligns with `*-architect` Phase-2 pattern |
 | `synthesizer` (generic) | `requirement-synthesizer` (Phase 1) | 1 | Generic synthesizer role lives in the dispatcher (PRD FR26); the shipped specialist is the Phase-1 requirement-focused variant |
+| `signoff-summarizer` (generic) | `phase1-signoff-summarizer` (Phase 1) | 1 | Generic signoff-summarizer reconciled; Phase-1 scoped variant shipped 2B.8; registered, not dispatched v1 — staffed-by-shipped (2B.11 D1=(a)) |
+
+**FR28 support roles staffed-by-shipped (2B.11 D1=(a)):** `devil-advocate` → `phase1/devil-advocate.md` (shipped Phase 1, §1 above); `synthesizer` → `requirement-synthesizer` + dispatcher `synthesizer_agent` field; `signoff-summarizer` → `phase1-signoff-summarizer` (§1 above). No new file authored for these; re-authoring `devil-advocate` under the same `name` would be a registry duplicate-name rejection.
 
 ---
 
-## 3. Planned Specialists (5 — targets for Epic 2B.10)
+## 3. Planned Specialists (0 — all targets shipped as of 2B.11)
 
-These names appear in PRD §214 but have NO file in `src/sdlc/agents/`. They are scheduled to
-be authored in Epic 2B.10 (Phase 3). Names listed here are *tentative* — Epic 2B authoring
-may rename to match the shipped-naming convention.
+All specialists originally planned in this section have been shipped as of Story 2B.11.
 
-> **Phase 1 planned (7) removed**: all 7 Phase-1 planned specialists were authored in Story
-> 2B.8 and promoted to §1 Shipped above. `clarification-triager` (Support, target 2B.8)
-> was deferred per D1=(a) and remains planned — see Support planned below.
+> **Phase 1 planned (7) removed**: all 7 authored in Story 2B.8 → §1 Shipped.
 >
-> **Phase 2 planned (6) removed**: all 6 Phase-2 planned specialists were authored in Story
-> 2B.9 and promoted to §1 Shipped above (D1=(b)).
-
-### Phase 3 planned (4)
-
-| Name | Target story | Notes |
-|---|---|---|
-| `tdd-strategist` | 2B.10 | Strategy-layer role above `test-author` |
-| `security-reviewer` | 2B.10 | Pairs with `code-reviewer` for security-sensitive stories |
-| `edge-case-reviewer` | 2B.10 | Pairs with `code-reviewer`; closes Edge Case Hunter layer |
-| `pr-author` | 2B.10 | GH PR creation; consumes `GH_TOKEN` per PRD NFR-SEC-2 |
-
-### Support planned (1)
-
-| Name | Target story | Notes |
-|---|---|---|
-| `clarification-triager` | 2B.8 | Routes open-clarification STOP triggers to the right specialist |
+> **Phase 2 planned (6) removed**: all 6 authored in Story 2B.9 → §1 Shipped (D1=(b)).
+>
+> **Phase 3 planned (4) removed**: `tdd-strategist`, `security-reviewer`,
+> `edge-case-reviewer`, `pr-author` authored in Story 2B.10 → §1 Shipped.
+>
+> **Support planned (1) removed**: `clarification-triager` deferred from 2B.8, authored in
+> Story 2B.11 → §1 Shipped. `agent-failure-recovery` + `orchestrator-helper` also authored
+> in 2B.11 (net-new; not previously in this planned table).
 
 ---
 
 ## 4. Roster Totals
 
-| Category | Count |
-|---|---|
-| Shipped (table 1) | 32 |
-| Planned (table 3) | 5 |
-| **Grand total (post-Epic-2B authoring target)** | **37** |
+| Category | Count | Breakdown |
+|---|---|---|
+| Shipped Phase 1 | 15 | 8 re-authored stubs + 7 net-new (2B.8) |
+| Shipped Phase 2 | 12 | 6 re-authored stubs + 6 net-new (2B.9) |
+| Shipped Phase 3 | 9 | 5 re-authored stubs + 4 net-new (2B.10) |
+| Shipped Support (phase 0) | 3 | 3 net-new (2B.11 D1=(a)) |
+| **Shipped total** | **39** | verified against `src/sdlc/agents/index.yaml` |
+| Planned | 0 | all shipped as of 2B.11 |
+| **Grand total** | **39** | FR28 complete |
 
 The PRD §214 prose "~25 markdown specialist agents" reflects the original v0.1 plan. Actual
 total has grown via Epic 2A sub-track design (Phase 2 sub-architects), the deliberate addition
-of pair-reviewers (ux-reviewer, ux-designer pairing; edge-case-reviewer + code-reviewer), the
-7 Phase-1 net-new specialists authored in Story 2B.8, and the 6 Phase-2 net-new specialists
-authored in Story 2B.9 (D1=(b)).
-This matrix is the authoritative count.
+of pair-reviewers, 7 Phase-1 net-new (2B.8), 6 Phase-2 net-new (2B.9), 4 Phase-3 net-new
+(2B.10), and 3 support net-new (2B.11). **This matrix is the authoritative count.**
+
+**D5=(a) consistency gate (Story 2B.11):** `tests/unit/specialists/test_support_2b11_authoring.py`
+asserts `len(load_registry(...).names()) ∈ [39, 45]` (band tolerates near-future additions).
+`test_all_workflow_yaml_specialist_refs_resolve` asserts all workflow YAML refs resolve. These
+two tests pin matrix rows ↔ `index.yaml` and prevent silent drift.
 
 ---
 

@@ -76,3 +76,9 @@ Two new specialists shipped during Epic 2A that PRD §214 never listed are now f
 2026-08-21 — or when Epic 2B.8/9/10 authoring lands the planned roster, whichever comes
 first. At that point: collapse the matrix's "planned" section into "shipped" and update PRD
 §214 if any planned-name rename occurred.
+
+## Revision Log
+
+| Date | Story | Amendment |
+|---|---|---|
+| 2026-06-01 | 2B.11 | Planned roster shipped. §3 Planned section in matrix collapsed to zero. Numeric count bound updated: original `≥23, ≤27` (PRD §214 v0.1 "~25" plan) was stale; actual roster = 39 (15 P1 + 12 P2 + 9 P3 + 3 support); new count gate band `≥39, ≤45` (lower = exact post-2B.11 minimum; upper tolerates near-future additions without gate churn). Recorded in `docs/sprints/epic-2b-dag.md` §3 + `epics.md` 2B.11 AC. D5=(a) consistency gate added in `test_support_2b11_authoring.py`. |
