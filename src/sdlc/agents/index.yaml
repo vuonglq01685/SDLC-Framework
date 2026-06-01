@@ -63,6 +63,24 @@ specialists:
   - name: observability-architect
     phase: 2
     file: phase2/observability-architect.md
+  - name: ux-researcher
+    phase: 2
+    file: phase2/ux-researcher.md
+  - name: design-system-author
+    phase: 2
+    file: phase2/design-system-author.md
+  - name: a11y-reviewer
+    phase: 2
+    file: phase2/a11y-reviewer.md
+  - name: infra-architect
+    phase: 2
+    file: phase2/infra-architect.md
+  - name: devex-architect
+    phase: 2
+    file: phase2/devex-architect.md
+  - name: api-designer
+    phase: 2
+    file: phase2/api-designer.md
   - name: code-bootstrapper
     phase: 3
     file: phase3/code-bootstrapper.md

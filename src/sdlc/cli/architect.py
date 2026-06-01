@@ -52,11 +52,14 @@ _SLASH_CMD: Final[str] = "/sdlc-architect"
 _PRIMARY_SPECIALIST: Final[str] = "system-architect"
 
 # AC3/D1: hardcoded allowlist mapping sub-track → specialist name.
+# 2B.9: infra-architect + devex-architect added as production sub-track specialists (AC8).
 _SUBTRACK_SPECIALISTS: Final[MappingProxyType[str, str]] = MappingProxyType(
     {
         "database": "database-architect",
         "observability": "observability-architect",
         "security": "security-architect",
+        "infra": "infra-architect",
+        "devex": "devex-architect",
     }
 )
 

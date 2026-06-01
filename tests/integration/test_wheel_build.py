@@ -146,6 +146,13 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase1/prioritizer.md").as_posix(),
         Path("sdlc/agents/phase1/acceptance-criteria-author.md").as_posix(),
         Path("sdlc/agents/phase1/story-prioritizer.md").as_posix(),
+        # Story 2B.9 — 6 net-new Phase-2 specialist production prompts (D1=(b)).
+        Path("sdlc/agents/phase2/ux-researcher.md").as_posix(),
+        Path("sdlc/agents/phase2/design-system-author.md").as_posix(),
+        Path("sdlc/agents/phase2/a11y-reviewer.md").as_posix(),
+        Path("sdlc/agents/phase2/infra-architect.md").as_posix(),
+        Path("sdlc/agents/phase2/devex-architect.md").as_posix(),
+        Path("sdlc/agents/phase2/api-designer.md").as_posix(),
     }
 )
 

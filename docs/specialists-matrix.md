@@ -13,7 +13,7 @@ with this matrix, **this matrix wins**.
 
 ---
 
-## 1. Shipped Specialists (26 — verified against `src/sdlc/agents/index.yaml`)
+## 1. Shipped Specialists (32 — verified against `src/sdlc/agents/index.yaml`)
 
 | Name | Phase | File | Story | Notes |
 |---|---|---|---|---|
@@ -32,12 +32,18 @@ with this matrix, **this matrix wins**.
 | `prioritizer` | 1 | `phase1/prioritizer.md` | 2B.8 | New in 2B.8; epic-level priority synthesis |
 | `acceptance-criteria-author` | 1 | `phase1/acceptance-criteria-author.md` | 2B.8 | New in 2B.8; BDD-format AC authoring |
 | `story-prioritizer` | 1 | `phase1/story-prioritizer.md` | 2B.8 | New in 2B.8; story-level MoSCoW prioritization |
-| `ux-designer` | 2 | `phase2/ux-designer.md` | 2A.13 | |
-| `ux-reviewer` | 2 | `phase2/ux-reviewer.md` | 2A.13 | New (not in PRD §214); pairs with ux-designer |
-| `system-architect` | 2 | `phase2/system-architect.md` | 2A.14 | Renamed from PRD `solution-architect` |
-| `database-architect` | 2 | `phase2/database-architect.md` | 2A.14 | Renamed from PRD `data-modeler`; sub-track |
-| `security-architect` | 2 | `phase2/security-architect.md` | 2A.14 | Sub-track |
-| `observability-architect` | 2 | `phase2/observability-architect.md` | 2A.14 | New (not in PRD §214); sub-track |
+| `ux-designer` | 2 | `phase2/ux-designer.md` | 2A.13 / 2B.9 | Production body authored 2B.9 |
+| `ux-reviewer` | 2 | `phase2/ux-reviewer.md` | 2A.13 / 2B.9 | Parallel review role; full production body authored 2B.9 (D3=(a)) |
+| `system-architect` | 2 | `phase2/system-architect.md` | 2A.14 / 2B.9 | Renamed from PRD `solution-architect`; production body authored 2B.9 |
+| `database-architect` | 2 | `phase2/database-architect.md` | 2A.14 / 2B.9 | Renamed from PRD `data-modeler`; sub-track; production body authored 2B.9 |
+| `security-architect` | 2 | `phase2/security-architect.md` | 2A.14 / 2B.9 | Sub-track; production body authored 2B.9 |
+| `observability-architect` | 2 | `phase2/observability-architect.md` | 2A.14 / 2B.9 | Sub-track; production body authored 2B.9 |
+| `ux-researcher` | 2 | `phase2/ux-researcher.md` | 2B.9 | New in 2B.9; research pass before UX design |
+| `design-system-author` | 2 | `phase2/design-system-author.md` | 2B.9 | New in 2B.9; token contract + component inventory |
+| `a11y-reviewer` | 2 | `phase2/a11y-reviewer.md` | 2B.9 | New in 2B.9; WCAG audit role; parallel review |
+| `infra-architect` | 2 | `phase2/infra-architect.md` | 2B.9 | New in 2B.9; sub-track: deployment topology + cloud resources |
+| `devex-architect` | 2 | `phase2/devex-architect.md` | 2B.9 | New in 2B.9; sub-track: CI/CD + toolchain + contributor workflow |
+| `api-designer` | 2 | `phase2/api-designer.md` | 2B.9 | New in 2B.9; REST/GraphQL endpoint + schema contract |
 | `code-bootstrapper` | 3 | `phase3/code-bootstrapper.md` | 2A.15 | Renamed from PRD `codebase-scaffolder` (Pattern 7 in retro) |
 | `task-breaker` | 3 | `phase3/task-breaker.md` | 2A.16 | |
 | `test-author` | 3 | `phase3/test-author.md` | 2A.17 | TDD pipeline stage 1 |
@@ -64,27 +70,18 @@ name is now canonical:
 
 ---
 
-## 3. Planned Specialists (11 — targets for Epic 2B.9 / 2B.10)
+## 3. Planned Specialists (5 — targets for Epic 2B.10)
 
 These names appear in PRD §214 but have NO file in `src/sdlc/agents/`. They are scheduled to
-be authored in Epic 2B.9 (Phase 2) and 2B.10 (Phase 3). Names listed here are *tentative* —
-Epic 2B authoring may rename to match the shipped-naming convention. Any rename at authoring
-time updates this matrix and removes the planned-row simultaneously.
+be authored in Epic 2B.10 (Phase 3). Names listed here are *tentative* — Epic 2B authoring
+may rename to match the shipped-naming convention.
 
 > **Phase 1 planned (7) removed**: all 7 Phase-1 planned specialists were authored in Story
 > 2B.8 and promoted to §1 Shipped above. `clarification-triager` (Support, target 2B.8)
 > was deferred per D1=(a) and remains planned — see Support planned below.
-
-### Phase 2 planned (6)
-
-| Name | Target story | Notes |
-|---|---|---|
-| `ux-researcher` | 2B.9 | Distinct from `ux-designer` (research vs design pass) |
-| `design-system-author` | 2B.9 | Pairs with ux-designer for token systems |
-| `a11y-reviewer` | 2B.9 | Accessibility audit role |
-| `infra-architect` | 2B.9 | Sub-track sibling of `system-architect` |
-| `devex-architect` | 2B.9 | Sub-track sibling |
-| `api-designer` | 2B.9 | Wire-format + endpoint design role |
+>
+> **Phase 2 planned (6) removed**: all 6 Phase-2 planned specialists were authored in Story
+> 2B.9 and promoted to §1 Shipped above (D1=(b)).
 
 ### Phase 3 planned (4)
 
@@ -107,14 +104,15 @@ time updates this matrix and removes the planned-row simultaneously.
 
 | Category | Count |
 |---|---|
-| Shipped (table 1) | 26 |
-| Planned (table 3) | 11 |
+| Shipped (table 1) | 32 |
+| Planned (table 3) | 5 |
 | **Grand total (post-Epic-2B authoring target)** | **37** |
 
 The PRD §214 prose "~25 markdown specialist agents" reflects the original v0.1 plan. Actual
 total has grown via Epic 2A sub-track design (Phase 2 sub-architects), the deliberate addition
-of pair-reviewers (ux-reviewer, ux-designer pairing; edge-case-reviewer + code-reviewer), and
-the 7 Phase-1 net-new specialists authored in Story 2B.8.
+of pair-reviewers (ux-reviewer, ux-designer pairing; edge-case-reviewer + code-reviewer), the
+7 Phase-1 net-new specialists authored in Story 2B.8, and the 6 Phase-2 net-new specialists
+authored in Story 2B.9 (D1=(b)).
 This matrix is the authoritative count.
 
 ---
