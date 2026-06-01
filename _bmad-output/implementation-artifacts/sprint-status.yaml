@@ -144,7 +144,7 @@ development_status:
   2b-6-tool-safety-contract-tests: done
   2b-7-docs-threat-model-ai-native-risk-profile: done
   2b-8-author-phase-1-specialists: done
-  2b-9-author-phase-2-specialists: ready-for-dev
+  2b-9-author-phase-2-specialists: review
   2b-10-author-phase-3-specialists-tdd-pipeline: ready-for-dev
   2b-11-author-support-specialists: backlog
   epic-2b-retrospective: optional
