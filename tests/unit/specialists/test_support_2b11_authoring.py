@@ -16,7 +16,7 @@ Decision record (T0):
   D1=(a): 3 genuinely net-new: clarification-triager, agent-failure-recovery,
            orchestrator-helper. devil-advocate/synthesizer/signoff-summarizer staffed-by-shipped.
   D2=(a): New src/sdlc/agents/support/ dir, phase: 0 (cross-cutting support phase).
-  D3=(a): Count bound re-derived from matrix: 39 shipped → band ≥35, ≤45.
+  D3=(a): Count bound re-derived from matrix: 39 shipped → band ≥39, ≤45.
   D4=(a): Re-use test_abstraction_adequacy.py green as ship signal (fixture-scoped).
   D5=(a): Hand-update matrix + add consistency test pinning rows ↔ index.yaml.
 """
@@ -84,6 +84,27 @@ def test_net_new_support_specialists_load_via_registry() -> None:
         f"Net-new support specialists not found in registry: {sorted(missing)!r}. "
         "Complete T5 (authoring) + T6 (manifest rows) to satisfy AC2."
     )
+
+
+def test_support_file_stem_equals_frontmatter_name() -> None:
+    """AC4/§2: three-way name match — file stem == frontmatter name == index slug.
+
+    Mirrors test_phase3_2b10_authoring.py::test_file_stem_equals_frontmatter_name_for_all_phase3.
+    The registry key is the index.yaml slug; load_specialist enforces stem==name,
+    so asserting frontmatter.name == registry key closes the three-way match for
+    the support trio (the per-story invariant claimed in the story Tasks list).
+    """
+    reg = load_registry(_AGENTS)
+    mismatches: list[str] = []
+    for name in _NET_NEW_SUPPORT_NAMES:
+        try:
+            s = reg.get(name)
+        except SpecialistError:
+            mismatches.append(f"{name!r}: not in registry")
+            continue
+        if s.frontmatter.name != name:
+            mismatches.append(f"{name!r}: frontmatter.name={s.frontmatter.name!r} != registry key")
+    assert not mismatches, "\n".join(mismatches)
 
 
 def test_net_new_support_specialists_have_correct_phase() -> None:
@@ -202,7 +223,8 @@ def test_support_specialists_have_empty_tools() -> None:
         try:
             s = reg.get(name)
         except SpecialistError:
-            continue  # Absence caught by positive-receipt test above
+            violations.append(f"{name!r}: not found in registry")
+            continue  # CR2B8-W1/CR2B9-W1: append a violation, do not silently skip
         if s.frontmatter.tools:
             violations.append(
                 f"{name!r}: tools={s.frontmatter.tools!r}, expected [] (no escalation)"
@@ -218,10 +240,10 @@ def test_support_specialists_have_empty_tools() -> None:
 
 
 def test_specialist_roster_count_within_bound() -> None:
-    """AC7/D3=(a): full roster size is within the re-derived bound [35, 45].
+    """AC7/D3=(a): full roster size is within the re-derived bound [39, 45].
 
     Pre-2B.11 roster = 36 (15 P1 + 12 P2 + 9 P3); +3 support = 39 shipped.
-    Band ≥35 ≤45 tolerates near-future small additions (matrix is authoritative;
+    Band ≥39 ≤45 tolerates near-future small additions (matrix is authoritative;
     see docs/sprints/epic-2b-dag.md §3 + ADR-030 amendment for numeric record).
     Fails RED until support files + index.yaml entries exist (count < 39).
     """
@@ -268,6 +290,66 @@ def test_all_workflow_yaml_specialist_refs_resolve() -> None:
     assert not violations, (
         "Workflow YAML files contain unresolved specialist references:\n"
         + "\n".join(f"  - {v}" for v in violations)
+    )
+
+
+# ---------------------------------------------------------------------------
+# AC9 / D5: Matrix ⟷ registry row-pin (review-C CR-DN1). The matrix declares
+# itself authoritative and claims to "prevent silent drift"; a count band alone
+# cannot detect a per-row rename/phase/file edit or a same-count swap. This test
+# parses docs/specialists-matrix.md §1 and asserts row identity vs the registry,
+# which is the consistency test D5=(a) promised.
+# ---------------------------------------------------------------------------
+
+_MATRIX = _REPO / "docs" / "specialists-matrix.md"
+
+
+def _parse_matrix_section1_rows() -> set[tuple[str, int, str]]:
+    """Parse the §1 'Shipped Specialists' table into {(name, phase, file)}."""
+    rows: set[tuple[str, int, str]] = set()
+    in_section1 = False
+    for line in _MATRIX.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            in_section1 = line.lstrip("# ").startswith("1.")
+            continue
+        if not in_section1 or not line.lstrip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        phase_str = cells[1].strip()
+        if not phase_str.isdigit():  # header ("Phase") or separator ("---") row
+            continue
+        name = cells[0].strip("`").strip()
+        file = cells[2].strip("`").strip()
+        rows.add((name, int(phase_str), file))
+    return rows
+
+
+def test_matrix_section1_rows_pin_registry() -> None:
+    """AC9/D5=(a): matrix §1 rows == registry (name, phase, file), both directions.
+
+    Closes the D5=(a) "consistency test pinning rows ↔ index.yaml" promise that a
+    count band alone does not satisfy (review-C CR-DN1). Both-directions set
+    equality catches renames, phase/file edits, orphans, and same-count swaps —
+    the silent-drift modes the matrix claims to prevent.
+    """
+    reg = load_registry(_AGENTS)
+
+    def _row(name: str) -> tuple[str, int, str]:
+        s = reg.get(name)
+        phase = s.phase
+        assert phase is not None  # registry always sets the manifest int phase
+        return (name, phase, s.source_path.relative_to(_AGENTS).as_posix())
+
+    registry_rows = {_row(name) for name in reg.names()}
+    matrix_rows = _parse_matrix_section1_rows()
+    only_in_matrix = sorted(matrix_rows - registry_rows)
+    only_in_registry = sorted(registry_rows - matrix_rows)
+    assert not (only_in_matrix or only_in_registry), (
+        "docs/specialists-matrix.md §1 ⟷ registry (index.yaml) drift:\n"
+        f"  rows only in matrix:   {only_in_matrix!r}\n"
+        f"  rows only in registry: {only_in_registry!r}"
     )
 
 
