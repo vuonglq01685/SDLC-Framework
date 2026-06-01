@@ -208,7 +208,7 @@ def _canonicalize_record(record: SignoffRecord) -> bytes:
         default_flow_style=False,
         allow_unicode=True,
     )
-    if not body.endswith("\n"):
+    if not body.endswith("\n"):  # pragma: no cover — yaml.safe_dump always terminates with \n
         body += "\n"
     return body.encode("utf-8")
 
