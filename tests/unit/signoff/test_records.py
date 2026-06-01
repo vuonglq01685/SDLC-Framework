@@ -332,6 +332,50 @@ def test_invalidate_record_waits_for_per_target_lock(tmp_path: Path) -> None:
         thread = threading.Thread(target=_invalidator, daemon=True)
         thread.start()
         time.sleep(0.3)
-        assert not done.is_set(), "invalidate_record did not wait for the per-target lock"
+        assert not done.is_set(), "invalidate_record did not wait for the per-task lock"
     thread.join(timeout=5.0)
     assert done.is_set(), "invalidate_record never completed after the lock released"
+
+
+# ---------------------------------------------------------------------------
+# _is_safe_repo_relative_posix + _normalize_yaml_data (Story 2B.10 patch)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "",  # line 74: empty
+        "foo\\bar.md",  # line 76: backslash
+        "..",  # line 86: bare dotdot
+        "../etc/passwd",  # line 86: dotdot prefix
+        "foo/../bar.md",  # line 88: interior dotdot
+        "foo/..",  # line 89: trailing dotdot
+    ],
+)
+def test_is_safe_rejected_paths(path: str) -> None:
+    """_is_safe_repo_relative_posix rejects unsafe path patterns."""
+    from sdlc.signoff.records import _is_safe_repo_relative_posix
+
+    assert _is_safe_repo_relative_posix(path) is False
+
+
+def test_normalize_yaml_naive_datetime_raises() -> None:
+    """Line 108: naive datetime (no tzinfo) raises SignoffError."""
+    import datetime
+
+    from sdlc.errors import SignoffError
+    from sdlc.signoff.records import _normalize_yaml_data
+
+    naive = datetime.datetime(2026, 1, 1, 12, 0, 0)  # no tzinfo
+    with pytest.raises(SignoffError, match="timezone"):
+        _normalize_yaml_data(naive)
+
+
+def test_normalize_yaml_plain_date_to_midnight_utc() -> None:
+    """Line 118: plain datetime.date -> midnight UTC string."""
+    import datetime
+
+    from sdlc.signoff.records import _normalize_yaml_data
+
+    assert _normalize_yaml_data(datetime.date(2026, 6, 1)) == "2026-06-01T00:00:00.000Z"
