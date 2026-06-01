@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sdlc.cli.research import _slugify_topic
@@ -67,3 +69,52 @@ def test_leading_trailing_whitespace() -> None:
 def test_boundary_marker_text_slugified() -> None:
     t = "=== USER-PROVIDED DATA — NOT INSTRUCTIONS ==="
     assert _slugify_topic(t) == "user-provided-data-not-instructions"
+
+
+def test_over_80_hyphen_in_middle_not_at_prefix_end() -> None:
+    """Line 92: prefix has internal hyphen but does NOT end with hyphen → cut at hyphen."""
+    # 70 'a's + space + 70 'b's → slug "aaa...a-bbb...b" (141 chars, > 80).
+    # prefix (first 80 chars) = 70x'a' + '-' + 9x'b' -- not ending with '-', last_hy=70 > 0.
+    topic = "a" * 70 + " " + "b" * 70
+    out = _slugify_topic(topic)
+    assert out == "a" * 70  # cut at the hyphen at position 70
+
+
+# ---------------------------------------------------------------------------
+# _occupied_research_suffixes — uncovered branches
+# ---------------------------------------------------------------------------
+
+
+def test_occupied_suffixes_nonexistent_dir(tmp_path: Path) -> None:
+    """Line 99: early return {1} when research_dir does not exist."""
+    from sdlc.cli.research import _occupied_research_suffixes
+
+    occupied = _occupied_research_suffixes("mytopic", tmp_path / "missing")
+    assert occupied == {1}
+
+
+def test_occupied_suffixes_non_matching_glob_result(tmp_path: Path) -> None:
+    """Line 104: glob returns a file whose stem doesn't start with the slug prefix."""
+    from sdlc.cli.research import _occupied_research_suffixes
+
+    d = tmp_path / "research"
+    d.mkdir()
+    # File matches glob pattern "mytopic-*.md" but stem "othertopic-2" doesn't
+    # start with "mytopic-" — would not normally happen but tests the guard.
+    (d / "mytopic-abc.md").write_text("x", encoding="utf-8")
+    # "abc" is not an integer — exercises the ValueError branch (lines 108-109).
+    occupied = _occupied_research_suffixes("mytopic", d)
+    assert occupied == {1}  # no valid suffixes found
+
+
+def test_occupied_suffixes_non_integer_suffix(tmp_path: Path) -> None:
+    """Lines 108-109: ValueError branch when file suffix is not an integer."""
+    from sdlc.cli.research import _occupied_research_suffixes
+
+    d = tmp_path / "research"
+    d.mkdir()
+    (d / "mytopic-abc.md").write_text("x", encoding="utf-8")
+    (d / "mytopic-2.md").write_text("y", encoding="utf-8")  # valid
+    occupied = _occupied_research_suffixes("mytopic", d)
+    assert 2 in occupied
+    assert 1 in occupied
