@@ -61,14 +61,17 @@ _NET_NEW_PHASE2_NAMES: frozenset[str] = frozenset(
 _ALL_PHASE2_NAMES: frozenset[str] = _EXISTING_PHASE2_NAMES | _NET_NEW_PHASE2_NAMES
 
 # Placeholder marker substrings that must NOT appear in any Phase-2 body
-# after 2B.9. Used by AC1 + no-placeholder test.
+# after 2B.9. Used by AC1 + no-placeholder test. Matching is case-insensitive
+# (marker.lower() in body.lower()), so the bare sentinel is anchored to the real
+# stub form ``**PLACEHOLDER**`` rather than the substring "placeholder" — the
+# UX specialists (ux-designer / design-system-author / a11y-reviewer) legitimately
+# describe input "placeholder text", which must not trip the AC1 gate.
 _PLACEHOLDER_MARKERS: tuple[str, ...] = (
     "Phase 2 placeholder",
     "Replaced by Story 2B.9",
     "placeholder until Story 2B.9",
-    "Placeholder until Story 2B.9",
     "MockAIRuntime v1",
-    "PLACEHOLDER",
+    "**PLACEHOLDER**",
     "EPIC-2A-DEBT-UX-PARALLEL-REVIEWER",
 )
 
@@ -118,9 +121,16 @@ def test_net_new_phase2_schema_version_is_one() -> None:
     for name in _NET_NEW_PHASE2_NAMES:
         try:
             s = reg.get(name)
-            assert s.frontmatter.schema_version == 1
         except SpecialistError:
             violations.append(f"{name!r}: not found in registry")
+            continue
+        # Aggregate the version check into violations (report-all) instead of a
+        # bare assert inside the try — an AssertionError would otherwise escape
+        # the SpecialistError handler and abort the loop on the first offender.
+        if s.frontmatter.schema_version != 1:
+            violations.append(
+                f"{name!r}: schema_version={s.frontmatter.schema_version!r}, expected 1"
+            )
     assert not violations, "\n".join(violations)
 
 
