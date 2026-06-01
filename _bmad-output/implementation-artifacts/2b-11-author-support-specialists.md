@@ -1,6 +1,6 @@
 # Story 2B.11: Author Support Specialists
 
-**Status:** ready-for-dev
+**Status:** review
 
 **Epic:** 2B — Real Claude Dispatch + Safety Boundary (**FIRST EXTERNAL SHIP**)
 **Layer:** 4 — the epic capstone (`docs/sprints/epic-2b-dag.md` §3)
@@ -90,25 +90,25 @@ so that **every FR28 support role is staffed, the specialist suite is internally
 > prompt body. They go RED until the files + `index.yaml` entries exist. Mirror
 > `tests/unit/specialists/test_phase1_2b8_authoring.py` exactly.
 
-- [ ] **T0 — (AC1, blocking) Confirm the prerequisite roster.** Verify 2B.9 + 2B.10 are merged to `main` (rebased, linear) and `grep -c '  - name:' src/sdlc/agents/index.yaml` == 36. If not, **HALT** and merge them first (DAG §6 order; resolve the `index.yaml` + `_ALLOWED_CONTENT_FILES` conflicts into one unified roster). Do not proceed under "I'll reconcile later".
-- [ ] **T0 — (AC2-AC4, AC7, AC10, AC9, §5) Lock decisions D1–D5** (see "Decisions Needed"): D1 support scope, D2 location/phase, D3 count-gate bound, D4 ship-signal interpretation, D5 matrix-regen mechanism. Record chosen labels in Completion Notes.
-- [ ] **(AC13, §2) Write the failing validation test FIRST, commit before any prompt body:**
+- [x] **T0 — (AC1, blocking) Confirm the prerequisite roster.** Verify 2B.9 + 2B.10 are merged to `main` (rebased, linear) and `grep -c '  - name:' src/sdlc/agents/index.yaml` == 36. If not, **HALT** and merge them first (DAG §6 order; resolve the `index.yaml` + `_ALLOWED_CONTENT_FILES` conflicts into one unified roster). Do not proceed under "I'll reconcile later".
+- [x] **T0 — (AC2-AC4, AC7, AC10, AC9, §5) Lock decisions D1–D5** (see "Decisions Needed"): D1 support scope, D2 location/phase, D3 count-gate bound, D4 ship-signal interpretation, D5 matrix-regen mechanism. Record chosen labels in Completion Notes.
+- [x] **(AC13, §2) Write the failing validation test FIRST, commit before any prompt body:**
   - `load_registry(_AGENTS).names()` ⊇ the net-new support slug set (RED until both the `.md` files and their `index.yaml` entries exist);
   - each net-new `reg.get(name).phase == <D2 value>`; aggregate violations (report-all — do NOT abort on first offender; mirror the CR2B9-P1 fix);
   - three-way name match (file stem == frontmatter `name` == `index.yaml` slug);
   - `schema_version == 1`; no body contains `BOUNDARY_LINE`; no body/description contains a placeholder marker (harden the `except SpecialistError: continue` silent-skip per CR2B8-W1/CR2B9-W1 — append a violation instead);
   - reuse negative fixtures `tests/fixtures/specialists/markdown/{icon-too-long.md, missing-description.md}` as anti-tautology receipts. Verify RED.
-- [ ] **(AC7, §2) Count gate (RED first).** Add `test_specialist_roster_count_within_bound` asserting `LOW <= len(load_registry(Path("src/sdlc/agents")).names())) <= HIGH` with the D3-derived bound. RED until the support files land.
-- [ ] **(AC8, §2) Workflow-ref gate (RED/GREEN).** Add `test_all_workflow_yaml_specialist_refs_resolve` looping `WorkflowRegistry.load(Path("src/sdlc/workflows_yaml"))` × `validate_workflow_refs(spec, registry)`; skip the `"none"` sentinel primary_agent. (May be GREEN immediately if all existing refs already resolve — it's a standing regression gate.)
-- [ ] **(AC2, AC4, AC6, per D1/D2) NEW** Author `support/clarification-triager.md`, `support/agent-failure-recovery.md`, `support/orchestrator-helper.md` (+ optional generic `signoff-summarizer.md` if D1=(b)) — shipped 9-key frontmatter; `tools: []`; production prompt body (role, I/O contract, rubric, edge cases); NO boundary line in body.
-- [ ] **(AC5) UPDATE** `src/sdlc/agents/index.yaml` — append `{name, phase: <D2>, file: support/<name>.md}` per net-new file. `schema_version: 1` untouched; do not reorder.
-- [ ] **(AC9, closes CR2B10-W9) UPDATE** `docs/specialists-matrix.md` — promote the 10 Phase-2/Phase-3 planned rows → §1 Shipped; add net-new support rows; mark `devil-advocate`/`synthesizer`/`signoff-summarizer` as staffed-by-shipped; reconcile §4 totals to the actual count. Add the D5 consistency test.
-- [ ] **(AC7, closes CR2B10-W8) UPDATE** `_bmad-output/planning-artifacts/epics.md` (2B.11 count AC), `docs/sprints/epic-2b-dag.md` §3, and add a one-line ADR-030 amendment recording the re-derived count bound.
-- [ ] **(AC11) UPDATE** `tests/integration/test_wheel_build.py` `_ALLOWED_CONTENT_FILES` — add `Path("sdlc/agents/support/<name>.md").as_posix()` per net-new file under a `# Story 2B.11 — support specialists` comment. Run `test_wheel_does_not_ship_content_files`; confirm green.
-- [ ] **(AC12)** Run `scripts/check_no_outbound_http.py` + `scripts/check_subprocess_allowlist.py` + `scripts/check_boundary_line_presence.py` + `tests/security/test_boundary_line_presence.py`; confirm all still green (no regression — gates scan code, not the markdown).
-- [ ] **(AC10, per D4)** Run `tests/integration/test_abstraction_adequacy.py` end-to-end (mock + claude); confirm `test_cross_runtime_byte_identity` green with full roster. Document the fixture-scoped reality + carried coupling debt.
-- [ ] **(AC13, §1)** Full quality gate to green. Regenerate Mock fixtures ONLY via the documented ceremony with a justifying diff if a prompt-hash shift invalidates any (the abstraction-adequacy seed uses a static hash independent of body text — expect 0 drift, but verify).
-- [ ] **(§3 rebase)** 2B.11 is the LAST `index.yaml` / matrix / wheel-allowlist writer — rebase onto the merged 2B.9+2B.10 `main` before merge; never merge-commit the shared files.
+- [x] **(AC7, §2) Count gate (RED first).** Add `test_specialist_roster_count_within_bound` asserting `LOW <= len(load_registry(Path("src/sdlc/agents")).names())) <= HIGH` with the D3-derived bound. RED until the support files land.
+- [x] **(AC8, §2) Workflow-ref gate (RED/GREEN).** Add `test_all_workflow_yaml_specialist_refs_resolve` looping `WorkflowRegistry.load(Path("src/sdlc/workflows_yaml"))` × `validate_workflow_refs(spec, registry)`; skip the `"none"` sentinel primary_agent. (May be GREEN immediately if all existing refs already resolve — it's a standing regression gate.)
+- [x] **(AC2, AC4, AC6, per D1/D2) NEW** Author `support/clarification-triager.md`, `support/agent-failure-recovery.md`, `support/orchestrator-helper.md` (+ optional generic `signoff-summarizer.md` if D1=(b)) — shipped 9-key frontmatter; `tools: []`; production prompt body (role, I/O contract, rubric, edge cases); NO boundary line in body.
+- [x] **(AC5) UPDATE** `src/sdlc/agents/index.yaml` — append `{name, phase: <D2>, file: support/<name>.md}` per net-new file. `schema_version: 1` untouched; do not reorder.
+- [x] **(AC9, closes CR2B10-W9) UPDATE** `docs/specialists-matrix.md` — promote the 10 Phase-2/Phase-3 planned rows → §1 Shipped; add net-new support rows; mark `devil-advocate`/`synthesizer`/`signoff-summarizer` as staffed-by-shipped; reconcile §4 totals to the actual count. Add the D5 consistency test.
+- [x] **(AC7, closes CR2B10-W8) UPDATE** `_bmad-output/planning-artifacts/epics.md` (2B.11 count AC), `docs/sprints/epic-2b-dag.md` §3, and add a one-line ADR-030 amendment recording the re-derived count bound.
+- [x] **(AC11) UPDATE** `tests/integration/test_wheel_build.py` `_ALLOWED_CONTENT_FILES` — add `Path("sdlc/agents/support/<name>.md").as_posix()` per net-new file under a `# Story 2B.11 — support specialists` comment. Run `test_wheel_does_not_ship_content_files`; confirm green.
+- [x] **(AC12)** Run `scripts/check_no_outbound_http.py` + `scripts/check_subprocess_allowlist.py` + `scripts/check_boundary_line_presence.py` + `tests/security/test_boundary_line_presence.py`; confirm all still green (no regression — gates scan code, not the markdown).
+- [x] **(AC10, per D4)** Run `tests/integration/test_abstraction_adequacy.py` end-to-end (mock + claude); confirm `test_cross_runtime_byte_identity` green with full roster. Document the fixture-scoped reality + carried coupling debt.
+- [x] **(AC13, §1)** Full quality gate to green. Regenerate Mock fixtures ONLY via the documented ceremony with a justifying diff if a prompt-hash shift invalidates any (the abstraction-adequacy seed uses a static hash independent of body text — expect 0 drift, but verify).
+- [x] **(§3 rebase)** 2B.11 is the LAST `index.yaml` / matrix / wheel-allowlist writer — rebase onto the merged 2B.9+2B.10 `main` before merge; never merge-commit the shared files.
 - [ ] **(§4 chunked review)** review-A (correctness/scope) → review-B (registry/count-gate/workflow-ref) → review-C (matrix reconciliation + naming three-way + roster total); no skipping.
 
 ---
@@ -254,30 +254,57 @@ Claude Opus 4.8 (1M context)
 
 ### Completion Notes List
 
+**T0 Decisions locked (2026-06-01):**
+- D1=(a): 3 genuinely net-new: `clarification-triager`, `agent-failure-recovery`, `orchestrator-helper`. `devil-advocate`/`synthesizer`/`signoff-summarizer` recorded as staffed-by-shipped in matrix §2.
+- D2=(a): New `src/sdlc/agents/support/` dir, `phase: 0` (cross-cutting support). First use of `phase:0`; schema-legal per `manifest.py:24 Literal[0,1,2,3]`.
+- D3=(a): Count bound re-derived from matrix §4: actual roster = 39 after 2B.11; band `≥39, ≤45`. Recorded in test + DAG §3 + epics.md AC + ADR-030 Revision Log.
+- D4=(a): Re-used `test_abstraction_adequacy.py` green as ship signal — fixture-scoped, roster-independent. 5/5 pass. Carried coupling debt: `EPIC-2B-DEBT-CLAUDE-TOOL-CALLS` + `EPIC-2B-DEBT-CHAIN-EMISSION-CAPTURE` unchanged.
+- D5=(a): Hand-updated matrix + count-gate + workflow-ref tests as consistency gates. No generator written (D5=(b) deferred per scope).
+
+**Prerequisite merge (blocking T0):** 2B.9 and 2B.10 were NOT on main when 2B.11 started. Executed:
+- Committed CR2B9-P1/P2 patches (uncommitted in wt-2b-9) → rebased 2B.9 → fast-forward merged 2B.9 into main.
+- Committed CR2B10 review patches (uncommitted in wt-2b-10) + fixed LOC cap (422→398 by parametrizing two OSError tests) + resolved `test_wheel_build.py` conflict → rebased 2B.10 → fast-forward merged 2B.10 into main.
+- Post-merge: `index.yaml` has 36 specialists ✅ AC1 confirmed.
+
+**TDD ordering:** RED commit (`test(2b.11)`) → GREEN commit (`feat(2b.11)`) → docs commit (`docs(2b.11)`) — visible in `git log --reverse` on `epic-2b/2b-11-support-specialists`.
+
+**Quality gate (2026-06-01):** ruff ✅ | mypy --strict 139 files ✅ | pytest 2894 passed ✅ | coverage 88.10% ≥ 87% ✅ | pre-commit 19/19 ✅ | mkdocs --strict ✅ | wireformat 5/5 ✅. No mock fixture regen needed (abstraction-adequacy seed uses static hash, independent of specialist body text — 0 drift confirmed).
+
+**Ship signal (AC10/D4=(a)):** `test_abstraction_adequacy.py` 5/5 GREEN with full 39-specialist roster. `test_cross_runtime_byte_identity` pass. Fixture-scoped caveat documented in Dev Notes.
+
+**CR2B10-W8 CLOSED:** stale `≥23,≤27` → `≥39,≤45` updated in 4 locations.
+**CR2B10-W9 CLOSED:** matrix §3 Planned collapsed to 0; all Phase-3 + support promoted to §1 Shipped.
+
 ### File List
 
-**Worktree:** `epic-2b/2b-11-support-specialists` (branch from `main` AFTER 2B.9 + 2B.10 merge — see Blocking Prerequisite)
+**Worktree:** `epic-2b/2b-11-support-specialists` (branched from `main` after 2B.9 + 2B.10 merge)
 
-Expected NEW files (per D1=(a)/D2=(a)):
+NEW files:
 - `src/sdlc/agents/support/clarification-triager.md`
 - `src/sdlc/agents/support/agent-failure-recovery.md`
 - `src/sdlc/agents/support/orchestrator-helper.md`
 - `tests/unit/specialists/test_support_2b11_authoring.py`
 
-Expected MODIFIED files:
-- `src/sdlc/agents/index.yaml` (support entries, `phase: 0`)
-- `docs/specialists-matrix.md` (promote 10 planned→shipped + support rows + §4 totals + D5 consistency)
-- `_bmad-output/planning-artifacts/epics.md` (2B.11 count AC bound)
-- `docs/sprints/epic-2b-dag.md` (§3 count bound)
-- `docs/decisions/ADR-030-specialist-roster-freeze.md` (one-line count-bound amendment)
-- `tests/integration/test_wheel_build.py` (`_ALLOWED_CONTENT_FILES`)
-- `tests/integration/test_abstraction_adequacy.py` (if D4=(b))
-- `_bmad-output/implementation-artifacts/deferred-work.md` (close CR2B10-W8/W9)
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` (ready-for-dev → in-progress)
+MODIFIED files:
+- `src/sdlc/agents/index.yaml` (3 support entries, `phase: 0`)
+- `docs/specialists-matrix.md` (promote 4 P3 + 3 support; §3 Planned→0; §4 totals 32→39; D5 consistency note)
+- `_bmad-output/planning-artifacts/epics.md` (2B.11 count AC: `≥39,≤45`)
+- `docs/sprints/epic-2b-dag.md` (§3 count bound: `≥39,≤45` in 4 places)
+- `docs/decisions/ADR-030-specialist-roster-freeze.md` (Revision Log entry 2026-06-01)
+- `tests/integration/test_wheel_build.py` (`_ALLOWED_CONTENT_FILES` +3 support paths)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (CR2B10-W8/W9 CLOSED)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (ready-for-dev → in-progress → review)
 - `_bmad-output/implementation-artifacts/2b-11-author-support-specialists.md` (this file)
+
+PREREQUISITE MERGE commits on main (before 2B.11 branch):
+- `fix(2b.9): apply CR2B9-P1 + CR2B9-P2 patches` (on 2B.9 worktree; then merged FF)
+- `fix(2b.10): merge two _write_bytes_to_disk OSError tests into parametrized — trim LOC`
+- `fix(2b.10): apply CR2B10 review patches P1-P8` (on 2B.10 worktree; then merged FF)
+- 2B.9 FF merge + 2B.10 FF merge + chore(2b.11) tracking commit
 
 ## Change Log
 
 | Date | Version | Description | Author |
 |---|---|---|---|
 | 2026-06-01 | 0.1 | Story created via `bmad-create-story` (ready-for-dev). Exhaustive analysis across the two un-merged worktrees + count-gate/matrix/conformance machinery. Surfaced the blocking 2B.9/2B.10 merge prerequisite, the `devil-advocate` duplicate-name hazard, the stale `≥23,≤27` count gate (closes CR2B10-W8), and the half-updated matrix (closes CR2B10-W9). 13 ACs / 14 tasks / 5 decisions. | Bob (Scrum Master) via Claude Opus 4.8 |
+| 2026-06-01 | 1.0 | Implementation complete (in-progress→review). Executed blocking prerequisite merges: committed CR2B9-P1/P2 patches + rebased + FF-merged 2B.9; committed CR2B10 review patches (P1-P8, LOC-cap fix, conflict resolve) + rebased + FF-merged 2B.10. Branched 2B.11 from 36-specialist main. TDD RED→GREEN: test_support_2b11_authoring.py (10 tests: registry-loads/phase=0/schema_version/boundary/placeholder/tools/count-gate/workflow-ref/2 neg receipts). Authored 3 support specialists (clarification-triager, agent-failure-recovery, orchestrator-helper) with production bodies + registered phase:0. Matrix regen (§1 39, §3→0), count-gate [39,45], ADR-030 Revision Log. Ship signal: test_abstraction_adequacy.py 5/5 GREEN. Quality gate: ruff+mypy+2894 tests+88.10%+pre-commit+mkdocs+wireformat all PASS. CR2B10-W8+W9 CLOSED. | Elena (Dev) via Claude Opus 4.8 |
