@@ -26,11 +26,13 @@ pytestmark = pytest.mark.unit
 _runner = CliRunner()
 
 
-def _invoke_adopt(root: Path, *extra: str) -> object:
+def _invoke_adopt(root: Path, *, global_flags: tuple[str, ...] = ()) -> object:
     from sdlc.cli.main import app
 
+    # Root-callback eager options (e.g. --json) precede the subcommand.
+    args = [*global_flags, "init", "--adopt"]
     with unittest.mock.patch("sdlc.cli.adopt._get_repo_root_or_cwd", return_value=root):
-        return _runner.invoke(app, ["init", "--adopt", *extra])
+        return _runner.invoke(app, args)
 
 
 def test_adopt_scaffolds_canonical_state(tmp_path: Path) -> None:
@@ -52,7 +54,7 @@ def test_adopt_writes_conforming_report(tmp_path: Path) -> None:
 
 
 def test_adopt_json_envelope(tmp_path: Path) -> None:
-    result = _invoke_adopt(tmp_path, "--json")
+    result = _invoke_adopt(tmp_path, global_flags=("--json",))
     assert result.exit_code == 0, result.output
     # The --json flag lives on the root callback; locate the JSON line in output.
     envelope = json.loads(result.output.strip().splitlines()[-1])

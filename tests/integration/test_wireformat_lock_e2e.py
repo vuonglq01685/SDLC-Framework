@@ -33,7 +33,7 @@ def test_freeze_script_exits_0_on_clean_repo() -> None:
         f"freeze_wireformat_snapshots.py exited {result.returncode}\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
-    assert "5 contracts match snapshots" in result.stdout
+    assert "6 contracts match snapshots" in result.stdout
 
 
 def test_immutability_pytest_gate_exits_0() -> None:

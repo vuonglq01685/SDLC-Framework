@@ -78,13 +78,10 @@ def init_command(
 ) -> None:
     """Initialize the SDLC framework in the current git repository."""
     if adopt:
-        from sdlc.cli.output import emit_error
+        from sdlc.cli.adopt import run_adopt  # deferred per Architecture §488
 
-        emit_error(
-            "ERR_USER_INPUT",
-            "sdlc init --adopt is not implemented yet (Story 3.1+).",
-            ctx=ctx,
-        )
+        run_adopt(ctx=ctx)
+        return
     from sdlc.cli.init import run_init  # deferred per Architecture §488
 
     run_init(ctx=ctx)

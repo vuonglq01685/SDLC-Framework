@@ -44,6 +44,9 @@ Story 1.19's migration gate (`src/sdlc/state/reader.py:CURRENT_SCHEMA_VERSION`).
    3. `hook_payload` → `HookPayload` (Decision D2 — pre-write hook envelope)
    4. `specialist_frontmatter` → `SpecialistFrontmatter` (Decision C3 — agent header)
    5. `workflow_spec` → `WorkflowSpec` (workflow YAML definition)
+   6. `adopt_report` → `AdoptReport` (Story 3.1 amendment — `sdlc init --adopt` report;
+      read back on resume, so a cross-invocation compatibility surface per epic-3-dag.md
+      Decision D1 RATIFIED = wire-format. See Revision Log.)
 
    The single source of truth is `sdlc.contracts._WIRE_FORMAT_REGISTRY`; both the
    freeze script and the immutability test import from there.
@@ -145,6 +148,13 @@ On the first wire-format contract version bump (creates `migrations/contracts/v2
 + sibling `tests/contract_snapshots/v2/<slug>.json`) OR first non-trivial Epic 2A
 specialist authoring that exposes F3-cluster gaps. No calendar-based revisit — this ADR's
 discipline is event-triggered.
+
+## Revision Log
+
+| Date | Author | Change |
+|---|---|---|
+| 2026-05-13 | Vuonglq01685 + Claude (Story 1.21) | Initial ratification — 5 wire-format contracts pinned at `schema_version=1` with committed JSON-Schema snapshots; two-gate (pytest + pre-commit) enforcement; mutation taxonomy + version-bump ceremony established. |
+| 2026-06-02 | Vuonglq01685 + Claude (Story 3.1) | Amendment — `adopt_report` → `AdoptReport` added as the **6th** locked contract (locked set 5 → 6). Per epic-3-dag.md Decision D1 (RATIFIED = wire-format), `adopt-report.json` is read back on resume, making it a cross-invocation compatibility surface. Snapshot committed at `tests/contract_snapshots/v1/adopt_report.json`; registered in `_WIRE_FORMAT_REGISTRY`. Story 3.3 will add `adopted_symlinks` as the 7th. |
 
 ## References
 

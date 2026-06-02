@@ -1,0 +1,86 @@
+{
+  "$defs":{
+    "DetectedArtifact":{
+      "additionalProperties":false,
+      "description":"A single pre-existing artifact discovered by Pass 1 detection (Story 3.2 populates).",
+      "properties":{
+        "confidence":{
+          "maximum":100,
+          "minimum":0,
+          "title":"Confidence",
+          "type":"integer"
+        },
+        "kind":{
+          "enum":[
+            "prd",
+            "architecture",
+            "research",
+            "runbook",
+            "ci-workflow",
+            "build-file",
+            "dockerfile",
+            "readme",
+            "unknown"
+          ],
+          "title":"Kind",
+          "type":"string"
+        },
+        "path":{
+          "title":"Path",
+          "type":"string"
+        },
+        "suggested_target":{
+          "title":"Suggested Target",
+          "type":"string"
+        }
+      },
+      "required":[
+        "path",
+        "kind",
+        "confidence",
+        "suggested_target"
+      ],
+      "title":"DetectedArtifact",
+      "type":"object"
+    }
+  },
+  "additionalProperties":false,
+  "description":"Summary of an `sdlc init --adopt` run (FR2, ADR-024 6th locked wire-format contract).",
+  "properties":{
+    "detected":{
+      "items":{
+        "$ref":"#/$defs/DetectedArtifact"
+      },
+      "title":"Detected",
+      "type":"array"
+    },
+    "passes_completed":{
+      "items":{
+        "type":"integer"
+      },
+      "title":"Passes Completed",
+      "type":"array"
+    },
+    "repo_root":{
+      "title":"Repo Root",
+      "type":"string"
+    },
+    "scanned_at":{
+      "pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title":"Scanned At",
+      "type":"string"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    }
+  },
+  "required":[
+    "repo_root",
+    "scanned_at"
+  ],
+  "title":"AdoptReport",
+  "type":"object"
+}

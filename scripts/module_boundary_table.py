@@ -114,7 +114,23 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         forbidden_from=frozenset({"cli", "dashboard"}),
     ),
     "adopt": ModuleSpec(
-        depends_on=frozenset({"errors", "state", "journal", "signoff", "config"}),
+        # Story 3.1: the ratified seed omitted the foundation modules the driver provably
+        # needs — `contracts` (build JournalEntry/AdoptReport), `concurrency` (atomic
+        # adopt-report.json write), `ids` (RFC-3339 timestamp). Added as a corrective
+        # amendment (NOT a re-creation); the architecture.md:1069 MAY/MUST-NOT lists were
+        # silent on these foundation deps. forbidden_from unchanged (Architecture Rule 6).
+        depends_on=frozenset(
+            {
+                "errors",
+                "contracts",
+                "ids",
+                "concurrency",
+                "state",
+                "journal",
+                "signoff",
+                "config",
+            }
+        ),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime"}),
     ),
     "migrations": ModuleSpec(

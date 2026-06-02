@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from sdlc.contracts import (
+    AdoptReport,
     HookPayload,
     JournalEntry,
     ResumeToken,
@@ -13,7 +14,7 @@ from sdlc.contracts import (
     WorkflowSpec,
 )
 
-# All 5 contracts with minimal valid kwargs for each.
+# All 6 contracts with minimal valid kwargs for each.
 _ALL_CONTRACTS: list[tuple[type[Any], dict[str, Any]]] = [
     (
         JournalEntry,
@@ -62,6 +63,13 @@ _ALL_CONTRACTS: list[tuple[type[Any], dict[str, Any]]] = [
             slash_command="/sdlc-start",
             primary_agent="orchestrator",
             write_globs={"orchestrator": ["**/*"]},
+        ),
+    ),
+    (
+        AdoptReport,
+        dict(
+            repo_root="/home/user/project",
+            scanned_at="2026-06-02T09:42:13.487Z",
         ),
     ),
 ]

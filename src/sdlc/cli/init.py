@@ -216,6 +216,18 @@ def _baseline_hook_trust(root: Path) -> None:
     baseline_hook_trust(root)
 
 
+def scaffold_canonical_layout(root: Path) -> None:
+    """Create the canonical SDLC directory layout shared by `sdlc init` and `sdlc init --adopt`.
+
+    Creates `.claude/state/` (state.json + journal.log), the static asset trees, and the phase
+    dirs — but NOT the hook-trust baseline (callers wrap that separately so they can attach their
+    own error envelope). Story 3.1 reuses this instead of reimplementing init scaffolding (AC2).
+    """
+    _create_state_subtree(root)
+    _create_static_asset_dirs(root)
+    _create_phase_dirs(root)
+
+
 def _enumerate_created_paths(root: Path) -> list[str]:
     """Return the relative paths created by `run_init`, sorted (AC4.3).
 
@@ -266,9 +278,7 @@ def run_init(*, ctx: typer.Context | None = None) -> None:
             err=True,
         )
         raise typer.Exit(code=EXIT_USER_ERROR)
-    _create_state_subtree(root)
-    _create_static_asset_dirs(root)
-    _create_phase_dirs(root)
+    scaffold_canonical_layout(root)
     try:
         _baseline_hook_trust(root)
     except Exception as exc:

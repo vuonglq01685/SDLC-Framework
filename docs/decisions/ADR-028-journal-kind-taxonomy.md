@@ -89,6 +89,9 @@ nullable in the schema (`Optional[str]`) and the natural absent-meaning is `None
 | `task_stage_advanced` | 2A.17 | sha256 of task json before | sha256 of task json after | `task_id`, `from_stage`, `to_stage`, `run_id` |
 | `task_stage_failed` | 2A.17 | nullable | sentinel | `task_id`, `stage`, `cause`, `run_id` |
 | `replan_invalidated` | 2A.19 | n/a (sentinel) | sentinel | `scope`, `downstream_count`, `phases_invalidated` |
+| `adopt_pass_completed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
+| `adopt_pass_failed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3), `reason` |
+| `adopt_pass_started` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
 
 Per-kind exactness lives in the source code (each emission site documents intent inline).
 This table is the authoritative reference for cross-kind audits — if the table disagrees with
@@ -138,6 +141,7 @@ When Epic 2B+ adds a new emission:
 | 2026-05-21 | Vuonglq01685 + Claude (prep-sprint DOC1) | Initial ratification — 20 kinds catalogued from Epic 1+2A code base; zero-hash sentinel convention codified; forward rule for Epic 2B+ kind additions established |
 | 2026-05-28 | Vuonglq01685 + Claude (Story 2B.6) | Added `destructive_op_reconfirmed` and `destructive_op_rejected` — dispatcher-side nonce-echo gate (AC3); closes CR2B5-W1 and CR2B5-W2 |
 | 2026-05-28 | Vuonglq01685 + Claude (Story 2B.6 bmad-code-review) | D4: amend `destructive_op_reconfirmed` + `destructive_op_rejected` payload `nonce` → `nonce_sha256` (hex digest) — journal is append-only audit artifact, raw nonce was a residual VCS-leak surface. D3: added `destructive_op_from_readonly_specialist` — emitted when a read-only specialist (empty/_bmad-output-only write_globs) proposes a destructive tool_call; raised as `DispatchError` WITHOUT user prompt (integrity violation, not user-confirmable). |
+| 2026-06-02 | Vuonglq01685 + Claude (Story 3.1) | Added `adopt_pass_started`, `adopt_pass_completed`, `adopt_pass_failed` — the three-pass `sdlc init --adopt` orchestrator journals each pass start/complete (event-only zero-sentinel `after_hash`). `adopt_pass_failed` (D4 in 3.1) carries `{pass, reason}` to satisfy AC6 failure-journaling — the frozen `AdoptReport` schema has no error field, so the failure reason lives in the journal. |
 
 ## Revisit-by
 
