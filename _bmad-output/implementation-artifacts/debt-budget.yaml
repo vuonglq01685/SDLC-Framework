@@ -81,9 +81,9 @@ items:
     title: Triage 18 xfails — closed 2026-05-21 prep-sprint C3; all 12 xfail markers stripped (DEBT-001..012 root-caused as test bugs, not source bugs); coverage gate raised 85→87 in pyproject.toml + [tool.coverage.report]; final 87→90 split to EPIC-2B-DEBT-COVERAGE-90 per prep-sprint budget
   - id: EPIC-2A-D4-PHASE2-PROMPT-BOUNDARY-CHECK
     severity: HIGH
-    status: open
+    status: closed
     epic_of_origin: epic-2a
-    title: Restore Phase-2 prompt boundary postcondition + SECURITY-INVARIANT once 2B.1 writes agent_runs.jsonl (owned by C4)
+    title: Restore Phase-2 prompt boundary postcondition + SECURITY-INVARIANT once 2B.1 writes agent_runs.jsonl (owned by C4) — closed 2026-06-02 prep-3 (P2) via sdlc-ux.yaml boundary_line_present_in_prompts restoration (parity with sdlc-architect) + test_postconditions_ux SECURITY-INVARIANT enforcement; reactivation precondition (2B.1 records dispatch_prompt rows) met. Clears debt-decay Gate C for Epic 3.
   - id: EPIC-2A-D5-STATE-PROJECTION-TRIO
     severity: MED
     status: open

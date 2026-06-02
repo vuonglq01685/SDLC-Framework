@@ -6,6 +6,13 @@
 **Scope:** Verification-only — no code changes. Restoration (D4) lands with Story 2B.1 once
 the preconditions in §3 are met.
 
+> **CLOSED 2026-06-02 (Epic 3 prep-3, P2).** The §3 reactivation preconditions are met
+> (Story 2B.1 records `dispatch_prompt` rows under both runtimes). `boundary_line_present_in_prompts`
+> has been restored to `sdlc-ux.yaml` (parity with `sdlc-architect.yaml`) with SECURITY-INVARIANT
+> enforcement tests in `tests/unit/dispatcher/test_postconditions_ux.py`. `EPIC-2A-D4` is `closed`
+> in `debt-budget.yaml`; debt-decay Gate C is green for Epic 3. The tables below are the historical
+> pre-restoration snapshot; the §1 `sdlc-ux.yaml` row and §3 statuses are annotated to the post-closure state.
+
 ## 1. Current per-workflow status
 
 Grep over `src/sdlc/workflows_yaml/*.yaml` for the
@@ -19,14 +26,16 @@ Grep over `src/sdlc/workflows_yaml/*.yaml` for the
 | `sdlc-stories.yaml` | 1 | ✅ yes | `boundary_line_present_in_prompts`, ... |
 | `sdlc-signoff.yaml` | 1 (validator) | ✅ yes | `boundary_line_present_in_prompts`, ... |
 | `sdlc-verify.yaml` | 1 (validator) | ✅ yes | `boundary_line_present_in_prompts`, ... |
-| `sdlc-ux.yaml` | **2** | ❌ **MISSING** | `ux_dir_non_empty` only |
+| `sdlc-ux.yaml` | 2 | ✅ **yes** (restored 2026-06-02, D4 closed) | `ux_dir_non_empty`, `boundary_line_present_in_prompts` |
 | `sdlc-architect.yaml` | 2 | ✅ yes | `boundary_line_present_in_prompts`, ... |
 | `sdlc-bootstrap.yaml` | 3 | ✅ yes | `boundary_line_present_in_prompts`, ... |
 | `sdlc-break.yaml` | 3 | ✅ yes | `boundary_line_present_in_prompts`, ... |
 | `sdlc-task.yaml` | 3 | (not enumerated in this audit) | TBD per Story 2B.5 |
 
-**Verdict:** 9 of 10 audited workflows enforce the postcondition. `sdlc-ux.yaml` is the
-single gap, intentional, and tracked against two debt tickets.
+**Verdict:** 10 of 10 audited workflows now enforce the postcondition. The former
+`sdlc-ux.yaml` gap was closed 2026-06-02 (EPIC-2A-D4, Epic 3 prep-3 P2) — parity with
+`sdlc-architect.yaml`. (`sdlc-task.yaml` Phase-3 enumeration remains scoped to Story 2B.5,
+outside this audit.)
 
 ## 2. Phase-2 gap — `sdlc-ux.yaml`
 
