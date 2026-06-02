@@ -230,6 +230,8 @@ def test_happy_path_writes_two_files(tmp_path: Path) -> None:
         unittest.mock.patch(
             "sdlc.cli._ux_pipeline.dispatch", return_value=mock_result
         ) as mock_disp,
+        # EPIC-2A-D4: dispatch mocked → mock postcondition gate (enforced elsewhere).
+        unittest.mock.patch("sdlc.cli.ux.evaluate_postconditions"),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -253,6 +255,7 @@ def test_happy_path_emit_json_success(tmp_path: Path) -> None:
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
         unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli.ux.evaluate_postconditions"),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -277,6 +280,7 @@ def test_happy_path_journal_entries(tmp_path: Path) -> None:
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
         unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", return_value=mock_result),
+        unittest.mock.patch("sdlc.cli.ux.evaluate_postconditions"),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
@@ -320,6 +324,7 @@ def test_happy_path_ux_dir_created_before_dispatch(tmp_path: Path) -> None:
     with (
         unittest.mock.patch("sdlc.cli.ux._get_repo_root_or_cwd", return_value=tmp_path),
         unittest.mock.patch("sdlc.cli._ux_pipeline.dispatch", side_effect=_mock_dispatch),
+        unittest.mock.patch("sdlc.cli.ux.evaluate_postconditions"),
     ):
         r = _runner.invoke(app, ["--json", "ux"])
 
