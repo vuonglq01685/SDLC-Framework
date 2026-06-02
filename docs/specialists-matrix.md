@@ -13,7 +13,7 @@ with this matrix, **this matrix wins**.
 
 ---
 
-## 1. Shipped Specialists (39 — verified against `src/sdlc/agents/index.yaml`)
+## 1. Shipped Specialists (40 — verified against `src/sdlc/agents/index.yaml`)
 
 | Name | Phase | File | Story | Notes |
 |---|---|---|---|---|
@@ -53,6 +53,7 @@ with this matrix, **this matrix wins**.
 | `tdd-strategist` | 3 | `phase3/tdd-strategist.md` | 2B.10 | Strategy-layer role above `test-author`; production body authored 2B.10 |
 | `security-reviewer` | 3 | `phase3/security-reviewer.md` | 2B.10 | Pairs with `code-reviewer` for security-sensitive stories; production body authored 2B.10 |
 | `edge-case-reviewer` | 3 | `phase3/edge-case-reviewer.md` | 2B.10 | Pairs with `code-reviewer`; closes Edge Case Hunter layer; production body authored 2B.10 |
+| `characterization-author` | 3 | `phase3/characterization-author.md` | 3.8 | Brownfield: dispatched at `pending` for `tdd_strategy=characterization-test`; captures current behavior, emits `tests_status:'green'` (D1=(a) — distinct from the strategy-layer `tdd-strategist`) |
 | `clarification-triager` | 0 | `support/clarification-triager.md` | 2B.11 | Cross-cutting; routes open-clarification STOP triggers; registered, not dispatched v1 |
 | `agent-failure-recovery` | 0 | `support/agent-failure-recovery.md` | 2B.11 | Cross-cutting; post-retry failure diagnosis and recovery planning; registered, not dispatched v1 |
 | `orchestrator-helper` | 0 | `support/orchestrator-helper.md` | 2B.11 | Cross-cutting; complex multi-step workflow consolidation; registered, not dispatched v1 |
@@ -91,6 +92,11 @@ All specialists originally planned in this section have been shipped as of Story
 > **Phase 3 planned (4) removed**: `tdd-strategist`, `security-reviewer`,
 > `edge-case-reviewer`, `pr-author` authored in Story 2B.10 → §1 Shipped.
 >
+> **Phase 3 net-new (1, Story 3.8)**: `characterization-author` — the brownfield
+> characterization-test author. The epics named this role `tdd-strategist`, but that
+> name was already shipped (2B.10) as an incompatible strategy-layer advisor, so 3.8
+> ships a distinct name (D1=(a); see ADR-030 Revision Log).
+>
 > **Support planned (1) removed**: `clarification-triager` deferred from 2B.8, authored in
 > Story 2B.11 → §1 Shipped. `agent-failure-recovery` + `orchestrator-helper` also authored
 > in 2B.11 (net-new; not previously in this planned table).
@@ -103,11 +109,11 @@ All specialists originally planned in this section have been shipped as of Story
 |---|---|---|
 | Shipped Phase 1 | 15 | 8 re-authored stubs + 7 net-new (2B.8) |
 | Shipped Phase 2 | 12 | 6 re-authored stubs + 6 net-new (2B.9) |
-| Shipped Phase 3 | 9 | 5 re-authored stubs + 4 net-new (2B.10) |
+| Shipped Phase 3 | 10 | 5 re-authored stubs + 4 net-new (2B.10) + 1 brownfield (3.8) |
 | Shipped Support (phase 0) | 3 | 3 net-new (2B.11 D1=(a)) |
-| **Shipped total** | **39** | verified against `src/sdlc/agents/index.yaml` |
-| Planned | 0 | all shipped as of 2B.11 |
-| **Grand total** | **39** | FR28 complete |
+| **Shipped total** | **40** | verified against `src/sdlc/agents/index.yaml` |
+| Planned | 0 | all shipped (3.8 adds `characterization-author`) |
+| **Grand total** | **40** | FR28 complete |
 
 The PRD §214 prose "~25 markdown specialist agents" reflects the original v0.1 plan. Actual
 total has grown via Epic 2A sub-track design (Phase 2 sub-architects), the deliberate addition

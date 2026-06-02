@@ -64,6 +64,22 @@ _NEXT_STAGE: Final[dict[str, str]] = {
     "review": "done",
 }
 
+# Story 3.8 AC3/D1: the characterization-test author swaps in for test-author at the
+# `pending` stage when a task is classified `characterization-test` (brownfield legacy code).
+_CHARACTERIZATION_AUTHOR: Final[str] = "characterization-author"
+
+
+def select_stage_specialist(stage: str, task: _TaskEntry) -> str | None:
+    """Resolve the stage specialist, honoring ``task.tdd_strategy`` (Story 3.8 AC3).
+
+    A ``characterization-test`` task swaps the characterization-test author in at ``pending``
+    (instead of ``test-author``); all other cases use the static ``_STAGE_SPECIALIST`` map,
+    which stays frozen at its 2A.17 shape (the per-task swap is purely data-driven).
+    """
+    if stage == "pending" and task.tdd_strategy == "characterization-test":
+        return _CHARACTERIZATION_AUTHOR
+    return _STAGE_SPECIALIST[stage]
+
 
 async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
     *,
@@ -98,7 +114,7 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
             details={"task_id": task_id, "stage": current_stage},
         )
     next_stage = _NEXT_STAGE[current_stage]
-    specialist_name = _STAGE_SPECIALIST[current_stage]
+    specialist_name = select_stage_specialist(current_stage, task)
 
     written: list[Path] = []
     # Tracks whether the task JSON has been rewritten, so a failure after the rewrite
@@ -174,9 +190,22 @@ async def task_stage_dispatch_write(  # noqa: C901, PLR0912, PLR0915
                         fspec.path, expected_prefix=expected_prefix, specialist=specialist_name
                     )
 
-                # RED→GREEN gate enforcement (AC4/D1)
+                # RED→GREEN gate enforcement (AC4/D1; Story 3.8 AC4 conditional branch)
                 if current_stage == "pending":
-                    if files_result.tests_status != "red":
+                    if task.tdd_strategy == "characterization-test":
+                        # Characterization tests capture CURRENT behavior → pass (Story 3.8 AC4).
+                        if files_result.tests_status != "green":
+                            raise WorkflowError(
+                                f"{specialist_name} reported "
+                                f"tests_status={files_result.tests_status!r} (expected 'green'); "
+                                "characterization tests must pass against current behavior",
+                                details={
+                                    "task_id": task_id,
+                                    "tests_status": files_result.tests_status,
+                                    "tdd_strategy": task.tdd_strategy,
+                                },
+                            )
+                    elif files_result.tests_status != "red":
                         raise WorkflowError(
                             f"test-author reported tests_status={files_result.tests_status!r}"
                             " (expected 'red'); "

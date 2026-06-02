@@ -26,6 +26,7 @@ from sdlc.cli._break_pipeline import (
     mock_task_batch_body,
     write_mock_fixture,
 )
+from sdlc.cli._brownfield import mock_task_batch_body_brownfield
 from sdlc.cli._epic_story_models import _StoryEntry
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli._runtime_selection import (
@@ -34,13 +35,14 @@ from sdlc.cli._runtime_selection import (
     use_mock_runtime,
 )
 from sdlc.cli.output import emit_error, emit_json
+from sdlc.config.project import DEFAULT_PROJECT_YAML, load_project_config
 from sdlc.contracts.workflow_spec import WorkflowSpec
 from sdlc.dispatcher import (
     build_pre_write_hook_chain,
     phase1_compound_prompt_builder,
 )
 from sdlc.dispatcher.postconditions import evaluate_postconditions
-from sdlc.errors import SignoffError, SpecialistError, WorkflowError
+from sdlc.errors import ConfigError, SignoffError, SpecialistError, WorkflowError
 from sdlc.ids.parsers import STORY_ID_PATTERN, STORY_ID_REGEX, parse_story_id
 from sdlc.runtime.mock import compute_prompt_hash
 from sdlc.signoff import SignoffState, compute_state
@@ -215,6 +217,19 @@ def run_break(*, ctx: typer.Context, story_id: str, allow_mock: bool = False) ->
 
     hooks = build_pre_write_hook_chain(repo_root=root)
 
+    # Step 7b — Load project.yaml legacy_code_globs (Story 3.8 AC7). Brownfield projects
+    # declare legacy globs; the CLI classifier stamps tdd_strategy per task. Missing/empty
+    # config → greenfield (all write-tests-first), behaviour identical to today.
+    try:
+        legacy_code_globs = load_project_config(root / DEFAULT_PROJECT_YAML).legacy_code_globs
+    except ConfigError as exc:
+        emit_error(
+            "ERR_USER_INPUT",
+            f"project.yaml could not be read: {exc}",
+            ctx=ctx,
+            details=dict(exc.details) if isinstance(exc.details, Mapping) else {"cause": str(exc)},
+        )
+
     # Step 8 — Mock runtime materialization (AC8/D1).
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -239,11 +254,18 @@ def run_break(*, ctx: typer.Context, story_id: str, allow_mock: bool = False) ->
                     )
 
                 mock_prompt = _prompt_builder(sp_obj, spec)
+                # Story 3.8 AC7: brownfield mock variant emits `touches` so the classifier
+                # exercises both strategy branches on the byte-identity path.
+                mock_body = (
+                    mock_task_batch_body_brownfield(story_id)
+                    if legacy_code_globs
+                    else mock_task_batch_body(story_id)
+                )
                 write_mock_fixture(
                     tmp_path,
                     spec.name,
                     compute_prompt_hash(mock_prompt),
-                    mock_task_batch_body(story_id),
+                    mock_body,
                 )
             # build_runtime runs unconditionally — it selects MockAIRuntime or
             # ClaudeAIRuntime per the env gate. After the ADR-029 default-flip the
@@ -273,6 +295,7 @@ def run_break(*, ctx: typer.Context, story_id: str, allow_mock: bool = False) ->
                     runtime=runtime,
                     registry=registry,
                     hooks=hooks,
+                    legacy_code_globs=legacy_code_globs,
                     allow_mock_invoked=allow_mock_invoked,
                 )
             )

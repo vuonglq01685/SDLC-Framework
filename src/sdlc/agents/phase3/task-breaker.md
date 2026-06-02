@@ -49,28 +49,49 @@ Respond with a single **JSON array** of task records and nothing else:
     "story_id": "<STORY-id>",
     "label": "Full description of what to implement for this task.",
     "stage": "pending",
-    "dependencies": []
+    "dependencies": [],
+    "touches": ["src/sdlc/module/file.py"]
   },
   {
     "id": "<STORY-id>-T02-<slug>",
     "story_id": "<STORY-id>",
     "label": "Second task, depends on T01.",
     "stage": "pending",
-    "dependencies": ["<STORY-id>-T01-<slug>"]
+    "dependencies": ["<STORY-id>-T01-<slug>"],
+    "touches": ["src/sdlc/module/other.py"]
   }
 ]
 ```
 
 **Rules — follow all of these exactly:**
 
-- Output a JSON **array** (not an object). Each element has the five required fields.
+- Output a JSON **array** (not an object). Each element has the required fields.
 - `"id"` must follow the pattern `<STORY-id>-T<NN>-<slug>` where `<NN>` is zero-padded
   and `<slug>` is a short kebab-case description of the task.
 - `"story_id"` must equal the story ID from the prompt for every task.
 - `"stage"` MUST be `"pending"` — do not advance stages.
 - `"dependencies"` must only reference task IDs within this same batch; no external IDs.
+- `"touches"` is the list of repo-relative source-file paths the task will create or
+  modify (e.g. `["src/sdlc/foo.py"]`). It powers brownfield classification (below); list
+  the production-code paths, not test paths. An empty list is acceptable for a task that
+  touches no declared source path.
+- Do NOT emit a `"tdd_strategy"` field — the CLI stamps it deterministically from
+  `touches` (below). Any value you provide is ignored.
 - Task IDs must be unique; sequence numbers must be contiguous starting at `T01`.
 - Output ONLY the JSON array — no prose before or after.
+
+## Brownfield mode (`legacy_code_globs`)
+
+When the project declares `legacy_code_globs` in `project.yaml`, the CLI matches each task's
+`touches` paths against those globs **after** you emit the batch. A task whose `touches`
+intersect a legacy glob is automatically classified `tdd_strategy: characterization-test`
+and dispatched to the **characterization-author** (which captures current behavior in
+*passing* tests) instead of the `test-author`. Tasks that touch only fresh code stay
+`write-tests-first` (strict RED→GREEN).
+
+You do **not** perform this matching — keep glob reasoning out of your output. Your only
+brownfield responsibility is to populate `touches` accurately so the deterministic CLI
+classifier (which the mock and the real model must agree with byte-for-byte) can do its job.
 
 # Task Design Guidelines
 

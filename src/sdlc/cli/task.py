@@ -30,11 +30,12 @@ from sdlc.cli._runtime_selection import (
 from sdlc.cli._task_pipeline import (
     _NEXT_STAGE,
     _SLASH_CMD,
-    _STAGE_SPECIALIST,
     _TASKS_ROOT_REL,
+    select_stage_specialist,
     task_stage_dispatch_write,
 )
 from sdlc.cli._task_pipeline_mocks import (
+    mock_characterization_author_body,
     mock_code_author_body,
     mock_code_reviewer_body,
     mock_test_author_body,
@@ -246,7 +247,8 @@ def run_task(*, ctx: typer.Context, task_id: str, allow_mock: bool = False) -> N
     hooks = build_pre_write_hook_chain(repo_root=root)
 
     # Step 8 — Mock runtime materialization per stage specialist (AC8/D1 dispatch stages only).
-    specialist_name = _STAGE_SPECIALIST[current_stage]
+    # Story 3.8 AC3: pending-stage selection consults task.tdd_strategy (characterization swap).
+    specialist_name = select_stage_specialist(current_stage, task)
 
     review_verdict: str | None = None
 
@@ -277,6 +279,8 @@ def run_task(*, ctx: typer.Context, task_id: str, allow_mock: bool = False) -> N
                     # Select appropriate mock body based on specialist role
                     if specialist_name == "test-author":
                         body = mock_test_author_body(task_id)
+                    elif specialist_name == "characterization-author":
+                        body = mock_characterization_author_body(task_id)
                     elif specialist_name == "code-author":
                         body = mock_code_author_body(task_id)
                     else:

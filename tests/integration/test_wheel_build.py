@@ -158,6 +158,8 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/phase3/tdd-strategist.md").as_posix(),
         Path("sdlc/agents/phase3/security-reviewer.md").as_posix(),
         Path("sdlc/agents/phase3/edge-case-reviewer.md").as_posix(),
+        # Story 3.8 — net-new brownfield characterization-test author (D1=(a)).
+        Path("sdlc/agents/phase3/characterization-author.md").as_posix(),
         # Story 2B.11 — 3 net-new support specialists (D1=(a), D2=(a), phase:0).
         Path("sdlc/agents/support/clarification-triager.md").as_posix(),
         Path("sdlc/agents/support/agent-failure-recovery.md").as_posix(),

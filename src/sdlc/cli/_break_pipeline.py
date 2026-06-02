@@ -18,6 +18,7 @@ from typing import Final
 import yaml
 from pydantic import ValidationError
 
+from sdlc.cli._brownfield import classify_tdd_strategy
 from sdlc.cli._epic_story_models import _TaskEntry, serialize_task_entry
 from sdlc.cli._runtime_selection import merge_observer_mock_audit
 from sdlc.concurrency.io_primitives import atomic_write
@@ -216,9 +217,15 @@ async def break_dispatch_write(
     runtime: AIRuntime,
     registry: SpecialistRegistry,
     hooks: tuple[Callable[[HookPayload], HookDecision], ...],
+    legacy_code_globs: tuple[str, ...] = (),
     allow_mock_invoked: bool = False,
 ) -> list[str]:
-    """Dispatch task-breaker, validate, write task files, journal entries. Returns task ids."""
+    """Dispatch task-breaker, validate, write task files, journal entries. Returns task ids.
+
+    Story 3.8 AC1/D2(a): each parsed task is stamped with a deterministic ``tdd_strategy``
+    by matching its ``touches`` against ``legacy_code_globs`` (empty globs → all
+    ``write-tests-first``, the greenfield regression guard).
+    """
     seq_ad = await allocate_seq(journal_path)
     await journal_append(
         make_journal_entry(
@@ -262,6 +269,16 @@ async def break_dispatch_write(
     raw_entries = parse_task_array(result.agent_result.output_text, request_story_id=story_id)
     _validate_task_batch(raw_entries, request_story_id=story_id)
 
+    # Story 3.8 AC1/D2(a): deterministic CLI-side TDD-strategy stamping. The classifier (not
+    # the LLM) matches each task's touches against legacy_code_globs so the mock-vs-claude
+    # byte identity (2B.3) holds. touches itself is excluded from the serialized task JSON.
+    entries = [
+        entry.model_copy(
+            update={"tdd_strategy": classify_tdd_strategy(entry.touches, legacy_code_globs)}
+        )
+        for entry in raw_entries
+    ]
+
     tasks_dir.mkdir(parents=True, exist_ok=True)
 
     written: list[Path] = []
@@ -269,7 +286,7 @@ async def break_dispatch_write(
     run_id = str(uuid.uuid4())
 
     try:
-        for entry in raw_entries:
+        for entry in entries:
             parsed = parse_task_id(entry.id)
             fname = f"T{parsed.task_num:02d}-{parsed.task_slug}.json"
             rel = f"{_TASKS_ROOT_REL}/{story_id}/{fname}"

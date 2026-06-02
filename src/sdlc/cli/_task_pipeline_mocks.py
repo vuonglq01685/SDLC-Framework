@@ -30,6 +30,33 @@ def mock_test_author_body(task_id: str) -> str:
     )
 
 
+def mock_characterization_author_body(task_id: str) -> str:
+    """Story 3.8: characterization-author returns one passing test under tests/ (status green).
+
+    Characterization tests capture the CURRENT behavior of legacy code, so they are expected
+    to PASS — the pending-stage gate accepts ``green`` for ``characterization-test`` tasks.
+    """
+    return json.dumps(
+        {
+            "files": [
+                {
+                    "path": (
+                        "tests/unit/test_"
+                        f"{task_id.rsplit('-T', maxsplit=1)[-1].split('-', maxsplit=1)[0]}"
+                        "_characterization.py"
+                    ),
+                    "content": (
+                        f"# Characterization test for {task_id}\n"
+                        "def test_current_behavior_captured() -> None:\n    assert True\n"
+                    ),
+                }
+            ],
+            "tests_status": "green",
+        },
+        ensure_ascii=False,
+    )
+
+
 def mock_code_author_body(task_id: str) -> str:
     """Happy-path mock: code-author returns one source file under src/ with tests_status green."""
     return json.dumps(

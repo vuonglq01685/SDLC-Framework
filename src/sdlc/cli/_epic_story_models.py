@@ -88,6 +88,15 @@ class _TaskEntry(StrictModel):
     dependencies: list[str] = Field(default_factory=list)
     review_verdict: Literal["approved", "rejected"] | None = Field(default=None)
     review_notes: str | None = Field(default=None)
+    # Story 3.8 AC2: TDD strategy stamped CLI-side by /sdlc-break from legacy_code_globs.
+    # Default keeps existing task files valid + greenfield behaviour unchanged. Unlike
+    # status, tdd_strategy MUST serialize so /sdlc-task can read it back off the task file.
+    tdd_strategy: Literal["write-tests-first", "characterization-test"] = "write-tests-first"
+    # Story 3.8 AC2/D2(a): the file paths a task will create/modify, emitted by task-breaker
+    # so the deterministic CLI classifier can match them against legacy_code_globs. Input-only
+    # (exclude=True, mirrors status) — it must NOT leak into the on-disk task JSON. list[str]
+    # (matching dependencies) so a JSON array parses under the StrictModel strict config.
+    touches: list[str] = Field(default_factory=list, exclude=True)
 
     @field_validator("id")
     @classmethod

@@ -39,8 +39,14 @@ _NET_NEW_PHASE3_NAMES: frozenset[str] = frozenset(
     {"pr-author", "tdd-strategist", "security-reviewer", "edge-case-reviewer"}
 )
 
-# All 9 Phase-3 names: 5 enriched + 4 net-new.
-_ALL_PHASE3_NAMES: frozenset[str] = _EXISTING_PHASE3_NAMES | _NET_NEW_PHASE3_NAMES
+# Story 3.8 — net-new brownfield characterization-test author (D1=(a)). Folded into the
+# shared Phase-3 invariant sweep (boundary line / placeholder / empty tools / phase / name).
+_PHASE3_38_NAMES: frozenset[str] = frozenset({"characterization-author"})
+
+# All Phase-3 names: 5 enriched + 4 net-new (2B.10) + 1 brownfield (3.8).
+_ALL_PHASE3_NAMES: frozenset[str] = (
+    _EXISTING_PHASE3_NAMES | _NET_NEW_PHASE3_NAMES | _PHASE3_38_NAMES
+)
 
 # TDD pipeline dispatched specialists (frozen in _task_pipeline.py, Story 2A.17).
 _PIPELINE_DISPATCHED: frozenset[str] = frozenset({"test-author", "code-author", "code-reviewer"})
