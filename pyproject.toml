@@ -40,6 +40,25 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sdlc"]
+# EPIC-3 prep P5: the content trees below ship via force-include (ADR-005).
+# Newer hatchling raises ValueError on duplicate archive paths when the standard
+# `packages` selection ALSO picks up a force-included file (every file under each
+# tree collides — first observed at agents/.gitkeep, then agents/index.yaml).
+# `exclude` applies only to the standard selection; force-include is immune — so
+# each content tree ships exactly once, from force-include alone. The importable
+# .py under hooks/claude_hooks/workflows/workflows_yaml ships via force-include at
+# the same archive path, so imports are unaffected.
+exclude = [
+    "src/sdlc/agents/**",
+    "src/sdlc/claude_hooks/**",
+    "src/sdlc/commands/**",
+    "src/sdlc/hooks/**",
+    "src/sdlc/workflows/**",
+    "src/sdlc/workflows_yaml/**",
+    "src/sdlc/skills/**",
+    "src/sdlc/memory/**",
+    "src/sdlc/dashboard/static/**",
+]
 # ADR-005: force-include the content trees under src/sdlc/ that ship as
 # package_data. Each tree is created as content lands in later stories
 # (agents → Story 2A.2; commands → Story 2A.6/2A.8+; workflows → Story 2A.1;
