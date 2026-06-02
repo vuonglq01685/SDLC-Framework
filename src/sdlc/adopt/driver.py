@@ -12,6 +12,7 @@ is synchronous, so the async `append` (a coroutine that no-ops if un-awaited) mu
 
 from __future__ import annotations
 
+import contextlib
 import json
 import unicodedata
 from collections.abc import Sequence
@@ -75,7 +76,13 @@ def _write_report(root: Path, report: AdoptReport) -> None:
     """Atomically write `adopt-report.json`, pre-guarded to stay under `.claude/` (AC7)."""
     report_path = (root / _REPORT_REL).resolve()
     assert_path_under_claude(root, report_path)
-    atomic_write_bytes(report_path, _report_bytes(report))
+    try:
+        atomic_write_bytes(report_path, _report_bytes(report))
+    except OSError as exc:  # missing parent / disk full → typed envelope, not a raw traceback
+        raise AdoptError(
+            "adopt could not write adopt-report.json",
+            details={"path": str(report_path), "cause": str(exc)},
+        ) from exc
 
 
 def _read_existing_report(root: Path) -> AdoptReport | None:
@@ -90,6 +97,21 @@ def _read_existing_report(root: Path) -> AdoptReport | None:
             "adopt-report.json is malformed; cannot resume",
             details={"path": str(report_path), "cause": str(exc)},
         ) from exc
+
+
+def _validate_resume_cursor(completed: Sequence[int], report_path: Path) -> None:
+    """Reject a corrupt resume cursor — `passes_completed` MUST be a contiguous prefix of 1->2->3.
+
+    A hand-edited or future-tool-written report with out-of-order, duplicate, or out-of-range
+    passes (e.g. ``(2,)``, ``(1, 3)``, ``(99,)``, ``(1, 1)``) would otherwise silently skip passes
+    against a stale `detected` set (FR2 ordering). Only ``()``/``(1,)``/``(1, 2)``/``(1, 2, 3)``
+    are valid resume cursors.
+    """
+    if list(completed) != list(_PASSES[: len(completed)]):
+        raise AdoptError(
+            "adopt-report.json resume cursor is corrupt; cannot resume",
+            details={"path": str(report_path), "passes_completed": list(completed)},
+        )
 
 
 def _run_pass(n: int, root: Path, detected: list[DetectedArtifact]) -> list[DetectedArtifact]:
@@ -127,6 +149,8 @@ def run_adopt(*, root: Path, journal_path: Path) -> AdoptReport:
     """
     existing = _read_existing_report(root)
     completed: list[int] = list(existing.passes_completed) if existing else []
+    if existing is not None:
+        _validate_resume_cursor(completed, root / _REPORT_REL)
     scanned_at: str = existing.scanned_at if existing else now_rfc3339_utc_ms()
     detected: list[DetectedArtifact] = list(existing.detected) if existing else []
 
@@ -138,8 +162,14 @@ def run_adopt(*, root: Path, journal_path: Path) -> AdoptReport:
             detected = _run_pass(n, root, detected)
         except Exception as exc:
             # Orchestrator must journal + persist ANY pass failure, then re-raise as AdoptError.
-            _append_event(journal_path, kind=_KIND_FAILED, payload={"pass": n, "reason": str(exc)})
-            _write_report(root, _build_report(root, scanned_at, detected, completed))
+            # Both side effects are best-effort: a secondary failure (journal/disk) must NOT mask
+            # the real pass error — the AdoptError below always surfaces with `exc` as its cause.
+            with contextlib.suppress(Exception):
+                _append_event(
+                    journal_path, kind=_KIND_FAILED, payload={"pass": n, "reason": str(exc)}
+                )
+            with contextlib.suppress(Exception):
+                _write_report(root, _build_report(root, scanned_at, detected, completed))
             raise AdoptError(
                 f"adopt pass {n} failed: {exc}",
                 details={"pass": n, "reason": str(exc)},
