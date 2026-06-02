@@ -45,8 +45,11 @@ def test_sdlc_ux_yaml_round_trip_byte_stable() -> None:
     assert data["primary_agent"] == "ux-designer"
     assert data["parallel_agents"] == []
     assert data["synthesizer_agent"] is None
+    # EPIC-2A-D4: both declared postconditions are pinned (mirrors architect
+    # CR14-P13). The Phase-2 prompt-boundary postcondition was restored once
+    # Story 2B.1 began recording dispatch_prompt rows in agent_runs.jsonl.
     assert "ux_dir_non_empty" in data["postconditions"]
-    assert "boundary_line_present_in_prompts" not in data["postconditions"]
+    assert "boundary_line_present_in_prompts" in data["postconditions"]
 
 
 def test_sdlc_ux_write_globs_registered() -> None:

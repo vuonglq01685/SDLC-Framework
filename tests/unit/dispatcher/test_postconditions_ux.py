@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from sdlc.dispatcher.postconditions import evaluate_postconditions
+from sdlc.dispatcher.prompts import BOUNDARY_LINE
 from sdlc.errors import WorkflowError
 
 pytestmark = pytest.mark.unit
@@ -178,3 +180,61 @@ def test_ux_dir_non_empty_requires_ux_dir_abs_caller_plumbing(tmp_path: Path) ->
             agent_runs_path=runs,
             # ux_dir_abs NOT provided — programmer error
         )
+
+
+# ---------------------------------------------------------------------------
+# boundary_line_present_in_prompts — SECURITY-INVARIANT restored (EPIC-2A-D4)
+# Mirrors the architect Phase-2 path; reactivated once Story 2B.1 records
+# dispatch_prompt rows. Each recorded prompt must wrap BOUNDARY_LINE in exactly
+# one <BOUNDARY>...</BOUNDARY> block (NFR-SEC-3 / P60).
+# ---------------------------------------------------------------------------
+
+
+def _write_runs(tmp_path: Path, prompts: list[str]) -> Path:
+    runs = tmp_path / "agent_runs.jsonl"
+    rows = [json.dumps({"dispatch_prompt": p, "specialist_name": "ux-designer"}) for p in prompts]
+    runs.write_text(("\n".join(rows) + "\n") if rows else "", encoding="utf-8")
+    return runs
+
+
+def _boundary_spec() -> object:
+    from sdlc.contracts.workflow_spec import WorkflowSpec
+
+    return WorkflowSpec(
+        schema_version=1,
+        name="test-ux",
+        slash_command="/sdlc-ux",
+        primary_agent="ux-designer",
+        parallel_agents=(),
+        synthesizer_agent=None,
+        postconditions=("boundary_line_present_in_prompts",),
+        write_globs={},
+        stop_on_postcondition_failure=True,
+    )
+
+
+def test_ux_boundary_line_present_passes_with_valid_block(tmp_path: Path) -> None:
+    """Passes when each dispatch_prompt wraps BOUNDARY_LINE in one <BOUNDARY> block."""
+    prompt = (
+        f"Persona preamble.\n<BOUNDARY>\n{BOUNDARY_LINE}\nuser-supplied text\n</BOUNDARY>\nClosing."
+    )
+    runs = _write_runs(tmp_path, [prompt])
+
+    # Should not raise — the UX Phase-2 path now enforces the boundary invariant.
+    evaluate_postconditions(_boundary_spec(), repo_root=tmp_path, agent_runs_path=runs)
+
+
+def test_ux_boundary_line_present_fails_when_block_absent(tmp_path: Path) -> None:
+    """Raises WorkflowError when a recorded prompt omits the <BOUNDARY> block."""
+    runs = _write_runs(tmp_path, ["No boundary tags anywhere in this prompt."])
+
+    with pytest.raises(WorkflowError, match="boundary_line_present_in_prompts"):
+        evaluate_postconditions(_boundary_spec(), repo_root=tmp_path, agent_runs_path=runs)
+
+
+def test_ux_boundary_line_present_fails_when_no_dispatch_prompt_rows(tmp_path: Path) -> None:
+    """Raises (invariant) when no dispatch_prompt rows were recorded."""
+    runs = _write_runs(tmp_path, [])
+
+    with pytest.raises(WorkflowError, match="boundary_line_present_in_prompts"):
+        evaluate_postconditions(_boundary_spec(), repo_root=tmp_path, agent_runs_path=runs)
