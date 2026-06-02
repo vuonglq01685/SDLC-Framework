@@ -22,7 +22,7 @@ concurrent worktrees**, not 4), and the critical path is long (**6 stories**). T
 risk concentrates in **3.7** (novel mutation-testing harness + multi-fixture brownfield corpus —
 the Tier-1 NFR-REL-6 source-untouched gate) and the net-new `src/sdlc/adopt/` module.
 
-**Gate status note (2026-06-02).** The §7.4 Pre-Story 3.1 gate is **partially satisfied**:
+**Gate status note (2026-06-02).** The §7.4 Pre-Story 3.1 gate is **fully satisfied**:
 - #6 wire-format snapshots green on `main` — ✅
 - #7 quality gate green on `main` — ✅ (`pytest` 2899 pass / 0 fail, `mypy --strict`, `ruff`,
   `mkdocs --strict`, wire-format snapshots; the pre-existing wheel-build breakage was repaired in
@@ -30,8 +30,9 @@ the Tier-1 NFR-REL-6 source-untouched gate) and the net-new `src/sdlc/adopt/` mo
 - #8 debt-decay strict run green for `--target-epic 3` — ✅ (Gate A + B + C all PASS; the Gate-C
   blocker `EPIC-2A-D4-PHASE2-PROMPT-BOUNDARY-CHECK` was closed in prep **P2**, `1f91ec1`)
 - #1 this DAG exists — ✅ (this document)
-- #2 §8 four approvals — **3/4** (3 technical-reviewer signoffs recorded below; **Project Lead
-  directive sign-off PENDING** — the sole remaining hard blocker for Story 3.1)
+- #2 §8 four approvals — ✅ **4/4** (3 technical reviewers + Project Lead directive sign-off,
+  2026-06-02). **The §7.4 Pre-Story 3.1 gate is fully satisfied** — `bmad-create-story` may be
+  invoked for Story 3.1.
 
 ---
 
@@ -184,7 +185,7 @@ depth, so schedule risk lives in spine slippage, not CI contention.
 | **Serial spine slippage** — a slip in 3.1/3.2/3.3/3.4 stalls 3.5, 3.6, and 3.7 simultaneously (depth-6 path). | Keep each pass byte-stable and reviewed before the next branches; treat 3.1's `adopt/` module layout + the two JSON schemas as frozen contracts before Layer 2. |
 | **New on-disk contracts** (`adopt-report.json`, `adopted-symlinks.json`, journal `imported_from_existing`) drift across versions. | **Decision D1 (below)** — treat the two JSON contracts as ADR-024 wire-format (StrictModel + JSON-Schema snapshot); the journal kind extends ADR-028's taxonomy via its forward rule. |
 | **Symlink/TOCTOU/cross-platform edge cases** in Pass 2 + rollback (Win32 symlink semantics differ). | POSIX-only v1 (consistent with ADR-034 D7B Win32 deferral); document the Win32 posture; rollback refuses to orphan a downstream signoff. |
-| **§7.4 GATE — §8 approvals.** 3/4 collected; Project Lead directive sign-off pending. | Project Lead reviews §8 + Decision D1 below; on sign-off the gate is fully satisfied and `bmad-create-story` may be invoked for Story 3.1. |
+| **§7.4 GATE — §8 approvals. RESOLVED 2026-06-02.** All 4 signoffs collected (3 technical reviewers + Project Lead) and Decision D1 ratified = (a) wire-format. | The §7.4 Pre-Story 3.1 gate is fully satisfied — `bmad-create-story` may be invoked for Story 3.1. |
 | Carry-forward HIGH debt (`EPIC-2B-DEBT-COVERAGE-90`, `EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES`) could regress Gate B (currently 4/6 PASS) if other closures shift. | Slot both into Epic 3 per-story budgets; D1/D2 from the 2B retro already schedule the coverage reconcile and EPIC-1 MED-debt closure. |
 
 ---
@@ -206,7 +207,11 @@ contracts in `src/sdlc/contracts/` with `schema_version=1` JSON-Schema snapshots
 ceremony). **Alternative (b):** treat the two JSON files as internal state (like `state.json`,
 rebuilt-not-frozen) — lighter, but loses the freeze guarantee on a surface that *is* read back.
 
-**This decision is folded into the §8 Project Lead directive sign-off below.**
+**RATIFIED 2026-06-02 — option (a).** The Project Lead's §8 directive sign-off ratifies
+wire-format treatment. Stories 3.1 / 3.3 must add `AdoptReport` + `AdoptedSymlinks` `StrictModel`
+contracts under `src/sdlc/contracts/` with `schema_version=1` JSON-Schema snapshots in
+`tests/contract_snapshots/v1/`, each paired with a snapshot-regeneration ceremony per the ADR-024
+mutation taxonomy. The journal `imported_from_existing` kind extends ADR-028 via its forward rule.
 
 ---
 
@@ -218,7 +223,7 @@ Per CONTRIBUTING.md §7.1 rows 3–4 — minimum 3 reviewers + Project Lead dire
 - [x] Charlie — DAG correctness + dependency checks (verified the serial spine `3.1→3.2→3.3→3.4`, the `3.5`/`3.6`→`3.3`+`3.4` edges, `3.7`→`3.4`+`3.6`, and that `3.8` is an independent leaf depending only on the already-shipped 2B.10 specialists + Story 1.8 config)
 - [x] Alice — sprint capacity + reviewer assignment (peak width 2; no cap saturation; 3.8 front-loaded into Layer 1, 3.5 ‖ 3.6 in Layer 5; review-A/B/C roster fits the low concurrency)
 - [x] Winston — architectural cross-reference (net-new `src/sdlc/adopt/` module boundary; NFR-REL-6 symlink-only invariant; ADR-028 forward rule for the `imported_from_existing` journal kind; ADR-024/025 applicability to the two JSON contracts per Decision D1; ADR-030 roster already absorbs `tdd-strategist` for 3.8)
-- [ ] **Vuonglq01685 (Project Lead) — directive sign-off PENDING** — approve the parallelism plan + worktree policy, and ratify **Decision D1** (a = wire-format / b = internal-state). On sign-off the §7.4 Pre-Story 3.1 gate is fully satisfied.
+- [x] **Vuonglq01685 (Project Lead)** — directive sign-off recorded 2026-06-02: parallelism plan + worktree-per-layer policy approved; **Decision D1 ratified = (a) wire-format ADR-024**. §8 is now **4/4 approved** — the §7.4 Pre-Story 3.1 gate is fully satisfied; `bmad-create-story` may be invoked for Story 3.1.
 
 ---
 
@@ -227,3 +232,4 @@ Per CONTRIBUTING.md §7.1 rows 3–4 — minimum 3 reviewers + Project Lead dire
 | Date | Author | Change |
 |---|---|---|
 | 2026-06-02 | Alice + Charlie (drafted via Claude, per Epic 3 prep) | Initial draft — DAG (8 stories) + 6 parallelism layers + critical path `3.1→3.2→3.3→3.4→3.6→3.7` (depth 6, peak width 2) + preliminary worktree assignments + risk register + Decision D1 (ADR-024 ceremony for adopt contracts, folded from prep P4). §8: 3 technical-reviewer signoffs recorded; Project Lead directive sign-off OPEN. Gate note: §7.4 #6/#7/#8 satisfied (prep P2 closed Gate-C blocker, P5 repaired wheel build, P3 green main); #1 satisfied by this doc; #2 pending the Project Lead box. |
+| 2026-06-02 | Vuonglq01685 (Project Lead) + Claude | §8 Project Lead directive sign-off recorded — parallelism plan + worktree-per-layer policy approved; **Decision D1 ratified = (a) wire-format ADR-024** for `adopt-report.json` + `adopted-symlinks.json` (StrictModel + v1 JSON-Schema snapshots). §8 now **4/4 approved**; §1 gate note + D1 updated to the satisfied state. The §7.4 Pre-Story 3.1 gate is **fully satisfied** — Story 3.1 creation may proceed via `bmad-create-story`. |
