@@ -65,6 +65,14 @@ def test_detected_artifact_rejects_float_confidence() -> None:
         DetectedArtifact.model_validate(payload)
 
 
+@pytest.mark.parametrize("bad", [True, False])
+def test_detected_artifact_rejects_bool_confidence(bad: bool) -> None:
+    """confidence is a strict int — a bool must NOT coerce to 0/1 (mirrors schema_version)."""
+    payload = {**_valid_artifact_payload(), "confidence": bad}
+    with pytest.raises(ValidationError):
+        DetectedArtifact.model_validate(payload)
+
+
 def test_detected_artifact_rejects_confidence_above_100() -> None:
     payload = {**_valid_artifact_payload(), "confidence": 101}
     with pytest.raises(ValidationError):

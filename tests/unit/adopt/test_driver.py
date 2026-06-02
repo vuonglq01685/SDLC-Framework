@@ -52,6 +52,16 @@ def _journal_kinds(root: Path) -> list[tuple[str, object]]:
     return out
 
 
+def _journal_seqs(root: Path) -> list[int]:
+    """Return `monotonic_seq` for each on-disk journal entry, in order."""
+    journal_path = root / _JOURNAL_REL
+    return [
+        JournalEntry.model_validate_json(line).monotonic_seq
+        for line in journal_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def _read_report(root: Path) -> AdoptReport:
     return AdoptReport.model_validate_json((root / _REPORT_REL).read_text(encoding="utf-8"))
 
@@ -170,10 +180,12 @@ def test_pass_failure_is_journaled_with_pass_and_reason(
 
 
 def test_resume_skips_completed_passes(adopt_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # seed a prior report that completed pass 1
-    driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
-    # truncate journal + rewrite a report stuck at pass 1 to simulate a crash after pass 1
-    (adopt_root / _JOURNAL_REL).write_text("", encoding="utf-8")
+    # Simulate a REAL crash after pass 1: the journal holds genuine pass-1 events and the
+    # report cursor is (1,). (No wasteful prior full run, and no hand-built unreachable
+    # [1,2,3] journal — both of which the previous version of this test relied on.)
+    journal_path = adopt_root / _JOURNAL_REL
+    driver._append_event(journal_path, kind="adopt_pass_started", payload={"pass": 1})
+    driver._append_event(journal_path, kind="adopt_pass_completed", payload={"pass": 1})
     seeded = AdoptReport(
         schema_version=1,
         repo_root=str(adopt_root),
@@ -190,10 +202,15 @@ def test_resume_skips_completed_passes(adopt_root: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(symlink_offer, "offer_symlinks", lambda root, detected: calls.append(2))
     monkeypatch.setattr(stamp, "mark_imported", lambda root, detected: calls.append(3))
 
-    report = driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
+    report = driver.run_adopt(root=adopt_root, journal_path=journal_path)
     # pass 1 was already complete → only 2 and 3 re-run
     assert calls == [2, 3]
     assert list(report.passes_completed) == [1, 2, 3]
+    # The resumed run must continue the journal seq without regression: monotonic + contiguous
+    # across the pre-existing pass-1 entries and the freshly appended pass-2/3 entries.
+    seqs = _journal_seqs(adopt_root)
+    assert len(seqs) == 6  # started1+completed1 (seeded) → started2/completed2/started3/completed3
+    assert seqs == list(range(seqs[0], seqs[0] + len(seqs)))
 
 
 def test_resume_journal_omits_completed_pass(
@@ -211,3 +228,28 @@ def test_resume_journal_omits_completed_pass(
     driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
     started_passes = [p for kind, p in _journal_kinds(adopt_root) if kind == "adopt_pass_started"]
     assert started_passes == [2, 3]
+
+
+def test_resume_from_malformed_report_raises_adopt_error(adopt_root: Path) -> None:
+    """An unparseable adopt-report.json must raise a typed AdoptError on resume, not crash."""
+    (adopt_root / _REPORT_REL).write_text("{ not valid json", encoding="utf-8")
+    with pytest.raises(AdoptError, match="malformed"):
+        driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
+
+
+def test_resume_from_corrupt_cursor_raises_adopt_error(adopt_root: Path) -> None:
+    """A non-contiguous resume cursor (pass 2 without 1) must be rejected, not silently skipped.
+
+    The `AdoptReport` contract accepts any `tuple[int, ...]`, so `(2,)` is a structurally valid
+    report — the driver's resume-cursor guard is what refuses to skip pass 2 against a stale set.
+    """
+    seeded = AdoptReport(
+        schema_version=1,
+        repo_root=str(adopt_root),
+        scanned_at="2026-06-02T00:00:00.000Z",
+        detected=(),
+        passes_completed=(2,),
+    )
+    (adopt_root / _REPORT_REL).write_text(seeded.model_dump_json(), encoding="utf-8")
+    with pytest.raises(AdoptError, match="resume cursor is corrupt"):
+        driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
