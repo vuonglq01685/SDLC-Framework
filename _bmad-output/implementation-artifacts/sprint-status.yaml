@@ -160,7 +160,7 @@ development_status:
   3-5-recovery-adopt-rollback-via-symlinks-json: backlog
   3-6-idempotency-conflict-resolution-with-existing-sdlc: backlog
   3-7-source-untouched-invariant-property-mutation-testing: backlog
-  3-8-brownfield-aware-phase-3-specialists: ready-for-dev
+  3-8-brownfield-aware-phase-3-specialists: review
   epic-3-retrospective: optional
 
   # ============================================================
