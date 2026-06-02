@@ -1,6 +1,6 @@
 # Story 3.1: `sdlc init --adopt` Entry + Three-Pass Orchestrator + `adopt-report.json` Schema
 
-**Status:** review
+**Status:** done
 
 **Epic:** 3 — Brownfield Adopt Mode (`sdlc init --adopt`)
 **Layer:** 1 (`docs/sprints/epic-3-dag.md` §3 — root of the serial adopt spine)
@@ -175,6 +175,38 @@ so that **the adopt flow is one resumable command end-to-end with a reviewable r
   → review-C (contract registry + ADR-024/028 amendments + module-boundary table + naming); no skipping.
   Review commits carry `[fresh-context-review]` and stage no `src/` files (§4.4).
   **→ NEXT: runs in the `code-review` workflow once dev-story sets status=review (not a dev-phase deliverable).**
+
+### Review Findings
+
+> `bmad-code-review` 2026-06-02 — 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance
+> Auditor) over `main...HEAD` (28 files, +1628/−21). Triage: **2 decision-needed · 7 patch · 5 defer ·
+> 6 dismissed**. Headline: `emit_error` is verified `-> NoReturn` (`output.py:234`) → Blind Hunter's
+> CRITICAL "unbound `report` crash" is a **false positive**; the real residual is the *untested* CLI
+> error path (P1).
+
+**Decisions (resolved 2026-06-02):**
+
+- [x] [Review][Decision → 1a RESOLVED] `adopt` module-boundary `depends_on` expanded 5→8 vs AC8 "verify, don't re-create" — `scripts/module_boundary_table.py:117-139` adds `contracts`/`ids`/`concurrency` to the ratified DAG-D1 allow-set `{errors,state,journal,signoff,config}`; provably necessary (driver imports all three), `forbidden_from` unchanged. **Resolved (1a): ratify as a documented boundary correction** — record in the story Decisions section + add a D1 erratum to `docs/sprints/epic-3-dag.md` (ratified seed omitted foundation deps). → action item **P0** below.
+- [x] [Review][Decision → 2a RESOLVED] Frozen `AdoptReport` v1 marks the resume cursor `passes_completed` (and `detected`) **optional** — `tests/contract_snapshots/v1/adopt_report.json:80` `required:[repo_root,scanned_at]` only (`default_factory=tuple`). **Resolved (2a): accept as-is (forward-compatible)** — the driver always writes both fields and reopening the just-frozen v1 contract would need an ADR-024 snapshot-regen ceremony. No code change; rationale recorded so Story 3.6 does not re-litigate.
+
+**Patch (✅ all 8 applied 2026-06-02 — full gate green: 2954 passed / 4 skipped, ruff + mypy --strict clean):**
+
+- [x] [Review][Patch] DOC (from Decision 1a) — Ratify the 5→8 boundary expansion: add a note to the story Decisions section + a D1 erratum in `docs/sprints/epic-3-dag.md` documenting the added `contracts`/`ids`/`concurrency` foundation deps [`docs/sprints/epic-3-dag.md`, story §Decisions Needed]
+- [x] [Review][Patch] HIGH — CLI failure path untested: no test asserts `init --adopt` exits 2 with `ERR_ADOPT` envelope; `except JournalError`/`except AdoptError` + hook-baseline failure branches uncovered (AC6 CLI surface unverified) [`src/sdlc/cli/adopt.py:42-44,65-73`]
+- [x] [Review][Patch] MEDIUM — Malformed-report resume guard untested: no test seeds a corrupt `adopt-report.json` to exercise the `except ValueError → AdoptError("cannot resume")` branch [`src/sdlc/adopt/driver.py:88-92`]
+- [x] [Review][Patch] MEDIUM — Failure-handler can mask the typed error: `_append_event(FAILED)` + `_write_report` run inside the `except` before `raise AdoptError`; if either raises `OSError`/`JournalError` it escapes uncaught (CLI catches only JournalError/AdoptError → raw traceback exit 1) and the last-good report may not persist. Wrap best-effort side effects so `AdoptError` always surfaces; also wrap missing-parent `OSError` as `AdoptError` (covers Edge EC7/EC8) [`src/sdlc/adopt/driver.py:139-146`]
+- [x] [Review][Patch] LOW/MED — Corrupt resume cursor not validated: any `passes_completed` is accepted, so `(2,)`/`(99,)`/dupes make `if n in completed` skip passes out of order. Add a "contiguous prefix of {1,2,3}" guard raising `AdoptError` (overlaps 3.6) [`src/sdlc/adopt/driver.py:128-135`]
+- [x] [Review][Patch] LOW — `confidence` lacks the strict-int(bool-reject) guard `schema_version` has, and no `True/False` rejection test (only float 0.92 covered) — asymmetric posture on a frozen contract [`src/sdlc/contracts/adopt_report.py`]
+- [x] [Review][Patch] LOW (test) — `test_adopt_json_envelope` parses `output.splitlines()[-1]` and doesn't assert `--json` mode emits ONLY the envelope (no human-echo contamination of the machine channel) [`tests/unit/cli/test_adopt.py`]
+- [x] [Review][Patch] LOW (test) — `test_resume_skips_completed_passes` builds an unreachable state ([1,2,3] report then hand-overwritten to `(1,)`) and wipes the journal to `""` without asserting seq-continuity after resume — the most failure-prone resume surface (seq monotonicity across a truncated journal) is unverified [`tests/unit/adopt/test_driver.py`]
+
+**Deferred (pre-existing / out-of-scope-for-3.1 → `deferred-work.md`):**
+
+- [x] [Review][Defer] Non-atomic journal seq allocation — `allocate_next_seq_for_append_sync` + `append_sync` (TOCTOU gap) vs the atomic `append_with_seq_alloc` helper; design-mandated (sync API, async append no-ops if un-awaited) and only triggerable by a concurrent writer that doesn't exist for a single foreground command [`src/sdlc/adopt/driver.py:46-60`] — deferred, low-risk design choice
+- [x] [Review][Defer] `assert_path_under_claude` follows symlinks (`(root/.claude).resolve()`) so a redirected/symlinked or non-existent `.claude` can pass the guard, and it never asserts `claude_root` is under `root` — squarely Story 3.7's porcelain+tree-hash scope (architecture.md:194/223 names "symlink target") [`src/sdlc/adopt/invariant.py:24-36`] — deferred to 3.7
+- [x] [Review][Defer] RFC-3339 `scanned_at` pattern doesn't bound field ranges (accepts month 99); tightening a frozen contract needs an ADR-024 snapshot-regen ceremony [`src/sdlc/contracts/adopt_report.py`] — deferred, loose-but-forward-compatible
+- [x] [Review][Defer] AC9 coverage gate 87% (actual 88.27%) vs AC's stated ≥90% — pre-existing tracked debt EPIC-2B-DEBT-COVERAGE-90-FLOOR — deferred, pre-existing
+- [x] [Review][Defer] `_report_bytes` re-implements canonical JSON instead of reusing `cli/output.canonical_dumps` — forced by the module boundary (adopt→cli forbidden); a shared boundary-neutral util is an epic-wide refactor [`src/sdlc/adopt/driver.py:63-71`] — deferred, boundary-mandated
 
 ---
 
@@ -363,6 +395,13 @@ Claude Opus 4.x (bmad-dev-story workflow).
 - **Decisions:** D1=(a) `passes/` package layout; D2=(a) `confidence: int` percent `[0,100]`;
   D3=(a) pass-level resume via `passes_completed`. D4 (AC6-driven): added a 3rd journal kind
   `adopt_pass_failed` so the failure reason is journaled (the frozen `AdoptReport` schema has no error field).
+- **Boundary-table correction (code-review 2026-06-02, Decision 1a RATIFIED).** The `adopt` ModuleSpec
+  `depends_on` was expanded from the ratified DAG-D1 seed `{errors, state, journal, signoff, config}`
+  (5) to add `{contracts, ids, concurrency}` (8) — the three foundation modules the driver provably
+  imports (`AdoptReport`/`JournalEntry`; `now_rfc3339_utc_ms`; `atomic_write_bytes`). `forbidden_from`
+  is unchanged (`{engine, dispatcher, runtime}`, Architecture Rule 6). The DAG-D1 allow-set was a seed
+  that silently omitted foundation deps; this is a corrective amendment, ratified at review as a
+  documented boundary correction (CONTRIBUTING §5) and logged as an erratum in `epic-3-dag.md` §9.
 - **Three-pass orchestrator** (`adopt/driver.py`): runs Pass 1→2→3 in strict order, journals
   `adopt_pass_started`/`completed` per pass (event-only zero-sentinel `after_hash`, ADR-028 §2), writes
   `adopt-report.json` after Pass 1 (AC4) and again at the end, and resumes from `passes_completed` on re-run.
@@ -420,3 +459,10 @@ Claude Opus 4.x (bmad-dev-story workflow).
   `AdoptReport` frozen contract (6th), `adopt/` package (D1=(a) `passes/` layout), source-untouched
   guard, ADR-024/028 amendments. D1=(a)/D2=(a)/D3=(a) + D4 (`adopt_pass_failed`). TDD-first (RED 972d760
   → GREEN). Quality gate green (2946 tests, coverage 88.27%). Status: ready-for-dev → in-progress → review.
+- 2026-06-02: code-review (bmad-code-review, 3 adversarial layers) — 2 decision-needed (1a ratify
+  boundary 5→8, 2a accept frozen-schema as-is) + 7 patch + 5 defer + 6 dismissed. All 2 decisions
+  resolved + all 8 patches APPLIED (P0 boundary-erratum docs; P1 CLI-failure-path tests; P2 malformed-
+  report-resume test; P3 best-effort failure-handler + report-write `OSError`→`AdoptError`; P4 resume-
+  cursor contiguity guard; P5 bool-confidence rejection test; P6 JSON-envelope-only assertion; P7
+  realistic resume + journal-seq-continuity). 5 defers → `deferred-work.md` (CR3.1-W1…W5). Full gate
+  green: 2954 passed / 4 skipped, ruff + mypy --strict clean. Status: review → done.

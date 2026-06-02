@@ -153,7 +153,7 @@ development_status:
   # Epic 3: Brownfield Adopt Mode (8 stories)
   # ============================================================
   epic-3: in-progress
-  3-1-sdlc-init-adopt-entry-three-pass-orchestrator: review
+  3-1-sdlc-init-adopt-entry-three-pass-orchestrator: done
   3-2-pass-1-detection-filesystem-scan-content-heuristics: backlog
   3-3-pass-2-interactive-symlink-offer-tracking: backlog
   3-4-pass-3-stamp-imported-from-existing: backlog
