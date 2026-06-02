@@ -6,6 +6,7 @@ parallel_agents: []
 synthesizer_agent: null
 postconditions:
   - ux_dir_non_empty
+  - boundary_line_present_in_prompts
 write_globs:
   ux-designer:
     - "02-Architecture/01-UX/*.md"
