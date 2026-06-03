@@ -148,6 +148,20 @@ def test_adopt_surfaces_journal_error_as_exit_2(tmp_path: Path) -> None:
     assert "journal append failed" in result.output
 
 
+def test_adopt_malformed_project_yaml_surfaces_user_input_error(tmp_path: Path) -> None:
+    """A malformed `project.yaml` → typed ERR_USER_INPUT envelope (exit 1), not a raw traceback.
+
+    Covers the `_load_legacy_code_globs` ConfigError branch (Story 3.2 D4): the legacy-exclusion
+    config read surfaces a user-facing envelope rather than silently dropping the exclusion.
+    """
+    from sdlc.config.project import DEFAULT_PROJECT_YAML
+
+    (tmp_path / DEFAULT_PROJECT_YAML).write_text("legacy_code_globs: [unclosed\n", encoding="utf-8")
+    result = _invoke_adopt(tmp_path)
+    assert result.exit_code == 1, result.output
+    assert "project.yaml could not be read" in result.output
+
+
 def test_adopt_hook_baseline_failure_surfaces_as_exit_2(tmp_path: Path) -> None:
     """A hook-trust baseline failure on a fresh adopt is a typed ERR_ADOPT envelope (exit 2)."""
 

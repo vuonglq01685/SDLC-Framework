@@ -1,0 +1,20 @@
+[
+  {
+    "confidence":95,
+    "kind":"readme",
+    "path":"README.md",
+    "suggested_target":""
+  },
+  {
+    "confidence":90,
+    "kind":"architecture",
+    "path":"docs/architecture.md",
+    "suggested_target":"02-Architecture/02-System/ARCHITECTURE.md"
+  },
+  {
+    "confidence":100,
+    "kind":"build-file",
+    "path":"pom.xml",
+    "suggested_target":""
+  }
+]

@@ -48,10 +48,14 @@ _FIXTURE_NAMES = [
     "greenfield-disguised",
 ]
 
-# Deterministic git_signal per fixture — all "recently touched" (5 days ago).
-# Stubs are intentionally uniform so goldens are cross-machine stable.
-# In a real run the CLI layer reads live git log; corpus tests stub it.
+# Recency-OFF corpus: the stub is intentionally EMPTY so no +5 boost is applied and the goldens
+# pin the base (recency-independent) confidences — byte-stable across machines. In a real run the
+# CLI layer reads live git log; the recency-ON branch (which production always runs) is pinned
+# separately by the deterministic recency-ON variant below (`_recency_on_signal`).
 _STUB_GIT_SIGNAL: dict[str, int] = {}  # empty = no recency boost, stable across all machines
+
+# Recency-ON variant: treat every detected path as touched this many days ago (≤ 90 ⇒ +5 boost).
+_RECENT_DAYS = 5
 
 
 # ---------------------------------------------------------------------------
@@ -120,16 +124,28 @@ def _assert_or_update_golden(
     fixture_dir: Path,
     actual_json: str,
     update: bool,
+    filename: str = "detection.json",
 ) -> None:
     goldens_dir = fixture_dir / "goldens"
     goldens_dir.mkdir(parents=True, exist_ok=True)
-    filename = "detection.json"
     if update:
         (goldens_dir / filename).write_text(actual_json, encoding="utf-8")
         return
     err = _compare_one_golden(filename, actual_json, goldens_dir)
     if err:
         raise AssertionError(err)
+
+
+def _recency_on_signal(fixture_dir: Path) -> dict[str, int]:
+    """Deterministic recency-ON signal: every detected path treated as touched 5 days ago.
+
+    Built from the recency-OFF detection so it depends ONLY on fixture content (no live git),
+    exercising the +5 boost branch (AC3) that the empty `_STUB_GIT_SIGNAL` never triggers. This
+    pins the recency-ON confidences that production always emits (`cli/adopt.py` always calls
+    `git_last_touched_days`), complementing the recency-OFF `detection.json` golden.
+    """
+    base = detect_existing(fixture_dir, git_signal=_STUB_GIT_SIGNAL)
+    return {a.path: _RECENT_DAYS for a in base}
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +170,28 @@ def test_corpus_fixture_matches_golden(
     artifacts = detect_existing(fixture_dir, git_signal=_STUB_GIT_SIGNAL)
     actual_json = _canon_json(_artifacts_to_json(artifacts))
     _assert_or_update_golden(fixture_dir, actual_json, update_goldens)
+
+
+@pytest.mark.parametrize("fixture_name", _FIXTURE_NAMES)
+def test_corpus_fixture_recency_on_matches_golden(
+    fixture_name: str,
+    update_goldens: bool,
+) -> None:
+    """Recency-ON variant (AC3): every detected path touched ≤90d gets the +5 boost.
+
+    Pins the recency-ON branch that production always runs, so a regression in the boost-merge
+    logic surfaces in the byte-stable corpus gate (not only in the unit tests). Complements the
+    recency-OFF `detection.json` golden with `detection_recent.json`.
+    """
+    fixture_dir = _FIXTURES_DIR / fixture_name
+    assert fixture_dir.exists(), f"Fixture directory missing: {fixture_dir}"
+
+    signal = _recency_on_signal(fixture_dir)
+    artifacts = detect_existing(fixture_dir, git_signal=signal)
+    actual_json = _canon_json(_artifacts_to_json(artifacts))
+    _assert_or_update_golden(
+        fixture_dir, actual_json, update_goldens, filename="detection_recent.json"
+    )
 
 
 def test_greenfield_disguised_returns_empty(update_goldens: bool) -> None:

@@ -1,0 +1,14 @@
+[
+  {
+    "confidence":95,
+    "kind":"readme",
+    "path":"README.md",
+    "suggested_target":""
+  },
+  {
+    "confidence":100,
+    "kind":"build-file",
+    "path":"go.mod",
+    "suggested_target":""
+  }
+]

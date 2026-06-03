@@ -102,6 +102,10 @@ def brownfield_repo_with_artifacts(tmp_path: Path) -> Path:
     _git(["init"], root)
     _git(["config", "user.email", "test@example.com"], root)
     _git(["config", "user.name", "Test"], root)
+    # Hermetic: ignore any developer global gitignore (e.g. a `*.md` rule) so the README/arch
+    # docs are actually tracked — otherwise git-recency has no entry for them and the AC3 boost
+    # assertion below would silently depend on the host's global excludes.
+    _git(["config", "core.excludesFile", "/dev/null"], root)
     (root / "src").mkdir()
     (root / "src" / "App.java").write_text("class App {}\n", encoding="utf-8")
     (root / "README.md").write_text("# Existing project\n", encoding="utf-8")
@@ -136,6 +140,16 @@ def test_adopt_detects_artifacts_without_touching_source(
     report = AdoptReport.model_validate_json(report_path.read_text(encoding="utf-8"))
     kinds = {a.kind for a in report.detected}
     assert {"readme", "architecture", "build-file"} <= kinds, f"missing kinds; got {kinds}"
+
+    # AC3 end-to-end: every artifact was just committed (days_since == 0 ≤ 90), so the live
+    # git-recency signal must apply the +5 boost. README detected at the base 90 (not 95) would
+    # mean the signal silently failed to thread through (e.g. path-key mismatch) — the kind set
+    # above cannot catch that. This is the only test that exercises the real `git log` path.
+    by_kind = {a.kind: a.confidence for a in report.detected}
+    assert by_kind["readme"] == 95, (
+        f"expected readme 90 base + 5 recency boost = 95, got {by_kind['readme']} "
+        "(recency signal did not apply end-to-end)"
+    )
 
     # Source tree untouched: porcelain reports changes ONLY under .claude/ (NFR-REL-6).
     porcelain = _git(["status", "--porcelain"], brownfield_repo_with_artifacts).stdout

@@ -96,4 +96,6 @@ def detect_existing(
             artifact = _classify_candidate(abs_path, rel_posix, git_signal)
             if artifact is not None:
                 results.append(artifact)
-    return results
+    # Deterministic order (sorted by path): os.walk yields entries in arbitrary OS-dependent
+    # order, so sort here to make the written adopt-report.json reproducible across filesystems.
+    return sorted(results, key=lambda a: a.path)

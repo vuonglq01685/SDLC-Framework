@@ -288,7 +288,11 @@ def test_git_signal_boosts_recent_over_stale(repo_root: Path) -> None:
     recent_conf = next((r.confidence for r in recent if "arch.md" in r.path), None)
     stale_conf = next((r.confidence for r in stale if "arch.md" in r.path), None)
     assert recent_conf is not None and stale_conf is not None
-    assert recent_conf >= stale_conf, f"recent={recent_conf} should be >= stale={stale_conf}"
+    # Falsifiable: a `>=` here would still pass if the boost were removed (both collapse to the
+    # base 85). Pin the exact +5 so a regressed/absent boost fails the test.
+    assert recent_conf == stale_conf + 5, (
+        f"recent={recent_conf} must equal stale={stale_conf} + 5 recency boost"
+    )
 
 
 def test_no_git_signal_degrades_gracefully(repo_root: Path) -> None:

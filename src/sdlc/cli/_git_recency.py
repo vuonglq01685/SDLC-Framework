@@ -57,7 +57,9 @@ def parse_git_log(stdout: str, now: datetime) -> dict[str, int]:
             if parsed is not None:
                 current_days = max(0, (now - parsed).days)
             continue
-        path = raw.strip()
+        # `git -c core.quotePath=false` emits paths verbatim and splitlines() already drops the
+        # line ending, so keep the raw path (no .strip()) to preserve exotic trailing chars.
+        path = raw
         if path and current_days is not None and path not in out:
             out[path] = current_days
     return out
@@ -71,7 +73,17 @@ def git_last_touched_days(root: Path) -> dict[str, int]:
     """
     try:
         result = subprocess.run(
-            ["git", "log", f"--pretty=format:{_COMMIT_PREFIX}%cI", "--name-only", "--no-renames"],
+            [
+                "git",
+                # Emit non-ASCII paths verbatim (UTF-8), not octal-escaped + double-quoted, so the
+                # map keys match the filesystem-derived `rel_posix` lookup in apply_recency_boost.
+                "-c",
+                "core.quotePath=false",
+                "log",
+                f"--pretty=format:{_COMMIT_PREFIX}%cI",
+                "--name-only",
+                "--no-renames",
+            ],
             capture_output=True,
             text=True,
             check=False,
