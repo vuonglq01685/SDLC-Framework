@@ -103,7 +103,8 @@ extend-exclude = [
     "_bmad/",
     "_bmad-output/",
     "_site/",
-]  # `docs/ux/` matches mkdocs.yml `exclude_docs: ux/` scope (ADR-011); `.agents/` BMad templates are not product Python.
+    "tests/fixtures/",
+]  # `docs/ux/` matches mkdocs.yml `exclude_docs: ux/` scope (ADR-011); `.agents/` BMad templates are not product Python; `tests/fixtures/` are brownfield sample trees (Story 3.2 corpus), not product Python.
 
 [tool.ruff.lint]
 # Project-specific noqa used by scripts/check_no_direct_state_writes.py (not a Ruff code).

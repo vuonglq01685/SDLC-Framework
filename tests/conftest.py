@@ -1,4 +1,10 @@
-"""Pytest configuration: add scripts/ to sys.path for test imports."""
+"""Pytest configuration: add scripts/ to sys.path for test imports.
+
+Registers shared pytest options used across all test tiers:
+  --update-goldens  Regenerate golden files in place instead of asserting equality.
+                    Consumed by e2e CLI/pipeline corpus tests and the unit-tier
+                    brownfield corpus tests (Story 3.2 AC6).
+"""
 
 from __future__ import annotations
 
@@ -11,6 +17,15 @@ import pytest
 _scripts_dir = str(Path(__file__).resolve().parents[1] / "scripts")
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--update-goldens",
+        action="store_true",
+        default=False,
+        help="Regenerate golden files in place instead of asserting equality.",
+    )
 
 
 @pytest.fixture(autouse=True)

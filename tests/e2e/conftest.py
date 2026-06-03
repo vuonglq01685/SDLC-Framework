@@ -1,8 +1,8 @@
 """Shared pytest configuration for the tests/e2e/ tier (AC4 — shared plumbing).
 
-Defines: --update-goldens flag, update_goldens fixture, e2e_repo_root fixture,
-cli_runner fixture (available to all e2e sub-tiers), CliRunner Protocol,
-_strip_uv_preamble helper, and _normalize_timestamps helper.
+Defines: update_goldens fixture (--update-goldens flag registered in tests/conftest.py),
+e2e_repo_root fixture, cli_runner fixture (available to all e2e sub-tiers),
+CliRunner Protocol, _strip_uv_preamble helper, and _normalize_timestamps helper.
 
 2A.0 time-freeze policy: no SDLC_FAKE_NOW hook is introduced here. Journal golden
 comparisons in cli/conftest.py exclude the `ts` field via ts-excluded
@@ -30,15 +30,8 @@ _DEFAULT_SUBPROCESS_TIMEOUT_SECONDS: float = 60.0
 # ---------------------------------------------------------------------------
 # Pytest option + session fixtures
 # ---------------------------------------------------------------------------
-
-
-def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption(
-        "--update-goldens",
-        action="store_true",
-        default=False,
-        help="Regenerate golden files in place instead of asserting equality.",
-    )
+# NOTE: --update-goldens is registered in the top-level tests/conftest.py
+# (moved by Story 3.2 so both e2e and unit-tier corpus tests share the flag).
 
 
 @pytest.fixture(scope="session")
