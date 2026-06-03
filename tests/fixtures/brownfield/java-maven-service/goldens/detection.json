@@ -1,0 +1,32 @@
+[
+  {
+    "confidence":95,
+    "kind":"ci-workflow",
+    "path":".github/workflows/ci.yml",
+    "suggested_target":""
+  },
+  {
+    "confidence":90,
+    "kind":"readme",
+    "path":"README.md",
+    "suggested_target":""
+  },
+  {
+    "confidence":85,
+    "kind":"architecture",
+    "path":"docs/architecture-2024.md",
+    "suggested_target":"02-Architecture/02-System/ARCHITECTURE.md"
+  },
+  {
+    "confidence":75,
+    "kind":"runbook",
+    "path":"docs/runbook.md",
+    "suggested_target":""
+  },
+  {
+    "confidence":95,
+    "kind":"build-file",
+    "path":"pom.xml",
+    "suggested_target":""
+  }
+]

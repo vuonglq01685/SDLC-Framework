@@ -88,7 +88,7 @@ def test_passes_run_in_strict_order(adopt_root: Path, monkeypatch: pytest.Monkey
     calls: list[int] = []
     from sdlc.adopt.passes import detection, stamp, symlink_offer
 
-    monkeypatch.setattr(detection, "detect_existing", lambda root: calls.append(1) or [])
+    monkeypatch.setattr(detection, "detect_existing", lambda root, **_kw: calls.append(1) or [])
     monkeypatch.setattr(symlink_offer, "offer_symlinks", lambda root, detected: calls.append(2))
     monkeypatch.setattr(stamp, "mark_imported", lambda root, detected: calls.append(3))
 
@@ -198,7 +198,7 @@ def test_resume_skips_completed_passes(adopt_root: Path, monkeypatch: pytest.Mon
     calls: list[int] = []
     from sdlc.adopt.passes import detection, stamp, symlink_offer
 
-    monkeypatch.setattr(detection, "detect_existing", lambda root: calls.append(1) or [])
+    monkeypatch.setattr(detection, "detect_existing", lambda root, **_kw: calls.append(1) or [])
     monkeypatch.setattr(symlink_offer, "offer_symlinks", lambda root, detected: calls.append(2))
     monkeypatch.setattr(stamp, "mark_imported", lambda root, detected: calls.append(3))
 

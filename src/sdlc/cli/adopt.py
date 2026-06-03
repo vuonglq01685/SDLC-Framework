@@ -19,6 +19,8 @@ from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.output import echo, emit_error, emit_json
 
 _JOURNAL_PATH_REL = ".claude/state/journal.log"
+# AC5 (epics.md:1809, verbatim): greenfield-disguised brownfield → no candidates message.
+_GREENFIELD_MESSAGE = "no candidate artifacts detected; will treat as greenfield"
 
 
 def _state_already_initialized(root: Path) -> bool:
@@ -49,6 +51,30 @@ def _scaffold_if_fresh(root: Path, *, ctx: typer.Context) -> None:
         )
 
 
+def _load_legacy_code_globs(root: Path, *, ctx: typer.Context) -> tuple[str, ...]:
+    """Read `project.yaml`'s `legacy_code_globs` for the D4 exclusion signal (Story 3.2).
+
+    Mirrors Story 3.8's read (`cli/break_.py:224`). A brownfield repo being adopted usually
+    has no `project.yaml` → `load_project_config` returns defaults (empty globs). A malformed
+    `project.yaml` surfaces a typed envelope rather than silently dropping the exclusion.
+    """
+    from collections.abc import Mapping  # deferred per §488
+
+    from sdlc.config.project import DEFAULT_PROJECT_YAML, load_project_config
+    from sdlc.errors import ConfigError
+
+    try:
+        return load_project_config(root / DEFAULT_PROJECT_YAML).legacy_code_globs
+    except ConfigError as exc:
+        # emit_error raises typer.Exit (NoReturn) — surfaces a typed envelope, never falls through.
+        emit_error(
+            "ERR_USER_INPUT",
+            f"project.yaml could not be read: {exc}",
+            ctx=ctx,
+            details=dict(exc.details) if isinstance(exc.details, Mapping) else {"cause": str(exc)},
+        )
+
+
 def run_adopt(*, ctx: typer.Context) -> None:
     """Adopt an existing repository (FR2): scaffold-if-fresh, then run the three passes."""
     from sdlc.errors import AdoptError, JournalError  # deferred
@@ -58,10 +84,22 @@ def run_adopt(*, ctx: typer.Context) -> None:
 
     _scaffold_if_fresh(root, ctx=ctx)
 
+    # Story 3.2 D2/D4: compute the recency signal + read legacy-exclusion globs in the cli
+    # layer (which holds the git + config grants) and inject them into the pure detector.
+    from sdlc.cli._git_recency import git_last_touched_days  # deferred per boundary + §488
+
+    git_signal = git_last_touched_days(root)
+    legacy_code_globs = _load_legacy_code_globs(root, ctx=ctx)
+
     from sdlc.adopt import run_adopt as _run_adopt_driver  # deferred per boundary + §488
 
     try:
-        report = _run_adopt_driver(root=root, journal_path=journal_path)
+        report = _run_adopt_driver(
+            root=root,
+            journal_path=journal_path,
+            git_signal=git_signal,
+            legacy_code_globs=legacy_code_globs,
+        )
     except JournalError as exc:
         emit_error(
             "ERR_ADOPT",
@@ -85,8 +123,12 @@ def run_adopt(*, ctx: typer.Context) -> None:
         return
     echo(f"Adopted SDLC framework in {root}", ctx=ctx)
     echo(f"  passes completed: {list(report.passes_completed)}", ctx=ctx)
-    echo(
-        f"  detected artifacts: {len(report.detected)} (see .claude/state/adopt-report.json)",
-        ctx=ctx,
-    )
+    # AC5: greenfield-disguised repo → emit the verbatim no-candidates message.
+    if not report.detected:
+        echo(f"  {_GREENFIELD_MESSAGE}", ctx=ctx)
+    else:
+        echo(
+            f"  detected artifacts: {len(report.detected)} (see .claude/state/adopt-report.json)",
+            ctx=ctx,
+        )
     echo("Next: sdlc status", ctx=ctx)

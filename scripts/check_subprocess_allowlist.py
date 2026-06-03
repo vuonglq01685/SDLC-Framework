@@ -45,6 +45,9 @@ _SUBPROCESS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("src/sdlc/runtime/claude.py", _DYNAMIC_BIN),
         ("src/sdlc/cli/_compat_check.py", "claude"),
         ("src/sdlc/cli/_paths.py", "git"),
+        # Story 3.2 D2: adopt Pass 1 recency signal — git log read in the cli layer
+        # (adopt/ has no git grant), injected into detect_existing(root, git_signal=...).
+        ("src/sdlc/cli/_git_recency.py", "git"),
         ("src/sdlc/hooks/runner.py", _DYNAMIC_BIN),
         ("src/sdlc/hooks/runner.py", "git"),
         ("src/sdlc/claude_hooks/pre_tool_use.py", "sdlc"),

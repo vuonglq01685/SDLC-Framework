@@ -1,0 +1,14 @@
+[
+  {
+    "confidence":80,
+    "kind":"prd",
+    "path":"docs/requirements.md",
+    "suggested_target":"01-Requirement/01-PRODUCT.md"
+  },
+  {
+    "confidence":95,
+    "kind":"build-file",
+    "path":"pyproject.toml",
+    "suggested_target":""
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "confidence":90,
+    "kind":"readme",
+    "path":"README.md",
+    "suggested_target":""
+  },
+  {
+    "confidence":85,
+    "kind":"architecture",
+    "path":"docs/architecture.md",
+    "suggested_target":"02-Architecture/02-System/ARCHITECTURE.md"
+  },
+  {
+    "confidence":95,
+    "kind":"build-file",
+    "path":"packages/api/package.json",
+    "suggested_target":""
+  },
+  {
+    "confidence":95,
+    "kind":"build-file",
+    "path":"packages/frontend/package.json",
+    "suggested_target":""
+  }
+]

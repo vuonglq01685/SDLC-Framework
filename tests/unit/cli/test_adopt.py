@@ -82,13 +82,52 @@ def test_adopt_does_not_emit_not_implemented(tmp_path: Path) -> None:
     assert "not implemented" not in result.output.lower()
 
 
+# --- AC5: greenfield-disguised message + detected-artifact count (Story 3.2) ---------------
+
+
+def test_adopt_emits_greenfield_message_on_empty_detection(tmp_path: Path) -> None:
+    """An artifact-free repo → the verbatim greenfield message (AC5, epics.md:1809)."""
+    result = _invoke_adopt(tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "no candidate artifacts detected; will treat as greenfield" in result.output
+
+
+def test_adopt_emits_detected_count_when_artifacts_found(tmp_path: Path) -> None:
+    """A repo with SDLC-shaped artifacts → the detected-count line, not the greenfield message."""
+    (tmp_path / "README.md").write_text("# My Project", encoding="utf-8")
+    (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+    result = _invoke_adopt(tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "detected artifacts:" in result.output
+    assert "will treat as greenfield" not in result.output
+
+
+def test_adopt_report_populates_detected_for_brownfield(tmp_path: Path) -> None:
+    """Pass 1 detection populates `detected[]` in the report for a brownfield repo (AC1/AC4)."""
+    (tmp_path / "README.md").write_text("# My Project", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "arch.md").write_text(
+        "# Architecture\n\nADR-001: decision\n", encoding="utf-8"
+    )
+    result = _invoke_adopt(tmp_path)
+    assert result.exit_code == 0, result.output
+    report_path = tmp_path / ".claude" / "state" / "adopt-report.json"
+    report = AdoptReport.model_validate_json(report_path.read_text(encoding="utf-8"))
+    kinds = {a.kind for a in report.detected}
+    assert "readme" in kinds
+    assert "architecture" in kinds
+    arch = next(a for a in report.detected if a.kind == "architecture")
+    assert arch.suggested_target == "02-Architecture/02-System/ARCHITECTURE.md"
+    assert isinstance(arch.confidence, int)
+
+
 # --- failure surfacing (AC6: failures are journaled at the driver AND surfaced at the CLI) ----
 
 
 def test_adopt_surfaces_driver_adopt_error_as_exit_2(tmp_path: Path) -> None:
     """A driver-raised AdoptError becomes an ERR_ADOPT envelope (exit 2), not a raw traceback."""
 
-    def _boom(*, root: Path, journal_path: Path) -> object:
+    def _boom(*, root: Path, journal_path: Path, **_kw: object) -> object:
         raise AdoptError("adopt pass 2 failed: boom", details={"pass": 2})
 
     with unittest.mock.patch("sdlc.adopt.run_adopt", _boom):
@@ -100,7 +139,7 @@ def test_adopt_surfaces_driver_adopt_error_as_exit_2(tmp_path: Path) -> None:
 def test_adopt_surfaces_journal_error_as_exit_2(tmp_path: Path) -> None:
     """A driver-raised JournalError becomes an ERR_ADOPT envelope (exit 2)."""
 
-    def _boom(*, root: Path, journal_path: Path) -> object:
+    def _boom(*, root: Path, journal_path: Path, **_kw: object) -> object:
         raise JournalError("monotonic_seq regression")
 
     with unittest.mock.patch("sdlc.adopt.run_adopt", _boom):

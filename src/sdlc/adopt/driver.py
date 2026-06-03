@@ -114,10 +114,25 @@ def _validate_resume_cursor(completed: Sequence[int], report_path: Path) -> None
         )
 
 
-def _run_pass(n: int, root: Path, detected: list[DetectedArtifact]) -> list[DetectedArtifact]:
-    """Dispatch pass ``n`` to its typed seam. Pass 1 returns the detected list (3.2 fills it)."""
+def _run_pass(
+    n: int,
+    root: Path,
+    detected: list[DetectedArtifact],
+    *,
+    git_signal: dict[str, int] | None,
+    legacy_code_globs: tuple[str, ...],
+) -> list[DetectedArtifact]:
+    """Dispatch pass ``n`` to its typed seam. Pass 1 returns the detected list (3.2 fills it).
+
+    ``git_signal`` (recency, D2) and ``legacy_code_globs`` (exclusion, D4) are injected by
+    the ``cli`` layer and consumed only by Pass 1 detection (``adopt/`` has no git grant).
+    """
     if n == _PASS_DETECT:
-        return list(detection.detect_existing(root))
+        return list(
+            detection.detect_existing(
+                root, git_signal=git_signal, legacy_code_globs=legacy_code_globs
+            )
+        )
     if n == _PASS_SYMLINK_OFFER:
         symlink_offer.offer_symlinks(root, detected)
         return detected
@@ -140,12 +155,22 @@ def _build_report(
     )
 
 
-def run_adopt(*, root: Path, journal_path: Path) -> AdoptReport:
+def run_adopt(
+    *,
+    root: Path,
+    journal_path: Path,
+    git_signal: dict[str, int] | None = None,
+    legacy_code_globs: tuple[str, ...] = (),
+) -> AdoptReport:
     """Run the three adopt passes in order, journaling + persisting the report (FR2).
 
     Resumes from any prior `adopt-report.json` (D3(a) pass-level): passes in
     `passes_completed` are skipped. On a pass failure the last-good `passes_completed` is
     persisted, the failure is journaled with the pass + reason, and `AdoptError` is raised.
+
+    ``git_signal`` (Story 3.2 D2 recency map) and ``legacy_code_globs`` (D4 exclusion) are
+    injected by the ``cli`` layer and forwarded to Pass 1 detection; both default to the
+    no-op value so non-adopt callers and resume runs are unaffected.
     """
     existing = _read_existing_report(root)
     completed: list[int] = list(existing.passes_completed) if existing else []
@@ -159,7 +184,9 @@ def run_adopt(*, root: Path, journal_path: Path) -> AdoptReport:
             continue
         _append_event(journal_path, kind=_KIND_STARTED, payload={"pass": n})
         try:
-            detected = _run_pass(n, root, detected)
+            detected = _run_pass(
+                n, root, detected, git_signal=git_signal, legacy_code_globs=legacy_code_globs
+            )
         except Exception as exc:
             # Orchestrator must journal + persist ANY pass failure, then re-raise as AdoptError.
             # Both side effects are best-effort: a secondary failure (journal/disk) must NOT mask
