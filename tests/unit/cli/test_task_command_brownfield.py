@@ -160,3 +160,36 @@ def test_write_tests_first_task_advances_on_red(tmp_path: Path) -> None:
     assert task_data["stage"] == "write-tests"
     journal = (tmp_path / ".claude" / "state" / "journal.log").read_text()
     assert "test-author" in journal
+
+
+# ---------------------------------------------------------------------------
+# Review F1: on the REAL runtime the nominal-only pipeline dispatches `test-author`
+# (RED), which the characterization GREEN-gate would reject — fail fast with a clear,
+# debt-tagged message instead of a confusing downstream gate error.
+# ---------------------------------------------------------------------------
+
+
+def test_characterization_on_real_runtime_fails_with_actionable_debt_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SDLC_USE_MOCK_RUNTIME", raising=False)  # exercise the real-runtime path
+    _setup_approved_repo(tmp_path)
+    _write_task(tmp_path, tdd_strategy="characterization-test")
+    _write_story(tmp_path)
+
+    # Patch dispatch + build_runtime so that, absent the guard, the task would advance
+    # (proving the guard — not a network/runtime failure — is what stops it).
+    with (
+        unittest.mock.patch(
+            "sdlc.cli._task_pipeline.dispatch",
+            return_value=_dispatch_result(_green_tests_payload()),
+        ),
+        unittest.mock.patch("sdlc.cli.task.build_runtime", return_value=unittest.mock.MagicMock()),
+        unittest.mock.patch("sdlc.cli.task._get_repo_root_or_cwd", return_value=tmp_path),
+    ):
+        r = _runner.invoke(app, ["--json", "task", _TASK_ID])
+
+    assert r.exit_code != 0, r.output
+    assert "EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH" in r.output
+    # stage left UNCHANGED at pending (pre-emptive: nothing dispatched/written).
+    assert json.loads(_task_path(tmp_path).read_text())["stage"] == "pending"

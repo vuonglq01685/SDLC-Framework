@@ -76,7 +76,7 @@ Respond with a single **JSON array** of task records and nothing else:
   the production-code paths, not test paths. An empty list is acceptable for a task that
   touches no declared source path.
 - Do NOT emit a `"tdd_strategy"` field — the CLI stamps it deterministically from
-  `touches` (below). Any value you provide is ignored.
+  `touches` (below). If you include one anyway it is dropped before validation, so omit it.
 - Task IDs must be unique; sequence numbers must be contiguous starting at `T01`.
 - Output ONLY the JSON array — no prose before or after.
 

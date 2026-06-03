@@ -250,6 +250,29 @@ def run_task(*, ctx: typer.Context, task_id: str, allow_mock: bool = False) -> N
     # Story 3.8 AC3: pending-stage selection consults task.tdd_strategy (characterization swap).
     specialist_name = select_stage_specialist(current_stage, task)
 
+    # Story 3.8 review (F1): on the real runtime the pending stage dispatches the nominal-only
+    # primary_agent ("test-author", AC9/D1), which authors fail-first RED tests — but the
+    # characterization gate requires GREEN, so a real characterization-test task would fail
+    # confusingly at the gate after dispatch. Fail fast with an actionable message until real
+    # characterization-author dispatch is wired (EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH,
+    # tracked alongside EPIC-2A-DEBT-TASK-REAL-TEST-EXECUTION). Mock mode dispatches the
+    # characterization body (GREEN) and is unaffected.
+    if specialist_name == "characterization-author" and not use_mock_runtime():
+        emit_error(
+            "ERR_TASK_STAGE_FAILED",
+            "characterization-test tasks cannot be dispatched on the real runtime yet: "
+            "/sdlc-task routes the pending stage through 'test-author' (nominal-only, AC9/D1), "
+            "which authors fail-first (RED) tests, but the characterization gate requires GREEN. "
+            "Use the mock runtime (SDLC_USE_MOCK_RUNTIME=1) for now; real characterization-author "
+            "dispatch is tracked as EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH.",
+            ctx=ctx,
+            details={
+                "task_id": task_id,
+                "tdd_strategy": "characterization-test",
+                "debt": "EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH",
+            },
+        )
+
     review_verdict: str | None = None
 
     with tempfile.TemporaryDirectory() as tmp:

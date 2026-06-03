@@ -42,7 +42,9 @@ def mock_characterization_author_body(task_id: str) -> str:
                 {
                     "path": (
                         "tests/unit/test_"
-                        f"{task_id.rsplit('-T', maxsplit=1)[-1].split('-', maxsplit=1)[0]}"
+                        # Story 3.8 review (F5): use the full post-`-T` slug (sanitized) so two
+                        # tasks sharing a T-number across stories don't collide on one path.
+                        f"{task_id.rsplit('-T', maxsplit=1)[-1].replace('-', '_')}"
                         "_characterization.py"
                     ),
                     "content": (

@@ -42,13 +42,44 @@ def classify_tdd_strategy(
     return WRITE_TESTS_FIRST
 
 
+def _canonical_path(path: str) -> str:
+    """Normalize a ``touches`` path to canonical repo-relative POSIX form.
+
+    Converts ``\\`` → ``/``, strips leading ``./`` segments and a leading ``/`` (so an
+    absolute or ``./``-relative path still matches a repo-relative glob) and drops a trailing
+    ``/``. Without this a non-canonical path silently fails to match and a legacy task is
+    downgraded to ``write-tests-first`` — defeating the brownfield classification.
+    """
+    p = path.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p.lstrip("/").rstrip("/")
+
+
+def _canonical_glob(pattern: str) -> str:
+    """Normalize a ``legacy_code_globs`` entry; a directory-style glob (``dir/``) → ``dir/**``.
+
+    Mirrors :func:`_canonical_path` for separators/prefixes, then expands a trailing-slash
+    (directory) glob to cover everything beneath it — the common authoring habit that would
+    otherwise match nothing.
+    """
+    p = pattern.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    p = p.lstrip("/")
+    if p.endswith("/"):
+        return p.rstrip("/") + "/**"
+    return p
+
+
 def _match_path_glob(path: str, pattern: str) -> bool:
     """Match a POSIX path against a glob with ``**`` support (segment-aware).
 
     ``**`` matches zero or more path segments; ``*``/``?``/char-classes match within a
     single segment (delegated to :mod:`fnmatch`) so ``*`` does NOT cross ``/`` boundaries.
+    Both inputs are canonicalized first (separators, leading ``./``/``/``, trailing ``/``).
     """
-    return _match_segments(path.split("/"), pattern.split("/"))
+    return _match_segments(_canonical_path(path).split("/"), _canonical_glob(pattern).split("/"))
 
 
 def _match_segments(path_parts: list[str], pat_parts: list[str]) -> bool:

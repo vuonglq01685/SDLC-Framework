@@ -156,8 +156,12 @@ def parse_task_array(output_text: str, *, request_story_id: str) -> list[_TaskEn
                 f"task array entry {i} is not an object",
                 details={"sdlc_break": "schema_invalid", "index": i},
             )
+        # Story 3.8 review (F3): the CLI stamps tdd_strategy deterministically (D2), so drop any
+        # value the model supplied — an out-of-enum value would otherwise raise ValidationError
+        # and abort the whole batch, contradicting task-breaker.md's "it is dropped" contract.
+        item_clean = {k: v for k, v in item.items() if k != "tdd_strategy"}
         try:
-            out.append(_TaskEntry.model_validate_json(json.dumps(item, ensure_ascii=False)))
+            out.append(_TaskEntry.model_validate_json(json.dumps(item_clean, ensure_ascii=False)))
         except ValidationError as exc:
             raise WorkflowError(
                 f"task array entry {i} failed schema validation: {exc}",

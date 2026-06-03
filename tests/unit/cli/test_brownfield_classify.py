@@ -128,3 +128,91 @@ def test_prefix_is_not_a_substring_match() -> None:
         classify_tdd_strategy(("src/legacy_helpers/foo.py",), ("src/legacy/**",))
         == "write-tests-first"
     )
+
+
+# ---------------------------------------------------------------------------
+# Review F4: mid-pattern ``**`` (the riskiest matcher branch) — coverage.
+# ---------------------------------------------------------------------------
+
+
+def test_double_star_in_the_middle_of_a_pattern_matches() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    # ``**`` between fixed segments matches zero-or-more intermediate segments.
+    assert (
+        classify_tdd_strategy(("src/a/b/legacy/foo.py",), ("src/**/legacy/*.py",))
+        == "characterization-test"
+    )
+    # zero intermediate segments (``**`` matches nothing) must also match.
+    assert (
+        classify_tdd_strategy(("src/legacy/foo.py",), ("src/**/legacy/*.py",))
+        == "characterization-test"
+    )
+
+
+def test_double_star_in_the_middle_still_respects_the_tail() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    # tail ``*.py`` does not cross a slash, so a nested file under the tail dir is NOT matched.
+    assert (
+        classify_tdd_strategy(("src/a/legacy/sub/foo.py",), ("src/**/legacy/*.py",))
+        == "write-tests-first"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Review F2: non-canonical globs/paths must NOT silently downgrade legacy to
+# greenfield. Canonicalize separators / prefixes / trailing slash before matching.
+# ---------------------------------------------------------------------------
+
+
+def test_trailing_slash_glob_matches_directory_contents() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    # A directory-style glob ``src/legacy/`` (common authoring habit) must cover its files.
+    assert (
+        classify_tdd_strategy(("src/legacy/foo.py",), ("src/legacy/",)) == "characterization-test"
+    )
+
+
+def test_dot_slash_prefixed_touch_path_still_matches() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    assert (
+        classify_tdd_strategy(("./src/legacy/foo.py",), ("src/legacy/**",))
+        == "characterization-test"
+    )
+
+
+def test_absolute_touch_path_is_normalized_to_repo_relative() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    assert (
+        classify_tdd_strategy(("/src/legacy/foo.py",), ("src/legacy/**",))
+        == "characterization-test"
+    )
+
+
+def test_backslash_separators_are_normalized() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    assert (
+        classify_tdd_strategy(("src\\legacy\\foo.py",), ("src/legacy/**",))
+        == "characterization-test"
+    )
+
+
+def test_backslash_and_dot_slash_in_glob_are_normalized() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    assert (
+        classify_tdd_strategy(("src/legacy/foo.py",), ("./src\\legacy\\**",))
+        == "characterization-test"
+    )
+
+
+def test_canonicalization_does_not_break_greenfield_default() -> None:
+    from sdlc.cli._brownfield import classify_tdd_strategy
+
+    # Non-legacy path with non-canonical form stays write-tests-first (no false promotion).
+    assert classify_tdd_strategy(("./src/app/feature.py",), ("src/legacy/",)) == "write-tests-first"
