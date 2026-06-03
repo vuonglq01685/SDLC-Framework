@@ -1,6 +1,6 @@
 # Story 3.2: Pass 1 — Detection (Filesystem Scan + Content Heuristics + Git History)
 
-**Status:** review
+**Status:** done
 
 **Epic:** 3 — Brownfield Adopt Mode (`sdlc init --adopt`)
 **Layer:** 2 (`docs/sprints/epic-3-dag.md` §3 — first serial-spine pass; max-parallel 1)
@@ -181,6 +181,49 @@ so that **Pass 2 (Story 3.3) has a trustworthy, deterministic `detected[]` to of
   review-C (golden corpus completeness + `suggested_target` mapping + greenfield message exactness + naming);
   no skipping. Review commits carry `[fresh-context-review]` and stage no `src/` files (§4.4).
   **→ Runs in the `code-review` workflow once dev-story sets status=review (not a dev-phase deliverable).**
+
+### Review Findings
+
+> Adversarial code review (`bmad-code-review`, 2026-06-03) — 3 parallel layers (Blind Hunter,
+> Edge Case Hunter, Acceptance Auditor). Diff: `main...HEAD` (45 files, +2129/−38). All 8 ACs
+> verified MET; both binding corrections (int confidence; no contract/snapshot change) HONORED;
+> D2 boundary (no `adopt→cli/git` import) + D4 local matcher confirmed. Triage: 1 decision, 6 patch,
+> 7 defer, 4 dismissed.
+>
+> **Resolution (2026-06-03):** decision resolved → option (a); all 7 patches (P1–P7, incl. the resolved
+> decision) APPLIED and verified — ruff/mypy --strict/subprocess-allowlist/wire-format-snapshots (6/6) green,
+> 96 touched-suite tests pass. Notable: P3 (new end-to-end boost assertion) exposed a latent **non-hermetic
+> integration test** — the dev machine's global `~/.gitignore_global` (`*.md`) meant the fixture's README/arch
+> docs were never git-tracked, so the live recency signal had no entry for them; fixed by pinning
+> `core.excludesFile=/dev/null` in the fixture. The recency code itself is correct (untracked files
+> correctly receive no boost — graceful AC3). No contract/snapshot files modified; 7 new `detection_recent.json`
+> goldens added under the AC6 `--update-goldens` ceremony (ADR-027).
+
+**Decision-needed**
+
+- [x] [Review][Decision] Golden corpus pins recency-OFF while production always runs recency-ON — the corpus stubs `_STUB_GIT_SIGNAL = {}` (no +5 boost), so goldens freeze base confidences (build-file=95, architecture=85), but `cli/adopt.py` always calls `git_last_touched_days(root)` so production emits boosted values (e.g. build-file→100, architecture→90). The AC6 byte-stable gate therefore validates a configuration production never runs, and a regression in the boost-merge logic would not surface in goldens. **RESOLVED (2026-06-03 → option a):** keep the recency-OFF corpus AND add a deterministic recency-ON golden variant — promoted to Patch P7 below. `tests/unit/adopt/test_detection_corpus.py:54`
+
+**Patch**
+
+- [x] [Review][Patch] Recency boost silently skipped for non-ASCII artifact paths — `git log --name-only` C-quotes non-ASCII paths (`"docs/sp\303\251cial.md"`) so map keys never match the UTF-8 `rel_posix` lookup; add `-c core.quotePath=false` to the invocation (and drop the lossy `.strip()` on path lines) `[src/sdlc/cli/_git_recency.py:74]`
+- [x] [Review][Patch] `test_git_signal_boosts_recent_over_stale` uses `>=` so it passes even if the +5 boost is removed (both collapse to base 85); tighten to `recent_conf == stale_conf + _RECENCY_BOOST` (or `>`) `[tests/unit/adopt/test_detection.py:291]`
+- [x] [Review][Patch] Live-git integration test asserts detected kinds but never asserts the recency boost applied — add a confidence assertion proving a freshly-committed artifact carries +5 (also catches the non-ASCII/key-mismatch class end-to-end) `[tests/integration/test_adopt_mode_invariant.py]`
+- [x] [Review][Patch] Stale/contradictory corpus stub comment — lines 51–52 say `all "recently touched" (5 days ago)` directly above `_STUB_GIT_SIGNAL = {}` (line 54 = no boost); correct the comment to state recency-OFF and why `[tests/unit/adopt/test_detection_corpus.py:51]`
+- [x] [Review][Patch] No negative test for the `_load_legacy_code_globs` ConfigError branch — the new `ERR_USER_INPUT` envelope (malformed `project.yaml`) is untested; add a negative case `[tests/unit/cli/test_adopt.py → src/sdlc/cli/adopt.py:68]`
+- [x] [Review][Patch] (optional) Sort `detect_existing` results by path for deterministic production output — the corpus harness already sorts before comparing (gate is safe), but real `adopt-report.json` carries raw `os.walk` order; `return sorted(results, key=lambda a: a.path)` makes reports reproducible `[src/sdlc/adopt/passes/detection.py:99]`
+- [x] [Review][Patch] (P7, resolved from decision → option a) Add a deterministic recency-ON golden corpus variant — introduce a fixed non-empty `git_signal` stub (fixture paths → e.g. 5 days) alongside the existing empty stub and freeze a parallel recency-ON golden per fixture via `--update-goldens`, so AC6 pins BOTH the recency-OFF and recency-ON branches `[tests/unit/adopt/test_detection_corpus.py:54]`
+
+**Deferred** (see `deferred-work.md` → "code review of 3-2-pass-1-detection (2026-06-03)")
+
+- [x] [Review][Defer] Symlink handling: broken name-matched symlinks reported as artifacts; doc symlinks read across `root`; `preexisting-symlinks` fixture ships no real symlink `[src/sdlc/adopt/passes/detection.py:88-98]` — deferred, owned by Story 3.7 (disclosed in Completion Notes)
+- [x] [Review][Defer] git-recency no-ops when `root` ≠ git top-level (repo-relative vs root-relative keys) `[src/sdlc/cli/_git_recency.py:74]` — deferred, degrades gracefully; needs prefix computation
+- [x] [Review][Defer] Config-load `OSError`/`UnicodeDecodeError` on unreadable/non-UTF8 `project.yaml` escapes uncaught (only `ConfigError` caught) `[src/sdlc/cli/adopt.py:66-75]` — deferred, mirrors pre-existing Story 3.8 `break_.py` pattern; fix project-wide
+- [x] [Review][Defer] Content heuristics use bare lowercased substring matching → false positives (e.g. a PRD mentioning "ADR-12" → architecture) `[src/sdlc/adopt/passes/_classify.py:159-174]` — deferred, D3 table ratified+frozen; future heading-anchored hardening + adversarial fixture
+- [x] [Review][Defer] Unbounded walk/read on large repos (descends `node_modules`/`target`; whole-file `read_text` + `.lower()`) `[src/sdlc/adopt/passes/detection.py:33-42]` — deferred, perf/scale hardening
+- [x] [Review][Defer] `_is_ci_workflow` matches `.github/workflows/` at any depth (vendored workflow → `ci-workflow@95`) `[src/sdlc/adopt/passes/_classify.py:111-121]` — deferred, minor over-broadening; legacy_code_globs is the intended exclusion
+- [x] [Review][Defer] `legacy_code_globs` matching everything yields a silent false greenfield (no diagnostic) `[src/sdlc/adopt/passes/detection.py:94]` — deferred, pathological config; future diagnostic when exclusion empties all candidates
+
+**Dismissed (4):** name-only confidence 95 > content-verified 85 (by-design; confidence = classification certainty, ratified D3); `is_doc_markdown` requires `docs/` (matches AC1/AC2/D1 spec scope; root-level markdown out of scope by design); `detect_existing` returns `[]` for a non-existent root (masked — CLI resolves `root` upstream); no Dockerfile/research corpus fixture (AC6 enumerated exactly the 7 delivered fixtures; both are unit-covered).
 
 ---
 
