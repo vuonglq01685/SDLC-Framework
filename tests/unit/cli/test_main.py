@@ -140,49 +140,49 @@ def test_main_app_no_args_shows_help() -> None:
 
 
 @pytest.mark.unit
-def test_register_migrate_commands_adds_migrate_v2_when_discovered(
+def testregister_migrate_commands_adds_migrate_v2_when_discovered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """_register_migrate_commands must add a migrate-v<N> subcommand per discovered script."""
+    """register_migrate_commands must add a migrate-v<N> subcommand per discovered script."""
     import typer as _typer
 
-    from sdlc.cli.main import _register_migrate_commands
+    from sdlc.cli.main import register_migrate_commands
 
     test_app = _typer.Typer()
     monkeypatch.setattr("sdlc.migrations.discover_migrations", lambda: [2])
-    _register_migrate_commands(test_app)
+    register_migrate_commands(test_app)
 
     names = [cmd.name for cmd in test_app.registered_commands]
     assert "migrate-v2" in names
 
 
 @pytest.mark.unit
-def test_register_migrate_commands_no_op_when_no_scripts(
+def testregister_migrate_commands_no_op_when_no_scripts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With no discovered migrations (v1 state), no migrate-vN commands are registered."""
     import typer as _typer
 
-    from sdlc.cli.main import _register_migrate_commands
+    from sdlc.cli.main import register_migrate_commands
 
     test_app = _typer.Typer()
     monkeypatch.setattr("sdlc.migrations.discover_migrations", lambda: [])
-    _register_migrate_commands(test_app)
+    register_migrate_commands(test_app)
 
     assert test_app.registered_commands == []
 
 
 @pytest.mark.unit
-def test_register_migrate_commands_registers_multiple_versions(
+def testregister_migrate_commands_registers_multiple_versions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import typer as _typer
 
-    from sdlc.cli.main import _register_migrate_commands
+    from sdlc.cli.main import register_migrate_commands
 
     test_app = _typer.Typer()
     monkeypatch.setattr("sdlc.migrations.discover_migrations", lambda: [2, 3, 10])
-    _register_migrate_commands(test_app)
+    register_migrate_commands(test_app)
 
     names = {cmd.name for cmd in test_app.registered_commands}
     assert names == {"migrate-v2", "migrate-v3", "migrate-v10"}
@@ -195,11 +195,11 @@ def test_migrate_command_help_text_includes_version(
     """Each dynamically registered migrate-vN command must include the version in its docstring."""
     import typer as _typer
 
-    from sdlc.cli.main import _register_migrate_commands
+    from sdlc.cli.main import register_migrate_commands
 
     test_app = _typer.Typer()
     monkeypatch.setattr("sdlc.migrations.discover_migrations", lambda: [2, 3])
-    _register_migrate_commands(test_app)
+    register_migrate_commands(test_app)
 
     for cmd in test_app.registered_commands:
         assert cmd.name is not None

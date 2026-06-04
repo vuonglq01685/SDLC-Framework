@@ -92,8 +92,10 @@ nullable in the schema (`Optional[str]`) and the natural absent-meaning is `None
 | `adopt_pass_completed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
 | `adopt_pass_failed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3), `reason` |
 | `adopt_pass_started` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
-| `symlink_accepted` | 3.3 | n/a (sentinel) | sentinel | `source`, `target`, `kind` |
+| `adopt_rollback_started` | 3.5 | n/a (sentinel) | sentinel | `targets`, `orphaned_phases`, `reason` |
 | `imported_from_existing` | 3.4 | n/a (sentinel) | sentinel | `source`, `target`, `marker` |
+| `symlink_accepted` | 3.3 | n/a (sentinel) | sentinel | `source`, `target`, `kind` |
+| `symlink_rolled_back` | 3.5 | n/a (sentinel) | sentinel | single: `{target, source}`; bulk: `{count, targets}` |
 
 Per-kind exactness lives in the source code (each emission site documents intent inline).
 This table is the authoritative reference for cross-kind audits — if the table disagrees with
@@ -145,6 +147,8 @@ When Epic 2B+ adds a new emission:
 | 2026-05-28 | Vuonglq01685 + Claude (Story 2B.6 bmad-code-review) | D4: amend `destructive_op_reconfirmed` + `destructive_op_rejected` payload `nonce` → `nonce_sha256` (hex digest) — journal is append-only audit artifact, raw nonce was a residual VCS-leak surface. D3: added `destructive_op_from_readonly_specialist` — emitted when a read-only specialist (empty/_bmad-output-only write_globs) proposes a destructive tool_call; raised as `DispatchError` WITHOUT user prompt (integrity violation, not user-confirmable). |
 | 2026-06-02 | Vuonglq01685 + Claude (Story 3.1) | Added `adopt_pass_started`, `adopt_pass_completed`, `adopt_pass_failed` — the three-pass `sdlc init --adopt` orchestrator journals each pass start/complete (event-only zero-sentinel `after_hash`). `adopt_pass_failed` (D4 in 3.1) carries `{pass, reason}` to satisfy AC6 failure-journaling — the frozen `AdoptReport` schema has no error field, so the failure reason lives in the journal. |
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.4) | Added `imported_from_existing` — Pass 3 emits one event-only entry per accepted symlink mapping, payload `{source, target, marker: "imported-from-existing"}`. External metadata sidecars under `.claude/state/imported-metadata/` (internal-state, not 8th wire-format). |
+| 2026-06-04 | Vuonglq01685 + Claude (Story 3.5) | Added `symlink_rolled_back` — `sdlc adopt-rollback` removes adopt symlinks from `adopted-symlinks.json`; single-target payload `{target, source}`, bulk `--all` payload `{count, targets}` (event-only zero-sentinel `after_hash`). |
+| 2026-06-04 | Vuonglq01685 + Claude (Story 3.5 code-review P5) | Added `adopt_rollback_started` — leading intent anchor journaled BEFORE `--force` signoff invalidation (mirrors `replan_invalidated`'s journal-first fail-loud posture); payload `{targets, orphaned_phases, reason}` (event-only zero-sentinel `after_hash`). Records rollback intent so the audit chain survives a mid-operation failure. |
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.3) | Added `symlink_accepted` — Pass 2 of `sdlc init --adopt` emits one event-only entry per accepted symlink (zero-sentinel `after_hash`), payload `{source, target, kind}`. The accepted-symlink manifest lives in the new `adopted-symlinks.json` wire-format contract (ADR-024 7th); the journal is the append-only audit trail Story 3.5 rollback / 3.6 idempotency replay against. |
 
 ## Revisit-by

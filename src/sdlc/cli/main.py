@@ -12,6 +12,7 @@ import sys
 
 import typer
 
+from sdlc.cli._adopt_rollback_register import register_adopt_rollback_command
 from sdlc.cli._migrate_register import register_migrate_commands
 from sdlc.cli.version import get_version
 
@@ -387,4 +388,5 @@ def hook_check_command(ctx: typer.Context) -> None:
     run_hook_check(ctx=ctx)
 
 
+register_adopt_rollback_command(app)
 register_migrate_commands(app)
