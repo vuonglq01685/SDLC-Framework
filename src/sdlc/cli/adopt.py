@@ -26,7 +26,14 @@ from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.output import echo, emit_error, emit_json
 
 if TYPE_CHECKING:
-    from sdlc.adopt.passes.symlink_offer import ConfirmCallback, SymlinkDecision
+    from sdlc.adopt.passes.symlink_offer import (
+        ConfirmCallback,
+        ConflictCallback,
+        ConflictContext,
+        ConflictDecision,
+        ConflictKind,
+        SymlinkDecision,
+    )
     from sdlc.config.project import ProjectConfig
     from sdlc.contracts.adopt_report import DetectedArtifact
 
@@ -140,6 +147,47 @@ def _build_confirm_callback(root: Path, *, ctx: typer.Context) -> ConfirmCallbac
     return confirm
 
 
+def _build_conflict_callback(root: Path, *, ctx: typer.Context) -> ConflictCallback:  # noqa: C901
+    """Build the interactive conflict-resolution callback for Pass 2 (Story 3.6)."""
+
+    def conflict(  # noqa: PLR0911
+        artifact: DetectedArtifact, target: str, context: ConflictContext
+    ) -> ConflictDecision:
+        if context.kind is ConflictKind.REAL_FILE:
+            prompt = (
+                f"Target {target} already exists as a real file. "
+                "Options: [s]kip / [b]ackup-and-replace / [d]ifferent-target"
+            )
+            answer = typer.prompt(prompt, default="s", show_default=False).strip().lower()
+            if answer in ("s", "skip", ""):
+                return ConflictDecision(action="skip")
+            if answer in ("b", "backup", "backup-and-replace", "backup_replace"):
+                return ConflictDecision(action="backup_replace")
+            if answer in ("d", "different", "different-target", "different_target"):
+                new_target = typer.prompt("  New target path (relative to project root)").strip()
+                return ConflictDecision(action="different_target", target=new_target)
+            echo(f"  unrecognized option; skipping {artifact.path}", err=True, ctx=ctx)
+            return ConflictDecision(action="skip")
+
+        other = context.other_source or "<unknown>"
+        prompt = (
+            f"Target {target} is already a symlink to {other}. "
+            "Options: [s]kip / [r]eplace / [d]ifferent-target"
+        )
+        answer = typer.prompt(prompt, default="s", show_default=False).strip().lower()
+        if answer in ("s", "skip", ""):
+            return ConflictDecision(action="skip")
+        if answer in ("r", "replace"):
+            return ConflictDecision(action="replace")
+        if answer in ("d", "different", "different-target", "different_target"):
+            new_target = typer.prompt("  New target path (relative to project root)").strip()
+            return ConflictDecision(action="different_target", target=new_target)
+        echo(f"  unrecognized option; skipping {artifact.path}", err=True, ctx=ctx)
+        return ConflictDecision(action="skip")
+
+    return conflict
+
+
 def run_adopt(*, ctx: typer.Context, non_interactive: bool = False) -> None:
     """Adopt an existing repository (FR2): scaffold-if-fresh, then run the three passes.
 
@@ -166,6 +214,7 @@ def run_adopt(*, ctx: typer.Context, non_interactive: bool = False) -> None:
     json_mode = bool(ctx.obj is not None and ctx.obj.get("json", False))
     interactive = sys.stdin.isatty() and not json_mode and not non_interactive
     confirm = _build_confirm_callback(root, ctx=ctx) if interactive else None
+    conflict = _build_conflict_callback(root, ctx=ctx) if interactive else None
 
     def _warn(message: str) -> None:
         echo(f"  {message}", err=True, ctx=ctx)
@@ -181,6 +230,7 @@ def run_adopt(*, ctx: typer.Context, non_interactive: bool = False) -> None:
             confirm=confirm,
             auto_accept_threshold=config.auto_accept_threshold,
             warn=_warn,
+            conflict=conflict,
         )
     except JournalError as exc:
         emit_error(

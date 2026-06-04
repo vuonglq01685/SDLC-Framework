@@ -15,6 +15,7 @@ from typing import Final
 from sdlc.adopt.imported_metadata import (
     ImportedMetadataRecord,
     metadata_record_path,
+    read_metadata_record,
     record_to_yaml_bytes,
 )
 from sdlc.adopt.invariant import assert_path_under_claude
@@ -42,7 +43,7 @@ def _append_imported_event(journal_path: Path, mapping: SymlinkMapping, *, ts: s
 
     ``ts`` is sampled once by the caller and reused for BOTH this journal event and the
     sidecar's ``imported_at`` (mirrors Pass 2's single-timestamp invariant in
-    ``symlink_offer._append_symlink_event``) so the two records cross-reference by time.
+    ``_accept._append_symlink_event``) so the two records cross-reference by time.
     """
     seq = allocate_next_seq_for_append_sync(journal_path)
     entry = JournalEntry(
@@ -92,6 +93,28 @@ def _write_metadata_record(
             )
 
 
+def _mapping_stampable(root: Path, mapping: SymlinkMapping, *, warn: WarnCallback | None) -> bool:
+    if not (
+        is_target_under_root(root, mapping.target) and is_target_under_root(root, mapping.source)
+    ):
+        if warn is not None:
+            warn(f"skipping stamp for {mapping.target!r}: target/source escapes the project root")
+        return False
+    record_path = metadata_record_path(root, mapping.target)
+    if read_metadata_record(record_path) is not None:
+        return False  # already stamped → idempotent re-run no-op (D6 / CR3.4-W8)
+    if record_path.exists():
+        # Sidecar present but unreadable/corrupt: do NOT re-journal every run (that would break
+        # idempotency). Warn rather than silently swallow (CR3.3-P3) and leave it for repair.
+        if warn is not None:
+            warn(
+                f"imported-metadata sidecar for {mapping.target!r} is present but unreadable; "
+                "skipping re-stamp"
+            )
+        return False
+    return True
+
+
 def mark_imported(
     root: Path,
     detected: Sequence[DetectedArtifact],
@@ -110,20 +133,19 @@ def mark_imported(
     if not mappings:
         return
 
+    # Dedup duplicate manifest targets within one run (a forged/merged-resume manifest can carry
+    # them; Pass 2's `recorded_targets` only collapses dupes it creates) so one target stamps once.
+    seen_targets: set[str] = set()
     for mapping in mappings:
+        if mapping.target in seen_targets:
+            continue
+        seen_targets.add(mapping.target)
         # Validate BOTH paths stay under the project root BEFORE any side effect (journal or
         # sidecar). `mapping.target`/`source` come from the on-disk manifest (untrusted JSON);
         # an unguarded `root / mapping.target` would let a `..`-bearing target read an arbitrary
         # file (whose bytes flow into the sidecar + the verifier prompt). Skip-and-warn keeps the
         # pass fail-soft instead of stamping an escaping path.
-        if not (
-            is_target_under_root(root, mapping.target)
-            and is_target_under_root(root, mapping.source)
-        ):
-            if warn is not None:
-                warn(
-                    f"skipping stamp for {mapping.target!r}: target/source escapes the project root"
-                )
+        if not _mapping_stampable(root, mapping, warn=warn):
             continue
         imported_at = now_rfc3339_utc_ms()
         try:

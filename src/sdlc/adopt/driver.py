@@ -126,6 +126,7 @@ def _run_pass(
     confirm: symlink_offer.ConfirmCallback | None,
     auto_accept_threshold: int,
     warn: symlink_offer.WarnCallback | None,
+    conflict: symlink_offer.ConflictCallback | None,
 ) -> list[DetectedArtifact]:
     """Dispatch pass ``n`` to its typed seam. Pass 1 returns the detected list (3.2 fills it).
 
@@ -149,6 +150,7 @@ def _run_pass(
             auto_accept_threshold=auto_accept_threshold,
             warn=warn,
             journal_path=journal_path,
+            conflict=conflict,
         )
         return detected
     stamp.mark_imported(root, detected, journal_path=journal_path, warn=warn)
@@ -179,6 +181,7 @@ def run_adopt(
     confirm: symlink_offer.ConfirmCallback | None = None,
     auto_accept_threshold: int = DEFAULT_AUTO_ACCEPT_THRESHOLD,
     warn: symlink_offer.WarnCallback | None = None,
+    conflict: symlink_offer.ConflictCallback | None = None,
 ) -> AdoptReport:
     """Run the three adopt passes in order, journaling + persisting the report (FR2).
 
@@ -213,6 +216,7 @@ def run_adopt(
                 confirm=confirm,
                 auto_accept_threshold=auto_accept_threshold,
                 warn=warn,
+                conflict=conflict,
             )
         except Exception as exc:
             # Orchestrator must journal + persist ANY pass failure, then re-raise as AdoptError.

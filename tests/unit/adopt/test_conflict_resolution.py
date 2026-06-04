@@ -11,7 +11,7 @@ import pytest
 if sys.platform == "win32":  # pragma: no cover
     pytest.skip("adopt mode is POSIX-only in v1", allow_module_level=True)
 
-from sdlc.adopt.passes import _symlink, symlink_offer
+from sdlc.adopt.passes import _accept, _symlink, symlink_offer
 from sdlc.adopt.passes._symlink import SymlinkOutcome
 from sdlc.adopt.passes.symlink_offer import (
     ConflictContext,
@@ -129,7 +129,7 @@ def test_backup_replace_create_failure_restores_real_file(
             raise AdoptError("simulated create failure", details={"target": target_rel})
         return real_create(r, source_rel, target_rel)
 
-    monkeypatch.setattr(symlink_offer, "create_relative_symlink", _flaky_create)
+    monkeypatch.setattr(_accept, "create_relative_symlink", _flaky_create)
 
     symlink_offer.offer_symlinks(
         root,

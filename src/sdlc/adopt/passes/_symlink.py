@@ -28,7 +28,8 @@ class SymlinkOutcome(Enum):
 
     CREATED = "created"  # a new relative symlink was created
     ALREADY_CORRECT = "already_correct"  # target already a symlink pointing at this source (AC4)
-    CONFLICT = "conflict"  # a real file or a symlink elsewhere occupies the target (AC4 → 3.6)
+    CONFLICT_REAL_FILE = "conflict_real_file"  # a real file occupies the target (Story 3.6 AC2)
+    CONFLICT_OTHER_SYMLINK = "conflict_other_symlink"  # symlink points elsewhere (Story 3.6 AC3)
     SOURCE_MISSING = "source_missing"  # source no longer resolves to a real file → no broken link
 
 
@@ -80,7 +81,8 @@ def create_relative_symlink(root: Path, source_rel: str, target_rel: str) -> Sym
       * source no longer resolves to a real file (deleted between Pass 1/2, or a dangling
         symlink) → ``SOURCE_MISSING`` (do not symlink to nothing);
       * target is already a symlink pointing at ``source_rel`` → ``ALREADY_CORRECT`` (idempotent);
-      * target is any other existing path (real file, or symlink elsewhere) → ``CONFLICT``;
+      * target is a symlink pointing elsewhere → ``CONFLICT_OTHER_SYMLINK``;
+      * target is any other existing path (real file/dir) → ``CONFLICT_REAL_FILE``;
       * otherwise the parent dirs are created and a relative symlink is written → ``CREATED``.
 
     `OSError` from the filesystem is wrapped into a typed `AdoptError` (no raw traceback).
@@ -101,9 +103,9 @@ def create_relative_symlink(root: Path, source_rel: str, target_rel: str) -> Sym
             ) from exc
         if current == source_abs.resolve():
             return SymlinkOutcome.ALREADY_CORRECT
-        return SymlinkOutcome.CONFLICT
+        return SymlinkOutcome.CONFLICT_OTHER_SYMLINK
     if target_abs.exists():  # a real file or directory occupies the slot
-        return SymlinkOutcome.CONFLICT
+        return SymlinkOutcome.CONFLICT_REAL_FILE
 
     link_text = os.path.relpath(source_abs, start=target_abs.parent)
     try:
