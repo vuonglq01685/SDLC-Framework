@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from pathlib import Path
 
@@ -62,3 +63,8 @@ def read_manifest(root: Path) -> AdoptedSymlinks:
 def journal_entries(root: Path) -> list[JournalEntry]:
     text = (root / JOURNAL_REL).read_text(encoding="utf-8")
     return [JournalEntry.model_validate_json(ln) for ln in text.splitlines() if ln.strip()]
+
+
+def file_sha256(path: Path) -> str:
+    """Content digest of a regular file (NFR-REL-6 source-byte-identity assertions)."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()

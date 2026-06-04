@@ -309,3 +309,23 @@ def test_driver_forwards_pass3_journal_path(
 
     assert captured["journal_path"] == journal_path
     assert captured["warn"] is sentinel_warn
+
+
+def test_driver_forwards_pass2_conflict_kwarg(
+    adopt_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sdlc.adopt.passes import symlink_offer
+
+    captured: dict[str, object] = {}
+
+    def _capture(root: Path, detected: object, **kw: object) -> None:
+        captured.update(kw)
+
+    monkeypatch.setattr(symlink_offer, "offer_symlinks", _capture)
+    sentinel_conflict = object()
+    driver.run_adopt(
+        root=adopt_root,
+        journal_path=adopt_root / _JOURNAL_REL,
+        conflict=sentinel_conflict,  # type: ignore[arg-type]
+    )
+    assert captured.get("conflict") is sentinel_conflict
