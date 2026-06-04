@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from _clihelper import sdlc_uv_argv
 from sdlc.cli.main import app
 
 pytestmark = [pytest.mark.integration, pytest.mark.e2e]
@@ -264,10 +265,10 @@ def test_follow_broken_pipe_exits_cleanly_subprocess(tmp_path: Path) -> None:
     import subprocess as _sp
 
     _sp.run(["git", "init"], cwd=tmp_path, capture_output=True, check=False)
-    r = _sp.run(["uv", "run", "sdlc", "init"], cwd=tmp_path, capture_output=True, check=False)
+    r = _sp.run(sdlc_uv_argv("init"), cwd=tmp_path, capture_output=True, check=False)
     if r.returncode != 0:
         pytest.skip("uv run sdlc init failed — skipping subprocess test")
-    r = _sp.run(["uv", "run", "sdlc", "scan"], cwd=tmp_path, capture_output=True, check=False)
+    r = _sp.run(sdlc_uv_argv("scan"), cwd=tmp_path, capture_output=True, check=False)
     if r.returncode != 0:
         pytest.skip("uv run sdlc scan failed — skipping subprocess test")
 

@@ -1,9 +1,12 @@
-"""Integration test: `sdlc init --adopt` never modifies the source tree (Story 3.1, AC7).
+"""Integration test: `sdlc init --adopt` never modifies the source tree (Story 3.1/3.2/3.3).
 
-3.1-scoped guarantee: after a full `sdlc init --adopt` on a minimal brownfield repo,
-`git status --porcelain` reports changes ONLY under `.claude/`. The exhaustive
-multi-fixture porcelain + tree-hash property + mutation gate is Story 3.7; this is the
-single-fixture smoke proof for the orchestrator skeleton.
+After a full `sdlc init --adopt` on a minimal brownfield repo, `git status --porcelain`
+reports no modification/deletion of any pre-existing tracked file. Story 3.1 (skeleton, no
+detected artifacts) writes only under `.claude/`; Story 3.3 (Pass 2) additionally creates
+canonical symlinks at SDLC slots — the one sanctioned write OUTSIDE `.claude/` (AC6) — so the
+binding invariant is byte-identity of source files, not "nothing outside .claude/ changes". The
+exhaustive multi-fixture porcelain + tree-hash property + mutation gate is Story 3.7; this is
+the single-fixture smoke proof for the orchestrator + Pass 2.
 """
 
 from __future__ import annotations
@@ -122,21 +125,29 @@ def brownfield_repo_with_artifacts(tmp_path: Path) -> Path:
 def test_adopt_detects_artifacts_without_touching_source(
     brownfield_repo_with_artifacts: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Pass 1 populates detected[] AND leaves the source tree porcelain-clean (AC1/AC4/AC7).
+    """Full `sdlc init --adopt` detects + symlinks WITHOUT mutating any source (AC1/AC3/AC6).
 
-    Runs the full `sdlc init --adopt` on a REAL git repo, so the live git-recency signal
-    (D2) is exercised end-to-end. The detected report must surface readme/architecture/
-    build-file, and `git status --porcelain` must show changes ONLY under `.claude/`.
+    Runs end-to-end on a REAL git repo, so the live git-recency signal (D2, Story 3.2) and Pass 2
+    (Story 3.3) are both exercised. Because the CliRunner stdin is not a TTY, Pass 2 runs
+    non-interactively and auto-accepts the architecture doc (confidence 85 + 5 recency = 90 ≥ the
+    default threshold 80), creating the canonical symlink at `02-Architecture/02-System/` — the ONE
+    sanctioned write outside `.claude/` (AC6). The binding invariant is that every
+    pre-existing SOURCE file stays byte-identical and is never replaced by a copy/symlink.
     """
     from sdlc.cli.main import app
     from sdlc.contracts.adopt_report import AdoptReport
 
-    monkeypatch.chdir(brownfield_repo_with_artifacts)
+    root = brownfield_repo_with_artifacts
+    monkeypatch.chdir(root)
+    # Snapshot every committed source file BEFORE adopt (NFR-REL-6 byte-identity check).
+    source_rels = ("README.md", "pom.xml", "docs/architecture.md", "src/App.java")
+    before = {rel: (root / rel).read_bytes() for rel in source_rels}
+
     result = _runner.invoke(app, ["init", "--adopt"])
     assert result.exit_code == 0, result.output
 
     # Detection ran and populated the report.
-    report_path = brownfield_repo_with_artifacts / ".claude" / "state" / "adopt-report.json"
+    report_path = root / ".claude" / "state" / "adopt-report.json"
     report = AdoptReport.model_validate_json(report_path.read_text(encoding="utf-8"))
     kinds = {a.kind for a in report.detected}
     assert {"readme", "architecture", "build-file"} <= kinds, f"missing kinds; got {kinds}"
@@ -151,8 +162,22 @@ def test_adopt_detects_artifacts_without_touching_source(
         "(recency signal did not apply end-to-end)"
     )
 
-    # Source tree untouched: porcelain reports changes ONLY under .claude/ (NFR-REL-6).
-    porcelain = _git(["status", "--porcelain"], brownfield_repo_with_artifacts).stdout
-    changed = [line[3:] for line in porcelain.splitlines() if line.strip()]
-    offenders = [p for p in changed if not p.startswith(".claude/")]
-    assert offenders == [], f"adopt detection modified paths outside .claude/: {offenders}"
+    # AC6: every pre-existing source file is byte-identical and still a real file (not replaced).
+    for rel, original in before.items():
+        assert (root / rel).read_bytes() == original, f"source {rel} mutated"
+        assert not (root / rel).is_symlink(), f"source {rel} was replaced by a symlink"
+
+    # Pass 2 created the sanctioned arch symlink outside `.claude/` (the one allowed write).
+    arch_link = root / "02-Architecture" / "02-System" / "ARCHITECTURE.md"
+    assert arch_link.is_symlink()
+    assert arch_link.resolve() == (root / "docs" / "architecture.md").resolve()
+
+    # Source untouched: porcelain shows NO modified/deleted/renamed TRACKED file outside `.claude/`.
+    # Untracked additions (`??` — the new symlink + `.claude/`) are sanctioned per AC6.
+    porcelain = _git(["status", "--porcelain"], root).stdout
+    mutated = [
+        line[3:]
+        for line in porcelain.splitlines()
+        if line.strip() and not line.startswith("??") and not line[3:].startswith(".claude/")
+    ]
+    assert mutated == [], f"adopt mutated tracked source files: {mutated}"

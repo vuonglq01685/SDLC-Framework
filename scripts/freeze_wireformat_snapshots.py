@@ -66,7 +66,7 @@ _EXIT_FRAMEWORK: Final[int] = 2
 _EXIT_USER_ABORT: Final[int] = 3
 
 # Local alias for legibility; the canonical source is sdlc.contracts._WIRE_FORMAT_REGISTRY.
-# Adding a 6th contract requires an ADR amendment + new snapshot file (and is rejected
+# Adding another contract requires an ADR amendment + new snapshot file (and is rejected
 # at module-load time by the uniqueness asserts below).
 _CONTRACTS: Final[tuple[tuple[str, type[BaseModel]], ...]] = _WIRE_FORMAT_REGISTRY
 

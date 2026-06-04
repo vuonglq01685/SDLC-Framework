@@ -61,6 +61,7 @@ _RFC3339_UTC_MS_RE: re.Pattern[str] = re.compile(_RFC3339_UTC_MS)
 _RFC3339_UTC_MS_OR_NULL = re.compile(rf"(?:{_RFC3339_UTC_MS}|^$)")
 
 PhaseLiteral = Literal[1, 2]
+OriginLiteral = Literal["native", "imported"]
 
 
 def _is_safe_repo_relative_posix(p: str) -> bool:  # noqa: PLR0911
@@ -125,6 +126,7 @@ class ArtifactRef(StrictModel):
     schema_version: Literal[1] = 1
     path: str  # repo-relative POSIX path
     hash: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
+    origin: OriginLiteral = "native"
 
     @model_validator(mode="after")
     def _validate_path(self) -> ArtifactRef:
@@ -158,6 +160,7 @@ class _SignoffMdDraftArtifact(StrictModel):
 
     path: str
     hash: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
+    origin: OriginLiteral = "native"
 
     @model_validator(mode="after")
     def _validate_path(self) -> _SignoffMdDraftArtifact:

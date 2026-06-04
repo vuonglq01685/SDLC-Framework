@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import sdlc_uv_argv
+
 pytestmark = pytest.mark.integration
 
 _SKIP_NO_UV = pytest.mark.skipif(
@@ -20,7 +22,7 @@ _SKIP_NO_UV = pytest.mark.skipif(
 @_SKIP_NO_UV
 def test_sdlc_init_via_subprocess_creates_layout(tmp_path: Path) -> None:
     result = subprocess.run(
-        ["uv", "run", "sdlc", "init"],
+        sdlc_uv_argv("init"),
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -40,7 +42,7 @@ def test_sdlc_init_via_subprocess_creates_layout(tmp_path: Path) -> None:
 @_SKIP_NO_UV
 def test_sdlc_version_via_subprocess_prints_version(tmp_path: Path) -> None:
     result = subprocess.run(
-        ["uv", "run", "sdlc", "--version"],
+        sdlc_uv_argv("--version"),
         cwd=tmp_path,
         capture_output=True,
         text=True,

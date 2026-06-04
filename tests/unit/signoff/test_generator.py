@@ -80,7 +80,7 @@ def test_generate_signoff_md_happy_path(tmp_path: Path) -> None:
     assert hash_map[f"{_PHASE1_DIR}/04-Epics/EPIC-foo.json"] == _sha256(art2_content)
 
     # Markdown table also present
-    assert "| Path | SHA-256 |" in text
+    assert "| Path | Origin | SHA-256 |" in text
 
 
 def test_generate_signoff_md_returns_path(tmp_path: Path) -> None:
@@ -248,3 +248,64 @@ def test_output_parseable_by_reader(tmp_path: Path) -> None:
     assert draft.approved_by is None
     assert len(draft.artifacts) == 2
     assert draft.drafted_at is not None
+
+
+def test_adopted_symlink_included_with_imported_origin(tmp_path: Path) -> None:
+    """AC5: known-adopted leaf symlinks are hashed and marked imported."""
+    import os
+
+    from sdlc.signoff.generator import generate_signoff_md
+
+    src = tmp_path / "legacy" / "arch.md"
+    src.parent.mkdir(parents=True)
+    src.write_bytes(b"imported body")
+    target_rel = f"{_PHASE2_DIR}/02-System/ARCHITECTURE.md"
+    target = tmp_path / target_rel
+    target.parent.mkdir(parents=True)
+    os.symlink(os.path.relpath(src, target.parent), target)
+
+    adopted = {target_rel: "legacy/arch.md"}
+    result_path, count = generate_signoff_md(2, repo_root=tmp_path, adopted_sources=adopted)
+    assert count == 1
+    text = result_path.read_text(encoding="utf-8")
+    assert "imported" in text
+    assert _sha256(b"imported body") in text
+
+
+def test_non_adopted_symlink_still_skipped(tmp_path: Path) -> None:
+    """Security: an UNRELATED symlink stays excluded even when OTHER targets ARE adopted.
+
+    P10: the dangerous case is a populated allowlist with one legit adopted entry while an
+    unrelated `EVIL.md` symlink is present — the membership check must not leak it through.
+    """
+    import os
+
+    from sdlc.signoff.generator import generate_signoff_md
+
+    # A legitimately-adopted symlink (recorded in the manifest map).
+    legit_src = tmp_path / "legacy" / "arch.md"
+    legit_src.parent.mkdir(parents=True)
+    legit_src.write_bytes(b"legit body")
+    legit_rel = f"{_PHASE2_DIR}/02-System/ARCHITECTURE.md"
+    legit_target = tmp_path / legit_rel
+    legit_target.parent.mkdir(parents=True)
+    os.symlink(os.path.relpath(legit_src, legit_target.parent), legit_target)
+
+    # An UNRELATED symlink NOT in the adopted map → must stay skipped.
+    outside = tmp_path / "outside.md"
+    outside.write_bytes(b"x")
+    evil_rel = f"{_PHASE2_DIR}/02-System/EVIL.md"
+    evil_target = tmp_path / evil_rel
+    os.symlink(os.path.relpath(outside, evil_target.parent), evil_target)
+
+    # A plain native file.
+    (tmp_path / _PHASE2_DIR / "01-NATIVE.md").write_bytes(b"native")
+
+    result_path, count = generate_signoff_md(
+        2, repo_root=tmp_path, adopted_sources={legit_rel: "legacy/arch.md"}
+    )
+    text = result_path.read_text(encoding="utf-8")
+    assert count == 2  # native + adopted; EVIL excluded
+    assert "01-NATIVE.md" in text
+    assert "ARCHITECTURE.md" in text
+    assert "EVIL.md" not in text

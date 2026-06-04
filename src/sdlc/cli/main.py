@@ -12,6 +12,7 @@ import sys
 
 import typer
 
+from sdlc.cli._migrate_register import register_migrate_commands
 from sdlc.cli.version import get_version
 
 __all__ = ("app",)
@@ -75,13 +76,30 @@ def _root(
 def init_command(
     ctx: typer.Context,
     adopt: bool = typer.Option(False, "--adopt", help="Adopt an existing project.", hidden=True),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        help="Adopt mode (Story 3.3): never prompt; auto-accept symlinks at/above the "
+        "configured confidence threshold. Implied by --json. Only valid with --adopt.",
+        hidden=True,
+    ),
 ) -> None:
     """Initialize the SDLC framework in the current git repository."""
     if adopt:
         from sdlc.cli.adopt import run_adopt  # deferred per Architecture §488
 
-        run_adopt(ctx=ctx)
+        run_adopt(ctx=ctx, non_interactive=non_interactive)
         return
+    if non_interactive:
+        # --non-interactive only governs adopt-mode symlink prompts; on a greenfield init it would
+        # be a silent no-op, so reject it explicitly rather than ignore it (code-review P6).
+        from sdlc.cli.output import emit_error  # deferred per Architecture §488
+
+        emit_error(
+            "ERR_USER_INPUT",
+            "init: --non-interactive is only valid together with --adopt",
+            ctx=ctx,
+        )
     from sdlc.cli.init import run_init  # deferred per Architecture §488
 
     run_init(ctx=ctx)
@@ -369,26 +387,4 @@ def hook_check_command(ctx: typer.Context) -> None:
     run_hook_check(ctx=ctx)
 
 
-def _register_migrate_commands(app: typer.Typer) -> None:
-    """Register one Typer command per discovered migration script.
-
-    Called at module import — fast (one filesystem listing of the migrations
-    package). For v1 with no migration scripts, this is a no-op.
-    """
-    from sdlc.migrations import discover_migrations  # deferred to function; called once
-
-    for n in discover_migrations():
-
-        def _make_command(version: int) -> typer.models.CommandFunctionType:  # type: ignore[type-var, misc]
-            def _migrate_command(ctx: typer.Context) -> None:
-                from sdlc.cli.migrate import run_migrate  # deferred per Architecture §488
-
-                run_migrate(ctx=ctx, target_version=version)
-
-            _migrate_command.__doc__ = f"Run schema migration to v{version} (FR49)."
-            return _migrate_command  # type: ignore[return-value]
-
-        app.command(name=f"migrate-v{n}")(_make_command(n))
-
-
-_register_migrate_commands(app)
+register_migrate_commands(app)

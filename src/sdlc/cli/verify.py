@@ -52,6 +52,10 @@ from sdlc.cli._verify_frontmatter import (
     _serialize_artifact,
     _Verification,
 )
+from sdlc.cli._verify_paths import (
+    _assert_resolved_containment,
+    _reject_symlink_ancestors,
+)
 from sdlc.cli.output import emit_error
 from sdlc.errors import StateError
 
@@ -120,36 +124,6 @@ def _read_state_phase(state_path: Path) -> int:
     return phase
 
 
-def _reject_symlink_ancestors(
-    *, ctx: typer.Context, root: Path, parts: tuple[str, ...], artifact_id: str
-) -> None:
-    """PC2: walk every parent component from `root` toward the artifact and
-    reject if any is a symlink. ``Path.resolve()`` silently follows symlinks
-    so a `01-Requirement/` that is itself a symlink to an out-of-tree path
-    yields ``resolved`` AND ``target_root`` both pointing at the symlink
-    target, defeating the ``relative_to`` containment check. Walking with
-    ``is_symlink()`` closes this gap. Covers Windows reparse points via
-    ``Path.is_symlink`` ST_REPARSE_POINT semantics.
-    """
-    walk = root
-    for part in parts:
-        walk = walk / part
-        try:
-            if walk.is_symlink():
-                emit_error(
-                    "ERR_PATH_TRAVERSAL",
-                    f"artifact_id path contains a symlink component '{part}'; "
-                    "refusing to resolve (symlink components disallowed under "
-                    "01-Requirement/)",
-                    ctx=ctx,
-                    details={"artifact_id": artifact_id, "symlink_at": str(walk)},
-                )
-        except OSError:
-            # Broken symlink or permission error on a component — let the
-            # explicit resolve() in the caller surface the precise error.
-            break
-
-
 def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) -> Path:
     """Resolve `artifact_id` to a repo-relative POSIX path under `01-Requirement/`.
 
@@ -211,7 +185,16 @@ def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) 
     # PC2 (post-review 2026-05-12 Cluster C-J): parent-symlink walk extracted
     # to _reject_symlink_ancestors() to keep this orchestrator under the
     # mccabe complexity cap (max=8).
-    _reject_symlink_ancestors(ctx=ctx, root=root, parts=pure.parts, artifact_id=artifact_id)
+    from sdlc.cli._adopted_targets import load_adopted_target_sources
+
+    adopted_sources = load_adopted_target_sources(root)
+    _reject_symlink_ancestors(
+        ctx=ctx,
+        root=root,
+        parts=pure.parts,
+        artifact_id=artifact_id,
+        adopted_targets=frozenset(adopted_sources),
+    )
 
     try:
         resolved = candidate.resolve(strict=False)
@@ -225,18 +208,14 @@ def _resolve_artifact_path(*, ctx: typer.Context, root: Path, artifact_id: str) 
             details={"artifact_id": artifact_id},
         )
 
-    try:
-        resolved.relative_to(target_root)
-    except ValueError:
-        emit_error(
-            "ERR_PATH_TRAVERSAL",
-            "artifact_id resolves outside 01-Requirement/ (symlink escape or directory traversal)",
-            ctx=ctx,
-            details={
-                "artifact_id": artifact_id,
-                "resolved": str(resolved),
-            },
-        )
+    _assert_resolved_containment(
+        ctx=ctx,
+        resolved=resolved,
+        target_root=target_root,
+        root_resolved=root_resolved,
+        artifact_id=artifact_id,
+        adopted_sources=adopted_sources,
+    )
 
     return candidate
 
@@ -286,6 +265,16 @@ def _preflight_checks(*, ctx: typer.Context, root: Path, artifact_id: str) -> tu
         emit_error(
             "ERR_ARTIFACT_UNREADABLE",
             f"artifact not readable at {artifact_id}: {exc}",
+            ctx=ctx,
+            details={"artifact_id": artifact_id, "path": str(artifact_path)},
+        )
+    except UnicodeDecodeError as exc:
+        # An adopted leaf symlink can now reach this read (the symlink guard was
+        # relaxed for known-adopted targets); a non-UTF-8 source must surface a
+        # clean envelope, not an uncaught ValueError traceback.
+        emit_error(
+            "ERR_ARTIFACT_UNREADABLE",
+            f"artifact is not valid UTF-8 at {artifact_id}: {exc}",
             ctx=ctx,
             details={"artifact_id": artifact_id, "path": str(artifact_path)},
         )

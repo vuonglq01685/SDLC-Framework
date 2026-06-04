@@ -11,6 +11,14 @@ from sdlc.errors import ConfigError
 
 DEFAULT_PROJECT_YAML: Final[str] = "project.yaml"
 
+# Story 3.3 D1(a): the single adopt-mode auto-accept confidence threshold (integer percent).
+# Used both to gate interactive offers (confidence ≥ threshold ⇒ prompt) and to auto-accept
+# non-interactively (≥ ⇒ accept; below ⇒ skip+warn). Default 80 auto-includes architecture(85)
+# / prd(80, boundary) and excludes research(75) per the Story 3.2 confidence table. The
+# canonical default lives here (the lower `config` layer) so `adopt/` imports it without a
+# reverse dependency.
+DEFAULT_AUTO_ACCEPT_THRESHOLD: Final[int] = 80
+
 
 class ProjectConfig(BaseModel):
     """Typed wrapper for project.yaml (FR51).
@@ -28,6 +36,10 @@ class ProjectConfig(BaseModel):
     auto_brainstorm: bool = True
     legacy_code_globs: tuple[str, ...] = Field(default_factory=tuple)
     watchdog_timeout_minutes: int = Field(default=30, ge=1)
+    # Story 3.3 D1(a): adopt-mode symlink auto-accept threshold (integer percent, no floats).
+    auto_accept_threshold: int = Field(
+        default=DEFAULT_AUTO_ACCEPT_THRESHOLD, ge=0, le=100, strict=True
+    )
 
 
 def load_project_config(path: Path | None = None) -> ProjectConfig:

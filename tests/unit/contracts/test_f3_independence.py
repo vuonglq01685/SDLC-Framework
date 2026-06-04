@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from sdlc.contracts import (
+    AdoptedSymlinks,
     AdoptReport,
     HookPayload,
     JournalEntry,
@@ -14,7 +15,7 @@ from sdlc.contracts import (
     WorkflowSpec,
 )
 
-# All 6 contracts with minimal valid kwargs for each.
+# All 7 contracts with minimal valid kwargs for each.
 _ALL_CONTRACTS: list[tuple[type[Any], dict[str, Any]]] = [
     (
         JournalEntry,
@@ -72,6 +73,19 @@ _ALL_CONTRACTS: list[tuple[type[Any], dict[str, Any]]] = [
             scanned_at="2026-06-02T09:42:13.487Z",
         ),
     ),
+    (
+        AdoptedSymlinks,
+        dict(
+            mappings=(
+                dict(
+                    source="docs/architecture-2024.md",
+                    target="02-Architecture/02-System/ARCHITECTURE.md",
+                    accepted_at="2026-06-04T09:42:13.487Z",
+                    kind="architecture",
+                ),
+            ),
+        ),
+    ),
 ]
 
 _CONTRACT_IDS = [cls.__name__ for cls, _ in _ALL_CONTRACTS]
@@ -92,7 +106,7 @@ def test_schema_version_is_independent_per_contract(
     errors = exc_info.value.errors()
     assert any(e["loc"] == ("schema_version",) for e in errors)
 
-    # Step 3: the OTHER FOUR contracts still construct successfully with schema_version=1
+    # Step 3: the OTHER contracts still construct successfully with schema_version=1
     # — bumping one contract's schema_version must not require lockstep changes.
     for other_cls, other_kwargs in _ALL_CONTRACTS:
         if other_cls is cls:

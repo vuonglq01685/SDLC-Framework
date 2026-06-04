@@ -33,7 +33,7 @@ def test_freeze_script_exits_0_on_clean_repo() -> None:
         f"freeze_wireformat_snapshots.py exited {result.returncode}\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
-    assert "6 contracts match snapshots" in result.stdout
+    assert "7 contracts match snapshots" in result.stdout
 
 
 def test_immutability_pytest_gate_exits_0() -> None:
@@ -62,8 +62,9 @@ def test_immutability_pytest_gate_exits_0() -> None:
 def test_freeze_script_exits_1_on_drift(tmp_path: Path) -> None:
     """P21: drift detection actually exits 1 via subprocess (not just unit-level).
 
-    Stages a copy of the freeze script in tmp_path, materialises 5 valid snapshots,
-    mutates one to force drift, then invokes the script with cwd=tmp_path. The
+    Stages a copy of the freeze script in tmp_path, materialises every registered
+    contract's valid snapshot, mutates one to force drift, then invokes the script with
+    cwd=tmp_path. The
     script's `_REPO_ROOT = Path(__file__).resolve().parent.parent` resolves to
     tmp_path, so the snapshot lookup hits the staged (mutated) fixtures rather than
     the real repo tree.

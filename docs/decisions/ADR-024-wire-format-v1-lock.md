@@ -155,6 +155,7 @@ discipline is event-triggered.
 |---|---|---|
 | 2026-05-13 | Vuonglq01685 + Claude (Story 1.21) | Initial ratification — 5 wire-format contracts pinned at `schema_version=1` with committed JSON-Schema snapshots; two-gate (pytest + pre-commit) enforcement; mutation taxonomy + version-bump ceremony established. |
 | 2026-06-02 | Vuonglq01685 + Claude (Story 3.1) | Amendment — `adopt_report` → `AdoptReport` added as the **6th** locked contract (locked set 5 → 6). Per epic-3-dag.md Decision D1 (RATIFIED = wire-format), `adopt-report.json` is read back on resume, making it a cross-invocation compatibility surface. Snapshot committed at `tests/contract_snapshots/v1/adopt_report.json`; registered in `_WIRE_FORMAT_REGISTRY`. Story 3.3 will add `adopted_symlinks` as the 7th. |
+| 2026-06-04 | Vuonglq01685 + Claude (Story 3.3) | Amendment — `adopted_symlinks` → `AdoptedSymlinks` (+ nested `SymlinkMapping`) added as the **7th** locked contract (locked set 6 → 7). Pass 2 of `sdlc init --adopt` writes `.claude/state/adopted-symlinks.json` recording each accepted symlink mapping; it is read back by Story 3.4 (stamp), 3.5 (rollback), and 3.6 (idempotency), making it a cross-invocation surface. Both models inherit `StrictModel` at `schema_version=1`; `kind`/`accepted_at` reuse `ArtifactKind`/`_RFC3339_UTC` from `adopt_report.py`. Snapshot committed at `tests/contract_snapshots/v1/adopted_symlinks.json`; registered in `_WIRE_FORMAT_REGISTRY` + `__all__`. The two-gate lock (pytest immutability test + pre-commit freeze hook) is now 7/7. |
 
 ## References
 

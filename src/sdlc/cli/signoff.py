@@ -115,7 +115,11 @@ def run_signoff(*, ctx: typer.Context, phase: int) -> None:  # noqa: C901
 
     # Generate SIGNOFF.md (P10: returns (path, artifact_count) tuple).
     try:
-        signoff_path, artifact_count = generate_signoff_md(phase, repo_root=root)
+        from sdlc.cli._adopted_targets import load_adopted_target_sources
+
+        signoff_path, artifact_count = generate_signoff_md(
+            phase, repo_root=root, adopted_sources=load_adopted_target_sources(root)
+        )
     except SignoffError as exc:
         # Map error code from exc.details["code"] if present (P3 cleanup);
         # otherwise default to ERR_NO_ARTIFACTS for backwards compat.

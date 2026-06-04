@@ -1,6 +1,6 @@
 """Wire-format immutability gate (Story 1.21, Decision F3, Architecture §382 + §1238).
 
-Fails if any of the 5 wire-format pydantic contracts has its JSON-Schema diverge
+Fails if any registered wire-format pydantic contract has its JSON-Schema diverge
 from the committed snapshot at tests/contract_snapshots/v1/<slug>.json. The diff
 names the contract, the field that changed, and the required action: bump
 schema_version + add migration + regenerate the snapshot via
@@ -100,7 +100,7 @@ def test_contracts_tuple_matches_public_all() -> None:
         f"wireformat-immutability registry drift:\n"
         f"  locked but not public: {locked_class_names - public_class_names}\n"
         f"  public but not locked: {public_class_names - locked_class_names}\n"
-        f"action: if you intentionally added a 6th wire-format contract, append it to "
+        f"action: if you intentionally added a new wire-format contract, append it to "
         f"_WIRE_FORMAT_REGISTRY in src/sdlc/contracts/__init__.py, run "
         f"`scripts/freeze_wireformat_snapshots.py --write`, commit the new snapshot, "
         f"AND amend ADR-024 with the new contract."

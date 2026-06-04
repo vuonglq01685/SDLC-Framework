@@ -173,6 +173,7 @@ def _run_dispatch_under_mock(
     observer: object,
     artifact_path: Path,
     artifact_content: str,
+    idea_text: str,
 ) -> object:
     """Materialize MockAIRuntime fixture and run dispatch under it."""
     from sdlc.runtime.mock import MockAIRuntime  # deferred
@@ -181,7 +182,7 @@ def _run_dispatch_under_mock(
         tmp_path = Path(tmp)
         try:
             _materialize_verifier_fixture(
-                tmp_path, spec=spec, registry=registry, idea_text=artifact_content
+                tmp_path, spec=spec, registry=registry, idea_text=idea_text
             )
             runtime = MockAIRuntime(tmp_path)
             return asyncio.run(
@@ -213,6 +214,31 @@ def _run_dispatch_under_mock(
                 ctx=ctx,
                 details={"error": str(exc)},
             )
+
+
+def _build_idea_with_origin(root: Path, artifact_id: str, artifact_content: str) -> str:
+    """Prepend an ``<IMPORTED_ORIGIN>`` block when an imported-metadata sidecar exists (AC4).
+
+    Returns ``artifact_content`` unchanged when the artifact was not adopted (no sidecar).
+    Extracted from :func:`invoke_dispatch` so the origin-injection behaviour is unit-testable
+    without standing up a full dispatch.
+    """
+    from sdlc.adopt.imported_metadata import metadata_record_path, read_metadata_record
+
+    imported_meta = read_metadata_record(metadata_record_path(root, artifact_id))
+    if imported_meta is None:
+        return artifact_content
+    return (
+        "<IMPORTED_ORIGIN>\n"
+        "This artifact was imported from existing project content during "
+        "`sdlc init --adopt`.\n"
+        f"Source path: {imported_meta.source}\n"
+        f"Canonical target: {imported_meta.target}\n"
+        "Your verification MUST explicitly address whether this imported "
+        "content is still accurate.\n"
+        "</IMPORTED_ORIGIN>\n\n"
+        f"{artifact_content}"
+    )
 
 
 def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
@@ -266,9 +292,11 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
 
     pre_dispatch_full_hash = compute_artifact_hash(artifact_path, repo_root=root)
 
+    idea_for_dispatch = _build_idea_with_origin(root, artifact_id, artifact_content)
+
     observer = PanelObserver(
         slash_command=SLASH_COMMAND,
-        idea_text=artifact_content,
+        idea_text=idea_for_dispatch,
         extra_context=MappingProxyType(
             {
                 "agent_dispatched_extras": MappingProxyType(
@@ -289,6 +317,7 @@ def invoke_dispatch(  # CLI orchestration; LOC budget split across 3 modules
         observer=observer,
         artifact_path=artifact_path,
         artifact_content=artifact_content,
+        idea_text=idea_for_dispatch,
     )
 
     outcome = getattr(result, "outcome", None)

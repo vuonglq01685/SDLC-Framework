@@ -9,8 +9,10 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import sdlc_uv_argv
+
 _SKIP_WIN32 = pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only hooks/atomic")
-_UV_RUN = ["uv", "run", "sdlc"]
+_UV_RUN = sdlc_uv_argv()
 
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:

@@ -31,6 +31,7 @@ from typing import Any
 import pytest
 import yaml
 
+from _clihelper import venv_path_env
 from sdlc.dispatcher._hook_chain import build_pre_write_hook_chain
 from sdlc.hooks.payload import build_write_intent_payload
 from sdlc.hooks.runner import HookDecision, run_hook_chain
@@ -173,6 +174,7 @@ def subprocess_run_helper(envelope: dict[str, Any], cwd: Path):  # type: ignore[
         input=json.dumps(envelope).encode(),
         capture_output=True,
         cwd=str(cwd),
+        env=venv_path_env(),  # pin the inner `sdlc hook-check` to the editable venv CLI
         timeout=30.0,
     )
 

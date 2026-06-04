@@ -22,6 +22,7 @@ from typing import Final
 from sdlc.adopt.invariant import assert_path_under_claude
 from sdlc.adopt.passes import detection, stamp, symlink_offer
 from sdlc.concurrency.io_primitives import atomic_write_bytes
+from sdlc.config.project import DEFAULT_AUTO_ACCEPT_THRESHOLD
 from sdlc.contracts.adopt_report import AdoptReport, DetectedArtifact
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors import AdoptError
@@ -119,13 +120,20 @@ def _run_pass(
     root: Path,
     detected: list[DetectedArtifact],
     *,
+    journal_path: Path,
     git_signal: dict[str, int] | None,
     legacy_code_globs: tuple[str, ...],
+    confirm: symlink_offer.ConfirmCallback | None,
+    auto_accept_threshold: int,
+    warn: symlink_offer.WarnCallback | None,
 ) -> list[DetectedArtifact]:
     """Dispatch pass ``n`` to its typed seam. Pass 1 returns the detected list (3.2 fills it).
 
-    ``git_signal`` (recency, D2) and ``legacy_code_globs`` (exclusion, D4) are injected by
-    the ``cli`` layer and consumed only by Pass 1 detection (``adopt/`` has no git grant).
+    ``git_signal`` (recency, D2) + ``legacy_code_globs`` (exclusion, D4) are consumed by Pass 1
+    detection; ``confirm`` (interactive `[Y/n/edit]`), ``auto_accept_threshold`` (D1), and
+    ``warn`` are consumed by Pass 2's symlink offer (Story 3.3). All are injected by the ``cli``
+    layer (``adopt/`` has no git/TTY grant) and forwarded with no-op defaults so resume runs and
+    non-adopt callers are unaffected.
     """
     if n == _PASS_DETECT:
         return list(
@@ -134,9 +142,16 @@ def _run_pass(
             )
         )
     if n == _PASS_SYMLINK_OFFER:
-        symlink_offer.offer_symlinks(root, detected)
+        symlink_offer.offer_symlinks(
+            root,
+            detected,
+            confirm=confirm,
+            auto_accept_threshold=auto_accept_threshold,
+            warn=warn,
+            journal_path=journal_path,
+        )
         return detected
-    stamp.mark_imported(root, detected)
+    stamp.mark_imported(root, detected, journal_path=journal_path, warn=warn)
     return detected
 
 
@@ -161,6 +176,9 @@ def run_adopt(
     journal_path: Path,
     git_signal: dict[str, int] | None = None,
     legacy_code_globs: tuple[str, ...] = (),
+    confirm: symlink_offer.ConfirmCallback | None = None,
+    auto_accept_threshold: int = DEFAULT_AUTO_ACCEPT_THRESHOLD,
+    warn: symlink_offer.WarnCallback | None = None,
 ) -> AdoptReport:
     """Run the three adopt passes in order, journaling + persisting the report (FR2).
 
@@ -168,9 +186,10 @@ def run_adopt(
     `passes_completed` are skipped. On a pass failure the last-good `passes_completed` is
     persisted, the failure is journaled with the pass + reason, and `AdoptError` is raised.
 
-    ``git_signal`` (Story 3.2 D2 recency map) and ``legacy_code_globs`` (D4 exclusion) are
-    injected by the ``cli`` layer and forwarded to Pass 1 detection; both default to the
-    no-op value so non-adopt callers and resume runs are unaffected.
+    ``git_signal`` (Story 3.2 D2 recency map) + ``legacy_code_globs`` (D4 exclusion) feed Pass 1;
+    ``confirm`` (interactive offer), ``auto_accept_threshold`` (D1), and ``warn`` feed Pass 2's
+    symlink offer (Story 3.3). All are injected by the ``cli`` layer and default to the no-op /
+    non-interactive value so non-adopt callers and resume runs are unaffected.
     """
     existing = _read_existing_report(root)
     completed: list[int] = list(existing.passes_completed) if existing else []
@@ -185,7 +204,15 @@ def run_adopt(
         _append_event(journal_path, kind=_KIND_STARTED, payload={"pass": n})
         try:
             detected = _run_pass(
-                n, root, detected, git_signal=git_signal, legacy_code_globs=legacy_code_globs
+                n,
+                root,
+                detected,
+                journal_path=journal_path,
+                git_signal=git_signal,
+                legacy_code_globs=legacy_code_globs,
+                confirm=confirm,
+                auto_accept_threshold=auto_accept_threshold,
+                warn=warn,
             )
         except Exception as exc:
             # Orchestrator must journal + persist ANY pass failure, then re-raise as AdoptError.

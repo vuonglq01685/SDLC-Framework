@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import sdlc_uv_argv
+
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="follow-mode subprocess flaky on Windows"),
@@ -41,20 +43,16 @@ def test_logs_follow_picks_up_new_entry(tmp_path: Path) -> None:
     git = subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=False)
     assert git.returncode == 0
 
-    init = subprocess.run(
-        ["uv", "run", "sdlc", "init"], cwd=tmp_path, capture_output=True, check=False
-    )
+    init = subprocess.run(sdlc_uv_argv("init"), cwd=tmp_path, capture_output=True, check=False)
     assert init.returncode == 0, f"sdlc init failed: {init.stderr}"
 
-    scan = subprocess.run(
-        ["uv", "run", "sdlc", "scan"], cwd=tmp_path, capture_output=True, check=False
-    )
+    scan = subprocess.run(sdlc_uv_argv("scan"), cwd=tmp_path, capture_output=True, check=False)
     assert scan.returncode == 0, f"sdlc scan failed: {scan.stderr}"
 
     journal = tmp_path / ".claude" / "state" / "journal.log"
 
     child = subprocess.Popen(
-        ["uv", "run", "sdlc", "--no-color", "logs", "--follow"],
+        sdlc_uv_argv("--no-color", "logs", "--follow"),
         cwd=tmp_path,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

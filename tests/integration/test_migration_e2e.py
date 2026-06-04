@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import sdlc_uv_argv
+
 pytestmark = pytest.mark.integration
 
 _SKIP_NO_UV = pytest.mark.skipif(
@@ -37,7 +39,7 @@ def _write_state(project_root: Path, payload: dict[str, object]) -> Path:
 
 def _run_sdlc(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["uv", "run", "sdlc", *args],
+        sdlc_uv_argv(*args),
         cwd=cwd,
         capture_output=True,
         text=True,

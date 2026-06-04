@@ -15,7 +15,10 @@ LOC target: ≤ 200.
 from __future__ import annotations
 
 import datetime
+import logging
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 
 import yaml
 
@@ -23,8 +26,12 @@ from sdlc.errors import SignoffError
 from sdlc.signoff.hasher import compute_artifact_hash
 from sdlc.signoff.records import _PHASE_DIR_MAP, _write_bytes_to_disk
 
+_log = logging.getLogger(__name__)
+
 _SIGNOFF_FILENAME = "SIGNOFF.md"
 _FORBIDDEN_PATH_CHARS = ("```",)  # P11: triple-backtick would corrupt fenced block
+# Empty {target: source} default — immutable so it is a safe shared default arg.
+_NO_ADOPTED: Mapping[str, str] = MappingProxyType({})
 
 
 def _now_rfc3339_utc_ms() -> str:
@@ -40,43 +47,74 @@ def _now_rfc3339_utc_ms() -> str:
     return f"{now.strftime('%Y-%m-%dT%H:%M:%S')}.{millis:03d}Z"
 
 
+def _assert_no_forbidden_path_chars(rel: str) -> None:
+    """P11: refuse any path with a triple-backtick (would close the fenced ```signoff block)."""
+    for forbidden in _FORBIDDEN_PATH_CHARS:
+        if forbidden in rel:
+            raise SignoffError(
+                f"artifact path contains forbidden character sequence {forbidden!r}: {rel}; "
+                "rename the file before generating signoff",
+                details={"step": "generate_signoff_md", "path": rel, "forbidden": forbidden},
+            )
+
+
+def _hash_adopted_artifact(p: Path, rel: str, source: str, repo_root: Path) -> str | None:
+    """Return the sha256 of a known-adopted symlink, or None to skip it.
+
+    DN2: bind the symlink to the EXACT source the manifest recorded — a repointed/forged link
+    resolving elsewhere is skipped, not hashed. P4: a SignoffError from ``compute_artifact_hash``
+    (escaping symlink) skips that one artifact instead of aborting the whole signoff.
+    """
+    if p.resolve() != (repo_root / source).resolve():
+        _log.warning(
+            "adopted symlink %s does not resolve to its recorded source %s; skipping", rel, source
+        )
+        return None
+    try:
+        return compute_artifact_hash(p, repo_root=repo_root)
+    except SignoffError as exc:
+        _log.warning("adopted artifact %s could not be hashed (%s); skipping", rel, exc)
+        return None
+
+
 def _collect_artifacts(
-    phase_dir: Path, signoff_path: Path, repo_root: Path
+    phase_dir: Path,
+    signoff_path: Path,
+    repo_root: Path,
+    adopted_sources: Mapping[str, str] = _NO_ADOPTED,
 ) -> list[dict[str, str]]:
     """Enumerate + hash all files under phase_dir, excluding signoff_path.
 
-    Returns list of {"path": <repo-relative POSIX>, "hash": <sha256:hex>} dicts
-    sorted lexicographically by path (AC3 byte-stable ordering).
+    Returns list of {"path": <repo-relative POSIX>, "hash": <sha256:hex>, "origin": ...}
+    dicts sorted lexicographically by path (AC3 byte-stable ordering).
 
-    P12: symlinks are skipped — a symlink under the phase dir pointing outside
-    the tree would otherwise be hashed and listed (path traversal in audit log).
+    P12: arbitrary symlinks are skipped — a symlink under the phase dir pointing outside
+    the tree would otherwise be hashed and listed (path traversal in audit log). A
+    known-adopted symlink (``rel`` in ``adopted_sources``) is the one exception (AC5), hashed
+    via :func:`_hash_adopted_artifact` (source-binding + symlink-safe hash).
     """
     artifacts: list[dict[str, str]] = []
     for p in sorted(
         phase_dir.rglob("*"), key=lambda x: str(PurePosixPath(x.relative_to(repo_root)))
     ):
-        if p.is_symlink():
+        rel = str(PurePosixPath(p.relative_to(repo_root)))
+        source = adopted_sources.get(rel)
+        if p.is_symlink() and source is None:
             continue
         if not p.is_file():
             continue
         if p == signoff_path:
             continue
-        rel = str(PurePosixPath(p.relative_to(repo_root)))
-        # P11: refuse any path containing triple-backticks (would close the
-        # fenced ```signoff block prematurely and corrupt round-trip).
-        for forbidden in _FORBIDDEN_PATH_CHARS:
-            if forbidden in rel:
-                raise SignoffError(
-                    f"artifact path contains forbidden character sequence {forbidden!r}: {rel}; "
-                    "rename the file before generating signoff",
-                    details={
-                        "step": "generate_signoff_md",
-                        "path": rel,
-                        "forbidden": forbidden,
-                    },
-                )
-        h = compute_artifact_hash(p, repo_root=repo_root)
-        artifacts.append({"path": rel, "hash": h})
+        _assert_no_forbidden_path_chars(rel)
+        if source is not None:
+            h = _hash_adopted_artifact(p, rel, source, repo_root)
+            if h is None:
+                continue
+            origin = "imported"
+        else:
+            h = compute_artifact_hash(p, repo_root=repo_root)
+            origin = "native"
+        artifacts.append({"path": rel, "hash": h, "origin": origin})
     return artifacts
 
 
@@ -98,8 +136,10 @@ def _render_signoff_md(
     block for forward-compatibility — see ``_SignoffMdDraft`` in records.py.
     """
     # P17: Markdown table divider fixed — was "|------|---------- |" (stray space)
-    rows = "\n".join(f"| {a['path']} | {a['hash']} |" for a in artifacts)
-    table = f"| Path | SHA-256 |\n|------|---------|\n{rows}"
+    rows = "\n".join(
+        f"| {a['path']} | {a.get('origin', 'native')} | {a['hash']} |" for a in artifacts
+    )
+    table = f"| Path | Origin | SHA-256 |\n|------|--------|---------|\n{rows}"
 
     # P11: YAML-safe emission for the artifact list (handles special chars
     # in paths). yaml.safe_dump produces block-style with sort_keys=False so
@@ -137,7 +177,12 @@ def _render_signoff_md(
     )
 
 
-def generate_signoff_md(phase: int, *, repo_root: Path) -> tuple[Path, int]:
+def generate_signoff_md(
+    phase: int,
+    *,
+    repo_root: Path,
+    adopted_sources: Mapping[str, str] = _NO_ADOPTED,
+) -> tuple[Path, int]:
     """Generate SIGNOFF.md draft for the given phase under its phase directory.
 
     AC3: enumerates all files under the phase directory (lexicographic order),
@@ -180,7 +225,7 @@ def generate_signoff_md(phase: int, *, repo_root: Path) -> tuple[Path, int]:
             },
         )
 
-    artifacts = _collect_artifacts(phase_dir, signoff_path, repo_root)
+    artifacts = _collect_artifacts(phase_dir, signoff_path, repo_root, adopted_sources)
 
     if not artifacts:
         raise SignoffError(

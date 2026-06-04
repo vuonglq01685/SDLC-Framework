@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import uv_run_argv
+
 pytestmark = pytest.mark.integration
 
 _SKIP_NO_UV = pytest.mark.skipif(
@@ -24,7 +26,7 @@ _SKIP_WIN32 = pytest.mark.skipif(
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["uv", "run", *args],
+        uv_run_argv(*args),
         cwd=cwd,
         capture_output=True,
         text=True,

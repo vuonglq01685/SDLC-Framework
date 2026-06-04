@@ -18,6 +18,11 @@ _scripts_dir = str(Path(__file__).resolve().parents[1] / "scripts")
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
+# Make tests/ importable so tests can do `import _clihelper` (shared subprocess-CLI helpers).
+_tests_dir = str(Path(__file__).resolve().parent)
+if _tests_dir not in sys.path:
+    sys.path.insert(0, _tests_dir)
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(

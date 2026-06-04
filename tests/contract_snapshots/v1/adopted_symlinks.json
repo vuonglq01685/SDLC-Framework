@@ -1,0 +1,65 @@
+{
+  "$defs":{
+    "SymlinkMapping":{
+      "additionalProperties":false,
+      "description":"One accepted adopt symlink: a canonical SDLC slot (``target``) → pre-existing ``source``.",
+      "properties":{
+        "accepted_at":{
+          "pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+          "title":"Accepted At",
+          "type":"string"
+        },
+        "kind":{
+          "enum":[
+            "prd",
+            "architecture",
+            "research",
+            "runbook",
+            "ci-workflow",
+            "build-file",
+            "dockerfile",
+            "readme",
+            "unknown"
+          ],
+          "title":"Kind",
+          "type":"string"
+        },
+        "source":{
+          "title":"Source",
+          "type":"string"
+        },
+        "target":{
+          "title":"Target",
+          "type":"string"
+        }
+      },
+      "required":[
+        "source",
+        "target",
+        "accepted_at",
+        "kind"
+      ],
+      "title":"SymlinkMapping",
+      "type":"object"
+    }
+  },
+  "additionalProperties":false,
+  "description":"Accepted symlink manifest for an `sdlc init --adopt` run (ADR-024 7th locked contract).",
+  "properties":{
+    "mappings":{
+      "items":{
+        "$ref":"#/$defs/SymlinkMapping"
+      },
+      "title":"Mappings",
+      "type":"array"
+    },
+    "schema_version":{
+      "const":1,
+      "default":1,
+      "title":"Schema Version",
+      "type":"integer"
+    }
+  },
+  "title":"AdoptedSymlinks",
+  "type":"object"
+}

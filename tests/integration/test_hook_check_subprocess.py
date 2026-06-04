@@ -17,7 +17,9 @@ from pathlib import Path
 
 import pytest
 
-_UV_RUN = ["uv", "run", "sdlc"]
+from _clihelper import sdlc_uv_argv
+
+_UV_RUN = sdlc_uv_argv()
 
 # ---------------------------------------------------------------------------
 # Canonical test payloads

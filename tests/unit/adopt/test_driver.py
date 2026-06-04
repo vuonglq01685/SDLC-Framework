@@ -89,11 +89,45 @@ def test_passes_run_in_strict_order(adopt_root: Path, monkeypatch: pytest.Monkey
     from sdlc.adopt.passes import detection, stamp, symlink_offer
 
     monkeypatch.setattr(detection, "detect_existing", lambda root, **_kw: calls.append(1) or [])
-    monkeypatch.setattr(symlink_offer, "offer_symlinks", lambda root, detected: calls.append(2))
-    monkeypatch.setattr(stamp, "mark_imported", lambda root, detected: calls.append(3))
+    monkeypatch.setattr(
+        symlink_offer, "offer_symlinks", lambda root, detected, **_kw: calls.append(2)
+    )
+    monkeypatch.setattr(stamp, "mark_imported", lambda root, detected, **_kw: calls.append(3))
 
     driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
     assert calls == [1, 2, 3]
+
+
+def test_driver_forwards_pass2_kwargs(adopt_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The driver wires confirm / auto_accept_threshold / warn / journal_path through to Pass 2.
+
+    The order/resume tests stub `offer_symlinks` with `**_kw`, so they never assert the new
+    seam is actually fed (code-review P4). Capture the kwargs and assert each injected value.
+    """
+    from sdlc.adopt.passes import symlink_offer
+
+    captured: dict[str, object] = {}
+
+    def _capture(root: Path, detected: object, **kw: object) -> None:
+        captured.update(kw)
+
+    monkeypatch.setattr(symlink_offer, "offer_symlinks", _capture)
+
+    sentinel_confirm = object()
+    sentinel_warn = object()
+    journal_path = adopt_root / _JOURNAL_REL
+    driver.run_adopt(
+        root=adopt_root,
+        journal_path=journal_path,
+        confirm=sentinel_confirm,  # type: ignore[arg-type]
+        auto_accept_threshold=91,
+        warn=sentinel_warn,  # type: ignore[arg-type]
+    )
+
+    assert captured["confirm"] is sentinel_confirm
+    assert captured["auto_accept_threshold"] == 91
+    assert captured["warn"] is sentinel_warn
+    assert captured["journal_path"] == journal_path
 
 
 def test_each_pass_is_journaled_start_and_complete(adopt_root: Path) -> None:
@@ -124,7 +158,7 @@ def test_pass_journal_entries_are_event_only_sentinel(adopt_root: Path) -> None:
 def test_pass_failure_raises_adopt_error(adopt_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from sdlc.adopt.passes import symlink_offer
 
-    def _boom(root: Path, detected: object) -> None:
+    def _boom(root: Path, detected: object, **_kw: object) -> None:
         raise RuntimeError("pass 2 exploded")
 
     monkeypatch.setattr(symlink_offer, "offer_symlinks", _boom)
@@ -137,7 +171,7 @@ def test_pass_failure_records_last_good_pass(
 ) -> None:
     from sdlc.adopt.passes import symlink_offer
 
-    def _boom(root: Path, detected: object) -> None:
+    def _boom(root: Path, detected: object, **_kw: object) -> None:
         raise RuntimeError("pass 2 exploded")
 
     monkeypatch.setattr(symlink_offer, "offer_symlinks", _boom)
@@ -153,7 +187,7 @@ def test_pass_failure_is_journaled_with_pass_and_reason(
 ) -> None:
     from sdlc.adopt.passes import symlink_offer
 
-    def _boom(root: Path, detected: object) -> None:
+    def _boom(root: Path, detected: object, **_kw: object) -> None:
         raise RuntimeError("pass 2 exploded")
 
     monkeypatch.setattr(symlink_offer, "offer_symlinks", _boom)
@@ -199,8 +233,10 @@ def test_resume_skips_completed_passes(adopt_root: Path, monkeypatch: pytest.Mon
     from sdlc.adopt.passes import detection, stamp, symlink_offer
 
     monkeypatch.setattr(detection, "detect_existing", lambda root, **_kw: calls.append(1) or [])
-    monkeypatch.setattr(symlink_offer, "offer_symlinks", lambda root, detected: calls.append(2))
-    monkeypatch.setattr(stamp, "mark_imported", lambda root, detected: calls.append(3))
+    monkeypatch.setattr(
+        symlink_offer, "offer_symlinks", lambda root, detected, **_kw: calls.append(2)
+    )
+    monkeypatch.setattr(stamp, "mark_imported", lambda root, detected, **_kw: calls.append(3))
 
     report = driver.run_adopt(root=adopt_root, journal_path=journal_path)
     # pass 1 was already complete → only 2 and 3 re-run
@@ -253,3 +289,23 @@ def test_resume_from_corrupt_cursor_raises_adopt_error(adopt_root: Path) -> None
     (adopt_root / _REPORT_REL).write_text(seeded.model_dump_json(), encoding="utf-8")
     with pytest.raises(AdoptError, match="resume cursor is corrupt"):
         driver.run_adopt(root=adopt_root, journal_path=adopt_root / _JOURNAL_REL)
+
+
+def test_driver_forwards_pass3_journal_path(
+    adopt_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pass 3 must receive journal_path (and warn) — do not hide behind **_kw (CR3.3-P4)."""
+    from sdlc.adopt.passes import stamp
+
+    captured: dict[str, object] = {}
+
+    def _capture(root: Path, detected: object, **kw: object) -> None:
+        captured.update(kw)
+
+    monkeypatch.setattr(stamp, "mark_imported", _capture)
+    journal_path = adopt_root / _JOURNAL_REL
+    sentinel_warn = object()
+    driver.run_adopt(root=adopt_root, journal_path=journal_path, warn=sentinel_warn)  # type: ignore[arg-type]
+
+    assert captured["journal_path"] == journal_path
+    assert captured["warn"] is sentinel_warn

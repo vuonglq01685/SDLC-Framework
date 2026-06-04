@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import uv_run_argv
+
 pytestmark = pytest.mark.integration
 
 _SKIP_NO_UV = pytest.mark.skipif(
@@ -28,7 +30,7 @@ _COMMANDS: list[list[str]] = [
 
 
 def _bootstrap(tmp_path: Path) -> None:
-    subprocess.run(["uv", "run", "sdlc", "init"], cwd=tmp_path, capture_output=True, check=False)
+    subprocess.run(uv_run_argv("sdlc", "init"), cwd=tmp_path, capture_output=True, check=False)
 
 
 @_SKIP_NO_UV
@@ -36,7 +38,7 @@ def _bootstrap(tmp_path: Path) -> None:
 def test_no_color_flag_suppresses_ansi(cmd_args: list[str], tmp_path: Path) -> None:
     _bootstrap(tmp_path)
     result = subprocess.run(
-        ["uv", "run", cmd_args[0], "--no-color", *cmd_args[1:]],
+        uv_run_argv(cmd_args[0], "--no-color", *cmd_args[1:]),
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -56,7 +58,7 @@ def test_no_color_env_var_suppresses_ansi(cmd_args: list[str], tmp_path: Path) -
     _bootstrap(tmp_path)
     env = {"NO_COLOR": "1"}
     result = subprocess.run(
-        ["uv", "run", *cmd_args],
+        uv_run_argv(*cmd_args),
         cwd=tmp_path,
         capture_output=True,
         text=True,

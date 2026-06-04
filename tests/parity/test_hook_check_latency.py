@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from _clihelper import venv_path_env
+
 _PRE_TOOL_USE = (
     Path(__file__).parent.parent.parent / "src" / "sdlc" / "claude_hooks" / "pre_tool_use.py"
 )
@@ -42,6 +44,7 @@ def _run_hook(envelope: dict, cwd: Path) -> tuple[dict, str]:
         input=json.dumps(envelope).encode(),
         capture_output=True,
         cwd=str(cwd),
+        env=venv_path_env(),  # pin the inner `sdlc hook-check` to the editable venv CLI
         timeout=10.0,
     )
     raw = result.stdout.strip()

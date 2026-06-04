@@ -119,6 +119,7 @@ def test_run_dispatch_workflow_error_emits_user_input_error(repo: Path) -> None:
                 observer=mock.MagicMock(),
                 artifact_path=artifact_path,
                 artifact_content="body",
+                idea_text="body",
             )
         args, _kwargs = emit.call_args
         assert args[0] == "ERR_USER_INPUT"
@@ -147,6 +148,7 @@ def test_run_dispatch_generic_exception_emits_panel_dispatch_failed(repo: Path) 
                 observer=mock.MagicMock(),
                 artifact_path=artifact_path,
                 artifact_content="body",
+                idea_text="body",
             )
         args, _kwargs = emit.call_args
         assert args[0] == "ERR_PANEL_DISPATCH_FAILED"
@@ -172,6 +174,7 @@ def test_run_dispatch_keyboard_interrupt_propagates(repo: Path) -> None:
             observer=mock.MagicMock(),
             artifact_path=artifact_path,
             artifact_content="body",
+            idea_text="body",
         )
 
 
