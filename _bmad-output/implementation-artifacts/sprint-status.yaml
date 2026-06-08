@@ -159,7 +159,7 @@ development_status:
   3-4-pass-3-stamp-imported-from-existing: done
   3-5-recovery-adopt-rollback-via-symlinks-json: done
   3-6-idempotency-conflict-resolution-with-existing-sdlc: done
-  3-7-source-untouched-invariant-property-mutation-testing: in-progress
+  3-7-source-untouched-invariant-property-mutation-testing: review
   3-8-brownfield-aware-phase-3-specialists: done
   epic-3-retrospective: optional
 

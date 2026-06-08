@@ -1,6 +1,6 @@
 # Story 3.7: Source-Untouched Invariant — Property + Multi-Fixture Mutation Testing
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
