@@ -245,12 +245,10 @@ def test_is_target_under_root(tmp_path: Path, target: str, expected: bool) -> No
 
 
 def test_is_target_under_root_empty_string(tmp_path: Path) -> None:
-    """Empty string target is considered under root (resolves to root itself)."""
+    """Empty string target resolves to root itself — which IS under root."""
     root = _scaffold(tmp_path)
-    # Empty string → root / "" → same as root → is under root
-    result = is_target_under_root(root, "")
-    # The exact semantics depends on implementation; just verify no crash
-    assert isinstance(result, bool)
+    # root / "" resolves to root; root is a prefix of itself → True
+    assert is_target_under_root(root, "") is True
 
 
 # ---------------------------------------------------------------------------

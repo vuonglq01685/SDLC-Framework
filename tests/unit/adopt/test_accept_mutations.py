@@ -86,6 +86,7 @@ def _mapping(
     target: str = _ARCH_TARGET,
     kind: str = "architecture",
 ) -> SymlinkMapping:
+    # type: ignore[arg-type]: _TS is a valid RFC3339Z string; Pydantic validates at runtime
     return SymlinkMapping(source=source, target=target, accepted_at=_TS, kind=kind)  # type: ignore[arg-type]
 
 
@@ -482,8 +483,8 @@ def test_different_target_attempts_at_seven_does_not_stop(tmp_path: Path) -> Non
         root, _artifact(), _ARCH_TARGET, [], set(),
         journal_path=journal, conflict=_unsafe_then_skip, warn=warns.append,
     )
-    # Should have made it to at least 7 calls without stopping
-    assert call_count >= 7
+    # Exactly 8 calls (1-7 return different_target, 8th returns skip) - not stopped early
+    assert call_count == 8
 
 
 # ---------------------------------------------------------------------------

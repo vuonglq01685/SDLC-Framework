@@ -66,6 +66,14 @@ def main() -> int:
     if total == 0:
         print("mutmut reported zero mutations — cannot compute kill rate", file=sys.stderr)
         return 1
+    no_tests = int(stats.get("no_tests") or 0)
+    if no_tests == total:
+        print(
+            f"mutmut: all {total} mutants had no_tests — harness is broken "
+            "(check pytest collection, also_copy config, and --no-cov flag)",
+            file=sys.stderr,
+        )
+        return 1
     rate = killed / total
     print(f"adopt mutation kill rate: {killed}/{total} = {rate:.2%}")
     if rate < _MIN_KILL_RATE:

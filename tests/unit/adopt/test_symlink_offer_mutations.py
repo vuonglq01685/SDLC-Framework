@@ -92,6 +92,7 @@ def _write_manifest(root: Path, mappings: list[SymlinkMapping]) -> None:
 
 
 def _mapping(source: str, target: str, kind: str = "architecture") -> SymlinkMapping:
+    # type: ignore[arg-type]: _TS is a valid RFC3339Z string; Pydantic validates at runtime
     return SymlinkMapping(source=source, target=target, accepted_at=_TS, kind=kind)  # type: ignore[arg-type]
 
 

@@ -171,23 +171,23 @@ def test_assert_source_untouched_raises_when_claude_is_symlink(tmp_path: Path) -
 
 
 def test_assert_path_under_claude_uses_resolved_path(tmp_path: Path) -> None:
-    """assert_path_under_claude operates on resolved paths, not raw string prefixes."""
+    """assert_path_under_claude uses the RESOLVED path — a symlink inside .claude/ that
+    resolves to a file outside root must be rejected even though its raw path prefix is
+    under .claude/."""
     root = _scaffold(tmp_path)
-    # A symlink inside .claude/ pointing to outside → the RESOLVED path is outside
+    # Create a file OUTSIDE the repo root (in the tmp_path parent)
     outside = tmp_path / "secret.txt"
     outside.write_text("secret\n", encoding="utf-8")
     (root / ".claude" / "state").mkdir(parents=True, exist_ok=True)
+    # A symlink whose raw path is under root/.claude/ but whose target resolves outside root
     link = root / ".claude" / "state" / "sneaky.txt"
     os.symlink(outside, link)
 
     resolved = link.resolve()
-    # The resolved path is outside root entirely (in tmp_path, not repo root)
-    # assert_path_under_claude should still accept it IF it resolves under .claude
-    # OR reject it if the resolved target is outside root.
-    # The exact semantics: the function validates that the RESOLVED path is under root/.claude/
-    # If resolved goes outside root, it should raise.
-    import contextlib
-
-    with contextlib.suppress(AdoptError):
+    # resolved is now tmp_path/secret.txt which is NOT under root/.claude/
+    assert not str(resolved).startswith(str(root / ".claude")), (
+        "test setup error: resolved path should be outside .claude/"
+    )
+    # The function must reject this because the resolved target escapes the sandbox
+    with pytest.raises(AdoptError):
         assert_path_under_claude(root, resolved)
-        # If no raise: resolved path happened to be under .claude/ (which is unlikely here)

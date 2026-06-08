@@ -59,6 +59,7 @@ def _mapping(
     target: str = _ARCH_TARGET,
     kind: str = "architecture",
 ) -> SymlinkMapping:
+    # type: ignore[arg-type]: _TS_ACCEPTED is a valid RFC3339Z string; Pydantic validates at runtime
     return SymlinkMapping(source=source, target=target, accepted_at=_TS_ACCEPTED, kind=kind)  # type: ignore[arg-type]
 
 
