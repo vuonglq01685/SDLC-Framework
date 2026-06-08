@@ -13,6 +13,7 @@ Targets the 75 surviving mutants in driver.py by exercising:
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -356,3 +357,282 @@ def test_pass_order_is_strictly_one_two_three(
 
     driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
     assert ran == [1, 2, 3]
+
+
+# ---------------------------------------------------------------------------
+# _report_bytes: canonical JSON form (sort_keys, ensure_ascii=False, compact)
+# ---------------------------------------------------------------------------
+
+
+def test_report_bytes_is_canonical_sorted_compact_utf8() -> None:
+    """`_report_bytes` emits sorted keys, raw UTF-8 (no \\uXXXX), and compact separators."""
+    report = AdoptReport(
+        schema_version=1,
+        repo_root="/tmp/pröj",  # non-ASCII ö exercises ensure_ascii=False
+        scanned_at="2026-06-04T12:00:00.000Z",
+        detected=(),
+        passes_completed=(1,),
+    )
+    out = driver._report_bytes(report)
+
+    # ensure_ascii=False → raw 2-byte UTF-8 for ö, never the ASCII escape (kills ensure_ascii=True).
+    assert "pröj".encode() in out
+    assert out.count("ö".encode()) == 1
+    # separators=(",", ":") → no ", " / ": " padding anywhere (kills separators=None / dropped).
+    assert b", " not in out
+    assert b": " not in out
+    # sort_keys=True → keys appear in lexicographic order (kills sort_keys=False / None / dropped).
+    order = [
+        out.index(b'"%s"' % key)
+        for key in (
+            b"detected",
+            b"passes_completed",
+            b"repo_root",
+            b"scanned_at",
+            b"schema_version",
+        )
+    ]
+    assert order == sorted(order)
+    # NFC + trailing newline + still valid JSON round-trips the non-ASCII value.
+    assert out.endswith(b"\n")
+    assert json.loads(out)["repo_root"] == "/tmp/pröj"
+
+
+# ---------------------------------------------------------------------------
+# _write_report: OSError → typed AdoptError envelope (exact message + path/cause)
+# ---------------------------------------------------------------------------
+
+
+def test_write_report_oserror_is_wrapped_with_exact_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A disk failure in `_write_report` raises AdoptError with the exact message + path/cause."""
+    root = _scaffold(tmp_path)
+    report = driver._build_report(root, "2026-06-04T12:00:00.000Z", (), ())
+
+    def _raise(*_a: object, **_k: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(driver, "atomic_write_bytes", _raise)
+    with pytest.raises(AdoptError) as ei:
+        driver._write_report(root, report)
+    assert ei.value.message == "adopt could not write adopt-report.json"
+    assert ei.value.details["path"].endswith("adopt-report.json")
+    assert ei.value.details["cause"] == "disk full"
+
+
+# ---------------------------------------------------------------------------
+# _read_existing_report: malformed JSON → typed AdoptError envelope
+# ---------------------------------------------------------------------------
+
+
+def test_read_existing_report_malformed_is_wrapped_with_exact_envelope(tmp_path: Path) -> None:
+    """A corrupt `adopt-report.json` raises AdoptError with the exact message + path/cause."""
+    root = _scaffold(tmp_path)
+    (root / _REPORT_REL).write_text("{ not valid json", encoding="utf-8")
+    with pytest.raises(AdoptError) as ei:
+        driver._read_existing_report(root)
+    assert ei.value.message == "adopt-report.json is malformed; cannot resume"
+    assert ei.value.details["path"].endswith("adopt-report.json")
+    assert ei.value.details["cause"] not in (None, "", "None")
+
+
+# ---------------------------------------------------------------------------
+# _validate_resume_cursor: exact corrupt-cursor envelope (message + path + cursor)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_resume_cursor_corrupt_exact_envelope() -> None:
+    """A non-contiguous cursor raises with the exact message + path + passes_completed details."""
+    report_path = Path("/x/y/adopt-report.json")
+    with pytest.raises(AdoptError) as ei:
+        _validate_resume_cursor([2], report_path)
+    assert ei.value.message == "adopt-report.json resume cursor is corrupt; cannot resume"
+    assert ei.value.details["path"] == str(report_path)
+    assert ei.value.details["passes_completed"] == [2]
+
+
+# ---------------------------------------------------------------------------
+# _run_pass: argument forwarding into the typed pass seams
+# ---------------------------------------------------------------------------
+
+
+def test_run_pass1_forwards_legacy_globs_and_git_signal_to_detection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pass 1 forwards `legacy_code_globs` + `git_signal` verbatim into detection."""
+    root = _scaffold(tmp_path)
+    from sdlc.adopt.passes import detection
+
+    seen: dict[str, object] = {}
+
+    def _capture(
+        _root: Path, *, git_signal: object = None, legacy_code_globs: object = ()
+    ) -> list[DetectedArtifact]:
+        seen["globs"] = legacy_code_globs
+        seen["git_signal"] = git_signal
+        return []
+
+    monkeypatch.setattr(detection, "detect_existing", _capture)
+    driver.run_adopt(
+        root=root,
+        journal_path=root / _JOURNAL_REL,
+        legacy_code_globs=("*.foo", "*.bar"),
+        git_signal={"a": 1},
+    )
+    assert seen["globs"] == ("*.foo", "*.bar")
+    assert seen["git_signal"] == {"a": 1}
+
+
+def test_run_pass3_forwards_detected_into_stamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pass 3 forwards the accumulated `detected` list (not None) into `stamp.mark_imported`."""
+    root = _scaffold(tmp_path)
+    from sdlc.adopt.passes import detection, stamp, symlink_offer
+
+    art = DetectedArtifact(
+        path="docs/arch.md", kind="architecture", confidence=90, suggested_target=".claude/x.md"
+    )
+    monkeypatch.setattr(detection, "detect_existing", lambda *_a, **_k: [art])
+    monkeypatch.setattr(symlink_offer, "offer_symlinks", lambda *_a, **_k: None)
+
+    seen: dict[str, object] = {}
+
+    def _capture_stamp(_root: Path, detected: object, **_k: object) -> None:
+        seen["detected"] = detected
+
+    monkeypatch.setattr(stamp, "mark_imported", _capture_stamp)
+    driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+    assert seen["detected"] is not None
+    assert list(seen["detected"]) == [art]  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# run_adopt: a pass failure → AdoptError with exact message + pass/reason details
+# ---------------------------------------------------------------------------
+
+
+def test_run_adopt_pass_failure_raises_exact_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Pass-2 failure raises AdoptError with the exact 'adopt pass 2 failed: ...' envelope."""
+    root = _scaffold(tmp_path)
+    from sdlc.adopt.passes import symlink_offer
+
+    def _boom(*_a: object, **_k: object) -> None:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(symlink_offer, "offer_symlinks", _boom)
+    with pytest.raises(AdoptError) as ei:
+        driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+    assert ei.value.message == "adopt pass 2 failed: kaboom"
+    assert ei.value.details["pass"] == 2
+    assert ei.value.details["reason"] == "kaboom"
+
+
+def test_run_adopt_failure_path_persists_report_with_real_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pass failure still persists a report whose repo_root == str(root), not None."""
+    root = _scaffold(tmp_path)
+    from sdlc.adopt.passes import symlink_offer
+
+    def _boom(*_a: object, **_k: object) -> None:
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(symlink_offer, "offer_symlinks", _boom)
+    with pytest.raises(AdoptError):
+        driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+    # The failure path re-writes the report last; its repo_root must be the real root.
+    assert _read_report(root).repo_root == str(root)
+
+
+def test_run_adopt_failed_journal_secondary_error_is_suppressed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A secondary failure journaling the error is suppressed; AdoptError still surfaces."""
+    root = _scaffold(tmp_path)
+    from sdlc.adopt.passes import symlink_offer
+
+    def _boom(*_a: object, **_k: object) -> None:
+        raise RuntimeError("primary")
+
+    monkeypatch.setattr(symlink_offer, "offer_symlinks", _boom)
+    real_append = driver._append_event
+
+    def _append(journal_path: Path, *, kind: str, payload: dict[str, object]) -> None:
+        if kind == "adopt_pass_failed":
+            raise RuntimeError("secondary-journal")
+        real_append(journal_path, kind=kind, payload=payload)
+
+    monkeypatch.setattr(driver, "_append_event", _append)
+    with pytest.raises(AdoptError) as ei:
+        driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+    assert ei.value.message == "adopt pass 2 failed: primary"
+
+
+def test_run_adopt_failed_report_write_secondary_error_is_suppressed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A secondary failure persisting the report is suppressed; the AdoptError still surfaces."""
+    root = _scaffold(tmp_path)
+    from sdlc.adopt.passes import detection
+
+    def _boom(*_a: object, **_k: object) -> list[DetectedArtifact]:
+        raise RuntimeError("primary")
+
+    # Pass 1 fails → the mid-run (n==1) write never fires, so _write_report runs ONLY on the
+    # except path, isolating the second `contextlib.suppress` block.
+    monkeypatch.setattr(detection, "detect_existing", _boom)
+
+    def _raise_write(*_a: object, **_k: object) -> None:
+        raise OSError("secondary-write")
+
+    monkeypatch.setattr(driver, "_write_report", _raise_write)
+    with pytest.raises(AdoptError) as ei:
+        driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+    assert ei.value.message == "adopt pass 1 failed: primary"
+
+
+def test_run_adopt_writes_report_after_pass1_with_real_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The AC4 mid-run write fires exactly after Pass 1 and carries repo_root == str(root)."""
+    root = _scaffold(tmp_path)
+    seen: list[tuple[str, tuple[int, ...]]] = []
+    real_write = driver._write_report
+
+    def _capture(r: Path, report: AdoptReport) -> None:
+        seen.append((report.repo_root, tuple(report.passes_completed)))
+        real_write(r, report)
+
+    monkeypatch.setattr(driver, "_write_report", _capture)
+    driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+
+    # AC4: a write happens as soon as Pass 1 completes (passes_completed == (1,)).
+    assert (str(root), (1,)) in seen
+    # No write ever persists a None repo_root (kills _build_report(None, ...) at the mid-run write).
+    assert all(repo_root == str(root) for repo_root, _ in seen)
+
+
+def test_run_adopt_corrupt_cursor_names_real_report_path(tmp_path: Path) -> None:
+    """A non-contiguous on-disk cursor raises with details.path == the real path, not None."""
+    root = _scaffold(tmp_path)
+    (root / _REPORT_REL).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "repo_root": str(root),
+                "scanned_at": "2026-06-02T00:00:00.000Z",
+                "detected": [],
+                "passes_completed": [2],  # corrupt: skips pass 1
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(AdoptError) as ei:
+        driver.run_adopt(root=root, journal_path=root / _JOURNAL_REL)
+    assert ei.value.message == "adopt-report.json resume cursor is corrupt; cannot resume"
+    assert ei.value.details["path"].endswith("adopt-report.json")
+    assert ei.value.details["path"] != "None"
