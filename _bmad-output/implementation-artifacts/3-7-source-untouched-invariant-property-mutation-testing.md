@@ -1,6 +1,6 @@
 # Story 3.7: Source-Untouched Invariant — Property + Multi-Fixture Mutation Testing
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -591,3 +591,45 @@ killed 1391 / survived 416 / timeout 2 / no_tests 0 / total 1809 = 76.89%
 - Survivor shift (vs CR3.7-W4): `_accept` 107→97, `_conflict` 90→65, `driver` 75→64, `_symlink` 38→32, `symlink_offer` 37→29, `imported_metadata` 38→24, `rollback` 22, `stamp` 19, `_classify` 18, **`invariant` 40→13** (all in the read-only `_assert_claude_sandbox_intact`/`assert_path_under_claude` verifier — weakens detection, not a write path).
 
 **Remaining to close (AC2):** ~328 more mutants must be killed (95% of 1809 = 1719). This is the substantial test-authoring deliverable tracked in CR3.7-W4/W6/W7 — prioritise the write-path modules `_accept`/`_symlink`/`driver` (AC2-binding), then the verifier guards. Not a review patch; a dedicated push.
+
+## POSIX Verification (2026-06-09 · mutation-kill campaign COMPLETE · Docker `python:3.12`)
+
+The dedicated test-authoring push tracked above (CR3.7-W4/W6/W7) was executed module-by-module inside the `sdlc-posix` container. **AC2 is now MET.**
+
+**Authoritative full-harness result** (`scripts/run_adopt_mutation.py`, full `mutmut run`, 498 adopt+property tests green before mutation, 40.53 mutations/sec):
+```
+adopt mutation kill rate: 1750 / 1809 = 96.74% — PASS (kill rate >= 95%)
+stats: killed 1750 / survived 56 / timeout 3 / no_tests 0 / skipped 0 / suspicious 0 / segfault 0
+```
+
+**Per-module kill campaign (8 commits on `main`):**
+
+| Module | Survivors before → after | Commit |
+|---|---|---|
+| `driver` | 64 → 9 equiv | 42c3410 |
+| `passes/_symlink` | 32 → 0 | 7ba5ea2 |
+| `passes/symlink_offer` | 29 → 8 equiv | 045253e |
+| `imported_metadata` | 24 → 9 equiv | 12bce14 |
+| `rollback` | 22 → 1 equiv | 58e748c |
+| `passes/stamp` | 19 → 2 equiv | b7f0f40 |
+| `passes/_classify` | 18 → 3 equiv | 64a50cb |
+| `invariant`/`tree_hash`/`__getattr__`/small modules | 48 → 20 equiv/unreachable | 6a445d8 |
+
+**The 56 surviving mutants are all equivalent or unreachable — killed purely with tests, zero `# pragma: no mutate` added to production** (over-suppression is a review-C audit failure per spec L45, so the kill rate was reached the stronger way):
+
+| Module | Survived | Class |
+|---|---|---|
+| `invariant` | 12 | UNREACHABLE — `_assert_claude_sandbox_intact` root-escape envelope; `claude_root != expected` cannot hold for a real non-symlink `.claude` (`resolve()` normalises both sides; L26 rejects symlinks, L31 requires dir) |
+| `imported_metadata` | 9 | length `>`→`>=` no-op at exactly 200 (slice identical); YAML default-flag aliases; `mode`/`encoding` codec aliases |
+| `driver` | 9 | `schema_version=1` (Literal[1] default); `model_dump` mode python≡json; `encode`/`encoding` UTF-8 aliases; `ensure_ascii=None`≡False |
+| `symlink_offer` | 8 | `mode`/`encoding` aliases; `ensure_ascii=None`; `changed=None`≡False |
+| `tree_hash` | 3 | `followlinks=None`≡False / dropped; `encoding="UTF-8"` alias |
+| `detection` | 3 | `encoding` aliases ×2; `_safe_read_text` `""`→`"XXXX"` (both → "unknown") |
+| `_classify` | 3 | `_basename` `rsplit("/", k)[-1]` maxsplit-irrelevant; `_match_segments range(+2)` duplicate empty-slice term |
+| `_accept` | 3 | prior-session documented equivalents |
+| `stamp` | 2 | `schema_version=1`; `_ = detected → _ = None` (discarded seam) |
+| `_frontmatter` | 2 | `encoding` aliases ×2 |
+| `rollback` | 1 | `schema_version=1` |
+| `_conflict` | 1 | prior-session documented equivalent |
+
+**AC status:** AC1 (property invariant) ✓ · AC2 (mutmut ≥95% on `src/sdlc/adopt/`) ✓ **96.74%** · AC3 (mutation harness) ✓. DN1 gate (`done` requires a green POSIX `mutation-tests` run ≥95%) is now satisfied → **Status moved `in-progress` → `done`.**
