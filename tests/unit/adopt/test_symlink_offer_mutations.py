@@ -28,6 +28,7 @@ if sys.platform == "win32":  # pragma: no cover
 
 from sdlc.adopt.passes.symlink_offer import (
     SymlinkDecision,
+    _manifest_bytes,
     offer_symlinks,
 )
 from sdlc.contracts.adopt_report import DetectedArtifact
@@ -84,7 +85,9 @@ def _journal_entries(root: Path) -> list[JournalEntry]:
 def _write_manifest(root: Path, mappings: list[SymlinkMapping]) -> None:
     text = json.dumps(
         AdoptedSymlinks(mappings=tuple(mappings)).model_dump(mode="json"),
-        sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
     )
     path = root / _MANIFEST_REL
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -382,3 +385,205 @@ def test_prior_manifest_mappings_preserved_on_resume(tmp_path: Path) -> None:
     assert prior_target in targets
     assert _ARCH_TARGET in targets
     assert len(manifest.mappings) == 2
+
+
+# ---------------------------------------------------------------------------
+# _manifest_bytes: canonical JSON form (sort_keys / ensure_ascii=False / compact)
+# ---------------------------------------------------------------------------
+
+
+def test_manifest_bytes_is_canonical_sorted_compact_utf8() -> None:
+    """`_manifest_bytes` emits sorted keys, raw UTF-8, and compact separators."""
+    manifest = AdoptedSymlinks(mappings=(_mapping(source="docs/aö.md", target="t/B.md"),))
+    out = _manifest_bytes(manifest)
+
+    # ensure_ascii=False → raw UTF-8 for ö (kills ensure_ascii=True).
+    assert "aö".encode() in out
+    assert out.count("ö".encode()) == 1
+    # separators=(",", ":") → no padding (kills separators=None / dropped).
+    assert b", " not in out
+    assert b": " not in out
+    # sort_keys=True → nested mapping keys in lexicographic order (kills sort_keys=False / None).
+    text = out.decode()
+    assert (
+        text.index('"accepted_at"')
+        < text.index('"kind"')
+        < text.index('"source"')
+        < text.index('"target"')
+    )
+    assert out.endswith(b"\n")
+    assert json.loads(out)["mappings"][0]["source"] == "docs/aö.md"
+
+
+# ---------------------------------------------------------------------------
+# Corrupt-manifest warning carries the full "recoverable from the journal" tail
+# ---------------------------------------------------------------------------
+
+
+def test_corrupt_manifest_warning_mentions_journal_recoverable(tmp_path: Path) -> None:
+    """The unreadable-manifest warning ends with the exact journal-recoverable reassurance."""
+    root = _scaffold(tmp_path)
+    _write_source(root)
+    (root / _MANIFEST_REL).parent.mkdir(parents=True, exist_ok=True)
+    (root / _MANIFEST_REL).write_text("{ not valid json }", encoding="utf-8")
+    warns: list[str] = []
+
+    offer_symlinks(
+        root,
+        [_artifact()],
+        confirm=_accept_all,
+        auto_accept_threshold=80,
+        warn=warns.append,
+    )
+    assert any(w.endswith("(prior mappings remain recoverable from the journal)") for w in warns)
+
+
+# ---------------------------------------------------------------------------
+# Trailing-slash target → source basename appended (artifact.path is forwarded)
+# ---------------------------------------------------------------------------
+
+_RESEARCH_SLOT = "01-Requirement/02-Research/"
+_RESEARCH_SOURCE = "docs/research-2024.md"
+_RESEARCH_TARGET = "01-Requirement/02-Research/research-2024.md"
+
+
+def test_trailing_slash_target_uses_source_basename_non_interactive(tmp_path: Path) -> None:
+    """Non-interactive: a directory-style slot lands at <slot>/<source-basename>."""
+    root = _scaffold(tmp_path)
+    _write_source(root, _RESEARCH_SOURCE)
+    art = _artifact(path=_RESEARCH_SOURCE, kind="research", suggested_target=_RESEARCH_SLOT)
+    offer_symlinks(
+        root, [art], confirm=None, auto_accept_threshold=80, journal_path=root / _JOURNAL_REL
+    )
+    assert (root / _RESEARCH_TARGET).is_symlink()
+    assert _RESEARCH_TARGET in {m.target for m in _read_manifest(root).mappings}
+
+
+def test_trailing_slash_target_uses_source_basename_interactive(tmp_path: Path) -> None:
+    """Interactive: accepting a directory-style slot still appends the source basename."""
+    root = _scaffold(tmp_path)
+    _write_source(root, _RESEARCH_SOURCE)
+    art = _artifact(path=_RESEARCH_SOURCE, kind="research", suggested_target=_RESEARCH_SLOT)
+    offer_symlinks(
+        root,
+        [art],
+        confirm=_accept_all,
+        auto_accept_threshold=80,
+        journal_path=root / _JOURNAL_REL,
+    )
+    assert (root / _RESEARCH_TARGET).is_symlink()
+
+
+# ---------------------------------------------------------------------------
+# Loop continues past skips (continue, not break) + exact skipped_existing count
+# ---------------------------------------------------------------------------
+
+
+def test_below_threshold_skip_does_not_halt_later_artifacts(tmp_path: Path) -> None:
+    """A below-threshold skip must `continue`, not `break` — later artifacts still get offered."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/low.md")
+    _write_source(root, _SOURCE_REL)
+    low = _artifact(path="docs/low.md", confidence=10, suggested_target="01-X/LOW.md")
+    high = _artifact(path=_SOURCE_REL, confidence=95, suggested_target=_ARCH_TARGET)
+    offer_symlinks(
+        root, [low, high], confirm=None, auto_accept_threshold=80, journal_path=root / _JOURNAL_REL
+    )
+    assert (root / _ARCH_TARGET).is_symlink()  # the high-confidence one was still processed
+    assert not (root / "01-X/LOW.md").exists()
+
+
+def test_two_already_recorded_skipped_then_new_adopted(tmp_path: Path) -> None:
+    """Two already-recorded targets → skipped_existing == 2 (+=, not =1), loop continues to new."""
+    root = _scaffold(tmp_path)
+    _write_source(root, _SOURCE_REL)
+    _write_source(root, "docs/p2.md")
+    _write_source(root, "docs/new.md")
+    t1, t2 = _ARCH_TARGET, "01-Requirement/01-PRODUCT.md"
+    _write_manifest(
+        root,
+        [
+            _mapping(source=_SOURCE_REL, target=t1),
+            _mapping(source="docs/p2.md", target=t2, kind="prd"),
+        ],
+    )
+    for src_rel, tgt in ((_SOURCE_REL, t1), ("docs/p2.md", t2)):
+        slot = root / tgt
+        slot.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(os.path.relpath(root / src_rel, slot.parent), slot)
+
+    new_target = "01-Requirement/02-RESEARCH.md"
+    arts = [
+        _artifact(path=_SOURCE_REL, suggested_target=t1),  # resolved_default already recorded
+        _artifact(path="docs/p2.md", kind="prd", suggested_target=t2),  # already recorded
+        _artifact(path="docs/new.md", kind="research", suggested_target=new_target),  # new
+    ]
+    offer_symlinks(
+        root, arts, confirm=None, auto_accept_threshold=80, journal_path=root / _JOURNAL_REL
+    )
+
+    rerun = next(e for e in _journal_entries(root) if e.kind == "adopt_re_run")
+    assert rerun.payload["skipped_existing"] == 2
+    assert (root / new_target).is_symlink()
+
+
+def test_edit_to_already_recorded_target_skips_warns_and_continues(tmp_path: Path) -> None:
+    """An edit onto an already-recorded target skips+warns (final_target dedup) and keeps going."""
+    root = _scaffold(tmp_path)
+    _write_source(root, _SOURCE_REL)
+    _write_source(root, "docs/e1.md")
+    _write_source(root, "docs/e2.md")
+    _write_source(root, "docs/new.md")
+    _write_manifest(root, [_mapping(source=_SOURCE_REL, target=_ARCH_TARGET)])
+    slot = root / _ARCH_TARGET
+    slot.parent.mkdir(parents=True, exist_ok=True)
+    os.symlink(os.path.relpath(root / _SOURCE_REL, slot.parent), slot)
+
+    new_target = "01-Requirement/01-PRODUCT.md"
+
+    def _confirm(art: DetectedArtifact, _suggested: str) -> SymlinkDecision:
+        if art.path in ("docs/e1.md", "docs/e2.md"):
+            return SymlinkDecision(accept=True, target=_ARCH_TARGET)  # edit onto recorded slot
+        return SymlinkDecision(accept=True, target=new_target)
+
+    warns: list[str] = []
+    arts = [
+        _artifact(path="docs/e1.md", suggested_target="01-X/E1.md"),
+        _artifact(path="docs/e2.md", suggested_target="01-X/E2.md"),
+        _artifact(path="docs/new.md", kind="prd", suggested_target=new_target),
+    ]
+    offer_symlinks(
+        root,
+        arts,
+        confirm=_confirm,
+        auto_accept_threshold=80,
+        warn=warns.append,
+        journal_path=root / _JOURNAL_REL,
+    )
+
+    rerun = next(e for e in _journal_entries(root) if e.kind == "adopt_re_run")
+    assert rerun.payload["skipped_existing"] == 2  # final_target dedup hit twice (+=, not =1)
+    assert any(f"already adopted (target {_ARCH_TARGET})" in w for w in warns)
+    assert (root / new_target).is_symlink()  # the genuine-new artifact still processed
+
+
+def test_rejected_artifact_does_not_halt_later_artifacts(tmp_path: Path) -> None:
+    """A rejected offer (_select_target → None) must `continue`, not `break`."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/rej.md")
+    _write_source(root, _SOURCE_REL)
+
+    def _confirm(art: DetectedArtifact, suggested: str) -> SymlinkDecision:
+        if art.path == "docs/rej.md":
+            return SymlinkDecision(accept=False, target=suggested)  # reject → _select_target None
+        return SymlinkDecision(accept=True, target=suggested)
+
+    arts = [
+        _artifact(path="docs/rej.md", suggested_target="01-X/REJ.md"),
+        _artifact(path=_SOURCE_REL, suggested_target=_ARCH_TARGET),
+    ]
+    offer_symlinks(
+        root, arts, confirm=_confirm, auto_accept_threshold=80, journal_path=root / _JOURNAL_REL
+    )
+    assert (root / _ARCH_TARGET).is_symlink()  # the accepted artifact after the reject was reached
+    assert not (root / "01-X/REJ.md").exists()
