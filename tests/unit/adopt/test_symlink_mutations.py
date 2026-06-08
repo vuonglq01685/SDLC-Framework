@@ -295,3 +295,67 @@ def test_resolve_target_trailing_slash_uses_basename_only() -> None:
     result = resolve_target("docs/dest/", "some/deep/path/filename.md")
     assert result == "docs/dest/filename.md"
     assert "/" not in result.replace("docs/dest/", "")
+
+
+# ---------------------------------------------------------------------------
+# Exact AdoptError envelopes (message + details) — mutation-kill batch (Story 3.7)
+# ---------------------------------------------------------------------------
+
+
+def test_assert_target_under_root_escape_raises_exact_envelope(tmp_path: Path) -> None:
+    """An escaping target raises with the exact message + target/root details."""
+    root = _scaffold(tmp_path)
+    with pytest.raises(AdoptError) as ei:
+        assert_target_under_root(root, "../escape.md")
+    assert ei.value.message == "adopt refuses a symlink target outside the project root"
+    assert ei.value.details["target"] == "../escape.md"
+    assert ei.value.details["root"] == str(root)
+
+
+def test_create_symlink_unreadable_link_raises_exact_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable existing symlink at the slot raises with the exact message + target/cause."""
+    root = _scaffold(tmp_path)
+    src = _write_source(root, _SOURCE_REL)
+    slot = root / _TARGET_REL
+    slot.parent.mkdir(parents=True, exist_ok=True)
+    os.symlink(os.path.relpath(src, slot.parent), slot)  # existing symlink occupies the slot
+
+    # `assert_target_under_root`'s internal `.resolve()` reads the slot once (posixpath.realpath);
+    # let that succeed and raise only on the function's own `os.readlink` (the 2nd slot read).
+    real_readlink = os.readlink
+    seen = {"n": 0}
+
+    def _readlink(path: object, *_a: object, **_k: object) -> str:
+        if os.fspath(path).endswith("ARCHITECTURE.md"):  # type: ignore[arg-type]
+            seen["n"] += 1
+            if seen["n"] >= 2:
+                raise OSError("unreadable link")
+        return real_readlink(path)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "readlink", _readlink)
+    with pytest.raises(AdoptError) as ei:
+        create_relative_symlink(root, _SOURCE_REL, _TARGET_REL)
+    assert ei.value.message == "adopt could not read an existing symlink at the target"
+    assert ei.value.details["target"] == _TARGET_REL
+    assert ei.value.details["cause"] == "unreadable link"
+
+
+def test_create_symlink_oserror_raises_exact_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed `os.symlink` raises with the exact message + target/source/cause details."""
+    root = _scaffold(tmp_path)
+    _write_source(root, _SOURCE_REL)  # slot itself does not exist → reaches the create path
+
+    def _raise_symlink(*_a: object, **_k: object) -> None:
+        raise OSError("symlink failed")
+
+    monkeypatch.setattr(os, "symlink", _raise_symlink)
+    with pytest.raises(AdoptError) as ei:
+        create_relative_symlink(root, _SOURCE_REL, _TARGET_REL)
+    assert ei.value.message == "adopt could not create the symlink"
+    assert ei.value.details["target"] == _TARGET_REL
+    assert ei.value.details["source"] == _SOURCE_REL
+    assert ei.value.details["cause"] == "symlink failed"
