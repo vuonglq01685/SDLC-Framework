@@ -609,3 +609,88 @@ def test_read_metadata_record_corrupt_warning_interpolates_path_and_cause(
     assert str(path) in msg  # kills path → None
     assert "(None)" not in msg  # kills exc → None
     assert msg.endswith("treating as absent")  # kills XX-wrapped message literal
+
+
+# --- rollback mutation-kill additions (Story 3.7) ---
+
+
+def test_rollback_missing_target_exact_envelope(tmp_path: Path) -> None:
+    """An unknown target raises with the exact message + sorted missing list + target=missing[0]."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_manifest(root, [_mapping()])
+    _link(root, "docs/arch.md", _ARCH_TARGET)
+
+    with pytest.raises(AdoptError) as ei:
+        rollback(root, targets=["zzz/missing.md", "aaa/gone.md"], journal_path=root / _JOURNAL_REL)
+    assert ei.value.message == "rollback target is not in adopted-symlinks manifest"
+    assert ei.value.details["missing"] == ["aaa/gone.md", "zzz/missing.md"]  # sorted
+    assert ei.value.details["target"] == "aaa/gone.md"  # missing[0]
+
+
+def test_rollback_sidecar_delete_failure_warns(tmp_path: Path) -> None:
+    """A failed sidecar unlink warns with the exact message (warn + message both forwarded)."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_manifest(root, [_mapping(source="docs/arch.md", target=_ARCH_TARGET)])
+    _link(root, "docs/arch.md", _ARCH_TARGET)
+    # Make the sidecar a directory so path.unlink() raises OSError → _prune_sidecar warns.
+    sidecar = metadata_record_path(root, _ARCH_TARGET)
+    sidecar.mkdir(parents=True)
+    warns: list[str] = []
+
+    rollback(root, targets=[_ARCH_TARGET], journal_path=root / _JOURNAL_REL, warn=warns.append)
+    assert any(f"could not delete imported-metadata sidecar for {_ARCH_TARGET}" in w for w in warns)
+
+
+def test_rollback_dangling_symlink_removed_with_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable (dangling) symlink is unlinked and warned about (warn + message forwarded)."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_manifest(root, [_mapping(source="docs/arch.md", target=_ARCH_TARGET)])
+    _link(root, "docs/arch.md", _ARCH_TARGET)
+
+    # is_target_under_root's resolve() reads the slot once; raise only on _reconcile's own readlink.
+    real_readlink = os.readlink
+    seen = {"n": 0}
+
+    def _readlink(p: object, *_a: object, **_k: object) -> str:
+        if os.fspath(p).endswith("ARCHITECTURE.md"):  # type: ignore[arg-type]
+            seen["n"] += 1
+            if seen["n"] >= 2:
+                raise OSError("unreadable")
+        return real_readlink(p)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "readlink", _readlink)
+    warns: list[str] = []
+    rollback(root, targets=[_ARCH_TARGET], journal_path=root / _JOURNAL_REL, warn=warns.append)
+
+    assert not os.path.lexists(root / _ARCH_TARGET)  # the dangling link was removed
+    assert any(f"removed dangling symlink at {_ARCH_TARGET}" in w for w in warns)
+
+
+def test_rollback_other_pointing_symlink_warning_ends_with_untouched(tmp_path: Path) -> None:
+    """An other-pointing symlink warning ends with the exact 'leaving on-disk link untouched'."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_source(root, "docs/other.md")
+    _write_manifest(root, [_mapping(source="docs/arch.md", target=_ARCH_TARGET)])
+    _link(root, "docs/other.md", _ARCH_TARGET)  # points at a DIFFERENT source
+    warns: list[str] = []
+
+    rollback(root, targets=[_ARCH_TARGET], journal_path=root / _JOURNAL_REL, warn=warns.append)
+    assert any(w.endswith("leaving on-disk link untouched") for w in warns)
+
+
+def test_rollback_corrupt_manifest_forwards_warn_and_returns_empty(tmp_path: Path) -> None:
+    """A corrupt manifest forwards the warn sink to _load and returns removed_targets == ()."""
+    root = _scaffold(tmp_path)
+    (root / _MANIFEST_REL).parent.mkdir(parents=True, exist_ok=True)
+    (root / _MANIFEST_REL).write_text("{ not valid json", encoding="utf-8")
+    warns: list[str] = []
+
+    result = rollback(root, targets=None, journal_path=root / _JOURNAL_REL, warn=warns.append)
+    assert any("unreadable" in w for w in warns)  # _load_existing_mappings warned (warn forwarded)
+    assert result.removed_targets == ()  # kills RollbackResult(removed_targets=None)
