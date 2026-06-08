@@ -90,6 +90,10 @@ def detect_existing(
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         for filename in filenames:
             abs_path = Path(dirpath) / filename
+            if abs_path.is_symlink():
+                # Story 3.7 / CR3.2-W1: do not classify through file symlinks (dangling or
+                # escaping targets); Pass 2 must not offer symlinks to broken paths.
+                continue
             rel_posix = abs_path.relative_to(root).as_posix()
             if _classify.matches_legacy_glob(rel_posix, legacy_code_globs):
                 continue

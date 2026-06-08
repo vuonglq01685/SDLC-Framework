@@ -32,6 +32,7 @@ dev = [
     "pytest-asyncio>=0.23",     # async test support for hooks/runner async surface (Story 2A.4)
     "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
     "mkdocs-mermaid2-plugin>=1.2.3",
+    "mutmut>=3.0.0,<4",
 ]
 
 [build-system]
@@ -260,6 +261,7 @@ markers = [
     "parity: engine-vs-claude-hooks parity gate (Story 2A.6)",
     "parity_perf: latency budget benchmarks for the Claude-side hook roundtrip (Story 2A.6)",
     "claude_version_gate: exercises real Claude Code version pre-flight (Story 2B.2)",
+    "mutation: adopt-module mutation testing gate (Story 3.7)",
 ]
 
 [tool.coverage.run]
@@ -317,3 +319,59 @@ claude_code_min_version = "2.0.0"
 # =============================================================================
 [tool.sdlc.hooks]
 pre_write = ["naming_validator", "phase_gate"]
+
+# =============================================================================
+# Mutation testing — adopt module only (Story 3.7, AC2, D2=a)
+# =============================================================================
+[tool.mutmut]
+paths_to_mutate = ["src/sdlc/adopt/"]
+# The global pytest addopts force `--cov-fail-under=87`. mutmut runs each mutant's covering
+# tests in-process via `pytest.main()`, which applies those addopts — so a passing subset
+# (whose coverage of all of `src/sdlc` is far below 87%) would exit non-zero and be miscounted
+# as a KILL, inflating the kill rate to a meaningless ~100%. Disable coverage for mutmut's
+# pytest runs; mutmut maps mutants->tests with its own `coverage.Coverage`, so selection is
+# unaffected. (Story 3.7 / CR3.7-W3 — verified on POSIX.)
+pytest_add_cli_args = ["--no-cov"]
+# Scope mutmut's coverage-mapping AND per-mutant runs to the adopt-covering suite. Without this,
+# mutmut collects the whole `tests/` tree (testpaths=["tests"]) inside its `mutants/` sandbox and
+# aborts on unrelated modules (e.g. tests/benchmark/test_scan_perf.py is unimportable there),
+# producing a meaningless 0/N. This is the verified-green adopt suite (Story 3.7 / CR3.7-W3).
+tests_dir = [
+    "tests/unit/adopt/",
+    "tests/property/test_source_untouched_invariant.py",
+    "tests/property/test_source_untouched_adversarial.py",
+    "tests/property/test_source_untouched_submodule.py",
+    "tests/property/test_source_untouched_stateful.py",
+    "tests/integration/test_adopt_mode_invariant.py",
+]
+# mutmut copies only `paths_to_mutate` into its `mutants/` sandbox and removes the real `src`
+# from sys.path, so adopt's sibling imports (sdlc.errors, sdlc.contracts, sdlc.concurrency, ...)
+# vanish and every test errors out. Copy the rest of the `sdlc` package (everything EXCEPT adopt,
+# which is the mutated tree) into the sandbox so imports resolve. (Story 3.7 / CR3.7-W3.)
+also_copy = [
+    "src/sdlc/__init__.py",
+    "src/sdlc/agents",
+    "src/sdlc/claude_hooks",
+    "src/sdlc/cli",
+    "src/sdlc/commands",
+    "src/sdlc/concurrency",
+    "src/sdlc/config",
+    "src/sdlc/contracts",
+    "src/sdlc/dashboard",
+    "src/sdlc/dispatcher",
+    "src/sdlc/engine",
+    "src/sdlc/errors",
+    "src/sdlc/hooks",
+    "src/sdlc/ids",
+    "src/sdlc/journal",
+    "src/sdlc/memory",
+    "src/sdlc/migrations",
+    "src/sdlc/runtime",
+    "src/sdlc/signoff",
+    "src/sdlc/skills",
+    "src/sdlc/specialists",
+    "src/sdlc/state",
+    "src/sdlc/telemetry",
+    "src/sdlc/workflows",
+    "src/sdlc/workflows_yaml",
+]

@@ -113,7 +113,7 @@ its serial adopt spine (Layers 2–4) is the binding constraint, not CI headroom
   no-op the completed passes (3.4). They are mutually independent → Layer 5 runs both in parallel.
 - **3.7** is the Tier-1 NFR-REL-6 gate. Its property test runs post-adopt `git diff` across 5+
   brownfield fixtures, and its mutation testing targets `adopt/driver.py`, `adopt/passes/*.py`,
-  `adopt/symlink.py` — so the adopt module must be feature-complete, including 3.6's conflict
+  `adopt/passes/_symlink.py` (+ `_conflict.py` / `_accept.py`) — so the adopt module must be feature-complete, including 3.6's conflict
   paths, before 3.7 branches. It is deliberately last.
 
 ---

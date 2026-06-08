@@ -120,6 +120,39 @@ jobs:
       - name: Run benchmarks (NFR-PERF-1 gate)
         run: uv run pytest -m benchmark --benchmark-only --no-cov -v
 
+  mutation-tests:
+    name: Adopt mutation testing (Story 3.7 AC2)
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Adopt mutation gate (>=95% kill)
+        run: uv run python scripts/run_adopt_mutation.py
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4  # pin: ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mutmut-adopt-${{ github.run_id }}
+          path: mutants/mutmut-cicd-stats.json
+          retention-days: 14
+          if-no-files-found: ignore
+
   parity-perf:
     name: Hook Parity Latency Gate (Story 2A.6 AC7)
     needs: quality-gates
