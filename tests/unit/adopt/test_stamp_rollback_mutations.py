@@ -555,3 +555,57 @@ def test_metadata_record_path_under_claude_state(tmp_path: Path) -> None:
     assert parts[0] == ".claude"
     assert parts[1] == "state"
     assert parts[2] == "imported-metadata"
+
+
+# --- imported_metadata mutation-kill additions (Story 3.7) ---
+
+
+def test_artifact_id_replaces_all_unsafe_chars() -> None:
+    """Every unsafe char (incl. NUL, pipe, quote, star, question) is replaced with '_'."""
+    target = 'a:b c\x00d<e>f|g"h*i?j/k'
+    slug = artifact_id_for_target(target)
+    for ch in (":", " ", "\x00", "<", ">", "|", '"', "*", "?"):
+        assert ch not in slug
+    assert "/" not in slug
+    assert slug == "a_b_c_d_e_f_g_h_i_j__k"
+
+
+def test_record_to_yaml_bytes_is_canonical_block_sorted_unicode() -> None:
+    """Canonical YAML: block style, sorted keys, raw (un-escaped) UTF-8."""
+    record = ImportedMetadataRecord(
+        source="docs/aö.md",
+        target="t/B.md",
+        kind="architecture",
+        imported_at="2026-06-04T12:00:00.000Z",
+        frontmatter={"title": "Café", "tags": ["x"]},
+    )
+    text = record_to_yaml_bytes(record).decode("utf-8")
+    # allow_unicode=True → raw ö/é, never escaped (kills allow_unicode False/None/dropped).
+    assert "ö" in text
+    assert "Café" in text
+    # default_flow_style=False → block style; no flow braces/brackets (kills True / None).
+    assert "{" not in text
+    assert "}" not in text
+    assert "[" not in text
+    # sort_keys=True → keys alphabetical, not model insertion order (kills False / None).
+    assert text.index("imported_at") < text.index("source:")
+    assert text.index("kind:") < text.index("source:")
+
+
+def test_read_metadata_record_corrupt_warning_interpolates_path_and_cause(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The corrupt-sidecar warning interpolates the real path + cause and is not XX-wrapped."""
+    import logging
+
+    path = tmp_path / "corrupt.yaml"
+    path.write_text("key: value: nested\n", encoding="utf-8")  # YAML scanner error
+    with caplog.at_level(logging.WARNING, logger="sdlc.adopt.imported_metadata"):
+        assert read_metadata_record(path) is None
+
+    warnings = [r for r in caplog.records if r.name == "sdlc.adopt.imported_metadata"]
+    assert warnings
+    msg = warnings[-1].getMessage()
+    assert str(path) in msg  # kills path → None
+    assert "(None)" not in msg  # kills exc → None
+    assert msg.endswith("treating as absent")  # kills XX-wrapped message literal
