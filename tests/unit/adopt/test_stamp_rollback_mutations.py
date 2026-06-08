@@ -32,6 +32,7 @@ from sdlc.adopt.imported_metadata import (
     read_metadata_record,
     record_to_yaml_bytes,
 )
+from sdlc.adopt.passes import stamp as stamp_mod
 from sdlc.adopt.passes.stamp import mark_imported
 from sdlc.adopt.rollback import rollback
 from sdlc.contracts.adopted_symlinks import AdoptedSymlinks, SymlinkMapping
@@ -694,3 +695,135 @@ def test_rollback_corrupt_manifest_forwards_warn_and_returns_empty(tmp_path: Pat
     result = rollback(root, targets=None, journal_path=root / _JOURNAL_REL, warn=warns.append)
     assert any("unreadable" in w for w in warns)  # _load_existing_mappings warned (warn forwarded)
     assert result.removed_targets == ()  # kills RollbackResult(removed_targets=None)
+
+
+# --- stamp mutation-kill additions (Story 3.7) ---
+
+_NON_MD_TARGET = "z/imported/notes.txt"  # non-.md → _write_metadata_record skips frontmatter read
+
+
+def test_write_metadata_record_creates_missing_parent_dirs(tmp_path: Path) -> None:
+    """mkdir(parents=True): a sidecar whose parent chain is absent is still written."""
+    root = tmp_path  # bare root: .claude/state/imported-metadata are all missing
+    mapping = _mapping(source="docs/arch.md", target=_NON_MD_TARGET)
+    stamp_mod._write_metadata_record(root, mapping, imported_at=_TS_ACCEPTED, warn=None)
+    assert metadata_record_path(root, _NON_MD_TARGET).exists()
+
+
+def test_write_metadata_record_tolerates_existing_parent_dir(tmp_path: Path) -> None:
+    """mkdir(exist_ok=True): a pre-existing sidecar directory does not abort the write."""
+    root = _scaffold(tmp_path)
+    metadata_record_path(root, _NON_MD_TARGET).parent.mkdir(parents=True, exist_ok=True)
+    mapping = _mapping(source="docs/arch.md", target=_NON_MD_TARGET)
+    stamp_mod._write_metadata_record(root, mapping, imported_at=_TS_ACCEPTED, warn=None)
+    assert metadata_record_path(root, _NON_MD_TARGET).exists()
+
+
+def test_write_metadata_record_oserror_warns_journal_still_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sidecar write failure warns with the exact 'journal entry was still recorded' tail."""
+    root = _scaffold(tmp_path)
+    mapping = _mapping(source="docs/arch.md", target=_NON_MD_TARGET)
+
+    def _raise(*_a: object, **_k: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(stamp_mod, "atomic_write_bytes", _raise)
+    warns: list[str] = []
+    stamp_mod._write_metadata_record(root, mapping, imported_at=_TS_ACCEPTED, warn=warns.append)
+    assert warns
+    assert warns[-1].endswith("journal entry was still recorded")
+
+
+def test_stamp_corrupt_sidecar_warning_ends_with_skipping_restamp(tmp_path: Path) -> None:
+    """A present-but-unreadable sidecar warns with the exact 'skipping re-stamp' tail."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_manifest(root, [_mapping()])
+    sidecar = metadata_record_path(root, _ARCH_TARGET)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text("[ corrupt yaml", encoding="utf-8")  # present but unreadable
+    warns: list[str] = []
+
+    mark_imported(root, [], journal_path=root / _JOURNAL_REL, warn=warns.append)
+    assert any(w.endswith("skipping re-stamp") for w in warns)
+
+
+def test_mark_imported_corrupt_manifest_forwards_warn(tmp_path: Path) -> None:
+    """mark_imported forwards its warn sink into _load_existing_mappings."""
+    root = _scaffold(tmp_path)
+    (root / _MANIFEST_REL).parent.mkdir(parents=True, exist_ok=True)
+    (root / _MANIFEST_REL).write_text("{ not valid json", encoding="utf-8")
+    warns: list[str] = []
+
+    mark_imported(root, [], journal_path=root / _JOURNAL_REL, warn=warns.append)
+    assert any("unreadable" in w for w in warns)
+
+
+def test_stamp_dedup_skip_does_not_halt_later_mappings(tmp_path: Path) -> None:
+    """A duplicate-target skip uses continue, not break — later mappings still stamp."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_source(root, "docs/prd.md")
+    t2 = "01-Requirement/01-PRODUCT.md"
+    dup = _mapping(source="docs/arch.md", target=_ARCH_TARGET)
+    m3 = _mapping(source="docs/prd.md", target=t2, kind="prd")
+    _write_manifest(root, [dup, dup, m3])
+
+    mark_imported(root, [], journal_path=root / _JOURNAL_REL, warn=lambda _m: None)
+    targets = {
+        e.payload["target"] for e in _journal_entries(root) if e.kind == "imported_from_existing"
+    }
+    assert _ARCH_TARGET in targets
+    assert t2 in targets  # the mapping after the dup-skip was still processed
+
+
+def test_stamp_dedup_uses_seen_targets_even_without_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """seen_targets dedups duplicate targets even when no sidecar was written (the 2nd layer)."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    dup = _mapping(source="docs/arch.md", target=_ARCH_TARGET)
+    _write_manifest(root, [dup, dup])
+
+    def _raise(*_a: object, **_k: object) -> None:
+        raise OSError("no sidecar")
+
+    monkeypatch.setattr(stamp_mod, "atomic_write_bytes", _raise)  # sidecar never persists
+    mark_imported(root, [], journal_path=root / _JOURNAL_REL, warn=lambda _m: None)
+
+    entries = [e for e in _journal_entries(root) if e.kind == "imported_from_existing"]
+    assert len(entries) == 1  # seen_targets.add(target) prevented the duplicate re-stamp
+
+
+def test_mark_imported_journal_oserror_warns_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A per-mapping journal OSError warns with the exact message and continues to the next."""
+    root = _scaffold(tmp_path)
+    _write_source(root, "docs/arch.md")
+    _write_source(root, "docs/prd.md")
+    t1, t2 = _ARCH_TARGET, "01-Requirement/01-PRODUCT.md"
+    _write_manifest(
+        root,
+        [
+            _mapping(source="docs/arch.md", target=t1),
+            _mapping(source="docs/prd.md", target=t2, kind="prd"),
+        ],
+    )
+    real_append = stamp_mod._append_imported_event
+
+    def _append(journal_path: Path, mapping: SymlinkMapping, *, ts: str) -> None:
+        if mapping.target == t1:
+            raise OSError("journal boom")
+        real_append(journal_path, mapping, ts=ts)
+
+    monkeypatch.setattr(stamp_mod, "_append_imported_event", _append)
+    warns: list[str] = []
+    mark_imported(root, [], journal_path=root / _JOURNAL_REL, warn=warns.append)
+
+    assert any(f"skipping stamp for {t1!r}: journal boom" in w for w in warns)
+    entries = [e for e in _journal_entries(root) if e.kind == "imported_from_existing"]
+    assert any(e.payload["target"] == t2 for e in entries)  # continue, not break
