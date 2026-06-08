@@ -66,7 +66,9 @@ def _mapping(
 def _write_manifest(root: Path, mappings: list[SymlinkMapping]) -> None:
     text = json.dumps(
         AdoptedSymlinks(mappings=tuple(mappings)).model_dump(mode="json"),
-        sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
     )
     path = root / _MANIFEST_REL
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -273,10 +275,13 @@ def test_rollback_two_targets_has_summary_journal_payload(tmp_path: Path) -> Non
     t2 = "01-Requirement/01-PRODUCT.md"
     _write_source(root, "docs/arch.md")
     _write_source(root, "docs/prd.md")
-    _write_manifest(root, [
-        _mapping(source="docs/arch.md", target=t1),
-        _mapping(source="docs/prd.md", target=t2, kind="prd"),
-    ])
+    _write_manifest(
+        root,
+        [
+            _mapping(source="docs/arch.md", target=t1),
+            _mapping(source="docs/prd.md", target=t2, kind="prd"),
+        ],
+    )
     _link(root, "docs/arch.md", t1)
     _link(root, "docs/prd.md", t2)
     journal_path = root / _JOURNAL_REL
@@ -298,10 +303,13 @@ def test_rollback_targets_none_uses_summary_payload(tmp_path: Path) -> None:
     t2 = "01-Requirement/01-PRODUCT.md"
     _write_source(root, "docs/arch.md")
     _write_source(root, "docs/prd.md")
-    _write_manifest(root, [
-        _mapping(source="docs/arch.md", target=t1),
-        _mapping(source="docs/prd.md", target=t2, kind="prd"),
-    ])
+    _write_manifest(
+        root,
+        [
+            _mapping(source="docs/arch.md", target=t1),
+            _mapping(source="docs/prd.md", target=t2, kind="prd"),
+        ],
+    )
     _link(root, "docs/arch.md", t1)
     _link(root, "docs/prd.md", t2)
     journal_path = root / _JOURNAL_REL
@@ -321,10 +329,13 @@ def test_rollback_single_target_removes_from_manifest(tmp_path: Path) -> None:
     t2 = "01-Requirement/01-PRODUCT.md"
     _write_source(root, "docs/arch.md")
     _write_source(root, "docs/prd.md")
-    _write_manifest(root, [
-        _mapping(source="docs/arch.md", target=t1),
-        _mapping(source="docs/prd.md", target=t2, kind="prd"),
-    ])
+    _write_manifest(
+        root,
+        [
+            _mapping(source="docs/arch.md", target=t1),
+            _mapping(source="docs/prd.md", target=t2, kind="prd"),
+        ],
+    )
     _link(root, "docs/arch.md", t1)
     journal_path = root / _JOURNAL_REL
 
@@ -394,27 +405,33 @@ def test_rollback_missing_target_raises_before_any_removal(tmp_path: Path) -> No
 # ===========================================================================
 
 
-@pytest.mark.parametrize("target, expected_id", [
-    ("docs/arch.md", "docs__arch.md"),
-    ("02-Architecture/02-System/ARCHITECTURE.md", "02-Architecture__02-System__ARCHITECTURE.md"),
-    ("path with spaces.md", "path with spaces.md"),  # spaces not replaced (only /)
-    ("path:with:colons.md", "path_with_colons.md"),
-    ("path<angle>.md", "path_angle_.md"),
-])
+@pytest.mark.parametrize(
+    "target, expected_id",
+    [
+        ("docs/arch.md", "docs__arch.md"),
+        (
+            "02-Architecture/02-System/ARCHITECTURE.md",
+            "02-Architecture__02-System__ARCHITECTURE.md",
+        ),
+        ("path with spaces.md", "path_with_spaces.md"),  # space is an unsafe char -> '_'
+        ("path:with:colons.md", "path_with_colons.md"),
+        ("path<angle>.md", "path_angle_.md"),
+    ],
+)
 def test_artifact_id_for_target_slash_replaced(target: str, expected_id: str) -> None:
     """artifact_id_for_target replaces '/' with '__' (and other unsafe chars with '_')."""
     result = artifact_id_for_target(target)
     assert result == expected_id
 
 
-def test_artifact_id_for_target_truncates_at_200(  ) -> None:
+def test_artifact_id_for_target_truncates_at_200() -> None:
     """artifact_id_for_target truncates at exactly 200 characters."""
     long_target = "a" * 250
     result = artifact_id_for_target(long_target)
     assert len(result) == 200
 
 
-def test_artifact_id_for_target_under_200_not_truncated(  ) -> None:
+def test_artifact_id_for_target_under_200_not_truncated() -> None:
     """Short targets under 200 chars are returned unchanged (modulo char mapping)."""
     target = "docs/short.md"
     result = artifact_id_for_target(target)
@@ -422,7 +439,7 @@ def test_artifact_id_for_target_under_200_not_truncated(  ) -> None:
     assert result == "docs__short.md"
 
 
-def test_artifact_id_for_target_exactly_200_not_truncated(  ) -> None:
+def test_artifact_id_for_target_exactly_200_not_truncated() -> None:
     """Target of exactly 200 chars (after mapping) is NOT truncated."""
     target = "a" * 200
     result = artifact_id_for_target(target)
@@ -481,7 +498,7 @@ def test_read_metadata_record_logs_warning_for_corrupt(
     assert any("unreadable" in r.message or "corrupt" in r.message for r in caplog.records)
 
 
-def test_record_to_yaml_bytes_is_valid_yaml(  ) -> None:
+def test_record_to_yaml_bytes_is_valid_yaml() -> None:
     """record_to_yaml_bytes produces valid YAML that round-trips through yaml.safe_load."""
     record = ImportedMetadataRecord(
         source="docs/arch.md",
@@ -495,7 +512,7 @@ def test_record_to_yaml_bytes_is_valid_yaml(  ) -> None:
     assert parsed["source"] == "docs/arch.md"
 
 
-def test_record_to_yaml_bytes_ends_with_newline(  ) -> None:
+def test_record_to_yaml_bytes_ends_with_newline() -> None:
     """record_to_yaml_bytes output ends with a newline (canonical format)."""
     record = ImportedMetadataRecord(
         source="docs/arch.md",
@@ -507,7 +524,7 @@ def test_record_to_yaml_bytes_ends_with_newline(  ) -> None:
     assert raw.endswith(b"\n")
 
 
-def test_record_to_yaml_bytes_is_nfc_normalized(  ) -> None:
+def test_record_to_yaml_bytes_is_nfc_normalized() -> None:
     """record_to_yaml_bytes text is NFC-normalized UTF-8."""
     record = ImportedMetadataRecord(
         source="docs/arch.md",

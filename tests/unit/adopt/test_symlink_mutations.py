@@ -214,7 +214,7 @@ def test_create_does_not_overwrite_other_symlink(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_symlink_outcomes_are_distinct(  ) -> None:
+def test_symlink_outcomes_are_distinct() -> None:
     """Each SymlinkOutcome enum value is different from the others."""
     outcomes = [
         SymlinkOutcome.CREATED,
@@ -231,24 +231,28 @@ def test_symlink_outcomes_are_distinct(  ) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("target, expected", [
-    ("02-Architecture/ARCHITECTURE.md", True),
-    ("docs/arch.md", True),
-    (".claude/state/file.json", True),
-    ("../escape.md", False),
-    ("../../deeply/escape.md", False),
-    ("/absolute/path.md", False),
-])
+@pytest.mark.parametrize(
+    "target, expected",
+    [
+        ("02-Architecture/ARCHITECTURE.md", True),
+        ("docs/arch.md", True),
+        (".claude/state/file.json", True),
+        ("../escape.md", False),
+        ("../../deeply/escape.md", False),
+        ("/absolute/path.md", False),
+    ],
+)
 def test_is_target_under_root(tmp_path: Path, target: str, expected: bool) -> None:
     root = _scaffold(tmp_path)
     assert is_target_under_root(root, target) is expected
 
 
 def test_is_target_under_root_empty_string(tmp_path: Path) -> None:
-    """Empty string target resolves to root itself — which IS under root."""
+    """Empty/whitespace target is rejected — it would resolve to root itself, a write
+    outside .claude/, so the guard deliberately returns False (NOT under root)."""
     root = _scaffold(tmp_path)
-    # root / "" resolves to root; root is a prefix of itself → True
-    assert is_target_under_root(root, "") is True
+    # empty target is rejected by the `not target_rel.strip()` guard (_symlink.py:54) → False
+    assert is_target_under_root(root, "") is False
 
 
 # ---------------------------------------------------------------------------
@@ -274,19 +278,19 @@ def test_assert_target_under_root_raises_for_escape(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_target_no_trailing_slash_returns_as_is(  ) -> None:
+def test_resolve_target_no_trailing_slash_returns_as_is() -> None:
     """resolve_target with no trailing slash returns the target unchanged."""
     result = resolve_target("02-Architecture/ARCHITECTURE.md", "docs/arch.md")
     assert result == "02-Architecture/ARCHITECTURE.md"
 
 
-def test_resolve_target_trailing_slash_appends_filename(  ) -> None:
+def test_resolve_target_trailing_slash_appends_filename() -> None:
     """resolve_target with trailing slash appends the source filename."""
     result = resolve_target("01-Requirement/02-Research/", "docs/research-2024.md")
     assert result == "01-Requirement/02-Research/research-2024.md"
 
 
-def test_resolve_target_trailing_slash_uses_basename_only(  ) -> None:
+def test_resolve_target_trailing_slash_uses_basename_only() -> None:
     """Trailing-slash target appends only the basename, not the full source path."""
     result = resolve_target("docs/dest/", "some/deep/path/filename.md")
     assert result == "docs/dest/filename.md"

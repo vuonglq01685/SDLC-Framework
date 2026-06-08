@@ -194,14 +194,21 @@ def test_remove_symlink_at_target_removes_symlink(tmp_path: Path) -> None:
 
 
 def test_remove_symlink_at_target_does_not_remove_real_file(tmp_path: Path) -> None:
-    """remove_symlink_at_target raises (or does not silently delete) a real file at target."""
+    """remove_symlink_at_target is a no-op on a real file: returns None and leaves it intact.
+
+    Production (``_conflict.py``) returns None when the slot is not a symlink — it must never
+    delete a real source/user file. Killing the ``not target_abs.is_symlink()`` guard mutant.
+    """
     root = _scaffold(tmp_path)
     slot = root / _ARCH_TARGET
     slot.parent.mkdir(parents=True, exist_ok=True)
     slot.write_text("real file\n", encoding="utf-8")
 
-    with pytest.raises((AdoptError, OSError)):
-        remove_symlink_at_target(root, _ARCH_TARGET)
+    result = remove_symlink_at_target(root, _ARCH_TARGET)
+    assert result is None
+    assert slot.exists()
+    assert not slot.is_symlink()
+    assert slot.read_text(encoding="utf-8") == "real file\n"
 
 
 # ---------------------------------------------------------------------------
@@ -210,33 +217,38 @@ def test_remove_symlink_at_target_does_not_remove_real_file(tmp_path: Path) -> N
 
 
 def test_restore_symlink_recreates_link_at_slot(tmp_path: Path) -> None:
-    """restore_symlink recreates a relative symlink at the given target slot."""
+    """restore_symlink recreates a symlink at an empty slot using the raw link text verbatim.
+
+    Production sig is ``restore_symlink(root, target_rel, link_text)`` (``_conflict.py:116``) —
+    a best-effort compensation that writes ``link_text`` verbatim only when the slot is empty.
+    """
     root = _scaffold(tmp_path)
     src = root / "docs/src.md"
     src.parent.mkdir(parents=True, exist_ok=True)
     src.write_text("src\n", encoding="utf-8")
     slot = root / _ARCH_TARGET
     slot.parent.mkdir(parents=True, exist_ok=True)
+    link_text = os.path.relpath(src, slot.parent)
 
-    restore_symlink(root, source_rel="docs/src.md", target_rel=_ARCH_TARGET)
+    restore_symlink(root, _ARCH_TARGET, link_text)
 
     assert slot.is_symlink()
     assert slot.resolve() == src.resolve()
 
 
 def test_restore_symlink_link_is_relative(tmp_path: Path) -> None:
-    """restore_symlink creates a relative symlink (not absolute)."""
+    """restore_symlink writes the link text verbatim, preserving a relative (not absolute) link."""
     root = _scaffold(tmp_path)
     src = root / "docs/src.md"
     src.parent.mkdir(parents=True, exist_ok=True)
     src.write_text("src\n", encoding="utf-8")
     slot = root / _ARCH_TARGET
     slot.parent.mkdir(parents=True, exist_ok=True)
+    link_text = os.path.relpath(src, slot.parent)
 
-    restore_symlink(root, source_rel="docs/src.md", target_rel=_ARCH_TARGET)
+    restore_symlink(root, _ARCH_TARGET, link_text)
 
-    link_target = os.readlink(slot)
-    assert not os.path.isabs(link_target)
+    assert not os.path.isabs(os.readlink(slot))
 
 
 # ---------------------------------------------------------------------------
@@ -263,15 +275,19 @@ def test_read_other_symlink_source_rel_returns_root_relative_posix(tmp_path: Pat
     assert result == "docs/other.md"
 
 
-def test_read_other_symlink_source_rel_returns_none_when_not_symlink(tmp_path: Path) -> None:
-    """read_other_symlink_source_rel returns None when target is not a symlink."""
+def test_read_other_symlink_source_rel_raises_when_not_symlink(tmp_path: Path) -> None:
+    """read_other_symlink_source_rel raises AdoptError when the target is not a symlink.
+
+    Production is typed ``-> str`` and raises (``_conflict.py:136``) — there is no None path.
+    Killing the ``not target_abs.is_symlink()`` guard-removal mutant.
+    """
     root = _scaffold(tmp_path)
     slot = root / _ARCH_TARGET
     slot.parent.mkdir(parents=True, exist_ok=True)
     slot.write_text("real file\n", encoding="utf-8")
 
-    result = read_other_symlink_source_rel(root, _ARCH_TARGET)
-    assert result is None
+    with pytest.raises(AdoptError, match="expected a symlink"):
+        read_other_symlink_source_rel(root, _ARCH_TARGET)
 
 
 # ---------------------------------------------------------------------------

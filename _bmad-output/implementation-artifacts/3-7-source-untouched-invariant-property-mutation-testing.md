@@ -1,6 +1,6 @@
 # Story 3.7: Source-Untouched Invariant — Property + Multi-Fixture Mutation Testing
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -470,3 +470,124 @@ perform the writes — `_accept` (107), `_symlink` (38) — are the worst gaps. 
 The 6 fixes here (F1, F2, #7–#10) make the gate **runnable and honest** — they convert a harness that
 silently reported nothing (or would falsely report 100%) into one that produces a true 70.19%. Reaching
 ≥95% is future work. **Status remains `in-progress` — now on evidence, not deferral.**
+
+---
+
+## Review Findings (2026-06-08 · bmad-code-review · pass 3 · Chunk A: production + harness)
+
+> **Trigger:** user re-ran `/bmad-code-review`; Tier-3 cascade selected story 3.7 (`review` status). **Scope = Chunk A only** — production source + mutation harness + config + CI (`invariant.py`, `source_tree.py`, `tree_hash.py`, `adopt/__init__.py`, `passes/detection.py`, `scripts/run_adopt_mutation.py`, `pyproject.toml`, `ci.yml`) over `8d66126..HEAD` (8 files, +361/−18). Chunk B (property/invariant tests) and Chunk C (8 `test_*_mutations.py`) deferred to follow-up runs. 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor), Opus capability.
+>
+> **Context — pass 3 on a committed, twice-reviewed diff.** Most adversarial findings reproduce items already triaged in the 2026-06-04 passes (tree_hash `|`-delimiter forgeability, `os.walk(followlinks=False)` symlink blind spot, `read_bytes` OSError, `assert_path_under_claude` threat-model). **Verified: no regression — prior triage holds.** Net-new actionable surface is small. The material issue is a **status-integrity discrepancy** (DN1).
+
+### Per-AC scope note (Chunk A)
+
+AC3 — **MET** (production: `source_tree.py` introduces `DEFAULT_SOURCE_TREE_GLOBS`, unions `legacy_code_globs`, excludes `.claude/`, reuses `_classify`). AC1/AC4 — **OUT-OF-CHUNK** (test evidence in Chunk B). AC2 — **POSIX-UNVERIFIED** (harness in this chunk is correct + honest; the ≥95% achievement depends on Chunk C kill-tests, unmeasured on POSIX from this host). AC5 — wire-format **7/7** + additive-only respected in this chunk; commit/CI-green sub-parts → DN1.
+
+### Decision-needed
+
+- [x] [Review][Decision] **DN1 — AC2 ≥95% kill rate is POSIX-unverified, yet commit `5859285` subject claims `status review->done`** — On-disk `sprint-status.yaml` + story `Status` both still read `review`; the story file carries **no 2026-06-08 review section** documenting the commit's "2 HIGH + 4 LOW patches"; and the only kill-rate on record is **70.19%** (POSIX Verification 2026-06-04, *before* the 8 Chunk-C `test_*_mutations.py` files existed). Those ~3000 lines were authored to close the 70.19%→95% gap but have **never been measured on POSIX** from this host (adopt is POSIX-only, ADR-034). Per the story's own gate, `done` requires a green `mutation-tests` CI job ≥95%. **Resolution (2026-06-08): option 1 — story is NOT `done`; status → `in-progress` until a green POSIX `mutation-tests` job (≥95%) is on record. The `5859285` "review->done" subject never propagated to the on-disk status and is treated as not-applied.**
+
+### Patch
+
+- [x] [Review][Patch] **P1 (LOW) — Dangling `.claude` symlink bypasses the per-write sandbox rejection in `assert_path_under_claude`** [src/sdlc/adopt/invariant.py:55] — `if claude_entry.exists():` follows the link (`Path.exists(follow_symlinks=True)`); a **broken** `.claude` symlink → `exists()==False` → `else` branch → `_assert_claude_sandbox_intact` (the symlinked-`.claude` rejection) never runs for the 4 production write-guard callers, contradicting the docstring's "rejects a symlinked sandbox" claim. **APPLIED 2026-06-08:** `if claude_entry.is_symlink() or claude_entry.exists():` + docstring/comment. ruff+mypy --strict clean; 15 Windows-safe unit pass / 4 POSIX-skip (the dangling-symlink case is POSIX-only — verify on POSIX CI). (Distinct from the 2026-06-04 pass-2 TOCTOU/symlinked-parent dismissal — this is a dangling-link contract gap.)
+- [x] [Review][Patch] **P2 (LOW) — Mutation harness can score a stale `mutants/mutmut-cicd-stats.json` after a crashed `mutmut run`** [scripts/run_adopt_mutation.py:48] — `mutmut run` is `check=False` (correct, to tolerate survivors); but on a crash, `export-cicd-stats` early-returns without writing, and a stale stats file from the CI cache (`enable-cache: true`) passes `is_file()` and is scored as current. **APPLIED 2026-06-08:** `import shutil` + `shutil.rmtree(_REPO_ROOT / "mutants", ignore_errors=True)` before `mutmut run`. ruff+mypy --strict clean.
+
+### Dismissed as noise (11)
+
+tree_hash `|`/`\n`-delimiter collision + `os.walk(followlinks=False)` symlink-dir blind spot + `read_bytes` PermissionError — **all adjudicated 2026-06-04 pass-2** (test-only path, controlled tiny fixtures, adopt write-confined to `.claude/` so it cannot create the source symlinks/filenames these would miss, and the property suite's `git status --porcelain` catches type changes redundantly) · surrogate-filename `UnicodeEncodeError` in `compute_source_tree_hash` (same controlled-fixtures rationale) · nested `.claude/` under a source root classified as source (atypical; porcelain-redundant) · detection-vs-tree_hash symlink asymmetry (by-design: CR3.2-W1 security-skip vs symlink-target tracking) · `assert_source_untouched` name "misleading" (D1=b by design, **no production callers** — dismissed twice already) · Windows `mutmut.exe` path (POSIX-only by design, ADR-034; CI is ubuntu) · kill-rate denominator `total`-vs-sum (Edge verified mutmut always writes `total`; the sum-fallback is dead code) · partial `no_tests` masking survivors (gate is strict 95%; moot at measured 70.19%) · AC3 defaults broader than spec / README+docs (fail-safe over-capture, not a violation).
+
+---
+
+## Review Findings (2026-06-08 · bmad-code-review · pass 3 · Chunk B: property + unit tests)
+
+> **Scope = Chunk B** — the TEST files that prove AC1/AC3/AC4 (these were OUT-OF-CHUNK in the Chunk A pass): `tests/property/test_source_untouched_{invariant,adversarial,stateful,submodule}.py`, `tests/adopt/_source_untouched_helpers.py`, `tests/unit/adopt/test_{invariant,source_tree,tree_hash,source_write_mutants,detection_symlink_skip}.py` over `8d66126..HEAD` (11 files, +684/−3). 3 adversarial layers (Blind / Edge / Acceptance Auditor), Opus.
+>
+> **Headline — the test suite is SOUND.** The Acceptance Auditor (spec-authority layer) verified **no tautological/vacuous test would let a real AC1/AC3/AC4 regression pass**: the assertion is the strong **`git status --porcelain` + tree-hash + per-file `sha256` + no-source-symlink** superset (grep-confirmed **no `git diff`** anywhere); DN1 import resolves repo-wide via `from adopt._source_untouched_helpers` + prepend-mode; the targeted source-write-mutant test (`test_source_write_mutants.py`) is non-vacuous (flips `assert_path_under_claude` containment incl. `../escape.txt`, plus a positive case). **0 patches needed.** The findings are **coverage-strength** debt, already tracked.
+
+### Per-AC verdict (Chunk B)
+
+| AC | Verdict | Basis |
+|----|---------|-------|
+| AC1 | **MET** | Porcelain+tree-hash+sha256+no-symlink superset (no `git diff`); 7 fixtures × 4 modes (28 cells) + Hypothesis fuzz (`max_examples=20`, `min_size=1` = F1 fix) + POSIX skips; verified GREEN on POSIX (33 passed, 2026-06-04). Caveat: see CR3.7-W5. |
+| AC3 | **MET** | `test_source_tree.py` asserts default globs + `legacy_code_globs` union + `.claude/` exclusion against real `_classify` reuse. Minor untested clause (symlinked-`.claude`-by-target) is porcelain/`followlinks=False`-redundant. |
+| AC4 | **MET (non-vacuous)** | Malicious `pre-commit` hook installed; adopt runs a real symlink-creating pass on a fixture with an offerable artifact (conf 85≥80) yet never `git commit`s → hook can't fire; diagnostic names the written path (P6 closed). |
+| AC5 | **PARTIAL** | Chunk-B test evidence sound (import resolution, source-write-mutant test, error-contract pinning). Process gate (green POSIX `mutation-tests` ≥95% + committed `test→feat`) unmet — last measured 70.19%; consistent with the already-applied `in-progress` status (pass-3 DN1). |
+| AC2 | **N/A** | Mutation chunk (Chunk C). |
+
+### Deferred
+
+- [x] [Review][Defer] **CR3.7-W1 — submodule working tree not fingerprinted** — **CONFIRMED still holding** (now quantified: `is_source_path` returns False for all 8 `vendor/child/**` paths, so the two strongest assertions — tree-hash + per-file sha256 — are blind to the submodule; only the weakest porcelain check guards a gitlink delta). Already tracked at `deferred-work.md` CR3.7-W1. Coverage-strength only — adopt never writes under `vendor/`.
+- [x] [Review][Defer] **CR3.7-W2 — partial-accept ≡ accept-all** — **CONFIRMED, quantified**: every corpus fixture yields ≤1 offerable artifact (java-maven 1, python-pyproject 1, monorepo-submodules 1, preexisting-symlinks 1, node-npm/go-module/greenfield 0), so the `_partial` "skip the rest" branch is **never taken** by any of the 28 cells. Already tracked at `deferred-work.md` CR3.7-W2.
+- [x] [Review][Defer] **CR3.7-W5 (NEW) — the 7×4 invocation-mode matrix collapses to ~7 distinct behavioral checks; mode dimension + adversarial positive-controls are weak** — net-new consolidation of the Chunk-B coverage evidence (extends W1/W2). See `deferred-work.md` CR3.7-W5. Coverage-strength only; the running tests are sound.
+
+### Dismissed as noise (12)
+
+porcelain `??`-filter drops untracked files (adopt is write-confined to `.claude/` so it cannot create an untracked source file; tree-hash catches any new source-glob file via `os.walk` regardless of git-tracking) · `test_assert_source_untouched_requires_claude_dir` "asserts only no-raise" (no-raise **is** the happy-path behavior of a `None`-returning validator; negatives pin the raise cases) · stateful baseline drift (inherits the write-confined rationale) · `core.excludesFile=/dev/null` POSIX-bound helper (win32-skipped upstream) · content-fuzz "effectively same test 20×" (P3 `assert target.exists()` already guards vacuity; still varies committed content) · `effective_source_globs` membership assertion partly tautological (the paired default-present assertion covers the other half) · `init_git_repo` git-absent skip "hides everything" (git always present in a git-checkout CI; dismissed prior passes) · `_git` submodule-helper DRY drift (no correctness bug) · `assert_source_untouched` has no production caller (D1=b by design, dismissed twice) · `tmp_path` reuse incomplete cleanup (no observed collision; target lands inside the rmtree'd `dest`) · symlinked-`.claude`-by-target not glob-tested at `is_source_path` (porcelain + `followlinks=False` redundant) · AC4 diagnostic names path not process (adequate per the AC's "identifies the writer" wording).
+
+---
+
+## Review Findings (2026-06-08 · bmad-code-review · pass 3 · Chunk C1: Tier-1 write-path mutation tests)
+
+> **Scope = Chunk C1** — the Tier-1 subset of the mutation-kill tests: `tests/unit/adopt/test_{invariant,accept,symlink,driver}_mutations.py` over `8d66126..HEAD` (4 files, +1465). Targets the AC2 POSIX survivors in `invariant` (40), `_accept` (107), `_symlink` (38), `driver` (75). 3 adversarial layers, Opus. (Chunk C2 — conflict / stamp_rollback / classify / symlink_offer — still deferred.)
+>
+> **Headline — 2 confirmed BROKEN tests + pre-existing `ruff format` dirt = the C1 suite was never run green on POSIX.** Two layers independently found, and I verified against real source, that two committed C1 tests ERROR/FAIL on the first POSIX run; the files also failed `ruff format --check`. Hard evidence the mutation suite never passed CONTRIBUTING §1 nor a POSIX run — corroborating pass-3 DN1 (AC2 POSIX-unverified) and CR3.7-W4 (the 70.19% predates a green run). **Strong positive:** the invariant/symlink/accept tests exercise the **real** Tier-1 guards (no mock-of-SUT) — `assert_path_under_claude` guard-flips and symlink-create→source-overwrite are genuinely killed (strongest: `test_backup_replace_create_failure_restores_real_file`).
+
+### Patch (2 HIGH + format — APPLIED)
+
+- [x] [Review][Patch] **P3 (HIGH) — `_validate_resume_cursor` tests call the 2-arg production fn with 1 arg -> `TypeError` on POSIX (3 tests ERROR; the guard had 0% kill coverage)** [tests/unit/adopt/test_driver_mutations.py:69,84,90] — prod sig `_validate_resume_cursor(completed, report_path)` (driver.py:103); the tests passed only `completed`, so on POSIX all 3 resume-cursor tests raise `TypeError` — which `pytest.raises(AdoptError, match=...)` does NOT catch -> ERROR — leaving the contiguous-prefix guard uncovered. **APPLIED:** added `Path("adopt-report.json")` (report_path only feeds error `details`, verified driver.py:114). ruff + py_compile clean; POSIX-CI to confirm the 3 tests now run and kill the prefix mutants.
+- [x] [Review][Patch] **P4 (HIGH) — `test_is_target_under_root_empty_string` asserts the OPPOSITE of production on a source-write boundary** [tests/unit/adopt/test_symlink_mutations.py:255] — prod `is_target_under_root(root, "")` returns **False** (`not target_rel.strip()` guard, _symlink.py:54 — an empty target resolves to root itself, a write *outside* `.claude/`); the test asserted `is True` -> red on POSIX + wrong-polarity, so the empty-target-guard mutant survives behind it. **APPLIED:** `is False` + corrected docstring/comment.
+- [x] [Review][Patch] **(bundled) `ruff format` on both touched files** — the committed C1 files were format-dirty (manual `@parametrize` layout + `def f(  )` spacing) -> `ruff format --check` failed -> CONTRIBUTING §1 gate not green for f567ef6. Reformatted (mechanical, behavior-preserving); ruff check clean.
+
+### Deferred
+
+- [x] [Review][Defer] **CR3.7-W6 (NEW) — concrete surviving-mutant classes the C1 tests do NOT kill** (targets for the CR3.7-W4 ≥95% effort) — see `deferred-work.md` CR3.7-W6. Headline items: the `invariant.py:58` `or`->`and` **dangling-`.claude`-symlink** mutant survives (no test builds a dangling link — this is exactly the guard the Chunk-A **P1** patch ADDED, so P1 needs a paired POSIX kill test); `_accept` `8->7` boundary + unasserted `warn`-emission + `action=="skip"`->`!=`; driver `reason=str->repr` + `if n==1` checkpoint masked by the except-path; `endswith("Z")` suffix-only ts checks; `test_symlink_outcomes_are_distinct` enum tautology (kills nothing — candidate deletion).
+
+### Dismissed as noise (5)
+
+over-mock false alarms (Blind+Edge both cleared — `accept_one_artifact`/`run_adopt`/`create_relative_symlink`/the guards run **real**; only leaf collaborators are patched for fault injection) · redundant second assertion in `test_resolve_target_trailing_slash_uses_basename_only` (the first assert already pins the exact value) · `is_target_under_root("")` "weak lone boolean" (superseded by P4 — now pins the guard in the killing direction) · pass-order tests "mock all 3 passes" (correct for the ordering mutant; the SUT orchestrator is unmocked) · constant-loop tests (schema_version/actor/target_id) "vacuous if zero entries" (the `len>0` hardening is folded into CR3.7-W6).
+
+---
+
+## Review Findings (2026-06-08 · bmad-code-review · pass 3 · Chunk C2: supporting mutation tests)
+
+> **Scope = Chunk C2** — `tests/unit/adopt/test_{conflict,stamp_rollback,classify,symlink_offer}_mutations.py` over `8d66126..HEAD` (4 files, +1530). Targets AC2 POSIX survivors in `_conflict` (90), `stamp` (22) / `rollback` (26), `_classify` (31), `symlink_offer` (37). 3 adversarial layers, Opus.
+>
+> **Headline — SYSTEMIC: the AC2 mutation suite was never run on POSIX.** Combined with Chunk C1, the suite carries **≥7 broken tests** that ERROR/FAIL against real production signatures/behaviour (all latent — every module `pytest.skip`s on win32). `_classify` is genuinely hardened and `symlink_offer` threshold/skip-decision tests are strong; but `_conflict` (the highest source-write-risk module, 90 survivors) has **4 broken tests** that give it *negative* coverage. The 70.19% on record (CR3.7-W4) predates these files — once they run on POSIX they ERROR, so the suite cannot even emit a clean kill measurement until repaired. This is the deliverable-level evidence behind DN1 (status → `in-progress`).
+
+### Patch (4 confirmed BROKEN tests — verified vs production; APPLIED this pass, option 2)
+
+> User chose **option 2** (apply all 4). Each fix written against production source read this pass (`_conflict.py`, `imported_metadata.py`); `ruff check` + `ruff format --check` clean, `py_compile` OK on both files. They remain **POSIX-unverified** (module `pytest.skip`s on win32) — first real confirmation lands on the CR3.7-W7 POSIX re-run. (Labels are C2-scoped to avoid collision with the Chunk-A P5–P8 above.)
+
+- [x] [Review][Patch] **C2-P1 (HIGH) — `restore_symlink` called with a non-existent `source_rel=` kwarg + missing required `link_text` -> `TypeError`** [tests/unit/adopt/test_conflict_mutations.py:212,227] — prod sig `restore_symlink(root, target_rel, link_text) -> None` (_conflict.py:116) re-creates `os.symlink(link_text, target_abs)` only when the slot is empty; the 2 tests called `restore_symlink(root, source_rel="docs/src.md", target_rel=…)` and asserted a src-resolving symlink — wrong signature AND wrong premise. **APPLIED:** both now call `restore_symlink(root, _ARCH_TARGET, link_text)` with `link_text = os.path.relpath(src, slot.parent)` on an empty slot; assert slot is a symlink resolving to src / readlink is relative.
+- [x] [Review][Patch] **C2-P2 (HIGH) — `read_other_symlink_source_rel` asserted to return `None`; production RAISES** [tests/unit/adopt/test_conflict_mutations.py:266] — prod is typed `-> str` and `raise AdoptError("expected a symlink…")` when the target is not a symlink (_conflict.py:136-140); the test asserted `result is None` -> uncaught `AdoptError` ERROR. **APPLIED:** renamed to `…_raises_when_not_symlink`; body now `pytest.raises(AdoptError, match="expected a symlink")`.
+- [x] [Review][Patch] **C2-P3 (HIGH) — `remove_symlink_at_target` on a real file asserted to raise; production is a silent no-op** [tests/unit/adopt/test_conflict_mutations.py:196] — prod `if not target_abs.is_symlink(): return None` (_conflict.py:103-104) leaves the real file untouched; the test asserted `pytest.raises((AdoptError, OSError))` -> FAIL (DID NOT RAISE). **APPLIED (matches the test's own name `_does_not_remove_real_file`):** assert it returns `None` AND the real file still exists, is not a symlink, and retains its content.
+- [x] [Review][Patch] **C2-P4 (MEDIUM) — `artifact_id_for_target` spaces row asserts the OPPOSITE of production** [tests/unit/adopt/test_stamp_rollback_mutations.py:400] — prod replaces `" "`→`"_"` (imported_metadata.py:31, the char tuple includes a space); the row asserted `("path with spaces.md", "path with spaces.md")` ("spaces not replaced"). **APPLIED:** expect `"path_with_spaces.md"`; the file was also `ruff format`-dirty (pre-existing committed dirt, same class as Chunk C1) and was mechanically reformatted to pass CONTRIBUTING §1.
+
+### Deferred
+
+- [x] [Review][Defer] **CR3.7-W7 (NEW) — the AC2 mutation-kill suite was never executed on POSIX; ≥7 tests ERROR/FAIL against real production + additional C2 survivors** — see `deferred-work.md` CR3.7-W7. Routes the systemic repair + re-measurement to a dev POSIX session (cannot be reliably finished blind from Windows). Includes C2 survivor gaps: `_conflict` cross-filesystem backup fallback (`shutil.copy2`+`unlink`) + `restore_real_file` guard/except branches untested; `rollback` `targets=None`+single-mapping payload-shape, dangling-link / already-removed / real-file reconcile branches, `_prune_sidecar`; `symlink_offer` post-edit dedup (`final_target in recorded_targets`); `_classify` `and`→`or` recency + `**`-matches-zero off-by-one; `stamp` journal `actor`/`target_id` unasserted.
+
+### Dismissed as noise (4)
+
+`_classify` conditional-assert "None-collapse" weakness in `test_ci_workflow_detection`/`test_is_dockerfile_patterns` (real but low — positive rows + widen-mutants are caught; folded into W7) · weak `pytest.raises` without `match=` on `backup_real_file` missing-target (sibling test pins `match="real file"`; minor) · recency cap tests `==100` redundant for the boost amount (the `==85` tests carry the +5 kill) · `schema_version==1` invariant-to-mutation (frozen contract value, not set by the SUT). · No `# pragma: no mutate` anywhere — suppression axis clean (no rate inflation).
+
+---
+
+## POSIX Verification (2026-06-08 · pass-3 re-run · Docker `python:3.12`)
+
+The user asked to actually run POSIX so the story could be closed. Executed in a `python:3.12` container (`uv sync --frozen`, git 2.47.3) against the working tree **including** this pass's 8 test-fixes + the Chunk-A `invariant.py`/`run_adopt_mutation.py` patches.
+
+**1 — broken tests are repaired (suite green on POSIX):**
+- `tests/unit/adopt/` → **371 passed, 0 failed** (the 6 statically-found broken tests — C1 P3/P4, C2-P1..P4 — now run and pass).
+- Full harness test set (unit/adopt + 4 property + 1 integration) → **408 passed**.
+- **One MORE broken test surfaced only at runtime** and was fixed: `test_unsafe_different_target_is_bounded_at_eight_attempts` asserted `call_count <= 8` but production invokes the conflict callback **9** times for the give-up path (8 attempts consumed, the 9th prompt trips the `>= _MAX` guard). Repaired to `assert call_count == 9` (exact boundary — kills `_MAX` 8→7 and 8→9). This was the **7th** broken test across the suite — final proof the kill suite had never run on POSIX. [tests/unit/adopt/test_accept_mutations.py]
+
+**2 — first trustworthy kill measurement (with the full suite, harness healthy):**
+```
+killed 1391 / survived 416 / timeout 2 / no_tests 0 / total 1809 = 76.89%
+```
+- **`no_tests` 16 → 0** — every mutant now maps to a covering test; the collection/`also_copy` plumbing is healthy (the 70.19% on record was measured before the 8 `test_*_mutations.py` files existed).
+- Kill rate **70.19% → 76.89%** (+6.7pp) from the 7 repairs alone — but **still ~18pp below the AC2 ≥95% gate. AC2 NOT MET → story stays `in-progress`, cannot move to `done`.**
+- Survivor shift (vs CR3.7-W4): `_accept` 107→97, `_conflict` 90→65, `driver` 75→64, `_symlink` 38→32, `symlink_offer` 37→29, `imported_metadata` 38→24, `rollback` 22, `stamp` 19, `_classify` 18, **`invariant` 40→13** (all in the read-only `_assert_claude_sandbox_intact`/`assert_path_under_claude` verifier — weakens detection, not a write path).
+
+**Remaining to close (AC2):** ~328 more mutants must be killed (95% of 1809 = 1719). This is the substantial test-authoring deliverable tracked in CR3.7-W4/W6/W7 — prioritise the write-path modules `_accept`/`_symlink`/`driver` (AC2-binding), then the verifier guards. Not a review patch; a dedicated push.

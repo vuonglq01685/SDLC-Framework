@@ -55,33 +55,39 @@ def _read_report(root: Path) -> AdoptReport:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("completed", [
-    (),          # empty → valid (fresh start)
-    (1,),        # only pass 1 → valid
-    (1, 2),      # passes 1+2 → valid
-    (1, 2, 3),   # all three → valid
-])
+@pytest.mark.parametrize(
+    "completed",
+    [
+        (),  # empty → valid (fresh start)
+        (1,),  # only pass 1 → valid
+        (1, 2),  # passes 1+2 → valid
+        (1, 2, 3),  # all three → valid
+    ],
+)
 def test_validate_resume_cursor_valid_prefixes(completed: tuple[int, ...]) -> None:
     """Valid contiguous prefix cursors do not raise."""
-    _validate_resume_cursor(list(completed))  # must not raise
+    _validate_resume_cursor(list(completed), Path("adopt-report.json"))  # must not raise
 
 
-@pytest.mark.parametrize("bad_completed", [
-    (2,),        # skip pass 1
-    (3,),        # skip passes 1 and 2
-    (1, 3),      # skip pass 2
-    (2, 3),      # skip pass 1
-])
+@pytest.mark.parametrize(
+    "bad_completed",
+    [
+        (2,),  # skip pass 1
+        (3,),  # skip passes 1 and 2
+        (1, 3),  # skip pass 2
+        (2, 3),  # skip pass 1
+    ],
+)
 def test_validate_resume_cursor_non_contiguous_raises(bad_completed: tuple[int, ...]) -> None:
     """Non-contiguous prefix cursors raise AdoptError with 'corrupt' in the message."""
     with pytest.raises(AdoptError, match="corrupt"):
-        _validate_resume_cursor(list(bad_completed))
+        _validate_resume_cursor(list(bad_completed), Path("adopt-report.json"))
 
 
-def test_validate_resume_cursor_error_message_mentions_resume(  ) -> None:
+def test_validate_resume_cursor_error_message_mentions_resume() -> None:
     """The error message from a bad cursor mentions 'resume cursor' (not generic)."""
     with pytest.raises(AdoptError, match="resume cursor"):
-        _validate_resume_cursor([2])
+        _validate_resume_cursor([2], Path("adopt-report.json"))
 
 
 # ---------------------------------------------------------------------------

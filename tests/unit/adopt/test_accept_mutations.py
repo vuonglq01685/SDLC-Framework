@@ -270,8 +270,14 @@ def test_journal_symlink_accepted_ts_ends_with_z(tmp_path: Path) -> None:
     recorded: set[str] = set()
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, recorded,
-        journal_path=journal, conflict=_no_conflict, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        recorded,
+        journal_path=journal,
+        conflict=_no_conflict,
+        warn=None,
     )
 
     accepted = [e for e in _journal_entries(root) if e.kind == "symlink_accepted"]
@@ -287,8 +293,14 @@ def test_journal_event_schema_version_is_one(tmp_path: Path) -> None:
     recorded: set[str] = set()
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, recorded,
-        journal_path=journal, conflict=_no_conflict, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        recorded,
+        journal_path=journal,
+        conflict=_no_conflict,
+        warn=None,
     )
 
     for entry in _journal_entries(root):
@@ -304,8 +316,14 @@ def test_journal_event_after_hash_is_zero_sentinel(tmp_path: Path) -> None:
     recorded: set[str] = set()
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, recorded,
-        journal_path=journal, conflict=_no_conflict, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        recorded,
+        journal_path=journal,
+        conflict=_no_conflict,
+        warn=None,
     )
 
     zero = "sha256:" + "0" * 64
@@ -337,8 +355,14 @@ def test_replace_other_symlink_journals_replaced_and_accepted_shared_ts(tmp_path
         return ConflictDecision(action="replace")
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, recorded,
-        journal_path=journal, conflict=_replace, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        recorded,
+        journal_path=journal,
+        conflict=_replace,
+        warn=None,
     )
 
     entries = _journal_entries(root)
@@ -364,7 +388,11 @@ def test_replace_other_symlink_replaced_payload(tmp_path: Path) -> None:
     recorded: set[str] = set()
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, recorded,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        recorded,
         journal_path=journal,
         conflict=lambda *_: ConflictDecision(action="replace"),
         warn=None,
@@ -397,8 +425,14 @@ def test_real_file_conflict_calls_conflict_with_real_file_kind(tmp_path: Path) -
         return ConflictDecision(action="skip")
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, [], set(),
-        journal_path=journal, conflict=_capture, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        [],
+        set(),
+        journal_path=journal,
+        conflict=_capture,
+        warn=None,
     )
     assert ConflictKind.REAL_FILE in kinds_seen
 
@@ -420,8 +454,14 @@ def test_other_symlink_conflict_calls_conflict_with_other_symlink_kind(tmp_path:
         return ConflictDecision(action="skip")
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, [], set(),
-        journal_path=journal, conflict=_capture, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        [],
+        set(),
+        journal_path=journal,
+        conflict=_capture,
+        warn=None,
     )
     assert ConflictKind.OTHER_SYMLINK in kinds_seen
 
@@ -449,13 +489,22 @@ def test_unsafe_different_target_is_bounded_at_eight_attempts(tmp_path: Path) ->
         return ConflictDecision(action="different_target", target="../escape.md")
 
     result = accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, [], set(),
-        journal_path=journal, conflict=_always_unsafe, warn=warns.append,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        [],
+        set(),
+        journal_path=journal,
+        conflict=_always_unsafe,
+        warn=warns.append,
     )
 
     assert result is False
-    # The call_count ≤ _MAX_DIFFERENT_TARGET_ATTEMPTS (8) — not infinite loop
-    assert call_count <= 8
+    # 8 different-target attempts are consumed (different_target_attempts 0→8); the bound check
+    # `>= _MAX_DIFFERENT_TARGET_ATTEMPTS` sits AFTER the conflict callback, so the 9th prompt's
+    # answer is what trips "too many … skipping". The callback is therefore invoked exactly 9
+    # times — pinning the boundary kills the `_MAX` 8→7 (would give 8) and 8→9 (would give 10).
+    assert call_count == 9
     assert any("too many" in w or "attempts" in w for w in warns)
 
 
@@ -480,8 +529,14 @@ def test_different_target_attempts_at_seven_does_not_stop(tmp_path: Path) -> Non
         return ConflictDecision(action="skip")
 
     accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, [], set(),
-        journal_path=journal, conflict=_unsafe_then_skip, warn=warns.append,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        [],
+        set(),
+        journal_path=journal,
+        conflict=_unsafe_then_skip,
+        warn=warns.append,
     )
     # Exactly 8 calls (1-7 return different_target, 8th returns skip) - not stopped early
     assert call_count == 8
@@ -518,7 +573,11 @@ def test_backup_replace_create_failure_restores_real_file(
 
     mappings: list[SymlinkMapping] = []
     result = accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, set(),
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        set(),
         journal_path=journal,
         conflict=lambda *_: ConflictDecision(action="backup_replace"),
         warn=warns.append,
@@ -545,7 +604,11 @@ def test_accept_without_journal_path_does_not_crash(tmp_path: Path) -> None:
     recorded: set[str] = set()
 
     result = accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, recorded,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        recorded,
         journal_path=None,
         conflict=_no_conflict,
         warn=None,
@@ -602,8 +665,14 @@ def test_accept_with_warn_none_does_not_crash_on_missing_source(tmp_path: Path) 
     """With warn=None and missing source, accept_one_artifact silently returns False."""
     root = _scaffold(tmp_path)
     result = accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, [], set(),
-        journal_path=None, conflict=None, warn=None,
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        [],
+        set(),
+        journal_path=None,
+        conflict=None,
+        warn=None,
     )
     assert result is False
 
@@ -618,7 +687,11 @@ def test_accept_with_skip_conflict_decision_returns_false(tmp_path: Path) -> Non
 
     mappings: list[SymlinkMapping] = []
     result = accept_one_artifact(
-        root, _artifact(), _ARCH_TARGET, mappings, set(),
+        root,
+        _artifact(),
+        _ARCH_TARGET,
+        mappings,
+        set(),
         journal_path=root / ".claude/state/journal.log",
         conflict=lambda *_: ConflictDecision(action="skip"),
         warn=None,

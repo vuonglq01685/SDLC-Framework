@@ -46,13 +46,16 @@ def assert_path_under_claude(root: Path, path: Path) -> None:
     """Raise ``AdoptError`` if ``path`` does not resolve under ``root/.claude/`` (AC7).
 
     Uses resolved absolute paths so a traversal component (``.claude/../src``) cannot
-    escape the sandbox. When ``.claude/`` already exists, rejects a symlinked or
-    root-escaping sandbox (Story 3.7 / CR3.1-W2). Before init, only the logical
-    ``root/.claude/`` prefix is enforced so pre-write guards stay usable.
+    escape the sandbox. When ``.claude/`` exists or is a symlink (even a dangling one),
+    rejects a symlinked or root-escaping sandbox (Story 3.7 / CR3.1-W2, pass-3). Before
+    init, only the logical ``root/.claude/`` prefix is enforced so pre-write guards stay
+    usable.
     """
     root_resolved = root.resolve()
     claude_entry = root / _CLAUDE_DIR
-    if claude_entry.exists():
+    # ``is_symlink()`` must be checked too: ``exists()`` follows the link, so a *dangling*
+    # ``.claude`` symlink would report False and skip the sandbox-integrity rejection.
+    if claude_entry.is_symlink() or claude_entry.exists():
         _assert_claude_sandbox_intact(root)
         claude_root = claude_entry.resolve()
     else:

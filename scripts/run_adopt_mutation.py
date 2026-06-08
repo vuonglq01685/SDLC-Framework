@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +46,10 @@ def main() -> int:
     # `mutmut run` exits non-zero when mutants survive; that is not a harness failure, so do
     # not let `check=True` abort here — the kill-rate computation below (guarded by is_file()
     # and total == 0) is the authoritative >=95% gate.
+    # Clear any stale `mutants/` first (e.g. a cached tree from a prior CI run): if `mutmut run`
+    # crashes, `export-cicd-stats` early-returns without writing, and a stale stats file would
+    # otherwise satisfy the is_file() guard below and be scored as current (pass-3 hardening).
+    shutil.rmtree(_REPO_ROOT / "mutants", ignore_errors=True)
     _run([_MUTMUT, "run"], check=False)
     _run([_MUTMUT, "export-cicd-stats"])
     stats_path = _REPO_ROOT / "mutants" / "mutmut-cicd-stats.json"
