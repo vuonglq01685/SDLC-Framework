@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml>=6,<7",     # cap: pyyaml 6→7 has not been released; defensive guard against future major
     "typer>=0.15,<0.26",  # floor: 0.15+ is when --version eager-callback semantics stabilised; cap matches lockfile (0.25.x)
     "rich>=13,<15",  # cap: rich 14→15 defensive guard. Direct dep added in Story 1.17 per cli/output.py rich console (AC5.6).
+    "tomli>=2.0.1; python_version < '3.11'",  # tomllib backport — stdlib tomllib is 3.11+ (PEP 680); requires-python floor is 3.10 (config/hooks.py, cli/status.py).
 ]
 
 [project.scripts]

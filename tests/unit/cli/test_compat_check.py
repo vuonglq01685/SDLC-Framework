@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import sys
 import unittest.mock
 from pathlib import Path
 from typing import ClassVar
 
 import pytest
-import tomllib
 from typer.testing import CliRunner
+
+try:
+    import tomllib  # stdlib 3.11+ (PEP 680)
+except ModuleNotFoundError:  # Python 3.10 — requires-python floor; tomli is the backport
+    import tomli as tomllib
 
 from sdlc.cli import _compat_check
 from sdlc.cli._compat_check import (
@@ -328,4 +331,3 @@ def test_cold_start_version_does_not_spawn_claude(monkeypatch: pytest.MonkeyPatc
 def test_subprocess_pattern_uses_documented_timeout() -> None:
     """R14: assert the numeric timeout directly, not via cross-import of a private constant."""
     assert _CLAUDE_VERSION_TIMEOUT_SECONDS == 5.0
-    assert sys.version_info >= (3, 11)  # tomllib import gate

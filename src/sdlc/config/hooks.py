@@ -16,7 +16,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-import tomllib  # type: ignore[import-not-found]  # stdlib 3.11+; CI/pre-commit use 3.12
+try:
+    import tomllib  # type: ignore[import-not-found]  # stdlib 3.11+ (PEP 680)
+except ModuleNotFoundError:  # Python 3.10 — requires-python floor; tomli is the backport
+    import tomli as tomllib  # type: ignore[import-not-found]
 
 from sdlc.errors import ConfigError
 
