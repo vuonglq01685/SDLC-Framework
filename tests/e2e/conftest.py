@@ -263,9 +263,11 @@ _TIMESTAMP_RE = re.compile(
     r"[T ]"  # 'T' or space separator (required)
     r"\d{2}:\d{2}:\d{2}"  # HH:MM:SS
     r"(?:\.\d+)?"  # optional fractional seconds
-    # Optional UTC marker (Z) or offset; offset accepts ±HH, ±HHMM, or ±HH:MM
-    # so all common timezone notations are normalized (e.g. +07, +0700, +07:00).
-    r"(?:Z|\s*[+-]\d{2}(?::?\d{2})?)?"
+    # Optional trailing zone: Z, a numeric offset (±HH, ±HHMM, ±HH:MM), OR a named
+    # abbreviation (e.g. " UTC", " ICT"). `sdlc status` formats the last-updated ts in
+    # local time via strftime('%Z'), which emits a numeric offset on the dev host but
+    # the zone NAME when TZ=UTC (CI runners) — both must normalize to <TIMESTAMP>.
+    r"(?:Z|\s*[+-]\d{2}(?::?\d{2})?|\s+[A-Z]{2,5})?"
 )
 
 
