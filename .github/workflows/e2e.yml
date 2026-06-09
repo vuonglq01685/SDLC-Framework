@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: astral-sh/setup-uv@v8.1.0  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           python-version: "3.12"  # single cell; e2e correctness is not Python-version-sensitive
           enable-cache: true

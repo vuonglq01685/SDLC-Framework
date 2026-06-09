@@ -34,7 +34,7 @@ jobs:
 
       - name: Install uv (only if mkdocs.yml exists)
         if: steps.probe.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        uses: astral-sh/setup-uv@v8.1.0  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           python-version: "3.12"
           enable-cache: true
