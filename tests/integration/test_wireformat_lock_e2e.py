@@ -37,7 +37,7 @@ def test_freeze_script_exits_0_on_clean_repo() -> None:
 
 
 def test_immutability_pytest_gate_exits_0() -> None:
-    # --no-cov is a justified workaround for the project's global --cov-fail-under=90;
+    # --no-cov is a justified workaround for the project's global --cov-fail-under=87;
     # script coverage is exercised by the unit tests at tests/unit/scripts/ and by
     # test_freeze_script_exits_1_on_drift below (which actually drives the script).
     result = subprocess.run(

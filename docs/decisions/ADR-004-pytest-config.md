@@ -1,6 +1,18 @@
 # ADR-004: Pytest and Coverage Configuration
 
-**Status:** Accepted (2026-05-07, Story 1.2)
+**Status:** Accepted (2026-05-07, Story 1.2) — **amended 2026-06-09** (Epic 4 prep; global coverage floor reconciled to 87, see Amendment)
+
+## Amendment (2026-06-09 — Epic 4 prep, retro D-COV)
+
+The global coverage floor is **87**, not the 90 originally chosen below. The gate was lowered then
+settled at 87 during the EPIC-2A-D3 xfail triage (2A prep-sprint C3); the final **87→90 push was
+RETIRED** in Epic 4 prep (Epic 3 retrospective decision D-COV) as disproportionate — roughly 13
+low-signal CLI error-path test files for a floor-gate when the security- and contract-critical
+modules already sit well above 87. **NFR-MAINT-4's ≥90% is retained as an engine-module aspiration,
+not the global gate.** The config blocks in §Decision below now read `87`; the original `90`
+rationale is preserved as historical context, superseded by this amendment. Closes
+`EPIC-2B-DEBT-COVERAGE-90` (retired). When non-engine modules (dashboard, Story 5.1) land, the
+per-path-threshold migration path in §Decision still applies.
 
 ## Context
 
@@ -23,7 +35,7 @@ addopts = [
     "--cov=src/sdlc",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    "--cov-fail-under=90",
+    "--cov-fail-under=87",   # amended 2026-06-09 from 90 — see Amendment
 ]
 xfail_strict = true
 filterwarnings = ["error"]
@@ -46,7 +58,7 @@ branch = true
 parallel = true
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 87   # amended 2026-06-09 from 90 — see Amendment
 show_missing = true
 exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@(abc\\.)?abstractmethod"]
 ```
@@ -79,7 +91,7 @@ custom CI step. ADR-004 records this migration path.
 
 ## Consequences
 
-- Every test run computes branch coverage; missing tests fail CI at <90%.
+- Every test run computes branch coverage; missing tests fail CI at <87% (global floor; see Amendment).
 - Warnings are errors — catches deprecations early.
 - `coverage.xml` is generated on every run (added to `.gitignore`; consumed by CI in Story 1.3).
 

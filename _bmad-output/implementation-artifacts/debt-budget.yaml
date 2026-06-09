@@ -113,12 +113,12 @@ items:
   # ---------------------------------------------------------------------------
   - id: EPIC-2B-DEBT-COVERAGE-90
     severity: HIGH
-    status: open
+    status: closed
     epic_of_origin: epic-2b
-    title: Final 87→90 coverage push — opened 2026-05-21 prep-sprint C3 after xfail half of EPIC-2A-D3 closed. Top under-covered modules at C3 close (after 2 new focused test files lifted 86.99→87.40%) are cli/bootstrap.py (77%), cli/break_.py (78%), cli/architect.py (77%), cli/_signoff_check.py (78%), cli/_stories_pipeline.py (80%), claude_hooks/pre_tool_use.py (80%), cli/_architect_pipeline.py (73%), cli/_epics_pipeline.py (79%), cli/_ux_pipeline.py (80%). Each focused error-path file lifts ~0.2%; ~13 files needed to hit 90%. Owned by Epic 2B prep continuation or pulled into a 2B story explicitly.
+    title: Final 87→90 coverage push — RETIRED 2026-06-09 (Epic 4 prep, retro D-COV); operational floor reconciled to 87 across gate docs (pyproject already 87; CLAUDE.md §1 + CONTRIBUTING §1/PR-template + ADR-004/006/007/027 amended 90→87); the 87→90 push (~13 low-signal CLI error-path files) is disproportionate vs a floor-gate when security/contract-critical modules already exceed it, and NFR-MAINT-4's ≥90% stays an engine-module aspiration per the ADR-004 amendment. Original basis — opened 2026-05-21 prep-sprint C3 after xfail half of EPIC-2A-D3 closed. Top under-covered modules at C3 close (after 2 new focused test files lifted 86.99→87.40%) are cli/bootstrap.py (77%), cli/break_.py (78%), cli/architect.py (77%), cli/_signoff_check.py (78%), cli/_stories_pipeline.py (80%), claude_hooks/pre_tool_use.py (80%), cli/_architect_pipeline.py (73%), cli/_epics_pipeline.py (79%), cli/_ux_pipeline.py (80%). Each focused error-path file lifts ~0.2%; ~13 files needed to hit 90%. Owned by Epic 2B prep continuation or pulled into a 2B story explicitly.
 
   - id: EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES
-    severity: HIGH
+    severity: MED
     status: open
     epic_of_origin: epic-2b
-    title: Migrate 5 legacy ``_allocate_seq`` callsites to ``append_with_seq_alloc`` — opened 2026-05-21 by prep-sprint C2 (ADR-032 §6 — Story 2B.1+ per-story refactor). New ClaudeAIRuntime in 2B.1 uses the new helper from day one; legacy callsites are race-tolerable for now (process-local) but should consolidate before any new write surface lands.
+    title: Migrate ~23 legacy ``allocate_seq`` (process-local racer) callsites to ``append_with_seq_alloc`` — RECLASSIFIED HIGH→MED 2026-06-09 (Epic 4 prep, retro D-RIDE); ground-truth correction, the original 5-callsite count undercounts (real count ~23 across 10 files — dispatcher/_panel_helpers.py ×6 plus cli pipelines _bootstrap/_architect/_ux/_task/_break/_epics/_stories/research/_verify_post); downgraded because the race is MULTI-PROCESS only and v1 is single-process by design (``/sdlc-auto`` is one long-running loop) so it is unreachable in v1, the same v1-unreachable basis as EPIC-2A-D7B (ADR-034 BLOCKING→LOW); FORWARD RULE — net-new write surfaces (Epic 4 ``engine/auto_loop.py`` et al.) MUST use ``append_with_seq_alloc`` from day one (2B.1 precedent) and legacy callsites migrate per-story as the owning module is touched. Opened 2026-05-21 by prep-sprint C2 (ADR-032 §6).

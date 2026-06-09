@@ -14,7 +14,7 @@ An 8-cell matrix (Python `{3.10, 3.11, 3.12, 3.13}` × OS `{ubuntu-latest, macos
 2. `uv run ruff check src/ tests/` (lint)
 3. `uv run ruff format --check src/ tests/` (format enforcement; `ruff format` handles `.py`/`.pyi` only — `pyproject.toml` is omitted because the formatter silently no-ops on TOML)
 4. `uv run mypy --strict src/` (type checking)
-5. `uv run pytest` (unit + integration tests with coverage gate; `--cov-fail-under=90` in `addopts`)
+5. `uv run pytest` (unit + integration tests with coverage gate; `--cov-fail-under=87` in `addopts` — ADR-004 amendment)
 
 Additional settings:
 - `astral-sh/setup-uv@v8` with `enable-cache: true` and `cache-dependency-glob` covering `pyproject.toml` + `uv.lock`

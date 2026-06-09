@@ -97,7 +97,7 @@ are ready.
 - **C. Adopt an external E2E framework (Robot Framework, Cucumber, etc.).** Rejected — Adds
   toolchain (third dependency on top of pytest + Hypothesis) without proportional value;
   pytest-only goldens are sufficient for a CLI surface and integrate cleanly with the
-  Epic 1 quality gate (`ruff` / `mypy --strict` / `coverage fail_under=90`).
+  Epic 1 quality gate (`ruff` / `mypy --strict` / `coverage fail_under=87`).
 - **D. Property-test only (Hypothesis-based) end-to-end.** Considered viable but rejected as
   the *primary* tier — Hypothesis excels at substrate invariants (already used in 1.10/1.11/1.12),
   but fails the Tier-1 byte-stable-output contract because randomized inputs cannot match a

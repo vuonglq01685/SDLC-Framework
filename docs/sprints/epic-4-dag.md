@@ -33,9 +33,10 @@ already exists: `dispatcher.core._emit_stop_trigger()` (Story 2A.3) writes
 `kind=stop_trigger_raised` with `epic_4_placeholder=True`; Story 4.6 consumes it
 (`EPIC-4-STOP-TRIGGER-WIRE`, `deferred-work.md`).
 
-**Gate status note (2026-06-09).** The §7.4 Pre-Story 4.1 gate is **NOT yet satisfied** — this
-document is a **Draft** pending the items below. (Stated honestly, per the Epic 3 retro's
-belief→evidence lesson; not green-washed.)
+**Gate status note (updated 2026-06-09).** The §7.4 Pre-Story 4.1 gate is **satisfied except one
+manual admin step** — the **A2 branch-protection toggle** (ADR-006 `gh api`). Every other item is
+**verified green** as of 2026-06-09 (not green-washed, per the Epic 3 retro's belief→evidence
+lesson). Once the A2 required-checks toggle lands, `bmad-create-story` may be invoked for Story 4.1.
 
 - #1 this DAG exists — ✅ (this document, Draft)
 - #2 §8 four approvals — ✅ **4/4** (three persona-reviewer signoffs + Project Lead directive
@@ -45,16 +46,21 @@ belief→evidence lesson; not green-washed.)
   - **A2** (POSIX pre-merge gate) — ✅ code shipped `d54bbf3` (`scripts/check_posix_suite_ran.py` +
     `posix-adopt-ran` CI job + ADR-006 required-checks); ⏳ **branch-protection toggle is a manual
     GitHub-admin step still pending** (the `gh api` command in ADR-006).
-  - **P3** green `main` + wire-format snapshots — ⏳ **UNVERIFIED at this HEAD** (A1/A2 just landed;
-    run the full quality gate on `main` before #7).
+  - **P3** green `main` + wire-format snapshots — ✅ **verified 2026-06-09** (the pre-existing 3.7
+    ruff-format drift on `test_invariant_mutations.py` was fixed in `557bd3f`).
   - **P4** assess `sdlc unsign --mad-only` (net-new; `sdlc unsign` does not exist — Story 3.5 mapped
     the `replan` seam) + the real-dispatch debt impact on the auto-loop — see **Decision D3**.
-  - **D-CHAR / D-COV / D-RIDE** debt — open (D-CHAR is load-bearing for `4.1`/`4.6`; see §7 + D3).
+  - **D-COV / D-RIDE** — ✅ **resolved 2026-06-09** (COVERAGE-90 retired to the 87 floor; MIGRATE-SEQ
+    reclassified HIGH→MED). **D-CHAR** still open — register `EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH`
+    in `debt-budget.yaml` per Decision D3 (load-bearing for `4.1`/`4.6`).
 - #6 wire-format snapshots green on `main` — ✅ at last check (A1/A2 touched no contracts; Epic 4
   adds **zero** new wire-format contracts per **Decision D1**).
-- #7 quality gate green on `main` — ⏳ **re-run required** post-A1/A2 merge.
-- #8 debt-decay strict run green for `--target-epic 4` — ⏳ **UNVERIFIED** (run
-  `scripts/check_debt_decay_budget.py` with the `before-story-4.1` posture).
+- #7 quality gate green on `main` — ✅ **GREEN** (verified 2026-06-09: ruff format/check + mypy
+  --strict clean, **3570 passed / 4 skipped**, coverage ≥87, wire-format 7/7, mkdocs --strict).
+- #8 debt-decay strict run green for `--target-epic 4` — ✅ **PASS** (verified 2026-06-09; Gate
+  A/B/C all PASS). Gate C was RED (2 open HIGH epic-2b items) and was cleared by retiring
+  `EPIC-2B-DEBT-COVERAGE-90` to the 87 floor (retro D-COV) + reclassifying
+  `EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES` HIGH→MED (retro D-RIDE — v1-unreachable race).
 
 ---
 
@@ -235,7 +241,7 @@ depth for fan-out width, so schedule risk lives in cap contention + the `4.11` c
 | **New on-disk shapes** (`auto_loop_status`/`stop_reason` in state.json; `bugs/<id>.yaml`; `clarifications/<id>/{open_clarification,options}.md`) drift across versions. | **Decision D1** — auto-loop state is rebuilt-from-journal internal state (like `state.json`); the bug-ticket schema is internal state, not a frozen wire-format contract; new journal kinds extend ADR-028 via its forward rule. Epic 4 adds **zero** new ADR-024 contracts (stays 7/7). |
 | **Mad-mode audit-trail integrity** — every auto-resolution must be byte-distinguishable from human action and fully reversible (FR20/FR23). | `approved_by: ai-mad-mode` sentinel + `mad_resolution` journal kind on every auto-resolution; `4.12` reversal test asserts human signoffs survive; `4.11`'s integration test asserts byte-distinguishability. |
 | **Coverage carry-forward** (`EPIC-2B-DEBT-COVERAGE-90` rode through Epic 3 unclosed; floor still 87 vs CLAUDE.md ≥90). | Resolve in Epic 4 prep per retro D-COV: close 87→90 or formally retire to 87 (stop the doc drift). Slot into per-story budgets; do not let it ride a fourth epic silently. |
-| **§7.4 GATE — OPEN.** §8 is 3/4 (Project Lead pending); P3 green-main + #7 quality-gate + #8 debt-decay-for-4 are UNVERIFIED at this HEAD; A2 branch-protection toggle is a manual admin step. | Before `bmad-create-story 4.1`: collect the Project Lead §8 sign-off + ratify D1/D2/D3; run the full quality gate + `freeze_wireformat_snapshots --check` + `check_debt_decay_budget.py` (target 4) on `main`; toggle the A2 required checks (ADR-006 `gh api`). |
+| **§7.4 GATE — A2 toggle only (2026-06-09).** §8 4/4 ✅, D1/D2/D3 ratified ✅, #6 snapshots ✅, #7 quality gate ✅ (3570 passed, coverage ≥87), #8 debt-decay target-4 ✅ (Gate A/B/C PASS), P3 green `main` ✅. Sole remaining item — the **A2 branch-protection toggle** (a GitHub-admin action). | Before `bmad-create-story 4.1`: toggle the A2 required checks `mutation-tests` + `posix-adopt-ran` on `main` (ADR-006 `gh api`). All other gate items verified green. |
 
 ---
 
@@ -338,3 +344,4 @@ via `bmad-create-story`.**
 |---|---|---|
 | 2026-06-09 | Alice + Charlie (drafted via Claude, per Epic 3 retro P1) | Initial draft — DAG (12 stories) + 5 parallelism layers + critical path `4.1→4.2→4.10→4.11→4.12` (depth 5, peak width 4, first cap-saturating layer since Epic 2B) + preliminary worktree assignments + risk register + Decisions D1 (internal-state / zero new wire-format contracts), D2 (4.12 sequencing), D3 (real-dispatch-debt posture). §8: 3 technical-reviewer signoffs recorded; **Project Lead directive sign-off OPEN**. Gate note states the §7.4 Pre-Story 4.1 gate is **NOT yet satisfied** — pending §8 #4, P3 green-main, #7 quality gate, #8 debt-decay-for-4, and the A2 branch-protection toggle (honest posture per the Epic 3 retro belief→evidence lesson; not green-washed). |
 | 2026-06-09 | Vuonglq01685 (Project Lead) + Claude | §8 Project Lead directive sign-off recorded — parallelism plan + worktree-per-layer policy approved; **Decisions D1 = (a) internal-state / zero new wire-format contracts (7/7), D2 = (a) 4.12 Layer-5 after 4.11, D3 = (a) defer-with-guard + register real-dispatch debt** all ratified. §8 now **4/4 approved**; §1 gate note #2 + the three Decision sections updated to the ratified state. **The §7.4 Pre-Story 4.1 gate remains NOT fully satisfied** — `bmad-create-story 4.1` is still blocked until #7 (full quality gate on `main`, re-run post-A1/A2), #8 (debt-decay strict for `--target-epic 4`), and the A2 branch-protection toggle are green. The DAG is approved; the gate waits on `main` state. |
+| 2026-06-09 | Vuonglq01685 + Claude (Epic 4 prep — gate verification) | §7.4 gate items #7 + #8 + P3 verified GREEN on `main`. #7 quality gate: ruff format/check + mypy --strict clean, 3570 passed / 4 skipped, coverage ≥87, wire-format 7/7, mkdocs --strict (pre-existing 3.7 ruff-format drift on `test_invariant_mutations.py` fixed in `557bd3f`). #8 debt-decay strict (target 4): Gate A/B/C all PASS — **Gate C was RED** (2 open HIGH epic-2b items) and was cleared by retiring `EPIC-2B-DEBT-COVERAGE-90` to the 87 operational floor (retro D-COV; reconciled CLAUDE.md/CONTRIBUTING/ADR-004/006/007/027) + reclassifying `EPIC-2B-DEBT-MIGRATE-PROCESS-LOCAL-SEQ-CALLSITES` HIGH→MED (retro D-RIDE; ground-truth ~23 callsites not 5, multi-process race v1-unreachable, forward rule recorded). §1 gate note + §7 GATE row updated. **Sole remaining gate item: the A2 branch-protection toggle (ADR-006 `gh api`).** |

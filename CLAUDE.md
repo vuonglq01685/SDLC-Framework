@@ -21,7 +21,7 @@ check ALL of the following — not just `src/`:
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (story status)
 
 **Per-story discipline (CONTRIBUTING.md §1-§6):**
-- Quality gate (§1): ruff format/check, mypy --strict, pytest, coverage ≥90%, pre-commit, mkdocs --strict, wire-format snapshots
+- Quality gate (§1): ruff format/check, mypy --strict, pytest, coverage ≥87% (operational floor; ADR-004 amendment), pre-commit, mkdocs --strict, wire-format snapshots
 - TDD-first (§2): tests-first commit ordering for CLI/contracts/public-API; visible in `git log --reverse`
 - Worktree-per-story (§3): one branch per story at the same DAG layer; linear merge; rebase between merges
 - Chunked review (§4): review-A → review-B → review-C labels on a single PR; no skipping
