@@ -69,20 +69,26 @@ for _fname in _FORBIDDEN_MUTATION_NAMES:
 _RFC3339_UTC_RE = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$"
 
 
-def _iso_z_strategy() -> st.SearchStrategy[str]:
-    """RFC 3339 UTC timestamps with explicit ``Z`` suffix.
+def _rfc3339_z(dt: datetime) -> str:
+    """Format a UTC datetime as RFC 3339 with explicit ``Z`` + millisecond precision.
 
-    ``strftime`` is used directly (not ``isoformat``+replace) because hypothesis can emit
-    naive UTC datetimes whose ``isoformat`` lacks the ``+00:00`` suffix; the previous
-    approach silently produced strings without ``Z`` (review fix Edge L M10).
+    Integer fields are formatted explicitly rather than via ``strftime('%Y-...')``:
+    glibc (Linux CI) does NOT zero-pad ``%Y`` for years < 1000 (year 5 → ``"5"``),
+    producing a non-RFC3339 ts that fails ``JournalEntry`` validation. BSD/macOS
+    zero-pads, so the bug was invisible on the dev host. ``:04d`` is portable.
+    ``isoformat`` is avoided because hypothesis can emit naive UTC datetimes whose
+    ``isoformat`` lacks the ``+00:00``/``Z`` suffix (review fix Edge L M10).
     """
+    ms = dt.microsecond // 1000
+    return (
+        f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
+        f"T{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}.{ms:03d}Z"
+    )
 
-    def _format(dt: datetime) -> str:
-        # Truncate microseconds → milliseconds (3 digits) and append explicit Z.
-        ms = dt.microsecond // 1000
-        return f"{dt.strftime('%Y-%m-%dT%H:%M:%S')}.{ms:03d}Z"
 
-    return st.datetimes(timezones=st.just(timezone.utc)).map(_format)
+def _iso_z_strategy() -> st.SearchStrategy[str]:
+    """RFC 3339 UTC timestamps with explicit ``Z`` suffix (see ``_rfc3339_z``)."""
+    return st.datetimes(timezones=st.just(timezone.utc)).map(_rfc3339_z)
 
 
 def _sha256_strategy() -> st.SearchStrategy[str]:
@@ -168,6 +174,31 @@ def _make_entry_sequence_strategy() -> st.SearchStrategy[list[object]]:
 
 
 _sequence_strategy = _make_entry_sequence_strategy()
+
+
+def test_rfc3339_z_pads_year_below_1000() -> None:
+    """Regression: years < 1000 must zero-pad so JournalEntry.ts validates.
+
+    glibc's ``strftime('%Y')`` emits ``"5"`` (not ``"0005"``) for year 5, so the
+    prior strategy produced a non-RFC3339 ts that raised ``ValidationError`` on
+    Linux CI while passing on the macOS dev host (BSD zero-pads). Pin the contract.
+    """
+    from sdlc.contracts.journal_entry import JournalEntry
+
+    ts = _rfc3339_z(datetime(5, 1, 1, tzinfo=timezone.utc))
+    assert ts == "0005-01-01T00:00:00.000Z"
+    # Must construct without raising — this is the exact path that failed on CI.
+    JournalEntry(
+        schema_version=1,
+        monotonic_seq=1,
+        ts=ts,
+        actor="a",
+        kind="state_mutation",
+        target_id="t",
+        before_hash=None,
+        after_hash="sha256:" + "a" * 64,
+        payload={},
+    )
 
 
 # ---------------------------------------------------------------------------

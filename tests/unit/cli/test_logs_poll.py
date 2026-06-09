@@ -193,8 +193,11 @@ def test_logs_poll_journal_rotation_detected(
     first_inode, first_pos = _poll_journal(journal, 0, None, None, json_mode=False, ctx=ctx)
     assert first_pos > 0
 
-    # Simulate rotation: replace file with a new one (new inode).
-    journal.unlink()
+    # Simulate rotation the way logrotate does: rename the old file aside (it keeps
+    # the original inode) so the freshly created journal is GUARANTEED a new inode.
+    # A bare unlink()+create can reuse the just-freed inode on Linux ext4 (the macOS
+    # dev FS hid this), leaving new_inode == first_inode and masking the rotation.
+    journal.rename(journal.with_name(journal.name + ".1"))
     entry2 = _make_journal_entry(1, "2026-01-01T00:00:01Z")
     journal.write_text(entry2.model_dump_json() + "\n")
 
@@ -251,8 +254,10 @@ def test_logs_poll_agent_runs_rotation_detected(
     first_inode, first_pos = _poll_agent_runs(runs, 0, None, None, json_mode=False, ctx=ctx)
     assert first_pos > 0
 
-    # Rotate.
-    runs.unlink()
+    # Rotate via rename (logrotate-style): the old inode stays allocated to the
+    # renamed file, so the new file gets a fresh inode. A bare unlink()+create can
+    # reuse the freed inode on Linux ext4 and mask the rotation (see journal test).
+    runs.rename(runs.with_name(runs.name + ".1"))
     runs.write_text(
         json.dumps({"ts": "2026-01-01T00:00:01Z", "agent": "y", "target_id": "state"}) + "\n"
     )
