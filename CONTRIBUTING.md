@@ -48,6 +48,21 @@ The story PR template includes:
       OR test-along justification provided here: <reason>
 ```
 
+**Automated gate (Epic 3 retro action A1).** This ordering is no longer a manual
+Reviewer-A eyeball check. `scripts/check_story_merged_before_done.py` runs as a
+`commit-msg` pre-commit hook and, for every story this commit flips to `done` in
+`sprint-status.yaml`, enforces:
+
+- **R2 (merged-before-done, NOT waivable):** a per-story `feat(<E.S>)`/`fix(<E.S>)`
+  commit must be reachable from `HEAD` — work squashed under a coarse `feat(epic-N)`
+  scope or left in the working tree blocks the flip.
+- **R1 (tdd-ordering):** a `test(<E.S>)` RED commit must precede the first GREEN. Waive
+  per-commit with a `[tdd-along: <reason>]` annotation in the flip commit message for
+  novel-substrate stories (R2 still holds).
+
+Only stories *newly* flipped to `done` are gated, so historical done-stories are
+grandfathered. Install once per clone: `pre-commit install --hook-type commit-msg`.
+
 ---
 
 ## 3. Worktree Workflow (per ADR-A6 + A7)
@@ -426,3 +441,5 @@ ships externally.
 | 2026-05-22 | Vuonglq01685 + Claude (Epic 2B prep — Gate A threshold) | ADR-033 ratified — Gate A redefined from the unreachable `≥5 BLOCKING closed` absolute count to the inventory-relative `zero open BLOCKING` rule; `scripts/check_debt_decay_budget.py` evaluates `blocking_open == 0`; supersedes the `≥5` wording inherited from Epic 2A retro action A1; surfaced by the Epic 2B §7.4 Pre-Story-2B.1 verification; test(RED) → feat(GREEN) → docs on branch `epic-2b-prep/gate-a-threshold` |
 | 2026-05-22 | Vuonglq01685 + Claude (Epic 2B prep — D7 split) | ADR-034 ratified — `EPIC-2A-D7-CROSS-PLATFORM-LOCK` split into `EPIC-2A-D7A-SIGNOFF-FLOCK-CONCURRENCY` (BLOCKING, **closed**: `signoff/records.py` `write_record`/`invalidate_record` now hold a per-phase POSIX flock) and `EPIC-2A-D7B-WIN32-RUNS-LOCK` (downgraded BLOCKING→LOW, deferred — no Windows CI runner, framework POSIX-only in v1); `signoff/` gains a declared `concurrency/` module dependency; closing D7A leaves zero open BLOCKING → debt-decay Gate A passes |
 | 2026-05-22 | Vuonglq01685 + Claude (Epic 2B prep — Gate C) | ADR-035 ratified — §7.5 Gate C ("N-2 zero-out") severity-scoped to **BLOCKING/HIGH only**, resolving its contradiction with §7.2 ("MEDIUM/LOW MAY remain open"); `scripts/check_debt_decay_budget.py` filters the N-2 open count by `severity in {BLOCKING, HIGH}`; the three open Epic-1 N-2 items (`D4`/`D5`/`D7`, all MED) no longer gate Story 2B.1 → debt-decay strict run is now green for target 2B |
+| 2026-06-09 | Vuonglq01685 + Claude (Epic 3 retro — action A1) | `scripts/check_story_merged_before_done.py` shipped — commit-msg gate enforcing R2 (per-story `feat(<E.S>)`/`fix(<E.S>)` reachable from HEAD; squash-under-`epic-N`/working-tree-only blocks the `done` flip) + R1 (`test(<E.S>)` RED precedes first GREEN, waivable per-commit with `[tdd-along: <reason>]`); finally codifies what the Epic 2B retro commissioned as action A2 but never built — its absence let Epic 3 ship 3.3/3.4 squashed + 3.5 with no RED. Only stories newly flipped to `done` are gated (historical done grandfathered). 36 RED → GREEN tests; ruff + mypy --strict clean; wired in `.pre-commit-config.yaml` commit-msg stage; documented in §2. Live-verified against real Epic 3 history: BLOCKS 3.3 (R2) + 3.5 (R1), PASSES 3.2 + 3.7 |
+| 2026-06-09 | Vuonglq01685 + Claude (Epic 3 retro — action A2) | POSIX pre-merge gate completed — `scripts/check_posix_suite_ran.py` (new) fails CI if the POSIX-only adopt suite all-/mostly-skips (ADR-034: adopt skips on win32), institutionalizing the Epic 3 lesson that a "green on Windows" run where every adopt test skipped is a FALSE green; wired as the `posix-adopt-ran` ci.yml job (ubuntu, `--min-executed 50`). Recon found the gate *jobs* already existed (`mutation-tests` ≥95% from 3.7 + `quality-gates` running adopt on ubuntu/macos) but ADR-006’s required-checks note predated them — amended ADR-006 to require `mutation-tests` + `posix-adopt-ran` for `main` (with the `gh api` command), so a red mutation/all-skipped-adopt run actually BLOCKS merge. 11 RED → GREEN tests; ruff + mypy --strict clean; live-verified on a POSIX host (461 adopt tests ran → exit 0). A story may not flip `done` until these are green, paired with the local A1 gate |
