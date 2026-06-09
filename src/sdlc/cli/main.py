@@ -11,12 +11,18 @@ import os
 import sys
 
 import typer
+import typer.rich_utils
 
 from sdlc.cli._adopt_rollback_register import register_adopt_rollback_command
 from sdlc.cli._migrate_register import register_migrate_commands
 from sdlc.cli.version import get_version
 
 __all__ = ("app",)
+
+# Typer's Rich help renderer force-enables ANSI when GITHUB_ACTIONS/FORCE_COLOR/
+# PY_COLORS is set (rich_utils.FORCE_TERMINAL), overriding our --no-color/NO_COLOR
+# contract (AC7.3) in CI. Reset so --help follows real-TTY + NO_COLOR (cf. output.py).
+typer.rich_utils.FORCE_TERMINAL = None
 
 
 def _version_callback(value: bool) -> None:
