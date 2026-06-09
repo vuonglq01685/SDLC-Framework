@@ -224,6 +224,17 @@ warn_unreachable = false
 module = ["sdlc.cli.init", "sdlc.cli.scan"]
 warn_unreachable = false
 
+# Conditional stdlib imports under requires-python>=3.10 with python_version=3.10:
+# tomllib (config/hooks.py, cli/status.py) and importlib.resources.abc (cli/init.py)
+# are 3.11+ only. On the 3.10 CI cell they are import-not-found; on 3.11+ cells the
+# runtime module exists but is untyped at python_version=3.10 ("Skipping analyzing").
+# The diagnostic flips per interpreter, so a fixed inline `# type: ignore[import-not-
+# found]` is reported "unused" on whichever cell hits the other branch
+# (warn_unused_ignores). ignore_missing_imports silences both, matrix-consistently.
+[[tool.mypy.overrides]]
+module = ["tomllib", "tomli", "importlib.resources.abc"]
+ignore_missing_imports = true
+
 # =============================================================================
 # Pytest + Coverage (ADR-004)
 # =============================================================================
