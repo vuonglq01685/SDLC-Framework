@@ -38,13 +38,16 @@ def _scaffold(tmp_path: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("rel", [
-    ".claude/state/journal.log",
-    ".claude/state/adopt-report.json",
-    ".claude/state/adopted-symlinks.json",
-    ".claude/state/imported-metadata/target.yaml",
-    ".claude/state/adopt-conflicts/ts/backup.bak",
-])
+@pytest.mark.parametrize(
+    "rel",
+    [
+        ".claude/state/journal.log",
+        ".claude/state/adopt-report.json",
+        ".claude/state/adopted-symlinks.json",
+        ".claude/state/imported-metadata/target.yaml",
+        ".claude/state/adopt-conflicts/ts/backup.bak",
+    ],
+)
 def test_assert_path_under_claude_accepts_claude_paths(tmp_path: Path, rel: str) -> None:
     """Resolved paths under .claude/ are accepted without raising."""
     root = _scaffold(tmp_path)
