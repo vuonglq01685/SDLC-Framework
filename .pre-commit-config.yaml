@@ -158,6 +158,21 @@ repos:
         pass_filenames: true   # commit-msg hook gets COMMIT_EDITMSG path
         verbose: false
 
+  # ----- story merged-before-done + TDD-ordering gate (Epic 3 retro A1, CONTRIBUTING §2/§3) -----
+  # commit-msg-stage hook (same rationale as fresh-context-review-tag): the
+  # commit-msg stage gives the gate BOTH the staged diff and the commit message
+  # (which carries the [tdd-along: ...] opt-out). Requires
+  # `pre-commit install --hook-type commit-msg` one time per clone.
+  - repo: local
+    hooks:
+      - id: story-merged-before-done
+        name: story merged-before-done + TDD-ordering gate (Epic 3 retro A1)
+        entry: uv run python scripts/check_story_merged_before_done.py
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true   # commit-msg hook gets COMMIT_EDITMSG path
+        verbose: false
+
   # ----- standard hygiene -----
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
