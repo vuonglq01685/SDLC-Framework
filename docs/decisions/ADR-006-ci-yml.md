@@ -23,7 +23,29 @@ Additional settings:
 - Coverage XML uploaded as artifact (`retention-days: 14`, `if-no-files-found: ignore`)
 - Action SHA comments document long-form SHAs for future supply-chain hardening (e.g. `actions/checkout@v5 # pin: 11bd71901bbe5b1630ceea73d27597364c9af683`). The single literal-SHA pin in the substrate is `pypa/gh-action-pypi-publish` in `release.yml` — see [ADR-008](ADR-008-release-yml.md) for the deliberate exception.
 
-**Operator setup (one-time, not enforceable by this story):** Repo Settings → Branches → Add protection rule for `main` → "Require status checks to pass before merging" → select all 8 `quality-gates` matrix cells.
+**Operator setup (one-time, not enforceable by this story):** Repo Settings → Branches → Add protection rule for `main` → "Require status checks to pass before merging" → select the required checks below.
+
+**Required status checks (amended 2026-06-09, Epic 3 retro action A2).** The
+original note named only the 8 `quality-gates` matrix cells. That predated the
+POSIX-only adopt gates, so a red mutation or all-skipped adopt run would not have
+blocked merge. The required set is now:
+
+- all 8 `quality-gates` matrix cells (py3.10–3.13 × {ubuntu, macos});
+- **`mutation-tests`** — Adopt mutation gate (≥95% kill, Story 3.7 / ADR-036);
+- **`posix-adopt-ran`** — POSIX adopt suite actually-ran gate (Epic 3 retro A2;
+  `scripts/check_posix_suite_ran.py`). The adopt suite is POSIX-only (ADR-034)
+  and skips on win32; this gate fails an all-/mostly-skipped run so a "green on
+  Windows" or a broadened-skip-marker false green cannot reach `main`.
+
+A story may not be flipped to `done` until these checks are green on its branch
+(paired with the local merged-before-done gate, `check_story_merged_before_done.py`).
+Set them via the GitHub UI, or:
+
+```sh
+gh api -X PATCH repos/{owner}/{repo}/branches/main/protection/required_status_checks \
+  -f 'checks[][context]=mutation-tests' \
+  -f 'checks[][context]=posix-adopt-ran'
+```
 
 ## Alternatives Considered
 

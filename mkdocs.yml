@@ -83,6 +83,7 @@ nav:
       - "ADR-033 — debt-decay Gate A zero-open threshold": decisions/ADR-033-debt-decay-gate-a-zero-open.md
       - "ADR-034 — EPIC-2A-D7 split (signoff flock / Windows defer)": decisions/ADR-034-debt-d7-split-signoff-flock.md
       - "ADR-035 — debt-decay Gate C severity-scoped (BLOCKING/HIGH)": decisions/ADR-035-debt-decay-gate-c-severity-scoped.md
+      - "ADR-036 — adopt mutation-testing harness": decisions/ADR-036-adopt-mutation-testing-harness.md
       - "ADR template": decisions/adr-template.md
   - Reference:
       - "Specialists matrix (canonical roster)": specialists-matrix.md

@@ -153,6 +153,34 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  posix-adopt-ran:
+    # Epic 3 retro action A2: prove the POSIX-only adopt suite ACTUALLY RAN on a
+    # POSIX runner — an all-skipped run is a false green (ADR-034: adopt skips on
+    # win32). Cheap (~1s) but is a distinct, require-able status check so a future
+    # win32 cell or a broadened skip marker can't silently land a green merge.
+    name: POSIX adopt suite actually-ran gate (Epic 3 retro A2)
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5  # pin: 11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v8  # pin: 08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Sync dev dependencies (frozen)
+        run: uv sync --frozen --group dev
+
+      - name: Assert POSIX adopt suite ran (not all-skipped)
+        run: uv run python scripts/check_posix_suite_ran.py --min-executed 50
+
   parity-perf:
     name: Hook Parity Latency Gate (Story 2A.6 AC7)
     needs: quality-gates
