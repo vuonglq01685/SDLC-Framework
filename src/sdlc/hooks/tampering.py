@@ -46,6 +46,24 @@ class TamperReport:
     store_path: str | None = None
 
 
+def _stream_file_sha256(path: Path) -> str:
+    """Hex sha256 of a file's content, streamed for bounded memory.
+
+    Uses ``hashlib.file_digest`` on Python 3.11+; falls back to a chunked loop on
+    Python 3.10 (file_digest was added in 3.11; requires-python floor is 3.10).
+    """
+    with path.open("rb") as fh:
+        if hasattr(hashlib, "file_digest"):
+            # hasattr-narrowed to Any (typeshed has file_digest only at 3.11+); the
+            # annotation keeps warn_return_any happy without a version-fragile ignore.
+            digest: str = hashlib.file_digest(fh, "sha256").hexdigest()
+            return digest
+        h = hashlib.sha256()
+        while chunk := fh.read(1 << 16):
+            h.update(chunk)
+        return h.hexdigest()
+
+
 def compute_hook_hashes(hooks_root: Path) -> dict[str, str]:
     """Return sorted dict of POSIX-relpath → ``sha256:<hex>`` for .py files in tree.
 
@@ -95,8 +113,7 @@ def compute_hook_hashes(hooks_root: Path) -> dict[str, str]:
             ) from None
 
         try:
-            with resolved.open("rb") as fh:  # P5 streaming
-                digest = hashlib.file_digest(fh, "sha256").hexdigest()  # type: ignore[attr-defined]
+            digest = _stream_file_sha256(resolved)  # P5 streaming
         except OSError as exc:
             raise HookError(
                 f"failed to read hook file {relpath}: {exc}",
