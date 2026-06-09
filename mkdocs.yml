@@ -92,6 +92,7 @@ nav:
       - "Epic 2A — story DAG & parallelism plan": sprints/epic-2a-dag.md
       - "Epic 2B — story DAG & parallelism plan": sprints/epic-2b-dag.md
       - "Epic 3 — story DAG & parallelism plan": sprints/epic-3-dag.md
+      - "Epic 4 — story DAG & parallelism plan": sprints/epic-4-dag.md
   - Runbooks:
       - "Handle hook hash drift (FR39 / NFR-SEC-5)": runbooks/handle-hash-drift.md
       - "Diagnose hook rejection (Story 2A.4)": runbooks/diagnose-hook-rejection.md
