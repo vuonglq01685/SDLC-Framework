@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Final
 
 try:
-    import tomllib  # type: ignore[import-not-found]  # stdlib 3.11+ (PEP 680)
+    import tomllib  # stdlib 3.11+ (PEP 680); see [tool.mypy] tomllib/tomli override
 except ModuleNotFoundError:  # Python 3.10 — requires-python floor; tomli is the backport
-    import tomli as tomllib  # type: ignore[import-not-found]
+    import tomli as tomllib
 
 from sdlc.errors import ConfigError
 

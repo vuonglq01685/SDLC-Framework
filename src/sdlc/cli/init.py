@@ -24,7 +24,7 @@ from importlib.resources import files as _resource_files
 # loads (avoids DeprecationWarning that pytest filterwarnings=["error"]
 # promotes to a hard error).
 try:
-    from importlib.resources.abc import Traversable  # type: ignore[import-not-found]
+    from importlib.resources.abc import Traversable  # see [tool.mypy] importlib override
 except ImportError:
     from importlib.abc import Traversable
 from pathlib import Path
