@@ -33,8 +33,12 @@ def _now_utc() -> datetime:
 
 def _try_parse_iso(value: str) -> datetime | None:
     """Parse an ISO-8601 commit date (`%cI`); return None if it is not a valid date."""
+    # git %cI emits a trailing 'Z' for UTC committers (e.g. CI runners); Python 3.10's
+    # fromisoformat rejects 'Z' (3.11+ accept it). Normalize to +00:00 — matching
+    # cli/status.py + cli/_event_builders.py. Without this the recency signal is silently
+    # empty on a UTC host running 3.10, dropping the +5 boost end-to-end (D2/AC3).
     try:
-        parsed = datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
     if parsed.tzinfo is None:

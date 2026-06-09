@@ -104,7 +104,7 @@ def remove_symlink_at_target(root: Path, target_rel: str) -> str | None:
         return None
     try:
         raw = os.readlink(target_abs)
-        target_abs.unlink()
+        os.unlink(target_abs)  # os.unlink (not Path.unlink) — consistent with os.readlink
     except OSError as exc:
         raise AdoptError(
             "adopt could not remove the conflicting symlink at the target",
