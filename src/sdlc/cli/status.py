@@ -41,7 +41,10 @@ def _resolve_project_name(root: Path) -> str:
 
 def _resolve_via_tomllib(pyproject: Path, fallback_name: str) -> str:
     """Python 3.11+ path: parse pyproject.toml with tomllib and read `[project] name`."""
-    import tomllib  # type: ignore[import-not-found]  # 3.11+ stdlib; mypy targets 3.10
+    try:
+        import tomllib  # type: ignore[import-not-found]  # stdlib 3.11+ (PEP 680)
+    except ModuleNotFoundError:  # Python 3.10 — requires-python floor; tomli is the backport
+        import tomli as tomllib  # type: ignore[import-not-found]
 
     try:
         with pyproject.open("rb") as fh:
