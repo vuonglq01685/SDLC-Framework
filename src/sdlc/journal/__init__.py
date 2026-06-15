@@ -3,6 +3,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# Re-export the JournalEntry contract from the journal package so engine-layer callers can
+# build entries without importing sdlc.contracts directly — the module-boundary table forbids
+# engine -> contracts, and journal logically owns the journal-entry shape (code-review D1).
+from sdlc.contracts.journal_entry import JournalEntry
+
 # writer.py is POSIX-only (fcntl + O_APPEND); reader.py is cross-platform (pure file read).
 # On Windows the names exist at import time but append/append_sync raise JournalError,
 # while iter_entries/iter_after remain functional (no flock needed for read-only access).
@@ -14,7 +19,6 @@ if sys.platform != "win32":
         append_with_seq_alloc,
     )
 else:
-    from sdlc.contracts.journal_entry import JournalEntry
     from sdlc.errors import JournalError
 
     _WIN_MSG = (
@@ -74,8 +78,9 @@ else:
 
 from sdlc.journal.reader import iter_after, iter_entries
 
-# Semantic order: write (async) → write (sync) → read-all → read-after; do NOT alphabetize.
+# Semantic order: contract → writers → readers; do NOT alphabetize.
 __all__ = (  # noqa: RUF022
+    "JournalEntry",
     "allocate_next_seq_for_append_sync",
     "append",
     "append_sync",

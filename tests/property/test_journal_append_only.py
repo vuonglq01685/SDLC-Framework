@@ -42,6 +42,8 @@ import sdlc.journal  # noqa: E402
 
 _JOURNAL_PUBLIC_API = set(sdlc.journal.__all__)
 _EXPECTED_API = {
+    "JournalEntry",  # Story 4.1 code-review D1: re-exported contract so engine/ can build entries
+    # without importing sdlc.contracts (module-boundary table forbids engine -> contracts)
     "allocate_next_seq_for_append_sync",  # Story 2A.11: locked seq alloc for hook deny/bypass
     "append",
     "append_sync",

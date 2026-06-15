@@ -283,7 +283,7 @@ def test_e2e_next_dependency_blocked_selects_dep_free_task(tmp_path: Path) -> No
 def _select_no_dep_check(tasks_root: Path) -> tuple[object, dict]:
     """Neutralised gate: pick first non-done task by seq with no dep check."""
     from sdlc.cli._epic_story_models import _TaskEntry
-    from sdlc.cli._next_resolver import _parse_story_seq, _parse_task_seq
+    from sdlc.engine.next_selector import _parse_story_seq, _parse_task_seq
 
     if not tasks_root.is_dir():
         return None, {}
@@ -324,7 +324,9 @@ def test_e2e_next_dependency_gate_is_load_bearing(tmp_path: Path) -> None:
     )
     ready_path = _write_task(tmp_path, _TASK_READY_ID, stage="pending", dependencies=[])
 
-    from sdlc.cli import _next_resolver as resolver_mod
+    # Story 4.1 (D1) moved the phase-3 selector to engine.next_selector; the CLI resolver now
+    # delegates there, so the gate-neutralising patch must target the engine module.
+    from sdlc.engine import next_selector as resolver_mod
 
     # --- Gate active: `sdlc next` dispatches the dep-free T02-ready ---
     r_gate = _invoke_next(tmp_path)

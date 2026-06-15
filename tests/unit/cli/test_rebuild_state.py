@@ -170,10 +170,12 @@ def test_rebuild_state_succeeds_with_empty_journal(
     assert state_path.exists()
     data = json.loads(state_path.read_bytes())
     assert data == {
+        "auto_loop_status": "idle",  # Story 4.1: additive State field (default idle)
         "epics": {},
         "next_monotonic_seq": 0,
         "phase": 1,
         "schema_version": 1,
+        "stop_reason": None,  # Story 4.1: additive State field (default None)
         "stories": {},
         "tasks": {},
     }

@@ -123,6 +123,12 @@ items:
     epic_of_origin: epic-2b
     title: Migrate ~23 legacy ``allocate_seq`` (process-local racer) callsites to ``append_with_seq_alloc`` — RECLASSIFIED HIGH→MED 2026-06-09 (Epic 4 prep, retro D-RIDE); ground-truth correction, the original 5-callsite count undercounts (real count ~23 across 10 files — dispatcher/_panel_helpers.py ×6 plus cli pipelines _bootstrap/_architect/_ux/_task/_break/_epics/_stories/research/_verify_post); downgraded because the race is MULTI-PROCESS only and v1 is single-process by design (``/sdlc-auto`` is one long-running loop) so it is unreachable in v1, the same v1-unreachable basis as EPIC-2A-D7B (ADR-034 BLOCKING→LOW); FORWARD RULE — net-new write surfaces (Epic 4 ``engine/auto_loop.py`` et al.) MUST use ``append_with_seq_alloc`` from day one (2B.1 precedent) and legacy callsites migrate per-story as the owning module is touched. Opened 2026-05-21 by prep-sprint C2 (ADR-032 §6).
 
+  - id: EPIC-4-DEBT-AUTO-REAL-DISPATCH
+    severity: HIGH
+    status: open
+    epic_of_origin: epic-4
+    title: Real-runtime /sdlc-auto dispatch not wired (Story 4.1, D3) — REGISTERED 2026-06-10. The auto-loop orchestrator is tested exclusively against SDLC_USE_MOCK_RUNTIME=1; cli/auto.py ships a pre-emptive guard (Story 3.8 pattern) blocking real-runtime dispatch before any journal write. Paired with EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH and EPIC-2A-DEBT-TASK-REAL-TEST-EXECUTION. LOAD-BEARING FOR EPIC 4 Layer 2 — real autonomous execution deferred until mock-only contract is proven.
+
   # ---------------------------------------------------------------------------
   # Epic 3 debt (adopt) — registered post-retro (Epic 4 prep, epic-4-dag D3)
   # ---------------------------------------------------------------------------

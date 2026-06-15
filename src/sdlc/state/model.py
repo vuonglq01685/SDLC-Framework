@@ -30,3 +30,6 @@ class State(BaseModel):
     stories: dict[str, Any] = Field(default_factory=dict)
     # Task records keyed by canonical task id (e.g. "EPIC-foo-S01-bar-T01-baz")
     tasks: dict[str, Any] = Field(default_factory=dict)
+    # Story 4.1: auto-loop internal state (journal-replay derived, not wire-format)
+    auto_loop_status: str = "idle"
+    stop_reason: str | None = None

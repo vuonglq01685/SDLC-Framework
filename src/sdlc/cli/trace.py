@@ -203,17 +203,80 @@ def _format_event_line_rich(e: dict[str, Any]) -> str:
     return f"  [dim]{ts}[/dim]   [bold]agent_run[/bold]             {fields}"
 
 
-def run_trace(*, ctx: typer.Context, task_id: str) -> None:
-    """Reconstruct chronological history of all events affecting task_id."""
-    root = get_repo_root_or_cwd()
-    if not (root / _STATE_PATH_REL).exists():
-        emit_error(
-            "ERR_NOT_INITIALIZED",
-            f"project not initialized at {root}; run `sdlc init` first",
-            ctx=ctx,
-            details={"project_root": str(root)},
-        )
+def collect_entries_by_correlation_id(
+    journal_path: Path,
+    correlation_id: str,
+) -> list[JournalEntry]:
+    """Reader-side filter for auto-loop iteration reconstruction (Story 4.1, AC4)."""
+    from sdlc.journal import iter_entries
 
+    return [
+        entry
+        for entry in iter_entries(journal_path)
+        if entry.payload.get("correlation_id") == correlation_id
+    ]
+
+
+def _correlation_entry_summary(entry: JournalEntry) -> dict[str, Any]:
+    """Concise serializable view of a journal entry for correlation-mode JSON output."""
+    return {
+        "monotonic_seq": entry.monotonic_seq,
+        "ts": entry.ts,
+        "actor": entry.actor,
+        "kind": entry.kind,
+        "target_id": entry.target_id,
+        "payload": dict(entry.payload),
+    }
+
+
+def _format_correlation_entry_rich(entry: JournalEntry) -> str:
+    """Return a Rich markup line for one correlation-mode entry."""
+    action = entry.payload.get("action")
+    suffix = f"   action={action}" if isinstance(action, str) else ""
+    return (
+        f"  [dim]{entry.ts}[/dim]   [bold]{entry.kind:<20}[/bold]"
+        f" target={entry.target_id}   actor={entry.actor}{suffix}"
+    )
+
+
+def _run_trace_by_correlation(*, ctx: typer.Context, root: Path, correlation_id: str) -> None:
+    """AC4: reconstruct one auto-loop iteration by filtering the journal on correlation_id."""
+    journal_path = root / _JOURNAL_PATH_REL
+    try:
+        entries = collect_entries_by_correlation_id(journal_path, correlation_id)
+    except JournalError as exc:
+        emit_error(
+            "ERR_JOURNAL_READ_FAILED",
+            f"journal read failed: {exc.message}",
+            ctx=ctx,
+            details=dict(exc.details),
+        )
+    entries = sorted(entries, key=lambda e: e.monotonic_seq)
+
+    if ctx.obj.get("json", False):
+        emit_json(
+            "trace",
+            {
+                "correlation_id": correlation_id,
+                "project_root": str(root),
+                "events": [_correlation_entry_summary(e) for e in entries],
+                "event_count": len(entries),
+            },
+            ctx=ctx,
+        )
+        return
+
+    console = make_console(ctx)
+    console.print(f"sdlc trace --correlation-id {correlation_id} — {len(entries)} events")
+    if not entries:
+        console.print("(no events recorded for this correlation_id)")
+        return
+    for entry in entries:
+        console.print(_format_correlation_entry_rich(entry))
+
+
+def _run_trace_by_task(*, ctx: typer.Context, root: Path, task_id: str) -> None:
+    """Reconstruct chronological history of all events affecting task_id (FR33)."""
     try:
         parse_task_id(task_id)
     except IdsError as exc:
@@ -251,3 +314,39 @@ def run_trace(*, ctx: typer.Context, task_id: str) -> None:
         return
     for e in events:
         console.print(_format_event_line_rich(e))
+
+
+def run_trace(
+    *,
+    ctx: typer.Context,
+    task_id: str | None = None,
+    correlation_id: str | None = None,
+) -> None:
+    """Reconstruct a task's history, or one auto-loop iteration by correlation_id (FR33, AC4)."""
+    # Exactly one selector is required (code-review D4). Checked before the init guard so a
+    # bare `sdlc trace` reports the usage error rather than an init error.
+    if (task_id is None) == (correlation_id is None):
+        emit_error(
+            "ERR_USER_INPUT",
+            "sdlc trace requires exactly one argument: a task-id or --correlation-id",
+            ctx=ctx,
+            details={"task_id": task_id, "correlation_id": correlation_id},
+        )
+
+    root = get_repo_root_or_cwd()
+    if not (root / _STATE_PATH_REL).exists():
+        emit_error(
+            "ERR_NOT_INITIALIZED",
+            f"project not initialized at {root}; run `sdlc init` first",
+            ctx=ctx,
+            details={"project_root": str(root)},
+        )
+
+    if correlation_id is not None:
+        _run_trace_by_correlation(ctx=ctx, root=root, correlation_id=correlation_id)
+        return
+
+    if task_id is None:  # pragma: no cover - exactly-one guard above guarantees this
+        emit_error("ERR_USER_INPUT", "sdlc trace requires a task-id", ctx=ctx)
+
+    _run_trace_by_task(ctx=ctx, root=root, task_id=task_id)

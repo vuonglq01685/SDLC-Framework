@@ -45,6 +45,8 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
         "bypass_signoff",
         "auto_mad_resolve",
         "hook_bypass",
+        "auto_loop_iteration",
+        "stop_trigger_raised",
     }
 )
 
@@ -63,6 +65,31 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
 _SCHEMA_VERSION: Final[int] = 1
 
 
+def _fold_auto_loop_status(
+    entry: JournalEntry,
+    *,
+    auto_loop_status: str,
+    stop_reason: str | None,
+) -> tuple[str, str | None]:
+    if entry.kind == "auto_loop_iteration":
+        action = entry.payload.get("action")
+        if action == "stopped":
+            reason_val = entry.payload.get("reason")
+            return "idle", reason_val if isinstance(reason_val, str) else None
+        if action in {"dispatch", "continued"}:
+            return "running", None
+    if entry.kind == "stop_trigger_raised":
+        # The real emitter (dispatcher/_panel_helpers.py) writes payload key "trigger";
+        # "trigger_kind" is tolerated as a fallback for forward-compat (code-review P4).
+        trigger_val = entry.payload.get("trigger") or entry.payload.get("trigger_kind")
+        reason_val = entry.payload.get("reason")
+        if isinstance(trigger_val, str):
+            return "halted", trigger_val
+        if isinstance(reason_val, str):
+            return "halted", reason_val
+    return auto_loop_status, stop_reason
+
+
 def _project_entries(entries: Iterable[JournalEntry]) -> State:
     """Fold an iterable of JournalEntry into a State. Pure function — no I/O.
 
@@ -72,6 +99,8 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
     """
     next_seq: int = 0
     epics: dict[str, Any] = {}
+    auto_loop_status: str = "idle"
+    stop_reason: str | None = None
     for entry in entries:
         if entry.schema_version != _SCHEMA_VERSION:
             # Second line of defence — see _SCHEMA_VERSION docstring above for the dual-defence
@@ -104,7 +133,18 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
             # independent of journal-writer insertion order (belt-and-braces vs golden drift).
             filtered = {k: v for k, v in entry.payload.items() if k not in _AUDIT_ONLY_KEYS}
             epics[entry.target_id] = dict(sorted(filtered.items(), key=lambda kv: kv[0]))
-    return State(next_monotonic_seq=next_seq, epics=epics)
+        elif entry.kind in {"auto_loop_iteration", "stop_trigger_raised"}:
+            auto_loop_status, stop_reason = _fold_auto_loop_status(
+                entry,
+                auto_loop_status=auto_loop_status,
+                stop_reason=stop_reason,
+            )
+    return State(
+        next_monotonic_seq=next_seq,
+        epics=epics,
+        auto_loop_status=auto_loop_status,
+        stop_reason=stop_reason,
+    )
 
 
 def project_from_journal(journal_path: Path) -> State:

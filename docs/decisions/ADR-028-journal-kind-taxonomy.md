@@ -90,6 +90,7 @@ nullable in the schema (`Optional[str]`) and the natural absent-meaning is `None
 | `task_stage_failed` | 2A.17 | nullable | sentinel | `task_id`, `stage`, `cause`, `run_id` |
 | `replan_invalidated` | 2A.19 | n/a (sentinel) | sentinel | `scope`, `downstream_count`, `phases_invalidated` |
 | `adopt_re_run` | 3.6 | n/a (sentinel) | sentinel | `new_adoptions`, `skipped_existing` |
+| `auto_loop_iteration` | 4.1 | n/a (sentinel) | sentinel | `iteration_seq`, `action`, `correlation_id`, optional `task_id`, `reason` |
 | `adopt_pass_completed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
 | `adopt_pass_failed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3), `reason` |
 | `adopt_pass_started` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
@@ -152,6 +153,7 @@ When Epic 2B+ adds a new emission:
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.5) | Added `symlink_rolled_back` — `sdlc adopt-rollback` removes adopt symlinks from `adopted-symlinks.json`; single-target payload `{target, source}`, bulk `--all` payload `{count, targets}` (event-only zero-sentinel `after_hash`). |
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.5 code-review P5) | Added `adopt_rollback_started` — leading intent anchor journaled BEFORE `--force` signoff invalidation (mirrors `replan_invalidated`'s journal-first fail-loud posture); payload `{targets, orphaned_phases, reason}` (event-only zero-sentinel `after_hash`). Records rollback intent so the audit chain survives a mid-operation failure. |
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.6) | Added `adopt_re_run` (re-run summary: `new_adoptions`, `skipped_existing`) and `symlink_replaced` (prior symlink removed before accept; payload `target`, `old_source`). |
+| 2026-06-10 | Vuonglq01685 + Claude (Story 4.1) | Added `auto_loop_iteration` — auto-loop iteration audit entries via `append_with_seq_alloc`; payload carries `iteration_seq`, `action` (`dispatch`/`stopped`/`continued`), and `correlation_id` (event-only zero-sentinel `after_hash`). |
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.3) | Added `symlink_accepted` — Pass 2 of `sdlc init --adopt` emits one event-only entry per accepted symlink (zero-sentinel `after_hash`), payload `{source, target, kind}`. The accepted-symlink manifest lives in the new `adopted-symlinks.json` wire-format contract (ADR-024 7th); the journal is the append-only audit trail Story 3.5 rollback / 3.6 idempotency replay against. |
 
 ## Revisit-by

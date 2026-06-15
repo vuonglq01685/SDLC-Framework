@@ -91,7 +91,9 @@ def test_canonical_state_hash_is_stable() -> None:
     actual_hex = "sha256:" + hashlib.sha256(canonical).hexdigest()
     # If this assertion fails after a deliberate State model change, regenerate goldens.
     # Story 1.15: State gained phase/stories/tasks fields (additive, schema_version unchanged).
-    expected_hex = "sha256:6c7f5534fbb776fa67db12c8b688f558d0f845a15ca8eebcca1c9b92490a7714"
+    # Story 4.1: State gained auto_loop_status/stop_reason (additive, defaults idle/None) — the
+    # canonical hash necessarily changed even though old state.json blobs stay valid (C3).
+    expected_hex = "sha256:e31cb79056b791c568bce1892ffbe05601ee5442d87f61936984529ef00c9805"
     assert actual_hex == expected_hex
 
 

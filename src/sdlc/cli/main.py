@@ -14,6 +14,7 @@ import typer
 import typer.rich_utils
 
 from sdlc.cli._adopt_rollback_register import register_adopt_rollback_command
+from sdlc.cli._auto_register import register_auto_commands
 from sdlc.cli._migrate_register import register_migrate_commands
 from sdlc.cli.version import get_version
 
@@ -210,17 +211,6 @@ def status_command(ctx: typer.Context) -> None:
     run_status(ctx=ctx)
 
 
-@app.command(name="trace")
-def trace_command(
-    ctx: typer.Context,
-    task_id: str = typer.Argument(..., help="Task identifier (EPIC-...-S<NN>-...-T<NN>-...)."),
-) -> None:
-    """Reconstruct chronological history of a task (FR33)."""
-    from sdlc.cli.trace import run_trace  # deferred per Architecture §488
-
-    run_trace(ctx=ctx, task_id=task_id)
-
-
 @app.command(name="replay")
 def replay_command(
     ctx: typer.Context,
@@ -396,3 +386,4 @@ def hook_check_command(ctx: typer.Context) -> None:
 
 register_adopt_rollback_command(app)
 register_migrate_commands(app)
+register_auto_commands(app)
