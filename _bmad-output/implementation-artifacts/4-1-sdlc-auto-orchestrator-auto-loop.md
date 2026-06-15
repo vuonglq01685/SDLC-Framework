@@ -1,6 +1,6 @@
 # Story 4.1: `/sdlc-auto` Orchestrator (Auto-Loop, Pure Function of Disk State)
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 1 (`docs/sprints/epic-4-dag.md` §3 — **the fan-out root**; gates all of Layer 2)
