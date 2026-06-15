@@ -106,10 +106,13 @@ def test_main_app_has_logs_subcommand() -> None:
 
 
 @pytest.mark.unit
-def test_main_app_trace_requires_task_id() -> None:
+def test_main_app_trace_requires_task_id_or_correlation_id() -> None:
+    # `trace` now accepts either a positional task-id or --correlation-id (Story 4.1 AC4);
+    # invoking it bare is still an error (exactly-one selector required).
     result = runner.invoke(app, ["trace"])
     assert result.exit_code != 0
-    assert "missing" in result.output.lower() or "argument" in result.output.lower()
+    out = result.output.lower()
+    assert "argument" in out or "correlation" in out or "task-id" in out
 
 
 @pytest.mark.unit
