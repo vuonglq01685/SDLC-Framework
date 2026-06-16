@@ -9,9 +9,12 @@ Registers shared pytest options used across all test tiers:
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
+from sdlc.engine import stop_registry
 
 # Make scripts/ importable so tests can do `import check_module_boundaries`.
 _scripts_dir = str(Path(__file__).resolve().parents[1] / "scripts")
@@ -55,3 +58,19 @@ def _sdlc_claude_compat_default_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
     ``claude_version_gate`` matrix) re-set the force env var via their own fixture.
     """
     monkeypatch.delenv("SDLC_TEST_FORCE_COMPAT_CHECK", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_stop_trigger_registry() -> Iterator[None]:
+    """Isolate the process-global STOP-trigger registry (Story 4.2 review P1).
+
+    ``stop_registry._extra_triggers`` is module-global and ``register_stop_trigger``
+    appends to it with no built-in reset, so a registration in one test would otherwise
+    leak into every later test in the process. Snapshot and restore around each test —
+    the foundational isolation seam the Layer-2 trigger stories (4.3-4.9) inherit.
+    """
+    saved = list(stop_registry._extra_triggers)
+    try:
+        yield
+    finally:
+        stop_registry._extra_triggers[:] = saved
