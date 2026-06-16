@@ -32,24 +32,14 @@ class StopTrigger(Protocol):
     def check(self, *, repo_root: Path, state: State) -> StopDecision: ...
 
 
-class _EmptyRegistry:
-    """Placeholder registry — no triggers registered in Story 4.1."""
-
-    def check_all(self, *, repo_root: Path, state: State) -> StopDecision:
-        _ = repo_root, state
-        return StopDecision(fired=False)
-
-
-_REGISTRY = _EmptyRegistry()
+from sdlc.engine import stop_registry as _stop_registry  # noqa: E402
 
 
 def register_stop_trigger(trigger: StopTrigger) -> None:
     """Register a STOP trigger for Layer-2 stories (interface frozen at 4.1)."""
-    raise NotImplementedError(
-        "register_stop_trigger is reserved for Layer-2; Story 4.1 uses an empty registry"
-    )
+    _stop_registry.register(trigger)
 
 
 def check_stop(*, repo_root: Path, state: State) -> StopDecision:
     """Consult all registered STOP triggers; return the first fired decision or not-fired."""
-    return _REGISTRY.check_all(repo_root=repo_root, state=state)
+    return _stop_registry.check_all(repo_root=repo_root, state=state)

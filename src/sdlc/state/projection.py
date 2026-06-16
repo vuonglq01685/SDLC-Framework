@@ -47,6 +47,7 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
         "hook_bypass",
         "auto_loop_iteration",
         "stop_trigger_raised",
+        "stop_triggered",
     }
 )
 
@@ -65,6 +66,21 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
 _SCHEMA_VERSION: Final[int] = 1
 
 
+def _halt_reason_from_stop_payload(kind: str, payload: dict[str, Any]) -> str | None:
+    if kind == "stop_triggered":
+        trigger_val = payload.get("trigger")
+        return trigger_val if isinstance(trigger_val, str) else None
+    if kind == "stop_trigger_raised":
+        # The real emitter (dispatcher/_panel_helpers.py) writes payload key "trigger";
+        # "trigger_kind" is tolerated as a fallback for forward-compat (code-review P4).
+        trigger_val = payload.get("trigger") or payload.get("trigger_kind")
+        if isinstance(trigger_val, str):
+            return trigger_val
+        reason_val = payload.get("reason")
+        return reason_val if isinstance(reason_val, str) else None
+    return None
+
+
 def _fold_auto_loop_status(
     entry: JournalEntry,
     *,
@@ -78,15 +94,10 @@ def _fold_auto_loop_status(
             return "idle", reason_val if isinstance(reason_val, str) else None
         if action in {"dispatch", "continued"}:
             return "running", None
-    if entry.kind == "stop_trigger_raised":
-        # The real emitter (dispatcher/_panel_helpers.py) writes payload key "trigger";
-        # "trigger_kind" is tolerated as a fallback for forward-compat (code-review P4).
-        trigger_val = entry.payload.get("trigger") or entry.payload.get("trigger_kind")
-        reason_val = entry.payload.get("reason")
-        if isinstance(trigger_val, str):
-            return "halted", trigger_val
-        if isinstance(reason_val, str):
-            return "halted", reason_val
+    if entry.kind in {"stop_triggered", "stop_trigger_raised"}:
+        halt_reason = _halt_reason_from_stop_payload(entry.kind, dict(entry.payload))
+        if halt_reason is not None:
+            return "halted", halt_reason
     return auto_loop_status, stop_reason
 
 
@@ -133,7 +144,7 @@ def _project_entries(entries: Iterable[JournalEntry]) -> State:
             # independent of journal-writer insertion order (belt-and-braces vs golden drift).
             filtered = {k: v for k, v in entry.payload.items() if k not in _AUDIT_ONLY_KEYS}
             epics[entry.target_id] = dict(sorted(filtered.items(), key=lambda kv: kv[0]))
-        elif entry.kind in {"auto_loop_iteration", "stop_trigger_raised"}:
+        elif entry.kind in {"auto_loop_iteration", "stop_trigger_raised", "stop_triggered"}:
             auto_loop_status, stop_reason = _fold_auto_loop_status(
                 entry,
                 auto_loop_status=auto_loop_status,

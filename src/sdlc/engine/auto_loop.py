@@ -12,7 +12,7 @@ from typing import Final
 from sdlc.dispatcher import DispatchResult
 from sdlc.engine.next_selector import resolve_next_action
 from sdlc.engine.scanner import scan
-from sdlc.engine.stop_triggers import check_stop
+from sdlc.engine.stop_triggers import StopDecision, check_stop
 from sdlc.ids.clock import now_rfc3339_utc_ms
 from sdlc.journal import JournalEntry, append_with_seq_alloc, iter_entries
 from sdlc.runtime import AIRuntime
@@ -100,6 +100,82 @@ def _last_iteration_seq(journal_path: Path) -> int:
             if isinstance(seq, int) and seq > last:
                 last = seq
     return last
+
+
+def _make_stop_triggered_entry(
+    seq: int,
+    *,
+    trigger: str,
+    target: str,
+    correlation_id: str,
+    reason: str | None = None,
+) -> JournalEntry:
+    payload: dict[str, object] = {
+        "trigger": trigger,
+        "target": target,
+        "correlation_id": correlation_id,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    return JournalEntry(
+        schema_version=1,
+        monotonic_seq=seq,
+        ts=now_rfc3339_utc_ms(),
+        actor=_ACTOR,
+        kind="stop_triggered",
+        target_id=trigger,
+        before_hash=None,
+        after_hash=_EVENT_SENTINEL,
+        payload=payload,
+    )
+
+
+async def _append_stop_triggered(
+    journal_path: Path,
+    *,
+    trigger: str,
+    target: str,
+    correlation_id: str,
+    reason: str | None = None,
+) -> int:
+    return await append_with_seq_alloc(
+        journal_path,
+        lambda seq: _make_stop_triggered_entry(
+            seq,
+            trigger=trigger,
+            target=target,
+            correlation_id=correlation_id,
+            reason=reason,
+        ),
+    )
+
+
+async def _finish_halted_on_stop_trigger(
+    *,
+    journal_path: Path,
+    state_path: Path | None,
+    iteration_seq: int,
+    correlation_id: str,
+    stop: StopDecision,
+    last_action: str = "dispatch",
+) -> AutoLoopResult:
+    trigger = stop.trigger or "unknown"
+    target = stop.target or ""
+    await _append_stop_triggered(
+        journal_path,
+        trigger=trigger,
+        target=target,
+        correlation_id=correlation_id,
+        reason=stop.reason,
+    )
+    if state_path is not None:
+        await _rebuild_state(journal_path, state_path)
+    return AutoLoopResult(
+        iterations=iteration_seq,
+        last_action=last_action,
+        halted=True,
+        stop_reason=trigger,
+    )
 
 
 async def _finish_stopped(
@@ -209,16 +285,13 @@ async def run_auto_loop(
 
         stop = check_stop(repo_root=repo_root, state=state)
         if stop.fired:
-            reason = stop.reason or stop.trigger or "stop trigger fired"
-            return await _finish_stopped(
+            return await _finish_halted_on_stop_trigger(
                 journal_path=journal_path,
                 state_path=state_path,
                 iteration_seq=iteration_seq,
                 correlation_id=correlation_id,
-                reason=reason,
-                halted=True,
+                stop=stop,
                 last_action="dispatch",
-                task_id=task_id,
             )
 
     # Bounded exit (max_iterations reached): write a terminal "stopped" marker (P3) so the
