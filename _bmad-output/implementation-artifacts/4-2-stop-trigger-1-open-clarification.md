@@ -1,6 +1,6 @@
 # Story 4.2: STOP Trigger 1 — Open Clarification
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 2 (`docs/sprints/epic-4-dag.md` §3 — first of the 8-story STOP-trigger fan-out; **the FOUNDATIONAL STOP**)
