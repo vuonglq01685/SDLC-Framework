@@ -1,6 +1,6 @@
 # Story 4.4: STOP Trigger 3 — PR-Ready Story
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 2 (`docs/sprints/epic-4-dag.md` §3 — one of the 8-story STOP-trigger fan-out; a *sibling* trigger that plugs into the frozen seam 4.2 landed)
@@ -89,7 +89,7 @@ Quality gate green per §1 (ruff format/check, `mypy --strict src/`, **FULL** py
 - [x] **(AC3, D3) Resolution + multiplicity** — implement resume-recognition per **D3** (story advanced past pr-ready ⇒ no longer fires) and deterministic multi-story handling per **D1** (first pr-ready story by lexical id; remaining pr-ready stories re-fire on subsequent runs after the first resolves — deterministic for NFR-REL-5). Cover both in the resume cell + an N>1 unit test.
 - [x] **(AC5, §1) Full quality gate to green** — ruff, `mypy --strict src/`, pytest (**full** suite), coverage ≥ 87, pre-commit, `mkdocs build --strict`, freeze **7/7**, module-boundary + LOC ≤ 400. Run `scripts/check_module_boundaries.py src/sdlc/engine/stop_pr_ready.py` explicitly (proves no `cli` import, C7).
 - [x] **(§3) Worktree** — branch `epic-4/4-4-stop-pr-ready` off up-to-date `main`; **rebase before merge** (the `_ORDERED_TRIGGERS` one-line append is the only shared-file surface — C2). No registry-seam freeze needed (4.2 already froze it).
-- [ ] **(§4) Chunked review** — review-A/B/C via the `code-review` workflow once status is `review` (use a different LLM context). Route the **pr-ready derivation predicate (D1)** + the **2A.16/2A.17 task-stage dependency** + the **`target`/`reason` mapping (D2)** + the **C5 re-scan** through review-B. **Run the full suite during review** (CONTRIBUTING §4.4 / the 4.1–4.2 lesson — layer reviews only diff the change).
+- [x] **(§4) Chunked review** — review-A/B/C via the `code-review` workflow once status is `review` (use a different LLM context). Route the **pr-ready derivation predicate (D1)** + the **2A.16/2A.17 task-stage dependency** + the **`target`/`reason` mapping (D2)** + the **C5 re-scan** through review-B. **Run the full suite during review** (CONTRIBUTING §4.4 / the 4.1–4.2 lesson — layer reviews only diff the change).
 
 ---
 
@@ -223,12 +223,13 @@ _Code review (`bmad-code-review`, 3 adversarial layers: Blind Hunter / Edge Case
 
 **Defer:**
 
-- [x] [Review][Defer] AC5 TDD-first commit ordering unverifiable while the work is uncommitted [working-tree only] — deferred to the commit ceremony: verify `test(4.4)` RED → `feat(4.4)` GREEN in `git log --reverse`; the merged-before-done R1/R2 commit-msg gates enforce at commit time. Static gates checkable now all pass (61 LOC ≤ 400, zero `cli` imports, no wire-format/contract edit, frozen symbols untouched).
+- [x] [Review][Defer] AC5 TDD-first commit ordering unverifiable while the work is uncommitted [working-tree only] — **RESOLVED 2026-06-20**: `test(4.4)` 97f6282 RED → `feat(4.4)` 336c5ee GREEN verified in `git log --reverse` on main; merged-before-done R1/R2 satisfied; closes CR4.4-W1.
 
 ---
 
 ## Change Log
 
+- 2026-06-20: **close-out — review → done** — TDD-first commits `test(4.4)` 97f6282 → `feat(4.4)` 336c5ee on main; `docs(4.4)` [fresh-context-review] records bmad-code-review outcome; merged-before-done R1/R2 satisfied (Epic-3 retro A1); CR4.4-W1 closed. Acceptance Auditor 16 MET / 2 PARTIAL / 0 NOT MET / 0 VIOLATED; 1 decision resolved (keep lexical D1a tiebreak), 3 patches applied, 12 dismissed. Gate green: ruff, mypy --strict, full pytest, freeze 7/7, module-boundary. epic-4 stays in-progress; 4.5–4.9 ready-for-dev.
 - 2026-06-20: **code-review (`bmad-code-review`, 3 adversarial layers) — STAYS `review`** (gate green locally; flips to `done` only after TDD-first commit + merge per the merged-before-done gate, Epic-3 retro A1). Acceptance Auditor 16 MET / 2 PARTIAL / 0 NOT MET / 0 VIOLATED. Triage 1 decision-needed (→ option a, keep lexical, no code change) / 3 patch APPLIED / 1 defer (CR4.4-W1) / 12 dismissed. Patches: P1 `_read_task_stage` widened `except` to catch `UnicodeDecodeError` (was uncaught → crashed the STOP check on a corrupt-encoding task file; dropped the unreachable `TypeError`) + corrupt-file regression test; P2 tightened the task glob `T*.json` → `T*-*.json` for parity with `next_selector` (spec C1) + non-task-file regression test; P3 removed the dead `_journal_kinds` test helper. Re-verified: ruff format/check clean, mypy --strict clean, 85 passed across `tests/unit/engine/` + `tests/integration/stop_triggers/` (was 12 stop_pr_ready tests → 14 with the +2 new). NOT committed — working-tree only. NEXT: commit TDD-first (`test(4.4)` RED → `feat(4.4)` GREEN → `docs(4.4)` [fresh-context-review]) + merge to main, then flip `done` (closes CR4.4-W1).
 - 2026-06-20: dev-story implementation complete — STOP trigger 3 (`pr_ready_story`) purely additive on 4.2 seam; status → review.
 - 2026-06-20: T0 decisions resolved (dev-story) — **D1a**: pr-ready = story has ≥1 task and every task `stage=="done"`; group by `03-Implementation/tasks/<story-id>/` subdir; halt on first pr-ready story by lexical `<story-id>`; re-scan disk inside `check()` (C5). **2A.16/2A.17 dependency flagged**: derivation assumes `stage="done"` is canonical task completion from the task pipeline. **D2a**: `target=<story-id>`, `reason="/sdlc-publish-pr <story-id>"`. **D3a**: resume = story no longer pr-ready (e.g. tasks tree removed/archived after publish); presence/absence of pr-ready condition is canonical lifecycle.
