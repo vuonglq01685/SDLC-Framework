@@ -5,12 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from sdlc.engine.stop_clarification import OpenClarificationTrigger
+from sdlc.engine.stop_signoff import SignoffRequiredTrigger
 from sdlc.engine.stop_triggers import StopDecision, StopTrigger
 from sdlc.state.model import State
 
 # Priority order: first-listed trigger wins when multiple could fire (C7).
 # Stories 4.3-4.9 append new triggers to this tuple after review.
-_ORDERED_TRIGGERS: tuple[StopTrigger, ...] = (OpenClarificationTrigger(),)
+_ORDERED_TRIGGERS: tuple[StopTrigger, ...] = (
+    OpenClarificationTrigger(),
+    SignoffRequiredTrigger(),
+)
 
 _extra_triggers: list[StopTrigger] = []
 
