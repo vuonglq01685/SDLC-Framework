@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sdlc.engine.stop_clarification import OpenClarificationTrigger
+from sdlc.engine.stop_pr_ready import PrReadyStoryTrigger
 from sdlc.engine.stop_signoff import SignoffRequiredTrigger
 from sdlc.engine.stop_triggers import StopDecision, StopTrigger
 from sdlc.state.model import State
@@ -14,6 +15,7 @@ from sdlc.state.model import State
 _ORDERED_TRIGGERS: tuple[StopTrigger, ...] = (
     OpenClarificationTrigger(),
     SignoffRequiredTrigger(),
+    PrReadyStoryTrigger(),
 )
 
 _extra_triggers: list[StopTrigger] = []
