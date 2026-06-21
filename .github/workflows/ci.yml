@@ -65,6 +65,11 @@ jobs:
 
       - name: Upload coverage XML (for downstream tooling)
         if: always()  # upload even if pytest failed, so reviewers can inspect
+        # Non-fatal: this is a downstream-tooling convenience upload, NOT a quality
+        # gate. A transient GitHub ArtifactService/CreateArtifact timeout must not red
+        # the cell after the real gate (pytest + coverage) already passed (Story 4.9
+        # close-out: run 27896004282 py3.12-macos flaked here while tests were green).
+        continue-on-error: true
         uses: actions/upload-artifact@v4  # pin: ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
