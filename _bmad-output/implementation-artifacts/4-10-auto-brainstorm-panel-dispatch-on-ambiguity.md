@@ -1,0 +1,229 @@
+# Story 4.10: Auto-Brainstorm Panel Dispatch on Ambiguity
+
+**Status:** ready-for-dev
+
+**Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
+**Layer:** 3 (`docs/sprints/epic-4-dag.md` §3 — the **sole** Layer-3 story; the fan-out→converge graph narrows here from Layer-2's 8-wide STOP/watchdog batch to a single convergence-feeder). Max parallel worktrees for this layer = **1**.
+**Worktree:** `epic-4/4-10-auto-brainstorm-panel` (owner: Alice, DAG §5:198)
+**Critical Path:** **ON** the critical path. The spine is `4.1 → 4.2 → 4.10 → 4.11 → 4.12` (DAG §4:171). 4.10 is the second-to-feeder of the `4.11` convergence point: it *produces* the `options.md` that mad-mode (`4.11`) auto-resolves and the `open_clarification.md` that STOP-trigger-1 (`4.2`) detects. Protect `4.11`'s schedule by keeping `4.1`'s loop + `check_stop` interface byte-stable (DAG §4:176-178).
+**Depends on (all on `main`):**
+- **4.2** (`done`, merged `e539d5f`) — the open-clarification surface this story *produces into*. `engine/stop_clarification.py` defines the on-disk contract `.claude/state/clarifications/<id>/open_clarification.md` (`:10-11`) and the `OpenClarificationTrigger` that detects it (`:19-41`). 4.10 is the **producer**; 4.2 is the **consumer** (4.2 story explicitly names 4.10 as its producer). 4.10 does **not** edit 4.2's trigger.
+- **4.1** (`done`, merged `2cc8ce4`) — the frozen `engine/auto_loop.py` `run_auto_loop` iteration contract (`:212-332`). 4.10 inserts an additive ambiguity→brainstorm branch into the loop body **between `dispatch_fn` (`:281-289`) and `check_stop` (`:310`)** without churning the iteration contract (C6).
+- **Story 2A.3** — the dispatcher panel seam `dispatcher.core.dispatch_panel(...) -> PanelResult` (`core.py:275-289`): runs `primary_agent` then `parallel_agents` concurrently under a semaphore, then `synthesizer_agent` with every prior member's `output_text` as upstream. 4.10 **reuses** this verbatim (C2); the real call idiom is `cli/start.py:144-165`.
+- **Epic 2B** — the 4 panel specialists are registered in `agents/index.yaml`: `product-strategist` (`:3`), `technical-researcher` (`:6`), `devil-advocate` (`:9`), and the synthesizer **`requirement-synthesizer`** (`:12`) — **not** a bare `synthesizer` (C1). The `clarification-triager` support specialist (`:119`, phase 0, registered-but-not-dispatched) exists but is a triage agent, not a synthesizer.
+- **`config.project.ProjectConfig`** — the `auto_brainstorm: bool = True` field **already exists** (`project.py:36`); the bypass (AC4) reads it via `load_project_config` (C3).
+
+**Consumed by (downstream):**
+- **4.11** mad-mode (Layer 4, the convergence point) auto-resolves clarifications by "picking the synthesizer's first option (or 'synth-pick' sentinel if no options notes)" (epics.md:2300) — so **`options.md`'s option ordering + format is a contract 4.11 reads**. Make option 1 deterministically first and machine-locatable.
+- **4.2**'s `OpenClarificationTrigger` halts the loop the moment 4.10 writes `open_clarification.md` (AC3).
+- **5.19** dashboard renders STOP banners and may surface the clarification + options.
+
+> **Layer-3 precondition — VERIFIED.** 4.10 is **not** Story N.1, so the CONTRIBUTING §7.4 epic-entry gate does **not** re-apply (epic-4 is `in-progress`; the gate cleared at 4.1). The Layer-3 precondition (DAG §3:130) is **"4.2's open-clarification surface frozen on `main` + 2A.3 `dispatch_panel` available + the 2B panel specialists registered"** — **satisfied**: 4.2 is `done` (`e539d5f`), all of Layer 2 (4.2–4.9) is `done`; `engine/stop_clarification.py`, `dispatcher/core.py::dispatch_panel`, and `agents/index.yaml`'s 4 panel members are on `main`; `freeze_wireformat_snapshots --check` is **7/7**. 4.10 **edits `auto_loop.py`** (additive ambiguity branch inside `run_auto_loop`) but keeps the iteration contract + `check_stop` signature + `StopTrigger`/`StopDecision`/registry public symbols byte-stable (the 4.1-frozen root — DAG §4:176-178). **Inherited debt (cite, do not fix):** the ratified Epic-4 **Decision D3** (DAG §289-306) — real specialist dispatch is mock/nominal in v1 (`EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH` + `EPIC-2A-DEBT-TASK-REAL-TEST-EXECUTION`); 4.10's ambiguity-signal wiring inherits this posture (the real-specialist `ambiguity_detected` path is carried as a pre-emptive guard, not wired — see **D1**).
+
+---
+
+## Story
+
+As a **user wanting upstream ambiguity surfaced as options-with-tradeoffs rather than silently auto-picked**,
+I want **the auto-loop dispatcher, on detecting upstream ambiguity, to invoke a 4-member auto-brainstorm panel (`product-strategist` + `technical-researcher` + `devil-advocate` + `requirement-synthesizer`) via `dispatcher.dispatch_panel(...)`, have the synthesizer consolidate the panel into an options-with-tradeoffs notes file (`.claude/state/clarifications/<id>/options.md`), and open the corresponding `open_clarification.md` so the loop halts — while the framework never picks among the options**,
+so that **ambiguity becomes structured input for a human decision rather than an arbitrary auto-pick** (PRD **FR22** [epics.md:49], **FR26** synthesizer contract [epics.md:55], **FR51** `auto_brainstorm` override [epics.md:90]; the loop's resume / pure-function-of-disk contract **NFR-REL-5** is inherited from 4.1 and must be preserved).
+
+---
+
+## Acceptance Criteria
+
+> **READ FIRST — binding ground-truth corrections + scope boundaries (verified against the codebase 2026-06-21). These prevent the most likely implementation disasters. Do not skip.**
+>
+> **(C1) THE HEADLINE CORRECTION — the synthesizer is registered as `requirement-synthesizer`, NOT `synthesizer`.** FR22/epics.md:2263 names the panel member "synthesizer" generically, but the registry (`agents/index.yaml:12`) registers it as **`requirement-synthesizer`** (phase 1). There is **no** bare `synthesizer` and **no** `clarification-synthesizer` in `index.yaml`. The `WorkflowSpec` you compose for the brainstorm step MUST set `synthesizer_agent="requirement-synthesizer"` (or a new specialist name **only if** you author one per **D2**). A non-existent name fails `SpecialistRegistry` lookup at dispatch. The 4 members are: primary `product-strategist`, parallel `(technical-researcher, devil-advocate)`, synthesizer `requirement-synthesizer` — mirror the Phase-1 panel layout at `cli/start.py:128-136` / `:144-165`.
+>
+> **(C2) REUSE `dispatch_panel` — do NOT hand-roll panel orchestration.** `dispatcher.core.dispatch_panel(step, *, runtime, registry, repo_root, journal_path, agent_runs_path, prompt_builder=..., hooks=..., observer=..., max_parallel_agents=4) -> PanelResult` (`core.py:275-289`) **already** runs the primary, then the parallel members concurrently under a semaphore, then the synthesizer with every prior member's `output_text` as upstream, and journals `agent_dispatched`/`dispatch_attempt`/`artifact_written` per member. `engine/auto_brainstorm.py` composes a `WorkflowSpec` and **calls** `dispatch_panel` — it does NOT `asyncio.gather` agents itself, does NOT re-implement the synthesizer fan-in. Real call idiom: `cli/start.py::_dispatch_phase1_panel` (`:144-165`). `PanelResult` fields: `primary_result, parallel_results, synthesizer_result, write_targets, total_attempts, outcome` (`core.py:83-92`).
+>
+> **(C3) THE CONFIG FIELD ALREADY EXISTS — do NOT re-add it.** `ProjectConfig.auto_brainstorm: bool = True` is **already** on the model (`project.py:36`). Read it via `load_project_config(repo_root / DEFAULT_PROJECT_YAML).auto_brainstorm` (the loader returns defaults on missing/empty file, so the read is always safe — `project.py:45-78`). It is a plain `bool` (no `strict=True`, unlike the numeric siblings — fine, default `True`). The bypass (AC4): `if not cfg.auto_brainstorm:` → skip the panel but STILL write `open_clarification.md` (without `options.md`). Do NOT add the field to any wire-format contract or `WorkflowSpec` — the flag lives in `project.yaml`/`ProjectConfig` only.
+>
+> **(C4) NO existing writer for `open_clarification.md` / `options.md` — 4.10 writes them via the ATOMIC primitive, not raw `Path.write_text`.** The 4.2 trigger only **reads** `.claude/state/clarifications/<id>/open_clarification.md` (`stop_clarification.py:10-11, 29`); there is no `write_clarification()` helper to reuse — this is NEW code 4.10 owns. Write both files through `sdlc.concurrency.io_primitives.atomic_write` (the same primitive the dispatcher uses for write-targets), creating the `<id>/` dir first. Architecture forbids raw `open()`/`Path.write_text` for state writes in `engine/` (architecture.md:493). **CAUTION:** `io_primitives` is **POSIX-only** — it raises `ImportError` at import on win32 (`io_primitives.py:19-22`), so the full suite cannot run on the Windows dev host; the gate runs on Linux CI/WSL (C9).
+>
+> **(C5) THE STOP FIRES VIA THE EXISTING 4.2 TRIGGER — do NOT add a trigger or touch `stop_registry.py`.** AC3 ("STOP trigger 1 fires because the open_clarification.md now exists", epics.md:2281) is satisfied by the **already-registered** `OpenClarificationTrigger`. Critically, that trigger **ignores the `state` snapshot and re-reads disk** (`stop_clarification.py:20` `_ = state`; `:21-31` globs `.claude/state/clarifications/<id>/open_clarification.md`). So writing `open_clarification.md` **after** `dispatch_fn` but **before** `check_stop` (`auto_loop.py:310`) is detected on the **same iteration** — even though the loop's `state` was scanned pre-dispatch (`:241`). 4.10 does NOT register a trigger, does NOT edit `stop_registry.py` / `stop_triggers.py`, does NOT add a `stop_triggered` emit (the existing `check_stop`→`_finish_halted_on_stop_trigger` path does that for free, with `stop_reason="open_clarification"`).
+>
+> **(C6) THE LOOP SEAM — additive branch between `dispatch_fn` (`:281-289`) and `check_stop` (`:310`).** Insert the ambiguity-detection→brainstorm call in `run_auto_loop` immediately after the watchdog check (`:291-308`) and before `check_stop` (`:310`). Keep the iteration contract, the `correlation_id` propagation (`:235`, propagate it into the brainstorm dispatch + any journal entry), the `check_stop` signature, and the `StopDecision`/`StopTrigger`/registry symbols byte-stable (the 4.1-frozen root — DAG §4:176-178). The loop already has `runtime`, `registry`, `journal_path`, `agent_runs_path`, `repo_root` in scope (`:212-223`) — thread them into the brainstorm call. If the inline edit pressures `auto_loop.py`'s ≤ 400-LOC cap, keep the loop edit a thin call into `engine/auto_brainstorm.py` (the orchestration lives there, the loop just detects + delegates).
+>
+> **(C7) THE AMBIGUITY SIGNAL DOES NOT EXIST YET IN ANY CONTRACT — you must DEFINE the v1 detection seam (see D1).** epics.md:2268 names two candidate signals: "a workflow YAML field with multiple valid expansions" (no such field on `WorkflowSpec`) and "a specialist explicitly returning `ambiguity_detected: true`" (`AgentResult` has no such field; `DispatchResult` is not even captured at the `dispatch_fn` call site — `auto_loop.py:281` discards the return). **Neither exists.** Per the ratified Epic-4 **Decision D3** (real dispatch is mock/nominal in v1), do NOT speculatively mutate the `AgentResult`/`DispatchResult`/`DispatchFn` contracts to carry the signal. The recommended v1 (**D1a**) implements `auto_brainstorm` as a pure, fully-testable orchestrator + a minimal explicit detection seam, with a pre-emptive guard (register `EPIC-4-DEBT-AUTO-BRAINSTORM-REAL-SIGNAL` in `deferred-work.md`) for the real-specialist wiring — the same not-production-reachable boundary 4.1/4.6/4.7 used.
+>
+> **(C8) ZERO new wire-format contracts (Epic-4 Decision D1 ratified, stays 7/7).** `options.md` + `open_clarification.md` are **internal state** (Markdown), NOT frozen contracts (DAG §253-256, §269-271). Do NOT add a `tests/contract_snapshots/v1/*.json`, do NOT add a `StrictModel` to `src/sdlc/contracts/`, do NOT touch `WorkflowSpec`'s frozen shape. `freeze_wireformat_snapshots --check` stays **7/7**. If you add a journal kind (D3), it extends ADR-028 via its **forward rule** (a §3 row + a Revision-Log line, **no snapshot regen** — `JournalEntry.kind` is bare `str`, ADR-028 §4).
+>
+> **(C9) MODULE BOUNDARY + LOC + POSIX + no-`print`.** `engine/auto_brainstorm.py` MAY import `dispatcher` (for `dispatch_panel`, `PanelResult`, `WorkflowSpec`, `PanelObserver`), `config`, `journal`, `state`, `specialists`, `ids`, `errors`, and `runtime` **only via the `AIRuntime` ABC by DI** (`module_boundary_table.py` engine spec; architecture.md:1068/1106). It MUST NOT import `cli`/`dashboard` (forbidden) or `runtime.claude` directly (pre-commit-enforced). No `print()` in `engine/` — use `structlog` (architecture.md:489); state/journal writes via the atomic primitive only (C4). Every `src/` file ≤ 400 LOC. Run `scripts/check_module_boundaries.py src/sdlc/engine/auto_brainstorm.py` (and `auto_loop.py`) explicitly. Full pytest blocked on Windows (POSIX-only `io_primitives`) — verify the full gate on Linux CI / WSL.
+>
+> **(C10) FR26 SYNTHESIZER CONTRACT — `options.md` must be options-with-tradeoffs, NOT requirements.** The existing `requirement-synthesizer.md` prompt writes Phase-1 **requirements** to `01-Requirement/01-PRODUCT.md`; reused verbatim it produces the wrong artifact shape for `options.md`. The synthesizer-contract test (AC5) asserts `options.md` contains **≥ 2 distinct options**, **tradeoffs for each (pros / cons / risks)**, **every panel member's contributing concerns preserved**, and that the framework **does NOT pick** (FR22/FR26). Whichever **D2** path you take (reuse with a clarification-scoped `prompt_builder` + `write_globs` → `options.md`, or author a new `clarification-synthesizer` specialist), the output must satisfy this shape and write to `.claude/state/clarifications/<id>/options.md` — NOT `01-PRODUCT.md`.
+
+---
+
+**AC1 — Positive: ambiguity detected → 4-member panel dispatched in parallel → `options.md` + `open_clarification.md` produced (FR22).** *(epics.md:2266-2272)*
+**Given** the auto-loop dispatching a step where the dispatcher detects upstream ambiguity (the v1 detection seam per **D1** — e.g. an explicit `ambiguity_detected` signal surfaced through the dispatch seam),
+**When** the auto-brainstorm panel is invoked (`auto_brainstorm: true`),
+**Then** all 4 panel members run via `dispatcher.dispatch_panel(...)` — primary `product-strategist`, parallel `(technical-researcher, devil-advocate)` concurrently, then synthesizer `requirement-synthesizer` (C1/C2),
+**And** the synthesizer's consolidated output is written to `.claude/state/clarifications/<id>/options.md` via the atomic primitive (C4/C10),
+**And** the framework opens (or creates) the corresponding `.claude/state/clarifications/<id>/open_clarification.md` for that `<id>` (C4),
+**And** the brainstorm dispatch is journaled (reuse the panel's existing `agent_dispatched`/`dispatch_attempt`/`artifact_written` entries; optionally a dedicated `auto_brainstorm_dispatched` event per **D3**), carrying the iteration's `correlation_id` (C6).
+
+**AC2 — `options.md` content / FR26 synthesizer contract (the framework never picks).** *(epics.md:2274-2277)*
+**Given** the panel result,
+**When** the user reads `options.md`,
+**Then** the file contains **≥ 2 distinct options**, **tradeoffs for each (pros / cons / risks)**, and **each panel member's contributing concerns preserved** (FR26, C10),
+**And** the framework explicitly does **NOT** pick among the options (FR22) — no "selected"/"recommended-final" decision is written by 4.10 (note: 4.11 mad-mode later *reads* option 1, but 4.10 itself never picks).
+
+**AC3 — STOP trigger 1 fires after the brainstorm (loop halts pending human decision).** *(epics.md:2279-2282)*
+**Given** the auto-brainstorm has completed and written `open_clarification.md`,
+**When** the loop continues to `check_stop` on the same iteration,
+**Then** the existing `OpenClarificationTrigger` (Story 4.2) fires because `open_clarification.md` now exists (it re-reads disk, C5),
+**And** the loop halts: `_finish_halted_on_stop_trigger` journals `kind=stop_triggered {trigger:"open_clarification", target, correlation_id}` and `project_from_journal(journal)` yields `auto_loop_status="halted", stop_reason="open_clarification"` (via 4.2's existing projection fold — no new fold code, C5).
+
+**AC4 — `auto_brainstorm: false` bypass (still halts, without options notes).** *(epics.md:2284-2287)*
+**Given** `project.yaml` declares `auto_brainstorm: false`,
+**When** the dispatcher detects ambiguity,
+**Then** the brainstorm panel is **skipped** (no `dispatch_panel` call, C3),
+**And** the framework **still creates** `open_clarification.md` (so the loop still halts via AC3) **without** an `options.md` (the bypass path writes only the clarification file through the same atomic helper).
+
+**AC5 — Test matrix: the auto-brainstorm panel synthesizer contract test + behavioural cells.** *(epics.md:2353)*
+**Given** the Epic-4 test gates,
+**When** the 4.10 suite runs (under `SDLC_USE_MOCK_RUNTIME=1`),
+**Then** these cells pass:
+  1. **positive** — ambiguity + `auto_brainstorm:true` → `dispatch_panel` invoked with the 4-member layout → `options.md` + `open_clarification.md` both written (AC1);
+  2. **synthesizer contract (FR26)** — `options.md` parsed: ≥ 2 options, pros/cons/risks per option, every member's concerns preserved, no auto-pick (AC2/C10) — mirror the panel-shape assertions of `tests/integration/test_sdlc_start_panel.py` (member dispatch count + ordering) plus content assertions on `options.md`;
+  3. **STOP-fires-after** — after the brainstorm, the loop's `check_stop` halts with `stop_reason="open_clarification"` and the `stop_triggered` journal entry (AC3) — mirror `tests/integration/stop_triggers/test_stop_clarification.py`;
+  4. **bypass** — `auto_brainstorm:false` + ambiguity → no `dispatch_panel` call, `open_clarification.md` present, `options.md` ABSENT, loop still halts (AC4);
+  5. **resume / idempotency** — re-running the loop after halt does not duplicate the clarification dir or re-dispatch a second panel for the same ambiguity `<id>` (pure-fn-of-disk; the `<id>` must be stable for the same ambiguity — **D4**).
+New tests live at `tests/integration/test_auto_brainstorm.py` (top-level, panel/synthesizer-contract shape) and `tests/unit/engine/test_auto_brainstorm.py` (the orchestrator unit cells). The integration test needs a `SpecialistRegistry` containing the 4 panel members (mirror `test_sdlc_start_panel.py`'s registry build) — the empty-registry idiom of the stop-trigger tests will NOT suffice for the panel path.
+
+**AC6 — Quality gate green + TDD-first (CONTRIBUTING §1/§2/§5).**
+Quality gate green per §1 (ruff format/check, `mypy --strict src/`, **full** pytest — not just the new files (the 4.1/4.2 lesson: a partial run hides pre-existing failures), coverage ≥ **87** operational floor, pre-commit, `mkdocs build --strict`, `freeze_wireformat_snapshots --check` **7/7 unchanged**, module-boundary + LOC ≤ 400). TDD-first (§2): the failing synthesizer-contract integration cell + the orchestrator unit cells are the failing-first commit, **RED before** `engine/auto_brainstorm.py` and the `auto_loop.py` seam land, visible in `git log --reverse` (`test(4.10)` → `feat(4.10)` → `docs(4.10)`). Material decisions surfaced as **D1/D2/D3/D4** (§5). Merged-before-done (Epic-3 retro A1): a `feat(4.10)` commit reachable from `HEAD` + `test(4.10)` precedes the first GREEN before the story flips to `done`; verify R1/R2 **by hand on Windows** (the commit-msg gate cp1252 false-passes on win32 — see memory).
+
+---
+
+## Tasks / Subtasks
+
+> **TDD-first ordering (§2):** the failing-first commit is the behaviour suite — the synthesizer-contract integration cell (panel dispatched with the 4-member layout → `options.md` with ≥2 options/tradeoffs/preserved-concerns + `open_clarification.md`) plus the orchestrator unit cells (bypass writes only `open_clarification.md`; STOP fires after; stable `<id>` idempotency). All RED before `engine/auto_brainstorm.py`, the `auto_loop.py` seam, and any specialist/journal-kind change land.
+
+- [ ] **(§5) T0 — Resolve D1/D2/D3/D4** (v1 ambiguity-detection seam · reuse-vs-new synthesizer specialist · new journal kind · clarification-`<id>` minting) and record the choices in the Change Log **before writing code**. Recommended answers are pre-filled in §Decisions; confirm or override. Register the `EPIC-4-DEBT-AUTO-BRAINSTORM-REAL-SIGNAL` guard in `docs/sprints/deferred-work.md` if D1a (C7).
+- [ ] **(AC1–AC5, §2) Write failing tests FIRST.**
+  - `tests/integration/test_auto_brainstorm.py` (NEW top-level file; reuse `tests/integration/conftest.py` + the panel helpers `tests/integration/dispatch_panel_helpers.py` / mirror `test_sdlc_start_panel.py`) — build a `tmp_path` project + a `SpecialistRegistry` with the 4 panel members + `MockAIRuntime(fixtures_dir=...)`; force the ambiguity signal (per D1); assert: `dispatch_panel` invoked once with `primary=product-strategist`, `parallel=(technical-researcher, devil-advocate)`, `synthesizer=requirement-synthesizer`; `options.md` exists with ≥2 options + pros/cons/risks per option + each member's concerns preserved; `open_clarification.md` exists; then the loop's `check_stop` halts with `stop_reason="open_clarification"` and a `stop_triggered` journal entry (`iter_entries`). RED.
+  - `tests/unit/engine/test_auto_brainstorm.py` (NEW; mirror `tests/unit/engine/test_*.py`) — orchestrator cells: (a) `auto_brainstorm:false` → no panel dispatch, `open_clarification.md` written, `options.md` absent; (b) same ambiguity `<id>` re-invoked → no duplicate dir / no second panel (idempotency, D4); (c) `options.md` content assembled from a stubbed `PanelResult` satisfies the FR26 shape. RED.
+  - A `run_auto_loop` cell (extend `tests/unit/engine/test_auto_loop.py`) — with the ambiguity seam forced and `auto_brainstorm` on, the loop calls the brainstorm between dispatch and `check_stop`, then halts `open_clarification`; with no ambiguity, the loop never brainstorms (back-compat: every existing loop test stays green). RED.
+- [ ] **(C1, C2, C4, C10, D2) Implement `src/sdlc/engine/auto_brainstorm.py`** (NEW, ≤ 400 LOC) — a pure orchestrator, e.g. `async def run_auto_brainstorm(repo_root, *, clarification_id, ambiguity_context, runtime, registry, journal_path, agent_runs_path, correlation_id, config) -> ...`. Compose a `WorkflowSpec` (primary `product-strategist`, parallel `(technical-researcher, devil-advocate)`, synthesizer `requirement-synthesizer`, `write_globs` → `.claude/state/clarifications/<id>/options.md`), call `dispatch_panel(...)` (mirror `cli/start.py:154`), then write `options.md` (from `synthesizer_result`) + `open_clarification.md` via `atomic_write`. The `auto_brainstorm:false` branch (C3) writes only `open_clarification.md`. Per **D2**, either supply a clarification-scoped `prompt_builder` overriding the synthesizer's task/output, or author a new `clarification-synthesizer` specialist. No `print` (structlog). Add public symbols to `engine/__init__.py`.
+- [ ] **(C5, C6) Wire the loop seam in `run_auto_loop`** — additive branch in `auto_loop.py` between the watchdog check (`:291-308`) and `check_stop` (`:310`): detect the ambiguity signal (D1), and if present + `cfg.auto_brainstorm` resolution applies, `await run_auto_brainstorm(...)` (thread `repo_root`, `runtime`, `registry`, `journal_path`, `agent_runs_path`, `correlation_id`, loaded config). The subsequent `check_stop` (`:310`) halts on the new `open_clarification.md` (C5). Keep the iteration contract + `check_stop` signature + registry symbols byte-stable. Thread `auto_brainstorm`/config into `run_auto_loop` (and `cli/auto.py`) the same way 4.9 threaded `watchdog_timeout_minutes` (mirror `cli/auto.py` config-load idiom). ≤ 400 LOC.
+- [ ] **(C8, D3) Journal kind (if D3a)** — if adding `auto_brainstorm_dispatched`, follow the ADR-028 forward rule: add a §3 row + a Revision-Log line in `docs/decisions/ADR-028-journal-kind-taxonomy.md`; event-only kind → all-zero `after_hash` sentinel; add the string to projection's `_KNOWN_KINDS` documentation set if the sibling kinds are listed there. **No snapshot regen; freeze stays 7/7** (verify).
+- [ ] **(AC6, §1) Full quality gate to green** — ruff, `mypy --strict src/`, pytest (FULL suite, not just new files), coverage ≥ 87, pre-commit, `mkdocs build --strict`, freeze **7/7**, module-boundary (`check_module_boundaries.py` on `auto_brainstorm.py` + `auto_loop.py`) + LOC ≤ 400. Confirm `freeze` stays 7/7 (no contract touched — C8) and `specialist_frontmatter` snapshot is unchanged even if you author a new specialist file (a new file is fine; the frozen contract is the frontmatter SHAPE).
+- [ ] **(§3) Worktree** — branch `epic-4/4-10-auto-brainstorm-panel` off up-to-date `main`; rebase before merge. Layer-3 is single-width (no sibling contention), but it edits `auto_loop.py` — re-confirm no in-flight Layer-2 branch is still touching the loop root before merge.
+- [ ] **(§4) Chunked review** — review-A → review-B → review-C via the `code-review` workflow once status is `review` (different LLM context, FULL suite per the 4.1/4.2 lesson). Route the v1 detection-seam decision (D1) + the reuse-vs-new-specialist decision (D2) through review-B. Brainstorm dispatch invokes real-runtime specialists in production → also consider `security-reviewer` for the write-path (clarification dir creation under `.claude/state/`).
+
+---
+
+## Dev Notes
+
+### Substrate map (verified 2026-06-21 — exact symbols; wrong names break the build)
+
+| Concern | Symbol / path | Notes |
+|---|---|---|
+| **NEW orchestrator (write here)** | `src/sdlc/engine/auto_brainstorm.py` | NET-NEW per DAG §5:202-204 + architecture.md:818 (`# FR22 panel + synthesizer`). Pure orchestrator: compose `WorkflowSpec` → `dispatch_panel` → write `options.md` + `open_clarification.md`. ≤ 400 LOC. Export from `engine/__init__.py`. |
+| **panel seam (reuse, don't reinvent)** | `dispatcher.core.dispatch_panel` (`core.py:275-289`) → `PanelResult` (`core.py:83-92`) | `async`; params `step, *, runtime, registry, repo_root, journal_path, agent_runs_path, prompt_builder=…, hooks=…, observer=…, max_parallel_agents=4`. Returns `primary_result, parallel_results, synthesizer_result, write_targets, total_attempts, outcome`. Synthesizer receives prior members' `output_text` as upstream (C2). |
+| **real call idiom (mirror)** | `cli.start._dispatch_phase1_panel` (`start.py:144-165`); panel layout `start.py:128-136` | Shows the exact `dispatch_panel(spec, runtime=…, registry=…, repo_root=…, journal_path=…, agent_runs_path=…, prompt_builder=phase1_prompt_builder, hooks=build_pre_write_hook_chain(...), observer=…, max_parallel_agents=4)` call. Copy the shape. |
+| **panel members (registry names — C1)** | `agents/index.yaml`: `product-strategist`(:3), `technical-researcher`(:6), `devil-advocate`(:9), `requirement-synthesizer`(:12) | The synthesizer is **`requirement-synthesizer`**, NOT `synthesizer`. No `clarification-synthesizer` exists (D2 decides whether to add one). `clarification-triager`(:119, phase 0) is a triage agent, not a synthesizer. |
+| **synthesizer prompt (Phase-1 scoped — C10)** | `agents/phase1/requirement-synthesizer.md` | Currently writes Phase-1 requirements to `01-PRODUCT.md`. For `options.md` you must override the task/output (custom `prompt_builder`) or author a new specialist (D2). |
+| **loop seam (edit here — additive)** | `engine.auto_loop.run_auto_loop` (`auto_loop.py:212-332`); insert between `dispatch_fn` (`:281-289`) and `check_stop` (`:310`), after the watchdog block (`:291-308`) | Loop has `runtime, registry, journal_path, agent_runs_path, repo_root, correlation_id` in scope. Iteration contract + `check_stop` sig stay frozen (C6). |
+| **the 4.2 trigger (consume — do NOT edit)** | `engine.stop_clarification.OpenClarificationTrigger.check` (`stop_clarification.py:19-41`); consts `_CLARIFICATIONS_DIR_REL=".claude/state/clarifications"`, `_OPEN_CLARIFICATION_NAME="open_clarification.md"` (`:10-11`) | `check` **ignores `state`** (`:20 _ = state`) and **re-reads disk** — so writing `open_clarification.md` post-dispatch, pre-`check_stop` fires the STOP same-iteration (C5). `trigger_id="open_clarification"`. |
+| **DO NOT TOUCH — trigger registry** | `engine.stop_registry._ORDERED_TRIGGERS`; `engine.stop_triggers.StopDecision`/`StopTrigger` | 4.10 registers no trigger, edits no registry (C5). The halt path reuses `check_stop`→`_finish_halted_on_stop_trigger`. |
+| **halt-emit (reuse via check_stop)** | `engine.auto_loop._finish_halted_on_stop_trigger` (`auto_loop.py:153-209` region) | Journals `kind=stop_triggered {trigger, target, reason?, correlation_id}` + rebuilds state. 4.10 does NOT call it directly — the existing `check_stop`/`if stop.fired` branch (`:310-319`) does (C5). |
+| **config field (exists — read only — C3)** | `config.project.ProjectConfig.auto_brainstorm` (`project.py:36`) = `bool = True`; loader `load_project_config` (`:45-78`) | Read `load_project_config(repo_root / DEFAULT_PROJECT_YAML).auto_brainstorm`. Missing/empty file → default `True`. Plain bool (no `strict=True`). |
+| **atomic write (use — C4)** | `sdlc.concurrency.io_primitives.atomic_write` (POSIX-only; ImportError on win32 `:19-22`) | Write `options.md` + `open_clarification.md` through this, not raw `Path.write_text`. Create `<id>/` dir first. |
+| **clarification id (mint — D4)** | `sdlc.ids` helpers | The `<id>` must be **stable for the same ambiguity** so resume/re-run is idempotent (no duplicate clarification dirs / no second panel). Prefer a content-derived id over a fresh ULID (D4). |
+| **journal kind (if D3a)** | `docs/decisions/ADR-028-journal-kind-taxonomy.md` §3/§4 forward rule; projection `_KNOWN_KINDS` (`state/projection.py`) | New kind = §3 row + Revision-Log line, all-zero `after_hash` sentinel, NO snapshot regen (`kind` is bare `str`). Existing Epic-4 kinds: `auto_loop_iteration`(4.1), `stop_triggered`(4.2), `high_risk_confirmed`(4.7). |
+| **module boundary (verify)** | `scripts/module_boundary_table.py` engine spec (depends_on incl. `dispatcher`, `config`, `journal`, `state`, `specialists`, `runtime`; forbidden `cli`, `dashboard`) | `engine→dispatcher` is allowed; `dispatcher→engine` is forbidden (no callback). `runtime` via ABC only (C9). |
+
+### The ambiguity-detection design tension (read before implementing D1)
+
+epics.md:2268 specifies two ambiguity signals, **neither of which exists** in the codebase today:
+1. "a workflow YAML field with multiple valid expansions" — `WorkflowSpec` has no such field; adding one is a frozen-contract change (ADR-024 snapshot risk — forbidden by Epic-4 D1, C8).
+2. "a specialist explicitly returning `ambiguity_detected: true`" — `AgentResult` (runtime/) has `output_text, tokens_in, tokens_out, mock, tool_calls` and **no** `ambiguity_detected`; and the loop discards `dispatch_fn`'s return (`auto_loop.py:281` does not bind the result).
+
+The ratified Epic-4 **Decision D3** (DAG §289-306) says real specialist dispatch is **mock/nominal** in v1 (real-dispatch wiring is deferred-with-guard, `EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH`). So wiring a *real* `ambiguity_detected` signal end-to-end through real specialists is **out of v1 scope** and would front-load the same dispatch-wiring refactor 4.1/4.6 deferred. The honest v1 (D1a): build `engine/auto_brainstorm.py` as a **pure, fully-testable orchestrator** that takes an explicit `(clarification_id, ambiguity_context)` and does the panel→`options.md`→`open_clarification.md` work; wire the loop's *detection* as a thin, explicit seam (a signal the test forces); and carry a **pre-emptive guard** (`EPIC-4-DEBT-AUTO-BRAINSTORM-REAL-SIGNAL`) for the real-specialist `ambiguity_detected` path — exactly the not-production-reachable boundary 4.1 (`EPIC-4-DEBT-AUTO-REAL-DISPATCH`), 4.6, and 4.7 (`CR4.7-W6`) used. This keeps 4.10 shippable, fully tested against the mock runtime, and free of speculative contract mutation. **Do not** mutate `AgentResult`/`DispatchResult`/`DispatchFn` for a signal the real path cannot yet emit.
+
+### Test idioms (reuse from 4.2 / 2A.8 — do not invent)
+
+- **Mock-runtime autouse:** `tests/conftest.py` sets `SDLC_USE_MOCK_RUNTIME=1` suite-wide. The brainstorm panel dispatches under the mock runtime.
+- **Panel-shape assertions:** mirror `tests/integration/test_sdlc_start_panel.py` — assert member dispatch count (`agent_dispatched` == 4), `dispatch_attempt` ≥ 4, primary → parallel-pair → synthesizer ordering, hash sentinels. Reuse `tests/integration/dispatch_panel_helpers.py`. **The registry must contain the 4 members** (build it like `test_sdlc_start_panel.py`, NOT the empty `SpecialistRegistry({})` of the stop-trigger tests).
+- **STOP-fires-after:** mirror `tests/integration/stop_triggers/test_stop_clarification.py` (the 4.2 4-cell file) — `.claude/state/clarifications/<id>/open_clarification.md` convention; assert `result.halted` / `result.stop_reason == "open_clarification"`; read journal via `iter_entries`; verify projection `project_from_journal(...).auto_loop_status == "halted"`.
+- **options.md content:** parse the written `options.md` and assert the FR26 shape (≥2 options, pros/cons/risks per option, member concerns preserved, no auto-pick). With the mock runtime the synthesizer body is a fixture — drive the fixture to emit the contract shape so the test asserts real content, not a tautology.
+- **Idempotency (D4):** invoke the brainstorm twice for the same `(ambiguity_context)` → assert one clarification dir, one panel dispatch (the stable `<id>` dedupes).
+
+### Project Structure Notes
+
+- **New files:** `src/sdlc/engine/auto_brainstorm.py`; `tests/integration/test_auto_brainstorm.py`; `tests/unit/engine/test_auto_brainstorm.py`; optionally `src/sdlc/agents/phase3-or-support/clarification-synthesizer.md` (only if D2b) + its `index.yaml` row.
+- **Modified:** `src/sdlc/engine/auto_loop.py` (additive ambiguity branch — C6), `src/sdlc/engine/__init__.py` (export), `src/sdlc/cli/auto.py` (thread config if needed — mirror 4.9), `tests/unit/engine/test_auto_loop.py` (loop cell), and (if D3a) `docs/decisions/ADR-028-journal-kind-taxonomy.md` + `src/sdlc/state/projection.py` (`_KNOWN_KINDS` doc set only).
+- **NOT modified:** `src/sdlc/engine/stop_clarification.py`, `stop_registry.py`, `stop_triggers.py` (C5); any `src/sdlc/contracts/` file or `tests/contract_snapshots/v1/` (C8 — freeze 7/7); `dispatcher/core.py` (reuse `dispatch_panel` as-is, C2); `config/project.py` (`auto_brainstorm` already exists, C3).
+- **Conventions:** every `src/` file ≤ 400 LOC; absolute `from sdlc.X import Y` imports only; `engine` MAY import `dispatcher`/`config`/`journal`/`state`/`specialists`, never `cli`/`dashboard`/`runtime.claude` (C9); no `print()` in `engine/` (structlog).
+
+### References
+
+- Epic + ACs: `_bmad-output/planning-artifacts/epics.md:2260-2287` (Story 4.10 + 4 BDD ACs); `:2353` (synthesizer-contract test gate); `:2355` (deps: 4.10 = Epic1 + 2A + 2B); FR map `:49` (FR22), `:55` (FR26), `:90` (FR51 `auto_brainstorm`).
+- Panel seam (reuse): `src/sdlc/dispatcher/core.py:275-289` (`dispatch_panel`), `:83-92` (`PanelResult`); call idiom `src/sdlc/cli/start.py:144-165`, layout `:128-136`.
+- Loop substrate (edit additively): `src/sdlc/engine/auto_loop.py:212-332` (`run_auto_loop`), seam `:281-289`→`:310`; halt path `:153-209` region + `:310-319`.
+- 4.2 surface (consume, do NOT edit): `src/sdlc/engine/stop_clarification.py:10-11, 19-41`; registry `src/sdlc/engine/stop_registry.py`.
+- Specialists: `src/sdlc/agents/index.yaml:3-14` (4 panel members; synthesizer `requirement-synthesizer` at `:12`), `:119-121` (`clarification-triager`, phase 0); prompt `src/sdlc/agents/phase1/requirement-synthesizer.md`.
+- Config (read only): `src/sdlc/config/project.py:36` (`auto_brainstorm`), `:45-78` (loader).
+- Atomic write / POSIX: `src/sdlc/concurrency/io_primitives.py` (`atomic_write`; win32 ImportError `:19-22`).
+- Journal kind / forward rule: `docs/decisions/ADR-028-journal-kind-taxonomy.md` §3/§4; projection `src/sdlc/state/projection.py` (`_KNOWN_KINDS`).
+- Architecture: `architecture.md:818` (`auto_brainstorm.py # FR22 panel + synthesizer`), `:1068`/`:1106` (engine boundary, runtime-via-ABC), `:1152` (FR22 map), `:339` (A4 pure-fn-of-disk), `:489`/`:493` (no print / no raw open in engine).
+- DAG / decisions: `docs/sprints/epic-4-dag.md` §3 (Layer 3 deps `:130`), §4 (critical path `:171-178`), §5 (4.10 worktree `:198`), §253-256/§269-271 (D1 zero new wire-format contracts), §289-306 (D3 real-dispatch deferred-with-guard).
+- Module boundary: `scripts/module_boundary_table.py` (engine spec); checker `scripts/check_module_boundaries.py`.
+- Quality gate + TDD/merged-before-done: `CONTRIBUTING.md:14-28` (gate; coverage 87 floor `:22`), `:32-64` (TDD-first + R1/R2 merged-before-done).
+- Tests to mirror: `tests/integration/test_sdlc_start_panel.py` (panel shape), `tests/integration/stop_triggers/test_stop_clarification.py` (STOP/4-cell), `tests/integration/dispatch_panel_helpers.py`.
+- Inherited debt (cite, don't fix): Epic-4 D3 real-dispatch posture; register `EPIC-4-DEBT-AUTO-BRAINSTORM-REAL-SIGNAL` (D1a) in `docs/sprints/deferred-work.md`.
+
+---
+
+## Decisions Needed
+
+- **D1 — The v1 ambiguity-detection seam (the headline decision).** epics.md:2268 names two signals, neither of which exists; Epic-4 D3 says real dispatch is mock/nominal in v1.
+  - **(a) Pure orchestrator + minimal explicit seam + pre-emptive guard (Recommended).** `engine/auto_brainstorm.py` is a pure, fully-testable `run_auto_brainstorm(repo_root, *, clarification_id, ambiguity_context, …)`. The loop's detection seam is thin + explicit (a signal the test forces); the real-specialist `ambiguity_detected` wiring is carried as `EPIC-4-DEBT-AUTO-BRAINSTORM-REAL-SIGNAL` (deferred-with-guard, the 4.1/4.6/4.7 not-production-reachable pattern). No speculative `AgentResult`/`DispatchResult`/`DispatchFn` contract mutation. Ships fully tested against the mock runtime.
+  - **(b) Add `ambiguity_detected` to the dispatch result contract now.** Capture `result = await dispatch_fn(...)` at `auto_loop.py:281`, inspect `result.ambiguity_detected`. Cleaner end-state, but mutates the `DispatchFn`/`DispatchResult` (possibly `AgentResult`) surface the 4.1-frozen loop depends on, front-loads the real-dispatch wiring D3 deferred, and raises regression risk to the frozen root. Defer to a later real-dispatch story.
+  - **(c) Pre-dispatch workflow-YAML multi-expansion detection.** Detect a `WorkflowSpec` field with multiple expansions before dispatch. No such field exists; adding one is a frozen-contract change (C8). Rejected for v1.
+  - *Recommendation: (a).*
+
+- **D2 — Synthesizer specialist: reuse `requirement-synthesizer` vs author `clarification-synthesizer`.** The existing synthesizer is Phase-1-requirements-scoped (writes `01-PRODUCT.md`), but 4.10 needs options-with-tradeoffs → `options.md` (C10).
+  - **(a) Reuse `requirement-synthesizer` with a clarification-scoped `prompt_builder` + `write_globs` → `options.md`.** No new agent/registry row; override the task context + output location (the `dispatch_panel` `prompt_builder` param, mirror `phase1_prompt_builder`). Lighter for v1; the FR26 contract test guards the output shape. Risk: the agent body is requirements-scoped, so the prompt_builder must strongly steer it to options format.
+  - **(b) Author a new `clarification-synthesizer.md` specialist + `index.yaml` row.** A prompt purpose-built for ≥2 options + pros/cons/risks + concern-preservation — more honest to FR26, but adds a specialist + registry row (verify `specialist_frontmatter` snapshot SHAPE is unchanged — a new file is fine, freeze stays 7/7).
+  - *Recommendation: pick at review-B; (a) is the lighter v1, (b) is the cleaner FR26 contract.*
+
+- **D3 — New journal kind for the brainstorm event vs rely on the panel's existing entries.**
+  - **(a) Add `auto_brainstorm_dispatched` via the ADR-028 forward rule (Recommended).** Makes the ambiguity→panel decision + "framework never picks" independently auditable (FR22/FR20 audit-trail discipline), mirrors how each Epic-4 story added its observable event. Event-only kind → all-zero `after_hash` sentinel; §3 row + Revision-Log line; **no snapshot regen** (kind is bare `str`), freeze stays 7/7.
+  - **(b) Rely solely on `dispatch_panel`'s `agent_dispatched`/`dispatch_attempt`/`artifact_written` + the artifacts.** Less code, but the brainstorm decision itself is not a first-class journal event — harder to trace "why brainstorm here" and to assert in the audit test.
+  - *Recommendation: (a).*
+
+- **D4 — Clarification `<id>` minting (resume/idempotency).** `.claude/state/clarifications/<id>/` — where does `<id>` come from? A re-run that re-detects the same ambiguity must NOT pile up duplicate clarification dirs or re-dispatch a second panel (pure-fn-of-disk, AC5 cell 5).
+  - **(a) Content/context-derived stable id (e.g. a deterministic hash of the ambiguity context / task id) (Recommended).** Same ambiguity → same `<id>` → idempotent: a re-run finds the existing `open_clarification.md` and the loop simply halts again without a second panel. Aligns with the loop's pure-fn-of-disk + resume contract.
+  - **(b) Fresh ULID per detection via `sdlc.ids`.** Simpler to mint, but a re-run before the human resolves the clarification would create a *new* dir + a *new* panel each iteration — unbounded duplication. Rejected unless the loop guarantees one-shot detection per ambiguity (it does not, given resume).
+  - *Recommendation: (a).*
+
+---
+
+## Dev Agent Record
+
+### Context Reference
+
+<!-- Path(s) to story context JSON/XML will be added here by context workflow -->
+
+### Agent Model Used
+
+<!-- Set by dev-story workflow -->
+
+### Debug Log References
+
+### Completion Notes List
+
+### File List
+
+### Review Findings
+
+---
+
+## Change Log
+
+- 2026-06-21: Story drafted (create-story) — the **sole Layer-3 story** and the second feeder of the `4.11` convergence point (critical-path spine `4.1 → 4.2 → 4.10 → 4.11 → 4.12`). Authored after verifying the Layer-3 precondition (**4.2 `done` + merged** `e539d5f`; the `.claude/state/clarifications/<id>/open_clarification.md` surface + `OpenClarificationTrigger` frozen on `main`; `dispatch_panel` + the 4 panel specialists available; freeze 7/7) and every load-bearing seam first-hand: the `dispatch_panel`→`PanelResult` shape (C2, reuse — `cli/start.py:154` idiom), the **`requirement-synthesizer`** registry name (C1 — NOT `synthesizer`), the **already-existing** `auto_brainstorm: bool = True` field (C3), the absence of any `open_clarification.md`/`options.md` writer (C4 — 4.10 writes raw via `atomic_write`), the 4.2 trigger's disk-re-read that lets the STOP fire same-iteration (C5), the `auto_loop.py:281-310` insertion seam (C6), the **non-existent ambiguity signal** in `AgentResult`/`DispatchResult` (C7 → Decision D1), zero-new-wire-format (C8 — freeze 7/7), and the engine module boundary + POSIX-only `io_primitives` constraint (C9). Surfaced 10 binding ground-truth corrections (C1–C10) and 4 decisions (D1 v1 detection seam → pure orchestrator + pre-emptive guard; D2 reuse-vs-new synthesizer specialist; D3 `auto_brainstorm_dispatched` journal kind via ADR-028 forward rule; D4 content-stable clarification `<id>` for resume idempotency). Status: ready-for-dev.
