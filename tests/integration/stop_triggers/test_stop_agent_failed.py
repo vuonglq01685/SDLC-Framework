@@ -156,7 +156,14 @@ def _make_retry_dispatch_fn(side_effect: object):
     ) -> None:
         _ = task_id, runtime, registry, correlation_id
         failing_runtime = AsyncMock()
-        failing_runtime.dispatch.side_effect = side_effect
+        if isinstance(side_effect, AgentResult):
+            # A bare success result must be RETURNED, not assigned to side_effect:
+            # AgentResult is a pydantic BaseModel (iterable), so Mock would iterate
+            # it into (field, value) tuples and hand the dispatcher a tuple instead
+            # of the model. Exceptions and list-of-results still use side_effect.
+            failing_runtime.dispatch.return_value = side_effect
+        else:
+            failing_runtime.dispatch.side_effect = side_effect
         try:
             await dispatch(
                 _STEP,
