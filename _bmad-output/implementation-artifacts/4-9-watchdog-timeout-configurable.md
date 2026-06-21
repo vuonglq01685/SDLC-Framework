@@ -1,6 +1,6 @@
 # Story 4.9: Watchdog Timeout (Configurable)
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 2 (`docs/sprints/epic-4-dag.md` §3 — one of the 8 Layer-2 stories, but the **inverse** of the 7 STOP-trigger fan-out: a wall-clock watchdog, **not** a registered `StopTrigger`)
