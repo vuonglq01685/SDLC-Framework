@@ -263,3 +263,54 @@ async def test_replay_status_from_journal_file(tmp_path: Path) -> None:
         max_iterations=1,
     )
     assert project_from_journal(journal).auto_loop_status == "idle"
+
+
+@pytest.mark.asyncio
+async def test_watchdog_halt_when_deadline_exceeded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_phase3_ready_project(tmp_path)
+    journal, runs = _bootstrap_journal(tmp_path)
+    dispatch = AsyncMock(return_value=None)
+
+    times = iter([0.0, 200.0])
+
+    def _fake_monotonic() -> float:
+        return next(times, 200.0)
+
+    monkeypatch.setattr("sdlc.engine.auto_loop.time.monotonic", _fake_monotonic)
+
+    result = await run_auto_loop(
+        tmp_path,
+        journal_path=journal,
+        agent_runs_path=runs,
+        runtime=_mock_runtime(tmp_path),
+        registry=SpecialistRegistry({}),
+        dispatch_fn=dispatch,
+        max_iterations=1,
+        watchdog_timeout_minutes=1.0,
+    )
+    assert result.halted is True
+    assert result.stop_reason == "watchdog_timeout"
+    stop_entries = [e for e in iter_entries(journal) if e.kind == "stop_triggered"]
+    assert len(stop_entries) == 1
+    assert stop_entries[0].payload["trigger"] == "watchdog_timeout"
+
+
+@pytest.mark.asyncio
+async def test_watchdog_disabled_when_timeout_none(tmp_path: Path) -> None:
+    _write_phase3_ready_project(tmp_path)
+    journal, runs = _bootstrap_journal(tmp_path)
+    dispatch = AsyncMock(return_value=None)
+    result = await run_auto_loop(
+        tmp_path,
+        journal_path=journal,
+        agent_runs_path=runs,
+        runtime=_mock_runtime(tmp_path),
+        registry=SpecialistRegistry({}),
+        dispatch_fn=dispatch,
+        max_iterations=1,
+        watchdog_timeout_minutes=None,
+    )
+    assert result.halted is False
+    assert "stop_triggered" not in [e.kind for e in iter_entries(journal)]

@@ -65,3 +65,27 @@ def test_auto_command_max_iterations_plumbed(
     result = runner.invoke(app, ["auto", "--max-iterations", "3"], catch_exceptions=False)
     assert result.exit_code == 0, result.output
     assert captured.get("max_iterations") == 3
+
+
+def test_auto_command_watchdog_timeout_plumbed_from_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """watchdog_timeout_minutes from project.yaml reaches run_auto_loop (Story 4.9)."""
+    _bootstrap(tmp_path)
+    (tmp_path / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "project.yaml").write_text("watchdog_timeout_minutes: 45\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SDLC_USE_MOCK_RUNTIME", "1")
+    monkeypatch.delenv("SDLC_MOCK_GATE_BYPASS", raising=False)
+
+    captured: dict[str, object] = {}
+
+    async def _fake_loop(repo_root: Path, **kwargs: object) -> AutoLoopResult:
+        captured.update(kwargs)
+        return AutoLoopResult(iterations=0, last_action="stopped", halted=False)
+
+    monkeypatch.setattr("sdlc.cli.auto.run_auto_loop", _fake_loop)
+    monkeypatch.setattr("sdlc.cli.auto.load_registry", lambda _p: SpecialistRegistry({}))
+    result = runner.invoke(app, ["auto"], catch_exceptions=False)
+    assert result.exit_code == 0, result.output
+    assert captured.get("watchdog_timeout_minutes") == 45.0
