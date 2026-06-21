@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(rm -f tests/e2e/cli/fixtures/walking_skeleton/goldens/*)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(python3 \"D:\\\\Projects\\\\SDLC-Framework\\\\_bmad\\\\scripts\\\\resolve_customization.py\" --skill \"D:\\\\Projects\\\\SDLC-Framework\\\\.claude\\\\skills\\\\bmad-dev-story\" --key workflow)"
     ]
   }
 }
