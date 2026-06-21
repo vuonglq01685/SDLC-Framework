@@ -51,6 +51,12 @@ from sdlc.dispatcher.safety import (
     _should_inject_destructive_block as _readonly_block_predicate,
 )
 from sdlc.dispatcher.safety import (
+    compute_tool_call_id as _compute_tool_call_id,
+)
+from sdlc.dispatcher.safety import (
+    extract_destructive_target as _extract_destructive_target,
+)
+from sdlc.dispatcher.safety import (
     is_destructive as _is_destructive,
 )
 from sdlc.dispatcher.safety import (
@@ -394,6 +400,8 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
     observer: PanelObserver | None = None,
     upstream_outputs: tuple[str, ...] = (),
     persist_artifact: bool = True,
+    auto_loop_mode: bool = False,
+    confirm_tool_call_id: str | None = None,
 ) -> DispatchMemberResult:
     """Dispatch a single specialist as a panel member (primary/parallel/synthesizer).
 
@@ -611,8 +619,21 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
             _destructive_findings.append((_category, _tool_call_excerpt(_tc), _tc))
 
     async def _emit_destructive_entry(
-        *, kind: str, category: str, excerpt: str, outcome: str
+        *,
+        kind: str,
+        category: str,
+        excerpt: str,
+        outcome: str,
+        extra: dict[str, object] | None = None,
     ) -> None:
+        payload: dict[str, object] = {
+            "category": category,
+            "tool_call_excerpt": excerpt,
+            "outcome": outcome,
+            "nonce_sha256": _nonce_sha256,
+        }
+        if extra:
+            payload.update(extra)
         _seq = await _allocate_seq(journal_path)
         try:
             await journal_append(
@@ -621,12 +642,7 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
                     ts=_now_ts(),
                     kind=kind,
                     target_id=f"{step.name}/{specialist_name}",
-                    payload={
-                        "category": category,
-                        "tool_call_excerpt": excerpt,
-                        "outcome": outcome,
-                        "nonce_sha256": _nonce_sha256,
-                    },
+                    payload=payload,
                 ),
                 journal_path,
             )
@@ -655,37 +671,86 @@ async def _run_member(  # noqa: C901, PLR0912, PLR0915 — panel member orchestr
                 },
             )
 
-        # D5+D6: collect all confirmations under the lock, all-or-nothing.
-        _confirmations: list[bool] = []
-        async with DESTRUCTIVE_PAUSE_LOCK:
-            for _category, _excerpt, _ in _destructive_findings:
-                _ok = await asyncio.to_thread(
-                    _prompt_for_reconfirmation, _nonce, _category, _excerpt
+        if auto_loop_mode:
+            pending: list[tuple[str, str, Mapping[str, object], str]] = []
+            for _category, _excerpt, _tc in _destructive_findings:
+                tool_call_id = _compute_tool_call_id(_tc)
+                pending.append((_category, _excerpt, _tc, tool_call_id))
+
+            all_confirmed = confirm_tool_call_id is not None and all(
+                item[3] == confirm_tool_call_id for item in pending
+            )
+            if all_confirmed:
+                for _category, _excerpt, _tc, tool_call_id in pending:
+                    tool_name = _tc.get("name")
+                    tool = tool_name if isinstance(tool_name, str) else "unknown"
+                    await _emit_destructive_entry(
+                        kind="high_risk_confirmed",
+                        category=_category,
+                        excerpt=_excerpt,
+                        outcome="accepted",
+                        extra={
+                            "tool": tool,
+                            "tool_call_id": tool_call_id,
+                        },
+                    )
+            else:
+                for _category, _excerpt, _tc, tool_call_id in pending:
+                    tool_name = _tc.get("name")
+                    tool = tool_name if isinstance(tool_name, str) else "unknown"
+                    await _emit_destructive_entry(
+                        kind="destructive_op_rejected",
+                        category=_category,
+                        excerpt=_excerpt,
+                        outcome="rejected",
+                        extra={
+                            "auto_loop_halt": True,
+                            "tool_call_id": tool_call_id,
+                            "tool": tool,
+                            "target": _extract_destructive_target(_tc, _category),
+                        },
+                    )
+                raise DispatchError(
+                    f"high-risk tool call blocked pending confirmation at {step.name}",
+                    details={
+                        "specialist": specialist_name,
+                        "step": step.name,
+                        "high_risk_path_halt": True,
+                        "tool_call_ids": [item[3] for item in pending],
+                    },
                 )
-                _confirmations.append(_ok)
+        else:
+            # D5+D6: collect all confirmations under the lock, all-or-nothing.
+            _confirmations: list[bool] = []
+            async with DESTRUCTIVE_PAUSE_LOCK:
+                for _category, _excerpt, _ in _destructive_findings:
+                    _ok = await asyncio.to_thread(
+                        _prompt_for_reconfirmation, _nonce, _category, _excerpt
+                    )
+                    _confirmations.append(_ok)
 
-        _all_accepted = all(_confirmations)
-        _kind = "destructive_op_reconfirmed" if _all_accepted else "destructive_op_rejected"
-        _outcome = "accepted" if _all_accepted else "rejected"
-        for _category, _excerpt, _ in _destructive_findings:
-            await _emit_destructive_entry(
-                kind=_kind, category=_category, excerpt=_excerpt, outcome=_outcome
-            )
+            _all_accepted = all(_confirmations)
+            _kind = "destructive_op_reconfirmed" if _all_accepted else "destructive_op_rejected"
+            _outcome = "accepted" if _all_accepted else "rejected"
+            for _category, _excerpt, _ in _destructive_findings:
+                await _emit_destructive_entry(
+                    kind=_kind, category=_category, excerpt=_excerpt, outcome=_outcome
+                )
 
-        if not _all_accepted:
-            _rejected_cats = [
-                c
-                for (c, _, _), ok in zip(_destructive_findings, _confirmations, strict=True)
-                if not ok
-            ]
-            raise DispatchError(
-                f"destructive operation rejected by user at {step.name}",
-                details={
-                    "specialist": specialist_name,
-                    "step": step.name,
-                    "rejected_categories": _rejected_cats,
-                },
-            )
+            if not _all_accepted:
+                _rejected_cats = [
+                    c
+                    for (c, _, _), ok in zip(_destructive_findings, _confirmations, strict=True)
+                    if not ok
+                ]
+                raise DispatchError(
+                    f"destructive operation rejected by user at {step.name}",
+                    details={
+                        "specialist": specialist_name,
+                        "step": step.name,
+                        "rejected_categories": _rejected_cats,
+                    },
+                )
 
     duration_ms = int((time.monotonic() - t_start) * 1000)
     ts = _now_ts()

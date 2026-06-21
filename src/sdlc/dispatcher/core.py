@@ -116,6 +116,12 @@ def _failed_result(
     )
 
 
+def _should_emit_stop_trigger_raised(exc: DispatchError) -> bool:
+    """Story 4.7: high-risk halts use ``stop_triggered``, not ``stop_trigger_raised``."""
+    details = exc.details or {}
+    return not details.get("high_risk_path_halt")
+
+
 def _validate_target_path_override(
     target: Path,
     *,
@@ -167,6 +173,8 @@ async def dispatch(
     observer: PanelObserver | None = None,
     persist_artifact: bool = True,
     target_path_override: Path | None = None,
+    auto_loop_mode: bool = False,
+    confirm_tool_call_id: str | None = None,
     _max_attempts: int = 3,
 ) -> DispatchResult:
     """Dispatch the primary specialist for a workflow step (AC1, FR25).
@@ -227,14 +235,17 @@ async def dispatch(
             observer=observer,
             persist_artifact=persist_artifact,
             target_path_override=target_path_override,
+            auto_loop_mode=auto_loop_mode,
+            confirm_tool_call_id=confirm_tool_call_id,
         )
     except DispatchError as exc:
-        await _emit_stop_trigger(
-            step.primary_agent,
-            step.name,
-            journal_path,
-            last_error=str(exc),
-        )
+        if _should_emit_stop_trigger_raised(exc):
+            await _emit_stop_trigger(
+                step.primary_agent,
+                step.name,
+                journal_path,
+                last_error=str(exc),
+            )
         raise
     return _to_public(member)
 
@@ -367,7 +378,13 @@ async def dispatch_panel(  # noqa: C901, PLR0912, PLR0915 — panel orchestratio
             upstream_outputs=(),
         )
     except DispatchError as exc:
-        await _emit_stop_trigger(step.primary_agent, step.name, journal_path, last_error=str(exc))
+        if _should_emit_stop_trigger_raised(exc):
+            await _emit_stop_trigger(
+                step.primary_agent,
+                step.name,
+                journal_path,
+                last_error=str(exc),
+            )
         return PanelResult(
             primary_result=_failed_result(step.primary_agent, primary_target),
             parallel_results=(),
@@ -419,7 +436,12 @@ async def dispatch_panel(  # noqa: C901, PLR0912, PLR0915 — panel orchestratio
         parallel_pub = tuple(_to_public(m) for m in successes)
         if first_exc is not None:
             err_msg = str(first_exc)
-            await _emit_stop_trigger("parallel_agents", step.name, journal_path, last_error=err_msg)
+            if not isinstance(first_exc, DispatchError) or _should_emit_stop_trigger_raised(
+                first_exc
+            ):
+                await _emit_stop_trigger(
+                    "parallel_agents", step.name, journal_path, last_error=err_msg
+                )
             return PanelResult(
                 primary_result=primary_pub,
                 parallel_results=parallel_pub,
@@ -466,7 +488,8 @@ async def dispatch_panel(  # noqa: C901, PLR0912, PLR0915 — panel orchestratio
             synth_attempts_raw = exc.details.get("attempts", 1) if exc.details else 1
             synth_attempts = synth_attempts_raw if isinstance(synth_attempts_raw, int) else 1
             err_msg = str(exc)
-            await _emit_stop_trigger(synth_name, step.name, journal_path, last_error=err_msg)
+            if _should_emit_stop_trigger_raised(exc):
+                await _emit_stop_trigger(synth_name, step.name, journal_path, last_error=err_msg)
             return PanelResult(
                 primary_result=primary_pub,
                 parallel_results=parallel_pub,

@@ -48,8 +48,18 @@ def register_auto_commands(app: typer.Typer) -> None:
             help="Bound the loop to at most N iterations — a safety backstop until "
             "Layer-2 STOP triggers land (FR19).",
         ),
+        confirm_tool_call: str | None = typer.Option(
+            None,
+            "--confirm-tool-call",
+            help="Resume a halted high-risk tool call by its stable tool_call_id (Story 4.7).",
+        ),
     ) -> None:
         """Run the autonomous auto-loop until STOP or no ready items (FR19, Story 4.1)."""
         from sdlc.cli.auto import run_auto  # deferred per Architecture §488
 
-        run_auto(ctx=ctx, allow_mock=allow_mock, max_iterations=max_iterations)
+        run_auto(
+            ctx=ctx,
+            allow_mock=allow_mock,
+            max_iterations=max_iterations,
+            confirm_tool_call=confirm_tool_call,
+        )

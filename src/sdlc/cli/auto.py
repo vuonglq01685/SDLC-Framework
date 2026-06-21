@@ -25,7 +25,9 @@ _RUNS_REL: Final[str] = "03-Implementation/agent_runs.jsonl"
 _DEBT_ID: Final[str] = "EPIC-4-DEBT-AUTO-REAL-DISPATCH"
 
 
-def _make_task_dispatch_fn(ctx: typer.Context) -> DispatchFn:
+def _make_task_dispatch_fn(
+    ctx: typer.Context, *, confirm_tool_call_id: str | None = None
+) -> DispatchFn:
     async def _task_dispatch_fn(
         *,
         task_id: str,
@@ -38,7 +40,15 @@ def _make_task_dispatch_fn(ctx: typer.Context) -> DispatchFn:
     ) -> DispatchResult | None:
         from sdlc.cli.task import run_task
 
-        _ = repo_root, journal_path, agent_runs_path, runtime, registry, correlation_id
+        _ = (
+            repo_root,
+            journal_path,
+            agent_runs_path,
+            runtime,
+            registry,
+            correlation_id,
+            confirm_tool_call_id,
+        )
         run_task(ctx=ctx, task_id=task_id, allow_mock=True)
         return None
 
@@ -46,7 +56,11 @@ def _make_task_dispatch_fn(ctx: typer.Context) -> DispatchFn:
 
 
 def run_auto(
-    *, ctx: typer.Context, allow_mock: bool = False, max_iterations: int | None = None
+    *,
+    ctx: typer.Context,
+    allow_mock: bool = False,
+    max_iterations: int | None = None,
+    confirm_tool_call: str | None = None,
 ) -> None:
     """Run the autonomous auto-loop until STOP or no ready items."""
     _ = allow_mock
@@ -83,7 +97,7 @@ def run_auto(
                 agent_runs_path=agent_runs_path,
                 runtime=runtime,
                 registry=registry,
-                dispatch_fn=_make_task_dispatch_fn(ctx),
+                dispatch_fn=_make_task_dispatch_fn(ctx, confirm_tool_call_id=confirm_tool_call),
                 state_path=state_path,
                 max_iterations=max_iterations,
             )

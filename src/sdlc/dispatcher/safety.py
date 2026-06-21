@@ -24,10 +24,11 @@ Post-review patches (2026-05-28 bmad-code-review):
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 import secrets
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Final
 
 from sdlc.specialists.frontmatter import Specialist
@@ -123,6 +124,12 @@ _DESTRUCTIVE_TOOL_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
     "force_push_with_lease": re.compile(r"\bgit\s+push\s+--force-with-lease\b"),
     "force_push": re.compile(r"\bgit\s+push\s+(-f|--force)\b"),
     "drop_database": re.compile(r"\bDROP\s+(DATABASE|TABLE|SCHEMA)\b", re.IGNORECASE),
+    # Story 4.7: secret-exfil via curl/wget posting sensitive data to external URLs.
+    "secret_exfil": re.compile(
+        r"\b(curl|wget)\b.*(?:@\.env|\$\(cat\b|SECRET|TOKEN|PASSWORD).*https?://|"
+        r"\b(curl|wget)\b.*https?://[^\s]+.*(?:\.env|secret|token|password)",
+        re.IGNORECASE,
+    ),
 }
 
 
@@ -175,6 +182,85 @@ def is_destructive(tool_call: Mapping[str, object]) -> tuple[bool, str | None]:
         if pattern.search(command):
             return (True, category)
     return (False, None)
+
+
+def compute_tool_call_id(tool_call: Mapping[str, object]) -> str:
+    """Stable identifier for ``--confirm-tool-call`` resume (Story 4.7, DH3a).
+
+    CR4.7-P1: hash the SAME NFKC-normalised command ``is_destructive`` matches on,
+    so the id never skews from the detection/excerpt view of the same call (a raw
+    vs normalised mismatch otherwise made confirm-never-match or excerpt != id).
+    """
+    name_val = tool_call.get("name", "")
+    name = name_val if isinstance(name_val, str) else str(name_val)
+    raw_command = _safe_command_str(tool_call.get("command"))
+    command = _normalize_command(raw_command) if raw_command is not None else ""
+    normalized = f"{name}\0{command}"
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _target_from_file_delete(command: str) -> str:
+    match = re.search(r"\brm\s+(?:-rf|-fr)\s+(\S+)", command)
+    return match.group(1) if match else command
+
+
+def _target_from_force_push(command: str) -> str:
+    # CR4.7-P2: derive remote/ref from the first non-flag tokens AFTER ``push`` so
+    # arg-order variants (``git push origin main --force``) no longer mis-extract
+    # ``main/--force`` from the positional last-two tokens.
+    min_refspec_tokens = 2
+    after_push: list[str] = []
+    seen_push = False
+    for tok in command.split():
+        if not seen_push:
+            seen_push = tok == "push"
+            continue
+        if not tok.startswith("-"):
+            after_push.append(tok)
+    if len(after_push) >= min_refspec_tokens:
+        return f"{after_push[0]}/{after_push[1]}"
+    if after_push:
+        return after_push[0]
+    return command
+
+
+def _target_from_drop_database(command: str) -> str:
+    # CR4.7-P2: skip an optional ``IF [NOT] EXISTS`` clause so the target is the
+    # real object name, not ``IF`` (``DROP TABLE IF EXISTS users`` -> ``users``).
+    match = re.search(
+        r"\bDROP\s+(?:DATABASE|TABLE|SCHEMA)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(\S+)",
+        command,
+        re.IGNORECASE,
+    )
+    return match.group(1).rstrip(";") if match else command
+
+
+def _target_from_secret_exfil(command: str) -> str:
+    match = re.search(r"https?://[^\s]+", command, re.IGNORECASE)
+    return match.group(0) if match else command
+
+
+def extract_destructive_target(tool_call: Mapping[str, object], category: str) -> str:
+    """Best-effort path/argument extraction for ``StopDecision.target`` (Story 4.7, C6)."""
+    raw_command = _safe_command_str(tool_call.get("command"))
+    if raw_command is None:
+        return str(tool_call.get("name", "unknown"))
+    command = _normalize_command(raw_command)
+    extractors: dict[str, Callable[[str], str]] = {
+        "file_delete": _target_from_file_delete,
+        "force_push": _target_from_force_push,
+        "force_push_with_lease": _target_from_force_push,
+        "drop_database": _target_from_drop_database,
+        "secret_exfil": _target_from_secret_exfil,
+    }
+    extractor = extractors.get(category)
+    return extractor(command) if extractor is not None else command
+
+
+def build_high_risk_reason(*, tool: str, category: str, excerpt: str) -> str:
+    """Pack tool name + category + excerpt into frozen ``StopDecision.reason`` (C6)."""
+    trimmed = excerpt[:120]
+    return f"{tool}:{category} ({trimmed})"
 
 
 def prompt_for_reconfirmation(nonce: str, category: str, excerpt: str) -> bool:

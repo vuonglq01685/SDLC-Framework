@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sdlc.engine.stop_agent_failed import AgentFailedTrigger
 from sdlc.engine.stop_clarification import OpenClarificationTrigger
+from sdlc.engine.stop_high_risk import HighRiskPathTrigger
 from sdlc.engine.stop_pr_ready import PrReadyStoryTrigger
 from sdlc.engine.stop_replan_dirty import ReplanDirtyTrigger
 from sdlc.engine.stop_signoff import SignoffRequiredTrigger
@@ -15,6 +16,7 @@ from sdlc.state.model import State
 # Priority order: first-listed trigger wins when multiple could fire (C7).
 # Stories 4.3-4.9 append new triggers to this tuple after review.
 _ORDERED_TRIGGERS: tuple[StopTrigger, ...] = (
+    HighRiskPathTrigger(),
     OpenClarificationTrigger(),
     SignoffRequiredTrigger(),
     PrReadyStoryTrigger(),
