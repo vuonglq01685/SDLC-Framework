@@ -122,9 +122,54 @@ class TestProjectConfig:
         with pytest.raises(ValidationError):
             ProjectConfig(max_parallel_agents=0)
 
-    def test_watchdog_timeout_ge1_constraint(self) -> None:
+    def test_watchdog_timeout_gt0_constraint(self) -> None:
         with pytest.raises(ValidationError):
             ProjectConfig(watchdog_timeout_minutes=0)
+
+    def test_watchdog_timeout_rejects_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            ProjectConfig(watchdog_timeout_minutes=-1)
+
+    def test_watchdog_timeout_accepts_fractional(self) -> None:
+        cfg = ProjectConfig(watchdog_timeout_minutes=0.05)
+        assert cfg.watchdog_timeout_minutes == 0.05
+
+    def test_watchdog_timeout_non_numeric_rejected_via_loader(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text("watchdog_timeout_minutes: foo\n")
+        with pytest.raises(ConfigError):
+            load_project_config(yaml_file)
+
+    def test_watchdog_timeout_strict_rejects_bool(self) -> None:
+        # strict=True must reject YAML booleans: `true` would otherwise coerce to
+        # 1.0 (bool is an int subclass) and silently arm a 1-minute watchdog (AC2/C2).
+        with pytest.raises(ValidationError):
+            ProjectConfig(watchdog_timeout_minutes=True)
+
+    def test_watchdog_timeout_yaml_bool_rejected_via_loader(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text("watchdog_timeout_minutes: true\n")
+        with pytest.raises(ConfigError):
+            load_project_config(yaml_file)
+
+    def test_watchdog_timeout_strict_rejects_quoted_number(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        # A quoted YAML scalar is a string; strict=True must not coerce "4" -> 4.0.
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text('watchdog_timeout_minutes: "4"\n')
+        with pytest.raises(ConfigError):
+            load_project_config(yaml_file)
+
+    def test_watchdog_timeout_yaml_loads_fraction(self, tmp_path: pytest.TempPathFactory) -> None:
+        yaml_file = tmp_path / "project.yaml"  # type: ignore[operator]
+        yaml_file.write_text("watchdog_timeout_minutes: 0.05\n")
+        cfg = load_project_config(yaml_file)
+        assert cfg.watchdog_timeout_minutes == 0.05
 
     def test_max_parallel_agents_strict_rejects_float(self) -> None:
         # strict=True must reject float values (no silent rounding 4.5 → 4).
