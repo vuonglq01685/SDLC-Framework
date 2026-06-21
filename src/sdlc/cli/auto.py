@@ -12,8 +12,10 @@ import typer
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli._runtime_selection import build_runtime, use_mock_runtime
 from sdlc.cli.output import emit_error, emit_json
+from sdlc.config.project import DEFAULT_PROJECT_YAML, load_project_config
 from sdlc.dispatcher import DispatchResult
 from sdlc.engine.auto_loop import DispatchFn, run_auto_loop
+from sdlc.errors import ConfigError
 from sdlc.runtime.abc import AIRuntime
 from sdlc.specialists import load_registry
 from sdlc.specialists.registry import SpecialistRegistry
@@ -88,6 +90,18 @@ def run_auto(
     state_path = (root / _STATE_REL).resolve()
     registry = load_registry(root / _AGENTS_REL)
 
+    try:
+        watchdog_timeout_minutes = load_project_config(
+            root / DEFAULT_PROJECT_YAML
+        ).watchdog_timeout_minutes
+    except ConfigError as exc:
+        emit_error(
+            "ERR_USER_INPUT",
+            f"project.yaml could not be read: {exc}",
+            ctx=ctx,
+            details={"path": str(root / DEFAULT_PROJECT_YAML)},
+        )
+
     with tempfile.TemporaryDirectory() as tmp:
         runtime = build_runtime(fixtures_dir=Path(tmp))
         result = asyncio.run(
@@ -100,6 +114,7 @@ def run_auto(
                 dispatch_fn=_make_task_dispatch_fn(ctx, confirm_tool_call_id=confirm_tool_call),
                 state_path=state_path,
                 max_iterations=max_iterations,
+                watchdog_timeout_minutes=watchdog_timeout_minutes,
             )
         )
 

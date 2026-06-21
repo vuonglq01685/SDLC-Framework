@@ -35,7 +35,7 @@ class ProjectConfig(BaseModel):
     max_parallel_agents: int = Field(default=4, ge=1, strict=True)
     auto_brainstorm: bool = True
     legacy_code_globs: tuple[str, ...] = Field(default_factory=tuple)
-    watchdog_timeout_minutes: int = Field(default=30, ge=1)
+    watchdog_timeout_minutes: float = Field(default=30, gt=0, strict=True)
     # Story 3.3 D1(a): adopt-mode symlink auto-accept threshold (integer percent, no floats).
     auto_accept_threshold: int = Field(
         default=DEFAULT_AUTO_ACCEPT_THRESHOLD, ge=0, le=100, strict=True
