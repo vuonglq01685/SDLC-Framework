@@ -1,6 +1,6 @@
 # Story 4.7: STOP Trigger 6 — High-Risk Path Detected
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 2 (`docs/sprints/epic-4-dag.md` §3 — one of the 8-story STOP-trigger fan-out; **SECURITY-SENSITIVE** — DAG §4 names 4.7 a top-2 highest-risk Epic-4 story alongside 4.1)
