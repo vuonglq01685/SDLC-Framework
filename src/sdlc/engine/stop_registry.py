@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sdlc.engine.stop_agent_failed import AgentFailedTrigger
+from sdlc.engine.stop_bug_awaiting import BugAwaitingDecideTrigger
 from sdlc.engine.stop_clarification import OpenClarificationTrigger
 from sdlc.engine.stop_high_risk import HighRiskPathTrigger
 from sdlc.engine.stop_pr_ready import PrReadyStoryTrigger
@@ -22,6 +23,7 @@ _ORDERED_TRIGGERS: tuple[StopTrigger, ...] = (
     PrReadyStoryTrigger(),
     ReplanDirtyTrigger(),
     AgentFailedTrigger(),
+    BugAwaitingDecideTrigger(),
 )
 
 _extra_triggers: list[StopTrigger] = []
