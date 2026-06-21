@@ -1,6 +1,6 @@
 # Story 4.8: STOP Trigger 7 — Bug Ticket Awaiting Decide
 
-**Status:** ready-for-dev
+**Status:** review
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 2 (`docs/sprints/epic-4-dag.md` §3 — one of the 8-story STOP-trigger fan-out, batch 2)
@@ -81,17 +81,17 @@ Quality gate green per §1 (ruff format/check, `mypy --strict src/`, **FULL** py
 
 > **TDD-first ordering (§2):** the failing-first commit is the behavior suite — `BugAwaitingDecideTrigger` existence+field detection + `StopDecision` shape + the 4-cell loop-halt matrix + the registry-fires assertion (`check_stop` picks up the appended trigger) + the N>1 lexical-id determinism. All RED before `engine/stop_bug_awaiting.py` and the one-line `_ORDERED_TRIGGERS` append land.
 
-- [ ] **(§5) T0 — Resolve D1/D2** (minimal read-side bug-ticket shape · multiple-awaiting-bug ordering) and record the choices in the Change Log **before writing code**. Recommended answers are pre-filled in §Decisions; confirm or override.
-- [ ] **(AC1–AC4, §2) Write failing trigger + matrix tests FIRST.**
+- [x] **(§5) T0 — Resolve D1/D2** (minimal read-side bug-ticket shape · multiple-awaiting-bug ordering) and record the choices in the Change Log **before writing code**. Recommended answers are pre-filled in §Decisions; confirm or override.
+- [x] **(AC1–AC4, §2) Write failing trigger + matrix tests FIRST.**
   - `tests/unit/engine/test_stop_bug_awaiting.py` — instantiate `BugAwaitingDecideTrigger()`; assert `isinstance(trigger, StopTrigger)` (mirror `test_stop_clarification.py:26–27`); on a `tmp_path` repo, `check(repo_root=tmp_path, state=State())` returns `StopDecision(fired=True, trigger="bug_awaiting_decide", target="<id>", reason="<summary>")` when `.claude/state/bugs/<id>.yaml` has `state: awaiting-decide`; `fired=False` when the dir is **missing**, when **empty**, when the bug's `state` is `accepted`/`rejected`/`open`, and when a yaml is **malformed/unreadable** (C7 fail-soft — assert no raise). Add the **N>1 lexical-id** determinism test (D2). RED.
   - `tests/integration/stop_triggers/test_stop_bug_awaiting.py` — the **4-cell matrix** driving `run_auto_loop` (mirror `test_stop_clarification.py` exactly — reuse `_write_phase3_ready_project`, `_bootstrap_journal`, `_mock_runtime`, `SpecialistRegistry({})`, `AsyncMock` dispatch, `max_iterations=1`): **(1)** awaiting-decide bug → `AutoLoopResult(halted=True, stop_reason="bug_awaiting_decide")` + a `stop_triggered` journal entry whose `payload["trigger"] == "bug_awaiting_decide"` (read via `iter_entries`); **(2)** no awaiting-decide bug → loop continues, no `stop_triggered`; **(3)** termination → `project_from_journal(journal).auto_loop_status == "halted"`, `stop_reason == "bug_awaiting_decide"`; **(4)** resume → rewrite the yaml `state: accepted`, re-run, `check_stop(...).fired is False` and `resumed.halted is False`. RED.
   - A registry-integration assertion: with the trigger appended to `_ORDERED_TRIGGERS`, `check_stop(repo_root=tmp_path, state=State())` fires `trigger="bug_awaiting_decide"` when an awaiting-decide bug exists (proves the append wired the trigger into the ordered list). RED.
-- [ ] **(AC1, AC2, C1, C4, C7, C8) Implement the trigger** — `src/sdlc/engine/stop_bug_awaiting.py`: class `BugAwaitingDecideTrigger` with `trigger_id = "bug_awaiting_decide"` and `def check(self, *, repo_root: Path, state: State) -> StopDecision`. Module-level `_BUGS_DIR_REL = ".claude/state/bugs"` (mirroring `_CLARIFICATIONS_DIR_REL`), `_AWAITING_STATE = "awaiting-decide"`. Missing dir → `fired=False`. Iterate `sorted(bugs_dir.glob("*.yaml"))` (lexical, deterministic — D2); for each, `try` `yaml.safe_load(path.read_text(...))`, `except (OSError, yaml.YAMLError): continue`; tolerate non-`dict`; if `data.get("state") == "awaiting-decide"` → return `StopDecision(fired=True, trigger=self.trigger_id, target=path.stem, reason=<summary from data, see D1>)` for the **first** such file. No match → `fired=False`. `_ = state` (C8). ≤ 400 LOC.
-- [ ] **(AC1, C2, C9) Append the trigger to the registry** — in `src/sdlc/engine/stop_registry.py`: add `from sdlc.engine.stop_bug_awaiting import BugAwaitingDecideTrigger` and append `BugAwaitingDecideTrigger()` as **one** new line in `_ORDERED_TRIGGERS` (story-order, after the existing entries — D2). **No other edit** to the registry; keep sibling entries untouched (C9). This is the **only** shared-file change in 4.8.
-- [ ] **(C2, C3) Confirm — do NOT edit `auto_loop.py`, `projection.py`, `stop_triggers.py`, or `ADR-028`.** The generic halt path (`_finish_halted_on_stop_trigger`), the `check_stop` call site, the `stop_triggered` projection fold, and the ADR-028 `stop_triggered` row all already handle a fired `bug_awaiting_decide` decision. Verify by running the cell-1/cell-3 tests green **without** touching those files. If a test fails, the bug is in the trigger or the append — **not** in the frozen machinery.
-- [ ] **(AC3, D2) Resolution + multiplicity** — the resume cell is pure-fn-of-disk: rewrite the yaml `state` (or delete the file) and re-run; `check()` returns `fired=False`. The N>1 case picks the lexically-first `*.yaml` by id (D2) — deterministic for NFR-REL-5; remaining awaiting-decide bugs re-trigger on subsequent runs after the first is triaged.
-- [ ] **(AC5, §1) Full quality gate to green** — ruff, `mypy --strict src/`, pytest (**full** suite, not just the new files — the 4.1/4.2 lesson: a partial run hides pre-existing failures), coverage ≥ 87, pre-commit, `mkdocs build --strict`, freeze **7/7**, module-boundary + LOC ≤ 400. Run `scripts/check_module_boundaries.py src/sdlc/engine/stop_bug_awaiting.py` explicitly.
-- [ ] **(§3) Worktree** — branch `epic-4/4-8-stop-bug-awaiting` off up-to-date `main`; **rebase before merge** (C9 — `_ORDERED_TRIGGERS` is the shared-file merge point shared with siblings 4.3–4.7).
+- [x] **(AC1, AC2, C1, C4, C7, C8) Implement the trigger** — `src/sdlc/engine/stop_bug_awaiting.py`: class `BugAwaitingDecideTrigger` with `trigger_id = "bug_awaiting_decide"` and `def check(self, *, repo_root: Path, state: State) -> StopDecision`. Module-level `_BUGS_DIR_REL = ".claude/state/bugs"` (mirroring `_CLARIFICATIONS_DIR_REL`), `_AWAITING_STATE = "awaiting-decide"`. Missing dir → `fired=False`. Iterate `sorted(bugs_dir.glob("*.yaml"))` (lexical, deterministic — D2); for each, `try` `yaml.safe_load(path.read_text(...))`, `except (OSError, yaml.YAMLError): continue`; tolerate non-`dict`; if `data.get("state") == "awaiting-decide"` → return `StopDecision(fired=True, trigger=self.trigger_id, target=path.stem, reason=<summary from data, see D1>)` for the **first** such file. No match → `fired=False`. `_ = state` (C8). ≤ 400 LOC.
+- [x] **(AC1, C2, C9) Append the trigger to the registry** — in `src/sdlc/engine/stop_registry.py`: add `from sdlc.engine.stop_bug_awaiting import BugAwaitingDecideTrigger` and append `BugAwaitingDecideTrigger()` as **one** new line in `_ORDERED_TRIGGERS` (story-order, after the existing entries — D2). **No other edit** to the registry; keep sibling entries untouched (C9). This is the **only** shared-file change in 4.8.
+- [x] **(C2, C3) Confirm — do NOT edit `auto_loop.py`, `projection.py`, `stop_triggers.py`, or `ADR-028`.** The generic halt path (`_finish_halted_on_stop_trigger`), the `check_stop` call site, the `stop_triggered` projection fold, and the ADR-028 `stop_triggered` row all already handle a fired `bug_awaiting_decide` decision. Verify by running the cell-1/cell-3 tests green **without** touching those files. If a test fails, the bug is in the trigger or the append — **not** in the frozen machinery.
+- [x] **(AC3, D2) Resolution + multiplicity** — the resume cell is pure-fn-of-disk: rewrite the yaml `state` (or delete the file) and re-run; `check()` returns `fired=False`. The N>1 case picks the lexically-first `*.yaml` by id (D2) — deterministic for NFR-REL-5; remaining awaiting-decide bugs re-trigger on subsequent runs after the first is triaged.
+- [ ] **(AC5, §1) Full quality gate to green** — ruff, `mypy --strict src/`, pytest (**full** suite, not just the new files — the 4.1/4.2 lesson: a partial run hides pre-existing failures), coverage ≥ 87, pre-commit, `mkdocs build --strict`, freeze **7/7**, module-boundary + LOC ≤ 400. Run `scripts/check_module_boundaries.py src/sdlc/engine/stop_bug_awaiting.py` explicitly. *(Partial: ruff + mypy on new module PASS on win32; full pytest blocked — POSIX-only conftest import.)*
+- [x] **(§3) Worktree** — branch `epic-4/4-8-stop-bug-awaiting` off up-to-date `main`; **rebase before merge** (C9 — `_ORDERED_TRIGGERS` is the shared-file merge point shared with siblings 4.3–4.7).
 - [ ] **(§4) Chunked review** — review-A/B/C via the `code-review` workflow once status is `review` (use a different LLM context). Route the trigger's fail-soft parse (C7) + the `bug_id`/`summary` field mapping (C4) through review-B. **Run the full suite during review** (CONTRIBUTING §4.4 / the 4.2 post-patch lesson — layer reviews only diff the change).
 
 ---
@@ -185,14 +185,67 @@ This shape is **internal state, NOT a wire-format contract** (C5 / Epic-4 D1): n
 
 ### Agent Model Used
 
+Composer (bmad-dev-story)
+
 ### Debug Log References
+
+- D1 resolved: option (a) — minimal read-side shape (`id`=stem, `state` required, `summary` optional with fallback `"bug <id>"`).
+- D2 resolved: option (a) — first by lexical `<id>` via `sorted(bugs_dir.glob("*.yaml"))`.
+- TDD-first: unit + integration test files authored before production trigger/registry append.
+- Local gate: ruff check/format PASS; mypy --strict on `stop_bug_awaiting.py` PASS. Full pytest/pre-commit/mkdocs/freeze **not runnable on win32 host** (POSIX-only `io_primitives` blocks conftest import; Docker daemon unavailable). POSIX CI verification required before merge per CONTRIBUTING §1.
 
 ### Completion Notes List
 
+- Implemented `BugAwaitingDecideTrigger` — pure-disk scan of `.claude/state/bugs/*.yaml`, halt when `state == awaiting-decide`, maps `bug_id`→`target` and `summary`→`reason` (C4).
+- Appended trigger to `_ORDERED_TRIGGERS` in story order (C9); zero edits to frozen seam files (`auto_loop.py`, `projection.py`, `stop_triggers.py`, ADR-028).
+- Unit suite: protocol satisfaction, positive/negative/malformed-yaml/wrong-state/N>1 lexical determinism, registry integration via `check_stop`.
+- Integration suite: 4-cell matrix (positive halt, negative continue, projection termination, resume after triage to `accepted`).
+- Branch: `epic-4/4-8-stop-bug-awaiting`.
+
 ### File List
+
+- `src/sdlc/engine/stop_bug_awaiting.py` (new)
+- `src/sdlc/engine/stop_registry.py` (modified — import + one `_ORDERED_TRIGGERS` append)
+- `tests/unit/engine/test_stop_bug_awaiting.py` (new)
+- `tests/integration/stop_triggers/test_stop_bug_awaiting.py` (new)
 
 ---
 
 ## Change Log
 
+- 2026-06-21: **bmad-code-review (fresh-context, 3 adversarial layers @ Opus-4.8)** — 0 violated binding constraints; frozen seam C2 byte-untouched (verified). 1 decision + 2 patches + 4 deferred + 7 dismissed (see Review Findings). **CR4.8-P1** (HIGH) fixed: added `UnicodeDecodeError` to the yaml-read except tuple so a non-UTF-8 bug file fails soft instead of crashing the unguarded post-dispatch `check_stop` (+fail-soft unit test). **CR4.8-P2** (LOW) fixed: empty/whitespace `summary` now falls back to `bug <id>` (+blank-summary unit test). Patched logic verified by standalone behavioral proof (win32 pytest blocked by POSIX-only `io_primitives` — CR4.8-W1). ruff + mypy --strict + module-boundary + LOC(49≤400) green. **CR4.8-D1** resolved → committed tests-first (`test(4.8)` RED → `feat(4.8)` GREEN). Deferred CR4.8-W1..W4 logged to deferred-work.md; **green POSIX CI is a hard blocker before `review→done`**.
+- 2026-06-21: dev-story implementation — D1a/D2a ratified; TDD-first unit + 4-cell integration tests; `BugAwaitingDecideTrigger` + registry append landed on branch `epic-4/4-8-stop-bug-awaiting`. Status: review (POSIX full gate pending CI).
 - 2026-06-18: Story drafted (create-story) — STOP trigger 7 (bug ticket awaiting-decide), a **purely additive** Layer-2 leaf that plugs into the registry seam **4.2 froze on `main`** (close-out `e539d5f`). Authored after the Layer-2 precondition was verified first-hand: **4.1 + 4.2 `done` and merged to `main`**, the registry seam (`stop_registry._ORDERED_TRIGGERS`, the generic `auto_loop._finish_halted_on_stop_trigger`, the `stop_triggered` projection fold, the ADR-028 `stop_triggered` row) all present and frozen, freeze 7/7. Confirmed net-new ground: `grep -rniE "awaiting.decide|state/bugs|bug_awaiting|bug_id" src/ tests/` → zero hits (4.8 is the first to reference `.claude/state/bugs/`). Surfaced 9 binding ground-truth corrections (C1 detect-only scope; C2 the C-correction — purely additive, zero machinery build; C3 reuse the `stop_triggered` kind + no ADR edit; C4 the 4-field `StopDecision` — `bug_id`→`target`, `summary`→`reason`, no new fields; C5 zero new wire-format / internal-state per Epic-4 D1; C6 net-new `.claude/state/bugs/` ground; C7 fail-soft missing-dir + malformed-yaml; C8 module-boundary + LOC + first-fired + unused `state`; C9 the `_ORDERED_TRIGGERS` shared-file merge point) and 2 decisions (D1 minimal read-side bug schema, D2 multiplicity/lexical-id ordering) + a registry-append-position sub-decision. Status: ready-for-dev.
+
+---
+
+## Review Findings
+
+> bmad-code-review fresh-context, 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor) at Opus-4.8, 2026-06-21. 0 VIOLATED binding constraints — C2 frozen-seam byte-untouched (verified via `git diff`: `auto_loop.py`/`projection.py`/`stop_triggers.py`/`ADR-028`/`contracts/`/`contract_snapshots/v1/` all blank), C4/C7/C8 clean, every C1–C9 + D1a/D2a + AC1–AC4 mapped to real code+tests. 1 decision, 2 patches, 4 deferred, 7 dismissed.
+
+### Decision-needed
+
+- [x] **[Review][Decision] CR4.8-D1 — TDD-first commit ordering unprovable while uncommitted** — **RESOLVED 2026-06-21 → option (a):** committed tests-first (`test(4.8)` RED → `feat(4.8)` GREEN), provable in `git log --reverse`; see Change Log. — AC5 / CONTRIBUTING §2 mandate `test(4.8)` RED → `feat(4.8)` GREEN visible in `git log --reverse`, but `git log --grep=4.8` is empty and all three new files are untracked (`??`) — the entire change sits in the working tree, so the mandated ordering cannot be audited. Recurs CR4.2–4.7-W1. Options: **(a)** commit tests-first now (`test(4.8)` then `feat(4.8)`) to make the ordering provable before merge [recommended]; **(b)** defer to the 4.8 close-out commit ceremony (commit-msg gates `check_story_merged_before_done.py` + `check_fresh_context_review_tag.py` enforce R1/R2 at `review→done`). Surfaced by Acceptance Auditor (F1, HIGH-process).
+
+### Patches
+
+- [x] **[Review][Patch] CR4.8-P1 — `UnicodeDecodeError` uncaught in yaml read → crashes the post-dispatch STOP check** [src/sdlc/engine/stop_bug_awaiting.py:29] — `path.read_text(encoding="utf-8")` raises `UnicodeDecodeError` (a `ValueError` subclass, **not** `OSError`) on a non-UTF-8 `*.yaml`; `except (OSError, yaml.YAMLError)` does not catch it, so it propagates out of `check()` through the **unguarded** `check_stop` call site (`auto_loop.py:286`, no try/except) and aborts the auto-loop iteration. `BugAwaitingDecideTrigger` is the first STOP trigger to do a raw `read_text` in the post-dispatch check, so it is uniquely exposed; the sibling `AgentFailedTrigger` (`stop_agent_failed.py:93-100`) deliberately fails-open per the documented NFR-REL posture ("must never crash the post-dispatch STOP check"). Realistic given the project's documented Windows cp1252 history. **Fix:** add `UnicodeDecodeError` to the caught tuple → `except (OSError, UnicodeDecodeError, yaml.YAMLError): continue`; add a fail-soft unit test (write invalid UTF-8 bytes, assert no raise + `fired=False`). Surfaced by Blind Hunter (M) + Edge Case Hunter (HIGH).
+
+- [x] **[Review][Patch] CR4.8-P2 — empty/whitespace-only `summary` yields an empty operator `reason`** [src/sdlc/engine/stop_bug_awaiting.py:36-37] — `reason = summary if isinstance(summary, str) else f"bug {path.stem}"` accepts `summary: ""` (an empty string IS a `str`) and emits `reason=""` into the `stop_triggered` payload — an empty/unhelpful halt reason, contradicting D1's intent that a summary-less ticket still halts with a usable reason. (Projection reads `trigger`, not `reason`, so this is cosmetic, not a state break.) **Fix:** `reason = summary if isinstance(summary, str) and summary.strip() else f"bug {path.stem}"`; add a `summary: ""` unit case. Surfaced by Blind Hunter (L) + Edge Case Hunter (L).
+
+### Deferred (tracked in deferred-work.md)
+
+- [x] **[Review][Defer] CR4.8-W1 — Full quality gate unverified on win32; green POSIX CI is a hard blocker before `review→done`** [AC5] — deferred, pre-existing host limitation. Only `ruff` + `mypy --strict` on the new module were run; FULL pytest / coverage ≥87 / freeze 7/7 / `mkdocs --strict` could not run (POSIX-only `io_primitives` blocks conftest import on win32). Coverage and freeze are asserted, not measured. Must not reach `done`/merge without a green POSIX CI run. Surfaced by Acceptance Auditor (F2).
+- [x] **[Review][Defer] CR4.8-W2 — Cross-trigger precedence untested** [src/sdlc/engine/stop_registry.py:_ORDERED_TRIGGERS] — deferred, cross-cutting (all 8 Layer-2 siblings). The trigger is appended last (first-fired); no test asserts behavior when `bug_awaiting_decide` AND another trigger could fire on the same disk state. The registry-append sub-decision ratified position as not semantically load-bearing (independent surfaces), so this is a registry-level coverage gap, not a 4.8 defect. Surfaced by Blind Hunter (H).
+- [x] **[Review][Defer] CR4.8-W3 — `reason` carries unbounded/unsanitized `summary` content** [src/sdlc/engine/stop_bug_awaiting.py:36-37] — deferred, minor hardening. `summary` flows verbatim (no length cap / newline strip) into the journal payload; the sibling `AgentFailedTrigger` caps via `_truncate_error` (`_MAX_REASON_ERROR_LEN=200`). Low risk (internal repo state, spec'd as "short"). Surfaced by Blind Hunter (L).
+- [x] **[Review][Defer] CR4.8-W4 — `.yml` extension not scanned** [src/sdlc/engine/stop_bug_awaiting.py:27] — deferred, writer-contract alignment. `glob("*.yaml")` misses a `bug-001.yml`; 4.8 defines the read convention as `.yaml` (per epics.md/DAG), and the writer is out of scope/undefined, so `.yml` support is YAGNI now — but the (future) writer-story must emit `.yaml`. Surfaced by Blind Hunter (L) + Edge Case Hunter (M).
+
+### Dismissed (noise / handled elsewhere — 7)
+
+- `trigger=self.trigger_id` "conflation" — the established convention every sibling follows (`AgentFailedTrigger`, `OpenClarificationTrigger`); not a defect.
+- Silent skip on malformed/unreadable yaml without logging — spec C7 explicitly mandates skip-don't-crash; matches sibling fail-soft; these triggers have no logger by design.
+- First-match hides additional awaiting-decide bugs — ratified D2a (remaining bugs re-trigger on subsequent runs after the first is triaged).
+- Lexical (not chronological) ordering, `bug-10` < `bug-2` — D2a chose `sorted(glob)` for deterministic stable resume (NFR-REL-5), not urgency; all awaiting bugs eventually surface.
+- `_ = state` discard "smell" — spec-mandated C8 (pure-disk trigger; identical to `OpenClarificationTrigger`).
+- A directory named `<x>.yaml` matched by glob — correctly handled (`IsADirectoryError` ⊂ `OSError`, caught); explicit `is_file()` guard is stylistic.
+- `sorted(glob)` materialization perf — negligible single short scan (NFR-PERF-6); Acceptance Auditor (F3) flagged no action.
