@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from sdlc.dispatcher import DispatchResult
 from sdlc.engine.next_selector import resolve_next_action
 from sdlc.engine.scanner import scan
 from sdlc.engine.stop_triggers import StopDecision, check_stop
+from sdlc.engine.watchdog import make_watchdog_stop_decision, watchdog_deadline_exceeded
 from sdlc.ids.clock import now_rfc3339_utc_ms
 from sdlc.journal import JournalEntry, append_with_seq_alloc, iter_entries
 from sdlc.runtime import AIRuntime
@@ -217,12 +219,15 @@ async def run_auto_loop(
     dispatch_fn: DispatchFn,
     state_path: Path | None = None,
     max_iterations: int | None = None,
+    watchdog_timeout_minutes: float | None = None,
 ) -> AutoLoopResult:
     """Run scan → dispatch → STOP-check iterations until halt or max_iterations."""
     # Resume anchor: seed the iteration counter from disk (P2), not from 0.
     iteration_seq = _last_iteration_seq(journal_path)
     last_action = "stopped"
     iterations_this_run = 0
+    start_monotonic = time.monotonic()
+    repo_root_str = str(repo_root)
 
     while max_iterations is None or iterations_this_run < max_iterations:
         iteration_seq += 1
@@ -282,6 +287,25 @@ async def run_auto_loop(
             registry=registry,
             correlation_id=correlation_id,
         )
+
+        if watchdog_timeout_minutes is not None:
+            now_monotonic = time.monotonic()
+            if watchdog_deadline_exceeded(
+                start_monotonic,
+                now_monotonic=now_monotonic,
+                timeout_minutes=watchdog_timeout_minutes,
+            ):
+                elapsed_minutes = (now_monotonic - start_monotonic) / 60.0
+                return await _finish_halted_on_stop_trigger(
+                    journal_path=journal_path,
+                    state_path=state_path,
+                    iteration_seq=iteration_seq,
+                    correlation_id=correlation_id,
+                    stop=make_watchdog_stop_decision(
+                        repo_root_str, elapsed_minutes=elapsed_minutes
+                    ),
+                    last_action="dispatch",
+                )
 
         stop = check_stop(repo_root=repo_root, state=state)
         if stop.fired:
