@@ -1,6 +1,6 @@
 # Story 4.12: `[Recovery] sdlc unsign --mad-only`
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
