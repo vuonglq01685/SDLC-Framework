@@ -91,9 +91,9 @@ def run_auto(
     registry = load_registry(root / _AGENTS_REL)
 
     try:
-        watchdog_timeout_minutes = load_project_config(
-            root / DEFAULT_PROJECT_YAML
-        ).watchdog_timeout_minutes
+        project_cfg = load_project_config(root / DEFAULT_PROJECT_YAML)
+        watchdog_timeout_minutes = project_cfg.watchdog_timeout_minutes
+        auto_brainstorm = project_cfg.auto_brainstorm
     except ConfigError as exc:
         emit_error(
             "ERR_USER_INPUT",
@@ -115,6 +115,7 @@ def run_auto(
                 state_path=state_path,
                 max_iterations=max_iterations,
                 watchdog_timeout_minutes=watchdog_timeout_minutes,
+                auto_brainstorm=auto_brainstorm,
             )
         )
 

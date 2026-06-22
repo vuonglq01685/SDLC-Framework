@@ -46,6 +46,7 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
         "auto_mad_resolve",
         "hook_bypass",
         "auto_loop_iteration",
+        "auto_brainstorm_dispatched",
         "stop_trigger_raised",
         "stop_triggered",
     }
