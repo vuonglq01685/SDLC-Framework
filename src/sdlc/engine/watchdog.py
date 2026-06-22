@@ -28,11 +28,40 @@ def _format_elapsed(elapsed_minutes: float) -> str:
     return f"~{round(elapsed_minutes * 60.0)} s"
 
 
-def make_watchdog_stop_decision(repo_root_str: str, *, elapsed_minutes: float) -> StopDecision:
+def make_watchdog_stop_decision(
+    repo_root_str: str,
+    *,
+    elapsed_minutes: float,
+    mad_mode: bool = False,
+) -> StopDecision:
     """Synthesize the loop-level watchdog halt decision (C3/C4)."""
+    suffix = " (mad-mode)" if mad_mode else ""
     return StopDecision(
         fired=True,
         trigger="watchdog_timeout",
         target=repo_root_str,
-        reason=f"elapsed {_format_elapsed(elapsed_minutes)}",
+        reason=f"elapsed {_format_elapsed(elapsed_minutes)}{suffix}",
+    )
+
+
+def watchdog_stop_decision_if_exceeded(
+    start_monotonic: float,
+    *,
+    now_monotonic: float,
+    timeout_minutes: float,
+    repo_root_str: str,
+    mad_mode: bool = False,
+) -> StopDecision | None:
+    """Return the watchdog halt decision when the deadline is exceeded."""
+    if not watchdog_deadline_exceeded(
+        start_monotonic,
+        now_monotonic=now_monotonic,
+        timeout_minutes=timeout_minutes,
+    ):
+        return None
+    elapsed_minutes = (now_monotonic - start_monotonic) / 60.0
+    return make_watchdog_stop_decision(
+        repo_root_str,
+        elapsed_minutes=elapsed_minutes,
+        mad_mode=mad_mode,
     )

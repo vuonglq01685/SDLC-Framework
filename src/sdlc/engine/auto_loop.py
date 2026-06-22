@@ -12,10 +12,14 @@ from typing import Final
 
 from sdlc.dispatcher import DispatchResult
 from sdlc.engine.auto_brainstorm import detect_ambiguity_signal, run_auto_brainstorm
+from sdlc.engine.auto_mad import (
+    _MAD_CONTINUE,
+    resolve_stop_after_dispatch,
+)
 from sdlc.engine.next_selector import resolve_next_action
 from sdlc.engine.scanner import scan
-from sdlc.engine.stop_triggers import StopDecision, check_stop
-from sdlc.engine.watchdog import make_watchdog_stop_decision, watchdog_deadline_exceeded
+from sdlc.engine.stop_triggers import StopDecision
+from sdlc.engine.watchdog import watchdog_stop_decision_if_exceeded
 from sdlc.ids.clock import now_rfc3339_utc_ms
 from sdlc.journal import JournalEntry, append_with_seq_alloc, iter_entries
 from sdlc.runtime import AIRuntime
@@ -236,7 +240,7 @@ async def _maybe_run_auto_brainstorm_on_ambiguity(
     )
 
 
-async def run_auto_loop(
+async def run_auto_loop(  # noqa: C901 — iteration contract; mad-mode branch delegated to auto_mad
     repo_root: Path,
     *,
     journal_path: Path,
@@ -248,6 +252,7 @@ async def run_auto_loop(
     max_iterations: int | None = None,
     watchdog_timeout_minutes: float | None = None,
     auto_brainstorm: bool = True,
+    mad_mode: bool = False,
 ) -> AutoLoopResult:
     """Run scan → dispatch → STOP-check iterations until halt or max_iterations."""
     # Resume anchor: seed the iteration counter from disk (P2), not from 0.
@@ -317,21 +322,20 @@ async def run_auto_loop(
         )
 
         if watchdog_timeout_minutes is not None:
-            now_monotonic = time.monotonic()
-            if watchdog_deadline_exceeded(
+            watchdog_stop = watchdog_stop_decision_if_exceeded(
                 start_monotonic,
-                now_monotonic=now_monotonic,
+                now_monotonic=time.monotonic(),
                 timeout_minutes=watchdog_timeout_minutes,
-            ):
-                elapsed_minutes = (now_monotonic - start_monotonic) / 60.0
+                repo_root_str=repo_root_str,
+                mad_mode=mad_mode,
+            )
+            if watchdog_stop is not None:
                 return await _finish_halted_on_stop_trigger(
                     journal_path=journal_path,
                     state_path=state_path,
                     iteration_seq=iteration_seq,
                     correlation_id=correlation_id,
-                    stop=make_watchdog_stop_decision(
-                        repo_root_str, elapsed_minutes=elapsed_minutes
-                    ),
+                    stop=watchdog_stop,
                     last_action="dispatch",
                 )
 
@@ -346,16 +350,21 @@ async def run_auto_loop(
             auto_brainstorm=auto_brainstorm,
         )
 
-        stop = check_stop(repo_root=repo_root, state=state)
-        if stop.fired:
-            return await _finish_halted_on_stop_trigger(
-                journal_path=journal_path,
-                state_path=state_path,
-                iteration_seq=iteration_seq,
-                correlation_id=correlation_id,
-                stop=stop,
-                last_action="dispatch",
-            )
+        stop_outcome = await resolve_stop_after_dispatch(
+            repo_root=repo_root,
+            state=state,
+            journal_path=journal_path,
+            state_path=state_path,
+            iteration_seq=iteration_seq,
+            correlation_id=correlation_id,
+            mad_mode=mad_mode,
+            rebuild_state=_rebuild_state,
+            finish_halted=_finish_halted_on_stop_trigger,
+        )
+        if stop_outcome is _MAD_CONTINUE:
+            continue
+        if isinstance(stop_outcome, AutoLoopResult):
+            return stop_outcome
 
     # Bounded exit (max_iterations reached): write a terminal "stopped" marker (P3) so the
     # journal-derived auto_loop_status settles to "idle" instead of latching "running". The
