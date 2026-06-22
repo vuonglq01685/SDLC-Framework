@@ -255,3 +255,67 @@ jobs:
           uv run python scripts/check_debt_decay_budget.py \
             --target-epic "$target" \
             --mode "$mode"
+
+  ci-gate:
+    # Epic 4 retro A1 — "CI-never-started ≠ green". The single status check
+    # branch protection should require. It runs even when upstream jobs fail,
+    # skip, or never start (`if: always()`), then asserts each required job
+    # concluded `success`. A run that dies at "Set up job" — e.g. a bad action
+    # ref like the 2026-06-09 phantom `setup-uv@v8` tag, which made every cell
+    # fail in ~10s before reaching the test step — lands here as a RED gate,
+    # never as a vacuous green or a perpetually-pending required check. See
+    # _bmad-output/implementation-artifacts/ci-never-green-finding-2026-06-09.md.
+    name: CI gate (all required jobs green)
+    if: always()
+    needs:
+      - quality-gates
+      - chaos-tests
+      - benchmarks
+      - mutation-tests
+      - posix-adopt-ran
+      - parity-perf
+      - debt-decay-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert every required job succeeded
+        env:
+          R_QUALITY: ${{ needs.quality-gates.result }}
+          R_CHAOS: ${{ needs.chaos-tests.result }}
+          R_BENCH: ${{ needs.benchmarks.result }}
+          R_MUTATION: ${{ needs.mutation-tests.result }}
+          R_POSIX: ${{ needs.posix-adopt-ran.result }}
+          R_PARITY: ${{ needs.parity-perf.result }}
+          R_DEBT: ${{ needs.debt-decay-gate.result }}
+        run: |
+          echo "quality-gates=$R_QUALITY chaos-tests=$R_CHAOS benchmarks=$R_BENCH \
+            mutation-tests=$R_MUTATION posix-adopt-ran=$R_POSIX parity-perf=$R_PARITY \
+            debt-decay-gate=$R_DEBT"
+          fail=0
+          # These jobs run on every push and PR — each MUST be `success`. A
+          # `skipped`/empty result here means the job never started (e.g. a
+          # setup-time abort) and is treated as RED, NOT a pass.
+          for pair in \
+            "quality-gates:$R_QUALITY" \
+            "chaos-tests:$R_CHAOS" \
+            "benchmarks:$R_BENCH" \
+            "mutation-tests:$R_MUTATION" \
+            "posix-adopt-ran:$R_POSIX" \
+            "parity-perf:$R_PARITY"; do
+            name="${pair%%:*}"; res="${pair##*:}"
+            if [ "$res" != "success" ]; then
+              echo "::error::required job '$name' concluded '$res' (must be 'success')"
+              fail=1
+            fi
+          done
+          # debt-decay-gate runs on PRs only (if: pull_request); on push it is
+          # legitimately skipped. Any other non-success result is RED.
+          if [ "$R_DEBT" != "success" ] && [ "$R_DEBT" != "skipped" ]; then
+            echo "::error::debt-decay-gate concluded '$R_DEBT' (must be 'success' or 'skipped')"
+            fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::CI gate RED — not all required jobs succeeded. A run that aborts at 'Set up job' or never starts lands here, never as a false green (Epic 4 retro A1)."
+            exit 1
+          fi
+          echo "CI gate GREEN — all required jobs succeeded (debt-decay-gate success or push-skipped)."
