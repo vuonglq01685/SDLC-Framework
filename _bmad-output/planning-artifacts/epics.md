@@ -2390,6 +2390,16 @@ So that the dashboard surface is shippable from Epic 1 with synthetic data and t
 **Then** the response is `405 Method Not Allowed`
 **And** v1 explicitly exposes no write endpoints (FR46)
 
+**Given** the server running and any request arriving (added per Epic-5 DAG rev-2 architectural review, Winston F5)
+**When** the request's `Host` header is not in the localhost allowlist (`localhost`, `127.0.0.1`, `[::1]`, with or without the bound port)
+**Then** the response is `403 Forbidden`
+**And** this defeats DNS-rebinding / cross-origin reads: a localhost bind alone does not stop a malicious web page in the user's browser from reaching the server via a rebound hostname, and the dashboard is a read-exfiltration surface (project structure, story ids, agent activity) so `405`-on-write does not cover it (NFR-SEC-6)
+
+**Given** a `GET` for a static asset under the SPA static root (added per Epic-5 DAG rev-2 architectural review, Winston F5)
+**When** the canonicalized resolved path escapes the static root — via `..`, an absolute path, or a symlink pointing outside the root
+**Then** the response is `404 Not Found` and no file outside the static root is ever served
+**And** the path-containment check reuses the repo-containment helper from Epic-4 retro D1 (CR4.12-W1) once it lands, rather than hand-rolling a second implementation
+
 ### Story 5.2 [5A]: Design Token Foundation (Colors, Typography, Spacing, Motion)
 
 As a frontend engineer codifying the prototype's design language,
