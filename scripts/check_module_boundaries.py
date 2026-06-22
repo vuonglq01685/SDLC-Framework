@@ -176,6 +176,15 @@ LOC_EXEMPT_PATH_PREFIX_PARTS: tuple[tuple[str, ...], ...] = (
     ("src", "sdlc", "dispatcher", "postconditions.py"),
     ("tests", "integration", "test_dispatch_panel.py"),
     ("tests", "integration", "test_dispatcher_hook_integration.py"),
+    # CR4.2-W1 (Epic-4 retro A4): adopt-module mutation-testing suites (ADR-036). One
+    # assertion per mutant makes these inherently large; per-target cohesion (accept /
+    # stamp_rollback / driver / symlink_offer / conflict) gives a split no real value, so
+    # they are waived rather than fragmented. Debt: EPIC-5-DEBT-ADOPT-MUTATION-SPLIT.
+    ("tests", "unit", "adopt", "test_accept_mutations.py"),
+    ("tests", "unit", "adopt", "test_stamp_rollback_mutations.py"),
+    ("tests", "unit", "adopt", "test_driver_mutations.py"),
+    ("tests", "unit", "adopt", "test_symlink_offer_mutations.py"),
+    ("tests", "unit", "adopt", "test_conflict_mutations.py"),
 )
 
 
