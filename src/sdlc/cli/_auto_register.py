@@ -63,3 +63,33 @@ def register_auto_commands(app: typer.Typer) -> None:
             max_iterations=max_iterations,
             confirm_tool_call=confirm_tool_call,
         )
+
+    @app.command(name="auto-mad")
+    def auto_mad_command(
+        ctx: typer.Context,
+        allow_mock: bool = typer.Option(
+            False,
+            "--allow-mock",
+            help="Acknowledge MockAIRuntime when SDLC_USE_MOCK_RUNTIME=1 (ADR-029).",
+        ),
+        max_iterations: int | None = typer.Option(
+            None,
+            "--max-iterations",
+            min=1,
+            help="Bound the mad-mode loop to at most N iterations.",
+        ),
+        confirm_tool_call: str | None = typer.Option(
+            None,
+            "--confirm-tool-call",
+            help="Resume a halted high-risk tool call by its stable tool_call_id (Story 4.7).",
+        ),
+    ) -> None:
+        """Run mad-mode auto-loop with auto-resolution of signoff/clarification STOPs (FR20)."""
+        from sdlc.cli.auto import run_auto_mad  # deferred per Architecture §488
+
+        run_auto_mad(
+            ctx=ctx,
+            allow_mock=allow_mock,
+            max_iterations=max_iterations,
+            confirm_tool_call=confirm_tool_call,
+        )
