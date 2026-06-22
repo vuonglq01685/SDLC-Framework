@@ -44,6 +44,7 @@ _KNOWN_KINDS: Final[frozenset[str]] = frozenset(
         "signoff",
         "bypass_signoff",
         "auto_mad_resolve",
+        "signoff_unsigned",
         "hook_bypass",
         "auto_loop_iteration",
         "auto_brainstorm_dispatched",
