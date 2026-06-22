@@ -109,6 +109,8 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
                 "specialists",
                 "runtime",
                 "config",
+                "concurrency",
+                "contracts",
             }
         ),
         forbidden_from=frozenset({"cli", "dashboard"}),

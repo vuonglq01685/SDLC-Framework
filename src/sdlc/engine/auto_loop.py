@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Final
 
 from sdlc.dispatcher import DispatchResult
+from sdlc.engine.auto_brainstorm import detect_ambiguity_signal, run_auto_brainstorm
 from sdlc.engine.next_selector import resolve_next_action
 from sdlc.engine.scanner import scan
 from sdlc.engine.stop_triggers import StopDecision, check_stop
@@ -209,6 +210,32 @@ async def _finish_stopped(
     )
 
 
+async def _maybe_run_auto_brainstorm_on_ambiguity(
+    *,
+    repo_root: Path,
+    task_id: str,
+    runtime: AIRuntime,
+    registry: SpecialistRegistry,
+    journal_path: Path,
+    agent_runs_path: Path,
+    correlation_id: str,
+    auto_brainstorm: bool,
+) -> None:
+    ambiguity = detect_ambiguity_signal(repo_root, task_id=task_id)
+    if ambiguity is None:
+        return
+    await run_auto_brainstorm(
+        repo_root,
+        context=ambiguity,
+        runtime=runtime,
+        registry=registry,
+        journal_path=journal_path,
+        agent_runs_path=agent_runs_path,
+        correlation_id=correlation_id,
+        auto_brainstorm=auto_brainstorm,
+    )
+
+
 async def run_auto_loop(
     repo_root: Path,
     *,
@@ -220,6 +247,7 @@ async def run_auto_loop(
     state_path: Path | None = None,
     max_iterations: int | None = None,
     watchdog_timeout_minutes: float | None = None,
+    auto_brainstorm: bool = True,
 ) -> AutoLoopResult:
     """Run scan → dispatch → STOP-check iterations until halt or max_iterations."""
     # Resume anchor: seed the iteration counter from disk (P2), not from 0.
@@ -306,6 +334,17 @@ async def run_auto_loop(
                     ),
                     last_action="dispatch",
                 )
+
+        await _maybe_run_auto_brainstorm_on_ambiguity(
+            repo_root=repo_root,
+            task_id=task_id,
+            runtime=runtime,
+            registry=registry,
+            journal_path=journal_path,
+            agent_runs_path=agent_runs_path,
+            correlation_id=correlation_id,
+            auto_brainstorm=auto_brainstorm,
+        )
 
         stop = check_stop(repo_root=repo_root, state=state)
         if stop.fired:
