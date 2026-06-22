@@ -94,6 +94,7 @@ nullable in the schema (`Optional[str]`) and the natural absent-meaning is `None
 | `adopt_re_run` | 3.6 | n/a (sentinel) | sentinel | `new_adoptions`, `skipped_existing` |
 | `auto_brainstorm_dispatched` | 4.10 | n/a (sentinel) | sentinel | `clarification_id`, `task_id`, `correlation_id`, `panel_invoked`, `framework_picks` |
 | `auto_loop_iteration` | 4.1 | n/a (sentinel) | sentinel | `iteration_seq`, `action`, `correlation_id`, optional `task_id`, `reason` |
+| `auto_mad_resolve` | 4.11 | n/a (sentinel) | sentinel | `target`, `decision`, `correlation_id` |
 | `adopt_pass_completed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
 | `adopt_pass_failed` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3), `reason` |
 | `adopt_pass_started` | 3.1 | n/a (sentinel) | sentinel | `pass` (1\|2\|3) |
@@ -159,6 +160,7 @@ When Epic 2B+ adds a new emission:
 | 2026-06-15 | Vuonglq01685 + Claude (Story 4.2) | Added `stop_triggered` — auto-loop halt when a Layer-2 STOP trigger fires; payload `trigger`, `target`, optional `reason`, `correlation_id` (event-only zero-sentinel `after_hash`). Distinct from `stop_trigger_raised` (4.6). |
 | 2026-06-21 | Vuonglq01685 + Claude (Story 4.7) | Added `high_risk_confirmed` — auto-loop resume after explicit `--confirm-tool-call <id>`; payload `tool`, `tool_call_id`, `category`, `tool_call_excerpt`, `outcome="accepted"`, `nonce_sha256` (event-only zero-sentinel `after_hash`). Halt path still uses `stop_triggered{high_risk_path}`. |
 | 2026-06-22 | Vuonglq01685 + Claude (Story 4.10) | Added `auto_brainstorm_dispatched` — auto-loop ambiguity→panel decision audit; payload `clarification_id`, `task_id`, `correlation_id`, `panel_invoked`, `framework_picks` (event-only zero-sentinel `after_hash`). |
+| 2026-06-22 | Vuonglq01685 + Claude (Story 4.11) | Added `auto_mad_resolve` — mad-mode auto-resolution audit for signoff/clarification STOPs; payload `target`, `decision`, `correlation_id` (event-only zero-sentinel `after_hash`). |
 | 2026-06-10 | Vuonglq01685 + Claude (Story 4.1) | Added `auto_loop_iteration` — auto-loop iteration audit entries via `append_with_seq_alloc`; payload carries `iteration_seq`, `action` (`dispatch`/`stopped`/`continued`), and `correlation_id` (event-only zero-sentinel `after_hash`). |
 | 2026-06-04 | Vuonglq01685 + Claude (Story 3.3) | Added `symlink_accepted` — Pass 2 of `sdlc init --adopt` emits one event-only entry per accepted symlink (zero-sentinel `after_hash`), payload `{source, target, kind}`. The accepted-symlink manifest lives in the new `adopted-symlinks.json` wire-format contract (ADR-024 7th); the journal is the append-only audit trail Story 3.5 rollback / 3.6 idempotency replay against. |
 
