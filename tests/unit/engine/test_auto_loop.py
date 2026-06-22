@@ -314,3 +314,74 @@ async def test_watchdog_disabled_when_timeout_none(tmp_path: Path) -> None:
     )
     assert result.halted is False
     assert "stop_triggered" not in [e.kind for e in iter_entries(journal)]
+
+
+@pytest.mark.asyncio
+async def test_ambiguity_triggers_brainstorm_then_halts_open_clarification(
+    tmp_path: Path,
+) -> None:
+    import json
+
+    from sdlc.engine.auto_brainstorm import AmbiguityContext, clarification_id_for
+
+    _write_phase3_ready_project(tmp_path)
+    journal, runs = _bootstrap_journal(tmp_path)
+    summary = "ambiguous integration approach"
+    ctx = AmbiguityContext(task_id=_TASK_ID, summary=summary)
+    clar_id = clarification_id_for(ctx)
+
+    async def _dispatch(**kwargs) -> None:
+        signals = kwargs["repo_root"] / ".claude" / "state" / "ambiguity_signals"
+        signals.mkdir(parents=True, exist_ok=True)
+        (signals / f"{kwargs['task_id']}.json").write_text(
+            json.dumps({"summary": summary}),
+            encoding="utf-8",
+        )
+
+    async def _fake_brainstorm(repo_root: Path, **kwargs) -> str:
+        clar_dir = repo_root / ".claude" / "state" / "clarifications" / clar_id
+        clar_dir.mkdir(parents=True, exist_ok=True)
+        (clar_dir / "open_clarification.md").write_text("# open\n", encoding="utf-8")
+        return clar_id
+
+    brainstorm = AsyncMock(side_effect=_fake_brainstorm)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr("sdlc.engine.auto_loop.run_auto_brainstorm", brainstorm)
+        result = await run_auto_loop(
+            tmp_path,
+            journal_path=journal,
+            agent_runs_path=runs,
+            runtime=_mock_runtime(tmp_path),
+            registry=SpecialistRegistry({}),
+            dispatch_fn=_dispatch,
+            max_iterations=1,
+            auto_brainstorm=True,
+        )
+
+    brainstorm.assert_awaited_once()
+    assert result.halted is True
+    assert result.stop_reason == "open_clarification"
+
+
+@pytest.mark.asyncio
+async def test_no_ambiguity_signal_skips_brainstorm(tmp_path: Path) -> None:
+    _write_phase3_ready_project(tmp_path)
+    journal, runs = _bootstrap_journal(tmp_path)
+    dispatch = AsyncMock(return_value=None)
+
+    with pytest.MonkeyPatch.context() as mp:
+        brainstorm = AsyncMock()
+        mp.setattr("sdlc.engine.auto_loop.run_auto_brainstorm", brainstorm)
+        result = await run_auto_loop(
+            tmp_path,
+            journal_path=journal,
+            agent_runs_path=runs,
+            runtime=_mock_runtime(tmp_path),
+            registry=SpecialistRegistry({}),
+            dispatch_fn=dispatch,
+            max_iterations=1,
+            auto_brainstorm=True,
+        )
+
+    brainstorm.assert_not_awaited()
+    assert result.halted is False
