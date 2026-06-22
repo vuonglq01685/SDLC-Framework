@@ -34,15 +34,31 @@ alternatives, consequences, and a revisit-by date).
 | [022](ADR-022-migration-framework-and-schema-gate.md) | Migration framework + major-version schema gate | 1.19 | Accepted |
 | [023](ADR-023-rebuild-state-and-recovery-prompt.md) | Rebuild-state command + malformed-state recovery prompt | 1.20 | Accepted |
 | [024](ADR-024-wire-format-v1-lock.md) | wire-format v1 lock ceremony | 1.21 | Accepted |
-| [025](ADR-025-pydantic-strict-mode-default.md) | Pydantic strict-mode default | Epic 2A prep (D2) | Proposed |
-| [026](ADR-026-tdd-first-chunked-review-workflow.md) | TDD-first + chunked-review workflow | Epic 2A prep (A1+A2) | Proposed |
-| [027](ADR-027-e2e-test-framework-strategy.md) | E2E test framework strategy (Tier-1/2/3) | Epic 2A prep (A3, Story 2A.0) | Proposed |
+| [025](ADR-025-pydantic-strict-mode-default.md) | Pydantic strict-mode default | Epic 2A prep (D2) | Accepted |
+| [026](ADR-026-tdd-first-chunked-review-workflow.md) | TDD-first + chunked-review workflow | Epic 2A prep (A1+A2) | Accepted |
+| [027](ADR-027-e2e-test-framework-strategy.md) | E2E test framework strategy (Tier-1/2/3) | Epic 2A prep (A3, Story 2A.0) | Accepted |
+| [028](ADR-028-journal-kind-taxonomy.md) | Journal `kind` taxonomy + `after_hash` nullability | Epic 2B prep (DOC1) | Accepted |
+| [029](ADR-029-mock-runtime-envelope-semantics.md) | MockAIRuntime envelope semantics + default-flip | Epic 2B prep (C8) | Accepted |
+| [030](ADR-030-specialist-roster-freeze.md) | Specialist roster freeze + reconciliation | Epic 2B prep (C5) | Accepted |
+| [031](ADR-031-atomic-write-primitive.md) | Atomic raw-text write primitive (`io_primitives`) | Epic 2B prep (C1) | Accepted |
+| [032](ADR-032-append-with-seq-alloc.md) | `journal.append_with_seq_alloc` (cross-process) | Epic 2B prep (C2) | Accepted |
+| [033](ADR-033-debt-decay-gate-a-zero-open.md) | Debt-decay Gate A — zero-open threshold | Epic 2B prep | Accepted |
+| [034](ADR-034-debt-d7-split-signoff-flock.md) | EPIC-2A-D7 split — SIGNOFF-FLOCK / WIN32-RUNS-LOCK defer | Epic 2B prep | Accepted |
+| [035](ADR-035-debt-decay-gate-c-severity-scoped.md) | Debt-decay Gate C — severity-scoped N-2 | Epic 2B prep | Accepted |
+| [036](ADR-036-adopt-mutation-testing-harness.md) | Adopt-module mutation-testing harness | 3.7 | Accepted |
+| [037](ADR-037-repo-containment-guard-clarification-signoff.md) | Repo-containment guard (clarification/signoff) — CR4.12-W1 | Epic 5 prep (retro D1) | Proposed |
+| [038](ADR-038-sticky-halt-projection.md) | Sticky-halt projection (`halted` survives clean stop) — CR4.2-W3 | Epic 5 prep (retro D4) | Proposed |
 
 Note: ADR-024 closes the Decision F3 wire-format-lock loop; future per-contract version bumps cite it.
 
-Note: ADRs 025–027 are Epic-2A preparation-sprint outputs from the Epic 1 retrospective
-(`_bmad-output/implementation-artifacts/epic-1-retro-2026-05-09.md`). They move from
-**Proposed** → **Accepted** when the prep sprint closes and Story 2A.1 enters implementation.
+Note: ADRs 025–027 were Epic-2A preparation-sprint outputs from the Epic 1 retrospective
+(`_bmad-output/implementation-artifacts/epic-1-retro-2026-05-09.md`); they reached **Accepted**
+when that prep sprint closed. ADRs 028–036 are Epic-2B prep + Epic-3/4 outputs.
+
+Note: ADRs **037–038** are Epic-5 preparation outputs from the Epic 4 retrospective
+(`_bmad-output/implementation-artifacts/epic-4-retro-2026-06-22.md`, actions D1/D4). They are
+**Proposed**; per CONTRIBUTING §7.4 they must reach **Accepted** before Story 5.1 enters
+implementation.
 
 ## Authoring a new ADR
 

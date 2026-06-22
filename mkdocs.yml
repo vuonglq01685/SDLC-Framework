@@ -84,6 +84,8 @@ nav:
       - "ADR-034 — EPIC-2A-D7 split (signoff flock / Windows defer)": decisions/ADR-034-debt-d7-split-signoff-flock.md
       - "ADR-035 — debt-decay Gate C severity-scoped (BLOCKING/HIGH)": decisions/ADR-035-debt-decay-gate-c-severity-scoped.md
       - "ADR-036 — adopt mutation-testing harness": decisions/ADR-036-adopt-mutation-testing-harness.md
+      - "ADR-037 — repo-containment guard (clarification/signoff)": decisions/ADR-037-repo-containment-guard-clarification-signoff.md
+      - "ADR-038 — sticky-halt projection": decisions/ADR-038-sticky-halt-projection.md
       - "ADR template": decisions/adr-template.md
   - Reference:
       - "Specialists matrix (canonical roster)": specialists-matrix.md
@@ -93,6 +95,7 @@ nav:
       - "Epic 2B — story DAG & parallelism plan": sprints/epic-2b-dag.md
       - "Epic 3 — story DAG & parallelism plan": sprints/epic-3-dag.md
       - "Epic 4 — story DAG & parallelism plan": sprints/epic-4-dag.md
+      - "Epic 5 — story DAG & parallelism plan": sprints/epic-5-dag.md
   - Runbooks:
       - "Handle hook hash drift (FR39 / NFR-SEC-5)": runbooks/handle-hash-drift.md
       - "Diagnose hook rejection (Story 2A.4)": runbooks/diagnose-hook-rejection.md
