@@ -7,6 +7,7 @@ GREEN lands in a follow-up commit.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest import mock
 
@@ -252,3 +253,31 @@ class TestAntiTautologyReceipt:
         # The genuine TestMainCli.test_missing_tag_on_review_commit_exit_1
         # is therefore confirmed to be exercising validate, not bypassed.
         assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# _read_staged_files UTF-8 decode contract — Windows cp1252 guard (Epic 4 retro A2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestReadStagedFilesDecodesUtf8:
+    """Regression for the Windows cp1252 false-pass (Epic 4 retro A2).
+
+    Mirrors the merged-before-done gate fix: ``subprocess.run(..., text=True)``
+    must pin ``encoding="utf-8"`` so git stdout decodes identically on Windows
+    (cp1252 locale) and POSIX. Without it, non-ASCII staged paths / git output
+    mojibake or raise on Windows and the gate silently validates nothing.
+    """
+
+    def test_read_staged_files_pins_utf8_encoding(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            captured.update(kwargs)
+            return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+        with mock.patch.object(gate.subprocess, "run", side_effect=fake_run):
+            gate._read_staged_files()
+
+        assert captured.get("encoding") == "utf-8"

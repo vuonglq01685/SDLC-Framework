@@ -18,6 +18,7 @@ test/feat) and 3.5 with no RED commit. GREEN lands in a follow-up commit.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest import mock
 
@@ -268,3 +269,47 @@ class TestMain:
             mock.patch.object(gate, "_git_log_subjects", return_value=["feat(4.1): GREEN no red"]),
         ):
             assert gate.main([str(msg)]) == 1
+
+
+# ---------------------------------------------------------------------------
+# _run_git UTF-8 decode contract — Windows cp1252 false-pass guard (Epic 4 retro A2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRunGitDecodesUtf8:
+    """Regression for the Windows cp1252 false-pass (Epic 4 retro A2).
+
+    ``subprocess.run(..., text=True)`` with no ``encoding=`` decodes git stdout
+    using the locale default (cp1252 on Windows), which mojibakes the UTF-8
+    em-dashes ubiquitous in this repo's commit subjects. The gate then reads
+    garbled/empty subjects and false-passes (rc=0, validates nothing) —
+    reproducing the exact Epic-3 "looks-green-but-didn't-run" failure on a new
+    platform. The fix pins ``encoding="utf-8"`` on every git subprocess.
+    """
+
+    def test_run_git_pins_utf8_encoding(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            captured.update(kwargs)
+            return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+        with mock.patch.object(gate.subprocess, "run", side_effect=fake_run):
+            gate._run_git(["log", "--reverse", "--pretty=%s"])
+
+        assert captured.get("encoding") == "utf-8"
+
+    def test_em_dash_subjects_round_trip(self) -> None:
+        # Reproduce CPython text-mode decoding on any host: with encoding unset
+        # the Windows default (cp1252) mojibakes the UTF-8 em-dash; utf-8 round-trips.
+        raw = "feat(4.1): GREEN — auto-loop".encode()
+
+        def fake_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            enc = kwargs.get("encoding") or "cp1252"
+            return subprocess.CompletedProcess([], 0, stdout=raw.decode(str(enc)), stderr="")
+
+        with mock.patch.object(gate.subprocess, "run", side_effect=fake_run):
+            subjects = gate._git_log_subjects()
+
+        assert subjects == ["feat(4.1): GREEN — auto-loop"]

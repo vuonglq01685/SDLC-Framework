@@ -122,6 +122,9 @@ def _read_staged_files() -> list[str]:
             ["git", "diff", "--cached", "--name-only"],
             capture_output=True,
             text=True,
+            encoding="utf-8",  # git emits UTF-8; without this the Windows locale
+            # (cp1252) mojibakes/raises on non-ASCII paths and the gate silently
+            # validates nothing — the Epic-4 retro A2 cp1252 finding.
             check=False,
         )
     except (OSError, subprocess.SubprocessError):

@@ -226,6 +226,9 @@ def _run_git(args: list[str]) -> str | None:
             ["git", *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",  # git emits UTF-8; without this the Windows locale
+            # (cp1252) mojibakes/raises on em-dash commit subjects and the gate
+            # false-passes — the Epic-4 retro A2 cp1252 finding.
             check=False,
             cwd=_REPO_ROOT,
         )
