@@ -92,6 +92,13 @@ def _fold_auto_loop_status(
     if entry.kind == "auto_loop_iteration":
         action = entry.payload.get("action")
         if action == "stopped":
+            # ADR-038 (retro D4 / CR4.2-W3): `halted` is sticky against a clean `stopped`.
+            # A stopped iteration recorded AFTER a halt must NOT clear it, or a journal
+            # ending stop_triggered -> auto_loop_iteration{stopped} would replay to idle and
+            # lose the halt permanently (Story 5.19 STOP banner reads this). A genuine resume
+            # (dispatch/continued, below) still clears it.
+            if auto_loop_status == "halted":
+                return auto_loop_status, stop_reason
             reason_val = entry.payload.get("reason")
             return "idle", reason_val if isinstance(reason_val, str) else None
         if action in {"dispatch", "continued"}:
