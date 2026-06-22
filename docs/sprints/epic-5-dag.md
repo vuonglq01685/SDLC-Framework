@@ -1,7 +1,7 @@
 # Epic 5 — Story DAG & Parallelism Plan
 
 **Epic:** 5 — Local Dashboard & DORA Visibility (`sdlc dashboard --port`)
-**Status:** Draft — rev 3 (authored 2026-06-22 per CONTRIBUTING.md §7 + Epic 4 retro A3; rev 2 = post 3-agent review fixes; rev 3 = §8 4/4 directive sign-off + 5.1 security ACs). §7.4 gate still OPEN.
+**Status:** Approved — rev 4 (authored 2026-06-22 per CONTRIBUTING.md §7 + Epic 4 retro A3; rev 2 = post 3-agent review fixes; rev 3 = §8 4/4 directive sign-off + 5.1 security ACs; rev 4 = 2026-06-23 §7.4 gate CLOSED — all Epic-4 retro A/D/DOC items landed CI-green, #7/#8 verify PASS). **§7.4 gate CLOSED — Story 5.1 unblocked.**
 **Authors:** Charlie + Alice (drafted via Claude) — review by Winston
 **Source-of-truth:** `_bmad-output/planning-artifacts/epics.md` § "Epic 5: Local Dashboard & DORA Visibility" (lines 2359–2911)
 **Retrospective rationale:** `_bmad-output/implementation-artifacts/epic-4-retro-2026-06-22.md` §6 (Epic 5 preview) + §7 (action plan A1–A4 / D1–D4) + §8 (significant discovery)
@@ -53,20 +53,21 @@ is an honest pre-gate posture, not green-washed. Open items:
   missing `E2A→5.18` — **all fixed in rev 2 (§9), then independently re-verified PASS**. **Alice
   (capacity) + Winston (architecture) PASS-WITH-FINDINGS** — fixable items applied; residual items
   tracked below. **Project Lead directive sign-off given 2026-06-22.** ⚠️ §8 4/4 is
-  **necessary-not-sufficient** — the §7.4 gate stays OPEN on the items below.
-- Previous-epic (Epic 4) retro "Before Story 5.1" closure — ⏳ **OPEN** (the gating dependency for
-  this whole epic; tracked in the Epic 4 retro action plan):
-  - **A1** (CI gate-signal: `setup-uv` SHA-pin + "CI-never-started ≠ green" guard) — ✅ **CLOSED** (`ci-gate` aggregating job, commit `8a7417b`; CI run `27959791325` green with **`ci-gate`=success**; `setup-uv` already SHA-pinned). Residual ops: branch protection still requires the 10 individual checks — swap to require only `ci-gate` (GitHub-admin step).
+  **necessary-not-sufficient** — the §7.4 items below were tracked separately and are now all ✅ **CLOSED (2026-06-23)**, so the §7.4 gate is CLOSED.
+- Previous-epic (Epic 4) retro "Before Story 5.1" closure — ✅ **CLOSED 2026-06-23** (all A/D/DOC
+  items landed on `main`, CI-green; the gating dependency for this whole epic):
+  - **A1** (CI gate-signal: `setup-uv` SHA-pin + "CI-never-started ≠ green" guard) — ✅ **CLOSED** (`ci-gate` aggregating job, commit `8a7417b`; CI run `27959791325` green with **`ci-gate`=success**; `setup-uv` already SHA-pinned). Residual ops — ✅ **CLOSED 2026-06-23**: branch protection now requires only `CI gate (all required jobs green)` (the 10 individual contexts dropped; confirmed by the push-time required-check message).
   - **A2** (cp1252 `encoding="utf-8"` on the merged-before-done / fresh-context-review guards + install commit-msg hooks) — ✅ **CLOSED** (commit `69add71`; commit-msg hook installed after unsetting the blocking local `core.hooksPath`; validated live — em-dash subjects now pass both gates instead of false-passing).
-  - **A4** (CR4.2-W1: split/waive the 5 adopt-mutation files >400 LOC → green `main`) — ⏳ OPEN.
-  - **D1** CR4.12-W1 symlink/path-containment — ⏳ OPEN (its containment helper is **reused by 5.1's static-serve path-traversal control** — see §7 security row). **D2** CR4.7-W1 secret_exfil regex/ReDoS — ⏳ OPEN. **D3** CR4.8-W2 cross-trigger precedence — ⏳ OPEN. **D4** CR4.2-W3 sticky-halt (load-bearing for `5.19`) — ⏳ OPEN. **Architectural note (review):** retro-D4 is **not** a one-line fix — `state/projection.py::_fold_auto_loop_status` is last-write-wins (an `action="stopped"` iteration folds back to `idle`, silently overwriting a prior `halted`) and `State` carries no sticky-halt field; the fix is a State-projection change that needs its own review.
-  - DOC: ADRs from retro-D1 (atomic-write containment) + retro-D4 (sticky-halt projection) must reach `Accepted` — ⏳ OPEN. **The retro-D4 sticky-halt ADR is not yet drafted** (highest ADR in `docs/decisions/` is 034); the `E4 → 5.19` edge silently assumes it. The 2A.3 `EPIC-4-STOP-TRIGGER-WIRE` **journal** seam itself **IS resolved** (consumed by the 4.6 projection); only the sticky-halt half is open — mark the `deferred-work.md` EPIC-4-STOP-TRIGGER-WIRE entry as journal-resolved to clear stale "never consumed" text.
+  - **A4** (CR4.2-W1: split/waive the 5 adopt-mutation files >400 LOC → green `main`) — ✅ **CLOSED** (commit `7003dc1`): the 5 inherently-large adopt-mutation suites waived in `check_module_boundaries.py` `LOC_EXEMPT` (tracked as `EPIC-5-DEBT-ADOPT-MUTATION-SPLIT`); the 2 ordinary unit-test files that had grown were **split** instead of waived — `test_safety.py` 449→383 (secret-exfil tests → `test_safety_secret_exfil.py`) and `test_state_projection.py` 459→398 (sticky-halt tests → `test_state_projection_auto_loop.py`); boundary-validator `--all-files` now PASS.
+  - **D1** CR4.12-W1 symlink/path-containment — ✅ **CLOSED** (commit `4a71c8f`; `concurrency/path_guard.py::assert_repo_contained`, reused by 5.1's static-serve path-traversal control — see §7 security row). **D2** CR4.7-W1 secret_exfil regex/ReDoS — ✅ **CLOSED** (commit `6208f59`; anchored-lookahead linear form + `re.DOTALL`). **D3** CR4.8-W2 cross-trigger precedence — ✅ **CLOSED** (commit `a57443e`; `_ORDERED_TRIGGERS` reorder, `agent_failed`↑#2 / `pr_ready`↓#7 per ratified D-RETRO-3). **D4** CR4.2-W3 sticky-halt (load-bearing for `5.19`) — ✅ **CLOSED** (commit `5bd4e22`; `state/projection.py::_fold_auto_loop_status` now sticks a prior `halted` against a clean `stopped` iteration — the State-projection change called out below, with its own tests + ADR-038).
+  - DOC: ADRs from retro-D1 (atomic-write containment) + retro-D4 (sticky-halt projection) must reach `Accepted` — ✅ **CLOSED** (commit `debdc41`; **ADR-037** repo-containment guard + **ADR-038** sticky-halt projection both `Accepted`, indexed in `docs/decisions/index.md`). The 2A.3 `EPIC-4-STOP-TRIGGER-WIRE` journal seam was already journal-resolved (consumed by the 4.6 projection); the sticky-halt half is now closed too.
 - #6 wire-format snapshots green on `main` — ✅ (freeze 7/7; re-verify at gate time).
-- #7 quality gate green on `main` — ⏳ blocked by A4 (`pre-commit --all-files` red on the pre-existing Epic-3 adopt-LOC cap); full pytest / coverage ≥87 otherwise green per the 4.12 close-out CI run.
-- #8 debt-decay strict run green for `--target-epic 5` (lineage N-1=4, N-2=3) — ⏳ to run after the Epic-4 defers are inventoried/dispositioned in `debt-budget.yaml`.
+- #7 quality gate green on `main` — ✅ **CLOSED** (A4 resolved; boundary-validator `--all-files` PASS; full pytest / coverage ≥87 green on Linux CI — `ci` run `27991089042` for `03914a4`). Docs/Pages also now green (Pages enabled → GitHub Actions; `docs` run `27971299121` deploys live).
+- #8 debt-decay strict run green for `--target-epic 5` (lineage N-1=4, N-2=3) — ✅ **CLOSED**: `check_debt_decay_budget.py --target-epic 5 --mode strict` = **PASS** on all gates (Gate A 0 open, Gate B 5/6 closed ≥50%, Gate C 0 open) after the ci.yml target swap (`edea1f2`) and the `EPIC-3-DEBT-CHARACTERIZATION-REAL-DISPATCH` HIGH→MED downgrade per D-RETRO-2 ride (commit `03914a4`).
 
-**This DAG unblocks §7.1 row 1 only.** Story 5.1 remains blocked until §8 reaches 4/4, the Epic-4
-retro A/D/DOC items above close, and #7/#8 verify green.
+**§7.4 gate CLOSED 2026-06-23.** §8 is 4/4; all Epic-4 retro A/D/DOC items above are closed and
+CI-green; #6/#7/#8 verify green. Story 5.1 is **unblocked** — `bmad-create-story` may proceed
+(verify §7.4 once more at invocation time per CONTRIBUTING §7.4, then create `epic-5/5-1-*`).
 
 ---
 
@@ -427,7 +428,7 @@ gate only on the sticky-halt fix.*
 Per CONTRIBUTING.md §7.1 rows 3–4 — minimum 3 reviewers + Project Lead directive sign-off.
 **All 4 boxes must be checked, and Decisions D1/D2/D3 ratified, before any Story 5.1 file is created
 via `bmad-create-story`.** A genuine 3-agent adversarial review was run **2026-06-22**; verdicts are
-recorded against each box. **Current state: D1/D2/D3 RATIFIED = (a); §8 = 4/4 (directive sign-off given 2026-06-22). §7.4 gate remains OPEN — §8 is necessary-not-sufficient.**
+recorded against each box. **Current state: D1/D2/D3 RATIFIED = (a); §8 = 4/4 (directive sign-off given 2026-06-22). §7.4 gate CLOSED 2026-06-23 — all Epic-4 retro A/D/DOC items landed CI-green, #6/#7/#8 verify PASS (see §1 tracker). Story 5.1 unblocked.**
 
 - [x] Charlie — DAG correctness + dependency checks. **rev 1: FAIL** (2 CRITICAL graph defects —
   5.12 missing its 5.6–5.11 fan-in; 5.20/5.21 not feeding terminal gate 5.22 — + HIGH missing
