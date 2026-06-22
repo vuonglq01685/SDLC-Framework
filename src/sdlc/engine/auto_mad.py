@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from sdlc.concurrency.io_primitives import atomic_write
+from sdlc.concurrency.path_guard import assert_repo_contained
 from sdlc.engine.stop_triggers import StopDecision, check_stop
 from sdlc.errors import SignoffError
 from sdlc.ids.clock import now_rfc3339_utc_ms
@@ -244,7 +245,11 @@ async def resolve_clarification(
     # Resolve the audit target up-front (before any disk mutation) so it can never raise
     # mid-sequence after the un-fire (D1 review fix).
     rel_target = _rel_to_repo(clar_dir, repo_root)
-    await asyncio.to_thread(atomic_write, resolution_path.resolve(), resolution_body)
+    # ADR-037 (retro D1, CR4.12-W1): a malicious/symlinked stop.target could redirect this
+    # write or unlink outside the repo — guard both mutations at the callsite.
+    await asyncio.to_thread(
+        atomic_write, assert_repo_contained(resolution_path, repo_root), resolution_body
+    )
     # Journal BEFORE unlinking open_clarification.md (the only action that un-fires the STOP):
     # a journal failure leaves the STOP firing, so resume retries idempotently instead of
     # silently dropping the audit entry (D1 review fix).
@@ -254,7 +259,7 @@ async def resolve_clarification(
         decision=decision,
         correlation_id=correlation_id,
     )
-    await asyncio.to_thread(open_path.unlink)
+    await asyncio.to_thread(assert_repo_contained(open_path, repo_root).unlink)
 
 
 _MAD_CONTINUE = object()

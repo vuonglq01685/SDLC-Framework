@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import textwrap
 from pathlib import Path
 
@@ -121,6 +122,50 @@ async def test_resolve_clarification_without_options_uses_synth_pick_sentinel(
     )
     mad_entries = [e for e in iter_entries(journal) if e.kind == "auto_mad_resolve"]
     assert mad_entries[0].payload["decision"] == _SYNTH_PICK_SENTINEL
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="symlink creation needs privilege on Windows; exercised on the CI POSIX legs",
+)
+@pytest.mark.asyncio
+async def test_resolve_clarification_rejects_symlinked_clar_dir_escaping_repo(
+    tmp_path: Path,
+) -> None:
+    """ADR-037 (retro D1): a stop.target via a symlinked clar dir pointing outside the repo
+    must be refused before the write/unlink — the escaping target is left untouched."""
+    from sdlc.engine.auto_mad import resolve_clarification
+    from sdlc.errors import SecurityError
+
+    repo_root = tmp_path / "repo"
+    (repo_root / ".claude" / "state" / "clarifications").mkdir(parents=True)
+    journal = repo_root / ".claude" / "state" / "journal.log"
+    journal.touch()
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    open_outside = outside / "open_clarification.md"
+    open_outside.write_text("# Open\n", encoding="utf-8")
+
+    link = repo_root / ".claude" / "state" / "clarifications" / "clar-evil"
+    link.symlink_to(outside, target_is_directory=True)
+
+    stop = StopDecision(
+        fired=True,
+        trigger="open_clarification",
+        target=str(link / "open_clarification.md"),
+    )
+    with pytest.raises(SecurityError):
+        await resolve_clarification(
+            repo_root,
+            stop=stop,
+            journal_path=journal,
+            correlation_id="cid-evil",
+            now_utc=_TS,
+        )
+    # The escaping open file survives (never unlinked) and no resolution leaked outside.
+    assert open_outside.exists()
+    assert not (outside / "resolution.md").exists()
 
 
 def _write_phase2_unsigned_with_draft(tmp_path: Path) -> None:

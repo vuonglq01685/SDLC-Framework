@@ -115,6 +115,55 @@ def test_find_mad_resolution_dirs_skips_human_resolved(tmp_path: Path) -> None:
     assert [p.name for p in found] == ["clar-mad"]
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="symlink creation needs privilege on Windows; exercised on the CI POSIX legs",
+)
+def test_find_mad_resolution_dirs_skips_symlinked_dir(tmp_path: Path) -> None:
+    """ADR-037 (retro D1): a symlinked clarification dir (even if it holds a mad resolution)
+    is never followed — it must not enter the revert loop."""
+    clar_root = tmp_path / "repo" / ".claude" / "state" / "clarifications"
+    clar_root.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "resolution.md").write_text(
+        f"resolved_by: {_MAD_APPROVED_BY}\n\n## Original Open Clarification\n\nbody\n",
+        encoding="utf-8",
+    )
+    (clar_root / "clar-evil").symlink_to(outside, target_is_directory=True)
+    assert find_mad_resolution_dirs(clar_root) == ()
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="symlink creation needs privilege on Windows; exercised on the CI POSIX legs",
+)
+def test_revert_mad_clarification_rejects_symlinked_clar_dir(tmp_path: Path) -> None:
+    """ADR-037 (retro D1) defense-in-depth: even if a symlinked clar dir reached the revert
+    path, the write/unlink must be refused and the escaping target left untouched."""
+    from sdlc.cli.unsign import _revert_mad_clarification
+    from sdlc.errors import SecurityError
+
+    repo_root = tmp_path / "repo"
+    (repo_root / ".claude" / "state" / "clarifications").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    res = outside / "resolution.md"
+    res.write_text(
+        f"resolved_by: {_MAD_APPROVED_BY}\n\n## Original Open Clarification\n\nbody\n"
+        "## Decision\n\nx\n",
+        encoding="utf-8",
+    )
+    link = repo_root / ".claude" / "state" / "clarifications" / "clar-evil"
+    link.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(SecurityError):
+        _revert_mad_clarification(clar_dir=link, repo_root=repo_root)
+    # The escaping resolution survives and no open file leaked outside the repo.
+    assert res.exists()
+    assert not (outside / "open_clarification.md").exists()
+
+
 def test_unsign_command_registered() -> None:
     result = _runner.invoke(app, ["unsign", "--help"])
     assert result.exit_code == 0

@@ -12,6 +12,7 @@ from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli._time import now_rfc3339_utc_ms
 from sdlc.cli.output import echo, emit_error, emit_json
 from sdlc.concurrency.io_primitives import atomic_write
+from sdlc.concurrency.path_guard import assert_repo_contained
 from sdlc.contracts.journal_entry import JournalEntry
 from sdlc.errors.base import SdlcError, SignoffError
 from sdlc.signoff import PHASE_DIR_MAP, SignoffRecord
@@ -70,7 +71,9 @@ def find_mad_resolution_dirs(clarifications_root: Path) -> tuple[Path, ...]:
         return ()
     found: list[Path] = []
     for child in sorted(clarifications_root.iterdir()):
-        if not child.is_dir():
+        # ADR-037 (retro D1): never follow a symlinked clarification dir — is_dir() would
+        # resolve the link and let a revert mutate a target outside the repo.
+        if child.is_symlink() or not child.is_dir():
             continue
         resolution_path = child / _RESOLUTION_NAME
         if not resolution_path.is_file():
@@ -126,21 +129,22 @@ def _append_signoff_unsigned(
 def _remove_mad_signoff(*, repo_root: Path, phase: int) -> None:
     record_path = _signoff_path(phase, repo_root)
     if record_path.is_file():
-        record_path.unlink()
+        assert_repo_contained(record_path, repo_root).unlink()
     phase_dir = PHASE_DIR_MAP.get(phase)
     if phase_dir is not None:
         draft_path = repo_root / phase_dir / "SIGNOFF.md"
         if draft_path.is_file():
-            draft_path.unlink()
+            assert_repo_contained(draft_path, repo_root).unlink()
 
 
-def _revert_mad_clarification(*, clar_dir: Path) -> None:
+def _revert_mad_clarification(*, clar_dir: Path, repo_root: Path) -> None:
     resolution_path = clar_dir / _RESOLUTION_NAME
     resolution_text = resolution_path.read_text(encoding="utf-8")
     open_body = extract_open_body_from_resolution(resolution_text)
     open_path = clar_dir / _OPEN_CLARIFICATION_NAME
-    atomic_write(open_path.resolve(), open_body)
-    resolution_path.unlink()
+    # ADR-037 (retro D1): guard the reverse-path write + unlink against a symlinked clar_dir.
+    atomic_write(assert_repo_contained(open_path, repo_root), open_body)
+    assert_repo_contained(resolution_path, repo_root).unlink()
 
 
 def run_unsign(  # noqa: C901
@@ -240,7 +244,7 @@ def run_unsign(  # noqa: C901
                 details={"path": str(journal_path), "clarification_id": clarification_id},
             )
         try:
-            _revert_mad_clarification(clar_dir=clar_dir)
+            _revert_mad_clarification(clar_dir=clar_dir, repo_root=root)
         except (OSError, ValueError, SdlcError) as exc:
             emit_error(
                 "ERR_INFRASTRUCTURE",
