@@ -124,11 +124,20 @@ _DESTRUCTIVE_TOOL_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
     "force_push_with_lease": re.compile(r"\bgit\s+push\s+--force-with-lease\b"),
     "force_push": re.compile(r"\bgit\s+push\s+(-f|--force)\b"),
     "drop_database": re.compile(r"\bDROP\s+(DATABASE|TABLE|SCHEMA)\b", re.IGNORECASE),
-    # Story 4.7: secret-exfil via curl/wget posting sensitive data to external URLs.
+    # Story 4.7 / CR4.7-W1 (retro D2): secret-exfil via curl/wget posting credential
+    # material to an external URL. Anchored \A + independent lookaheads keep this linear
+    # (no catastrophic backtracking / ReDoS — the pre-D2 `curl.*secret.*url` form was
+    # quadratic); re.DOTALL so a multi-line command cannot evade by splitting curl, the
+    # URL, and the secret across newlines. Conjunctive (all three present, any order)
+    # rather than positional, so arg-order variants are covered.
     "secret_exfil": re.compile(
-        r"\b(curl|wget)\b.*(?:@\.env|\$\(cat\b|SECRET|TOKEN|PASSWORD).*https?://|"
-        r"\b(curl|wget)\b.*https?://[^\s]+.*(?:\.env|secret|token|password)",
-        re.IGNORECASE,
+        r"\A"
+        r"(?=.*\b(?:curl|wget)\b)"  # a network client
+        r"(?=.*https?://)"  # posting to an external URL
+        r"(?=.*(?:"  # AND referencing credential material
+        r"@?\.env\b|id_rsa|\.netrc|\.pgpass|\.aws/|\$\(cat\b"
+        r"|SECRET|TOKEN|PASSWORD|API[_-]?KEY|CREDENTIAL))",
+        re.IGNORECASE | re.DOTALL,
     ),
 }
 
