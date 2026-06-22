@@ -1,7 +1,7 @@
 # Epic 5 — Story DAG & Parallelism Plan
 
 **Epic:** 5 — Local Dashboard & DORA Visibility (`sdlc dashboard --port`)
-**Status:** Draft (authored 2026-06-22 per CONTRIBUTING.md §7 + Epic 4 retrospective Epic-5 prep A3)
+**Status:** Draft — rev 2 (authored 2026-06-22 per CONTRIBUTING.md §7 + Epic 4 retro Epic-5 prep A3; revised 2026-06-22 post 3-agent review)
 **Authors:** Charlie + Alice (drafted via Claude) — review by Winston
 **Source-of-truth:** `_bmad-output/planning-artifacts/epics.md` § "Epic 5: Local Dashboard & DORA Visibility" (lines 2359–2911)
 **Retrospective rationale:** `_bmad-output/implementation-artifacts/epic-4-retro-2026-06-22.md` §6 (Epic 5 preview) + §7 (action plan A1–A4 / D1–D4) + §8 (significant discovery)
@@ -48,15 +48,20 @@ foundation stories. See Decision D2.
 is an honest pre-gate posture, not green-washed. Open items:
 
 - #1 this DAG exists — ✅ (this document, **Draft**).
-- #2 §8 four approvals — ⏳ **OPEN** (this is a fresh draft; technical-reviewer + Project Lead
-  directive sign-off not yet collected). Decisions **D1 / D2 / D3** proposed, **not yet ratified**.
+- #2 §8 four approvals — ⏳ **OPEN (3/4)**. Decisions **D1 / D2 / D3 RATIFIED = (a)** by the
+  Project Lead (2026-06-22). A genuine 3-agent adversarial review was run (2026-06-22): **Charlie
+  (correctness) FAIL** — 2 CRITICAL graph defects + missing `E2A→5.18` — **all fixed in rev 2 (§9),
+  then independently re-verified PASS**. **Alice (capacity) + Winston (architecture)
+  PASS-WITH-FINDINGS** — fixable items applied; residual HIGH items tracked below. **All 3 reviewer
+  boxes now signed; the only open box is the Project Lead directive sign-off.** (Even at 4/4, §8 is
+  necessary-not-sufficient — the §7.4 gate stays open on the items below.)
 - Previous-epic (Epic 4) retro "Before Story 5.1" closure — ⏳ **OPEN** (the gating dependency for
   this whole epic; tracked in the Epic 4 retro action plan):
-  - **A1** (fix CI gate-signal: phantom `setup-uv` tag + "CI-never-started ≠ green" guard) — ⏳ OPEN.
-  - **A2** (cp1252 `encoding="utf-8"` on the merged-before-done / fresh-context-review guards + install commit-msg hooks) — ⏳ OPEN.
+  - **A1** (CI gate-signal: `setup-uv` SHA-pin + "CI-never-started ≠ green" guard) — ✅ **CLOSED** (`ci-gate` aggregating job, commit `8a7417b`; CI run `27959791325` green with **`ci-gate`=success**; `setup-uv` already SHA-pinned). Residual ops: branch protection still requires the 10 individual checks — swap to require only `ci-gate` (GitHub-admin step).
+  - **A2** (cp1252 `encoding="utf-8"` on the merged-before-done / fresh-context-review guards + install commit-msg hooks) — ✅ **CLOSED** (commit `69add71`; commit-msg hook installed after unsetting the blocking local `core.hooksPath`; validated live — em-dash subjects now pass both gates instead of false-passing).
   - **A4** (CR4.2-W1: split/waive the 5 adopt-mutation files >400 LOC → green `main`) — ⏳ OPEN.
-  - **D1** CR4.12-W1 symlink/path-containment — ⏳ OPEN. **D2** CR4.7-W1 secret_exfil regex/ReDoS — ⏳ OPEN. **D3** CR4.8-W2 cross-trigger precedence — ⏳ OPEN. **D4** CR4.2-W3 sticky-halt (load-bearing for `5.19`) — ⏳ OPEN.
-  - DOC: ADRs from retro-D1 (atomic-write containment) + retro-D4 (sticky-halt projection) must reach `Accepted` — ⏳ OPEN.
+  - **D1** CR4.12-W1 symlink/path-containment — ⏳ OPEN (its containment helper is **reused by 5.1's static-serve path-traversal control** — see §7 security row). **D2** CR4.7-W1 secret_exfil regex/ReDoS — ⏳ OPEN. **D3** CR4.8-W2 cross-trigger precedence — ⏳ OPEN. **D4** CR4.2-W3 sticky-halt (load-bearing for `5.19`) — ⏳ OPEN. **Architectural note (review):** retro-D4 is **not** a one-line fix — `state/projection.py::_fold_auto_loop_status` is last-write-wins (an `action="stopped"` iteration folds back to `idle`, silently overwriting a prior `halted`) and `State` carries no sticky-halt field; the fix is a State-projection change that needs its own review.
+  - DOC: ADRs from retro-D1 (atomic-write containment) + retro-D4 (sticky-halt projection) must reach `Accepted` — ⏳ OPEN. **The retro-D4 sticky-halt ADR is not yet drafted** (highest ADR in `docs/decisions/` is 034); the `E4 → 5.19` edge silently assumes it. The 2A.3 `EPIC-4-STOP-TRIGGER-WIRE` **journal** seam itself **IS resolved** (consumed by the 4.6 projection); only the sticky-halt half is open — mark the `deferred-work.md` EPIC-4-STOP-TRIGGER-WIRE entry as journal-resolved to clear stale "never consumed" text.
 - #6 wire-format snapshots green on `main` — ✅ (freeze 7/7; re-verify at gate time).
 - #7 quality gate green on `main` — ⏳ blocked by A4 (`pre-commit --all-files` red on the pre-existing Epic-3 adopt-LOC cap); full pytest / coverage ≥87 otherwise green per the 4.12 close-out CI run.
 - #8 debt-decay strict run green for `--target-epic 5` (lineage N-1=4, N-2=3) — ⏳ to run after the Epic-4 defers are inventoried/dispositioned in `debt-budget.yaml`.
@@ -141,6 +146,14 @@ graph TD
   S11 --> S16
   S8 --> S18
 
+  %% ---- 5.12 5A convergence gate: fans-in from EVERY 5A component ----
+  S6 --> S12
+  S7 --> S12
+  S8 --> S12
+  S9 --> S12
+  S10 --> S12
+  S11 --> S12
+
   %% ---- 5C banners / disconnection / release gate ----
   S11 --> S19
   S6 --> S20
@@ -150,16 +163,22 @@ graph TD
   S12 --> S22
   S18 --> S22
   S19 --> S22
+  S20 --> S22
+  S21 --> S22
 
   %% ---- External wave gates (data readiness) ----
   E1 --> S1
   E1 --> S2
   E2A --> S14
   E2A --> S15
+  E2A --> S18
   E2B --> S13
   E2B --> S16
   E4 --> S19
 
+  %% NOTE: classDef names layer1..layer5 denote the 5 PHASE colors (5A-roots / 5A-components /
+  %% 5A-gate+5B / 5C-banners / 5C-terminal), NOT the §3 topological layer numbers — e.g. 5.22 is
+  %% :::layer5 but sits at topological L10, and 5.19 is :::layer4 but sits at L8. Read §3 for layers.
   classDef layer1 fill:#d6eaff,stroke:#1f6feb,color:#000
   classDef layer2 fill:#cdf2d4,stroke:#1a7f37,color:#000
   classDef layer3 fill:#f5d0e6,stroke:#9333ea,color:#000
@@ -172,11 +191,15 @@ graph TD
 5C), while the **Parallelism Layers** table (§3) schedules the precise topological layers. The
 dashed `ext` nodes are **data-readiness wave gates**, not stories: 5A needs only Epic 1; **5B cannot
 start until Epic 2A (2A.7/2A.11/2A.19) and Epic 2B (2B.10) actually emit the expected shapes into
-`state.json` / `agent_runs.jsonl`** — verify those contracts before branching 5B. The `E4 → S19`
-edge is the load-bearing Epic-4 coupling: it depends on STOP state being **sticky** (retro D4 /
-CR4.2-W3), *not* on real-loop dispatch (which rides per retro D-RETRO-2). `5.22` is drawn with three
-representative in-edges (`5.12`, `5.18`, `5.19`) but conceptually fans-in from the **entire** 5B/5C
-real-data surface (5.14–5.19) — it is the terminal release-blocking node.
+`state.json` / `agent_runs.jsonl`** — verify those contracts before branching 5B. `E2A → S18` is
+included because 5.18 reads the real `ResumeToken` (Epic 1 1.7) + `sdlc status` logic (1.17), bundled
+under the E2A gate label. The `E4 → S19` edge is the load-bearing Epic-4 coupling: it depends on STOP
+state being **sticky** (retro D4 / CR4.2-W3), *not* on real-loop dispatch (which rides per retro
+D-RETRO-2). **`5.12` now draws its full 5A fan-in** (5.4–5.11 → 5.12) since the convergence gate's
+axe-core/forbidden-patterns scan must see every rendered 5A component. **`5.22` now draws its full 5C
+fan-in** (5.12 + 5.18 + 5.19 + 5.20 + 5.21) — the terminal release-blocking node also covers
+disconnection (5.20) and the degradation banner (5.21); conceptually it additionally re-scans the full
+5.14–5.19 real-data surface (those swaps land their a11y coverage via their 5A twins through 5.12).
 
 ---
 
@@ -195,19 +218,24 @@ real-data surface (5.14–5.19) — it is the terminal release-blocking node.
 | **L9 (5C)** | 5.20, 5.21 | **2** | 5.19 (+ 5.6 / 5.8 for 5.20) |
 | **L10 (5C)** | 5.22 | **1** | 5.12 + 5.18 + the full 5.14–5.19 real-data surface (terminal release gate) |
 
-**Project-cap reminder:** `max_parallel_agents=4` (project.yaml). **L4 saturates the cap** (4 stories)
-and **L6 exceeds it** (5 stories → batch 4 + 1, or 3 + 2) — confirm 4-agent CI capacity before each, or
-batch per CONTRIBUTING.md §3 Worktree Workflow. The binding wall-clock constraints are the **two wave
-boundaries** (5A→5B waits on real upstream data; 5B→5C waits on Epic-4 sticky STOP state) and the
-**terminal `5.22`** release gate.
+**Project-cap reminder:** `max_parallel_agents=4` — the value is defined in **CONTRIBUTING.md §3.2 +
+PRD FR51 (default 4)**; no `project.yaml` exists in-repo (a prior draft cited one in error). The cap is
+prose-enforced, not config-enforced — if CI is to programmatically gate concurrency, land a
+`project.yaml` carrying `max_parallel_agents: 4` as a foundation task. **L4 saturates the cap** (4
+stories, zero slack) and **L6 exceeds it** (5 stories → must batch). **Authoritative L6 split:** batch 1
+= {5.14, 5.15, 5.16, 5.18} (the four independent 1:1 real-data swaps), batch 2 = {5.13} alone (the DORA
+engine — heaviest, security/perf-sensitive, and the upstream of 5.17 at L7, so it must merge cleanly);
+per CONTRIBUTING §3.3 batch 2 **rebases on batch 1's merges**. The binding wall-clock constraints are
+the **two wave boundaries** (5A→5B waits on real upstream data; 5B→5C waits on Epic-4 sticky STOP
+state) and the **terminal `5.22`** release gate.
 
 **Dependency notes:**
 
 - **5.1 and 5.2 are the two true zero-indegree roots** and are mutually independent — start both
   immediately. `5.2` roots the entire CSS/component tree; `5.1` roots the server + `/api/dora` (5.13).
 - **5.5 (live-dot) is the single most load-bearing component node** — a convergence of the foundations
-  (5.2 + 5.4) that then fans out to 5.6, 5.7, 5.8, 5.11, 5.19, 5.20 and owns the color-only-signaling
-  contract enforced project-wide by 5.12.
+  (5.2 + 5.4) that then fans out to 5.6, 5.7, 5.8, 5.11, 5.12, 5.19, 5.20 and owns the
+  color-only-signaling contract enforced project-wide by 5.12.
 - **5.12 is the 5A convergence gate** — it scans the whole synthetic SPA for WCAG 2.2 Level A + forbidden
   patterns; it cannot run until every 5A component lands.
 - **5B is a 1:1 real-data swap layer** — 5.13↔(5.1+5.7), 5.14↔5.9, 5.15↔5.10, 5.16↔5.11, 5.17↔(5.7+5.13),
@@ -223,11 +251,13 @@ boundaries** (5A→5B waits on real upstream data; 5B→5C waits on Epic-4 stick
 The longest dependency chain through the DAG:
 
 ```
-5.2 → 5.4 → 5.5 → 5.11 → 5.19 → 5.20            (depth-6 component → STOP → disconnection spine)
-                                  ↘ 5.22         (terminal release gate: also fans-in from 5.12 + 5.18 + 5.14–5.19)
+5.2 → 5.4 → 5.5 → 5.11 → 5.19 → 5.20 → 5.22     (depth-7 component → STOP → disconnection → release spine)
+                                                (terminal gate 5.22 also fans-in from 5.12 + 5.18 + 5.21 + the 5.14–5.19 real-data surface)
 ```
 
-**Length:** 6 stories to `5.20`; 7 to the terminal release gate `5.22`. Unlike Epic 4's single serial
+**Length:** 6 stories to `5.20`; 7 to the terminal release gate `5.22`. A **co-critical** depth-7 path
+runs through `5.21` (`5.2 → 5.4 → 5.5 → 5.11 → 5.19 → 5.21 → 5.22`), so `5.21` sits on the critical
+boundary, not a freely-parallelizable leaf. Unlike Epic 4's single serial
 spine, Epic 5's critical path is **gated by data-readiness wave boundaries** more than by raw
 dependency depth — the wall-clock bottleneck is waiting for Epic 2A/2B to emit real shapes (5B) and for
 the Epic-4 sticky-halt fix (5C), not the within-wave chain. Protect the schedule by (1) front-loading
@@ -246,7 +276,7 @@ fixture — the only real algorithmic risk). Honorable mention: the **a11y hard 
 
 | Worktree branch | Story | Owner | Layer | Notes |
 |---|---|---|---|---|
-| `epic-5/5-1-dashboard-server-skeleton` | 5.1 | Amelia | 1 | Net-new `sdlc dashboard` micro-router (Python, no framework); localhost-bind + 405-on-write + ETag/304; `pytest-benchmark` `<100ms`. **Security-sensitive — review-B + security-reviewer.** **Freeze the server/route contract before 5.13.** |
+| `epic-5/5-1-dashboard-server-skeleton` | 5.1 | Amelia | 1 | Net-new `sdlc dashboard` micro-router (Python, no framework); localhost-bind + 405-on-write + ETag/304; `pytest-benchmark` `<100ms` (wire the benchmark at L1 — do not defer to 5.13). **Security-sensitive — review-B + security-reviewer.** **5.1 AC MUST add (review finding, see §7 security row): (a) `Host`-header allowlist (`localhost`/`127.0.0.1`/`[::1]`) → `403` to defeat DNS-rebinding — 405-on-write does not cover read exfiltration; (b) canonicalized static-path containment under the static root (reject `..`/abs/symlink-escape), reusing the retro-D1 containment helper once it lands; (c) ETag = hash over content, not mtime/inode.** **Freeze the server/route contract before 5.13.** |
 | `epic-5/5-2-design-token-foundation` | 5.2 | Sally | 1 | `tokens.css` color/type/spacing/motion; **stands up stylelint gate + DD-09 no-`data-theme` guard.** Root of the CSS tree — **freeze token names before L2.** |
 | `epic-5/5-3-self-host-fonts-sprite` | 5.3 | Sally | 2 | `@font-face` + 12-icon SVG sprite; **no-Google-Fonts CI grep gate**; ADR if sprite >12 icons. |
 | `epic-5/5-4-focus-ring-reduced-motion` | 5.4 | Sally | 2 | Focus ring (WCAG A contrast) + `prefers-reduced-motion`; **no-third-party-UI-framework guard + transition grep gate.** |
@@ -258,21 +288,29 @@ fixture — the only real algorithmic risk). Honorable mention: the **a11y hard 
 | `epic-5/5-10-backlog-tree-pills` | 5.10 | Sally | 3 | Backlog tree (collapsible, keyboard-reachable) + pill registry. |
 | `epic-5/5-11-tabs-activity-feed-empty` | 5.11 | Sally | 4 | Tabs (full ARIA pattern) + activity feed + empty state (consumed by 5.16 / 5.19). |
 | `epic-5/5-12-forbidden-patterns-wcag-baseline` | 5.12 | Murat | 5 | **5A a11y convergence gate.** Net-new `tests/dashboard/` — forbidden-patterns + axe-core harness + keyboard-only test + color-only static analysis. **HARD GATE.** |
-| `epic-5/5-13-dora-backend-cache` | 5.13 | Amelia | 6 | Net-new DORA engine; `/api/dora` real compute + 30s cache; `docs/api/dora-schema.json`; **`<30s` perf benchmark CI gate.** See Decision D1. |
+| `epic-5/5-13-dora-backend-cache` | 5.13 | Amelia | 6 | Net-new DORA engine; `/api/dora` real compute + 30s cache; `docs/api/dora-schema.json`; **`<30s` perf benchmark CI gate.** **2nd-highest-risk story — add review-B (edge-case/perf/malformed-input) + a security-reviewer touch since `/api/dora` rides the 5.1 HTTP boundary.** Must read `agent_runs.jsonl`/git-log **through the existing journal/state reader seam, not by re-parsing** (one-way module edge: `dashboard` → `state`/`journal`, never the reverse). See Decision D1; copy D1's "revisit if an external `/api/dora` consumer appears → promote to 8th ADR-024 contract" clause into the 5.13 AC. |
 | `epic-5/5-14-phase-tracker-real-signoff` | 5.14 | Sally | 6 | Real 4-state from `state.json` (2A.7 + 2A.19 invalidate-by-replan). |
 | `epic-5/5-15-backlog-tree-real-hierarchy` | 5.15 | Sally | 6 | Real Epic→Story→Task (2A.11) + id regex (1.6); URL-hash persistence. |
-| `epic-5/5-16-activity-feed-real-runs` | 5.16 | Sally | 6 | Real `agent_runs.jsonl` (2B.10); only changed sections re-render (NFR-PERF-4). |
+| `epic-5/5-16-activity-feed-real-runs` | 5.16 | Sally | 6 | Real `agent_runs.jsonl` (2B.10); only changed sections re-render (NFR-PERF-4). **Reads untrusted file content — add a data-validation review focus (malformed/partial JSONL lines must not crash or XSS the feed).** |
 | `epic-5/5-17-kpi-strip-real-dora` | 5.17 | Sally | 7 | Real `/api/dora` (5.13) + deltas; insufficient-data → `n/a` per 5.7. |
-| `epic-5/5-18-resume-card-real-you-are-here` | 5.18 | Sally | 6 | Real `ResumeToken` (1.7) + suggested-next (`sdlc status` logic, 1.17). The full-real-data baseline 5.22 builds on. |
+| `epic-5/5-18-resume-card-real-you-are-here` | 5.18 | Sally | 6 | Real `ResumeToken` (1.7) + suggested-next (`sdlc status` logic, 1.17); gated by `E2A → 5.18` (verify the 1.7/1.17 shapes before branching). **Reads untrusted state content — add a data-validation review focus.** The full-real-data baseline 5.22 builds on. |
 | `epic-5/5-19-stop-banner-7-triggers` | 5.19 | Amelia | 8 | Renders all 7 Epic-4 trigger types from STOP state; trigger→severity mapping test. **Load-bearing on retro D4 / CR4.2-W3 sticky-halt.** See Decision D3. |
 | `epic-5/5-20-honest-disconnection` | 5.20 | Sally | 9 | Recovery slice — N-consecutive-poll-fail → disconnected state on masthead/resume/banner; `aria-live` enter+leave. |
 | `epic-5/5-21-below-1280-degradation-banner` | 5.21 | Sally | 9 | Viewport degradation banner (reuses 5.19 treatment, `--blue` info); sessionStorage dismiss. |
 | `epic-5/5-22-per-release-a11y-minimum` | 5.22 | Murat | 10 | **Terminal release gate.** Per-release axe-core (real-data) + NVDA/VoiceOver manual smoke → `docs/a11y/release-<version>.md`; a11y regression blocks release. |
 
-Owners are tentative — the Sprint Planning meeting locks the roster. The net-new interfaces frozen by
-`5.1` (server/route contract) and `5.2` (design-token names) are consumed by the rest of the epic;
-agree both in their review before L2/L6 branch. Frontend file naming under `dashboard/static/`
-(components, pills, fixtures) MUST follow a single committed layout convention established in 5.2/5.5.
+Owners are tentative — the Sprint Planning meeting locks the roster. **Owner-load caveat (review
+finding):** the placeholder column funds Sally with ~16 of 22 stories, including all four
+cap-saturating L4 worktrees (5.6/5.7/5.8/5.11) — one author cannot realize 4-way concurrency, so the
+§3/§6 "peak width 4" is only achievable if the locked roster spreads L4 and the L6 batch across **≥3
+authors** (cf. CONTRIBUTING §4.3's two-simultaneous-assignment ceiling). Treat the concurrency profile
+as a staffing requirement, not a given. The net-new interfaces frozen by `5.1` (server/route contract)
+and `5.2` (design-token names) are consumed by the rest of the epic; agree both in their review before
+L2/L6 branch. **Module-boundary rule (add to `check_module_boundaries.py` in 5.1):** the new
+`dashboard` package may depend on the `state`/`journal` reader seam, but those modules MUST NOT depend
+on `dashboard` (one-way edge); `/api/dora` and any derived view read through the reader, never by
+re-parsing wire files. Frontend file naming under `dashboard/static/` (components, pills, fixtures)
+MUST follow a single committed layout convention established in 5.2/5.5.
 
 ---
 
@@ -288,7 +326,7 @@ unreliable; see the retrospective facilitation convention. Effort is expressed a
 | 3 | 3 | 5.5, 5.9, 5.10 | Cross-cutting live-dot + standalone components |
 | 4 | 4 (cap-saturating) | 5.6, 5.7, 5.8, 5.11 | 5A component fan-out (peak width) |
 | 5 | 1 | 5.12 | 5A a11y / forbidden-patterns convergence gate |
-| 6 | 4 (×2 batches) | 5.13, 5.14, 5.15, 5.16, 5.18 | 5B real-data swaps (gated on Epic 2A/2B) |
+| 6 | 4 then 1 (2 batches; see §3 split) | 5.13, 5.14, 5.15, 5.16, 5.18 | 5B real-data swaps (gated on Epic 2A/2B); batch 1 {5.14,5.15,5.16,5.18}, batch 2 {5.13} rebased on batch 1 |
 | 7 | 1 | 5.17 | Real KPI strip (component + DORA API join) |
 | 8 | 1 | 5.19 | STOP banner (gated on Epic-4 sticky STOP state) |
 | 9 | 2 | 5.20, 5.21 | Disconnection recovery + viewport banner |
@@ -315,7 +353,7 @@ data availability + the new frontend toolchain, not loop-correctness.
 | **DORA compute correctness + `<30s` perf gate.** Four metrics over git log + `agent_runs.jsonl`, 7d/30d windows, with insufficient-data branching, under a CI-gated `<30s` benchmark on a large fixture. | Story 5.13 owns the benchmark + `docs/api/dora-schema.json`. **Decision D1** keeps the schema internal (no ADR-024 wire contract, freeze stays 7/7) unless an external consumer appears. 30s server-side cache bounds repeat cost. |
 | **a11y hard gate vs editorial-design ambition.** Zero WCAG 2.2 Level A violations + forbidden-patterns (no modals/toasts/forms/client-routing/skeletons) + no color-only signaling, gated per-release with manual NVDA/VoiceOver. | 5.5 owns the color-only contract; 5.12 is the 5A convergence gate (axe-core + keyboard + forbidden-patterns); 5.22 is the per-release gate. Manual screen-reader smoke is a designated-reviewer signoff in `docs/a11y/release-<version>.md` — schedule the human reviewer as a release dependency. |
 | **Vanilla-JS-at-scale maintainability.** 22 stories of interactive components (tabs, collapsible tree, clipboard, polling, aria-live, content-delta render) with zero UI framework, under the <800-line/file + review discipline. | Cross-cutting components (live-dot 5.5, pill registry 5.10, tabs 5.11) are built once and reused; the no-framework guard (5.4) keeps the constraint honest; component fixtures (`signoff-states.html` 5.9) enable visual review without a heavy test rig. |
-| **§7.4 GATE — Epic 5 is NOT gate-ready (2026-06-22).** §8 **OPEN** (0/4), D1/D2/D3 **proposed not ratified**, the Epic-4 retro "Before Story 5.1" items A1/A2/A4 + D1–D4 + DOC **all OPEN**, #7 quality gate blocked by A4 (Epic-3 adopt-LOC cap), #8 debt-decay target-5 not yet run. #1 DAG exists ✅; #6 snapshots 7/7 ✅. | Before `bmad-create-story 5.1`: (1) collect §8 4/4 approvals + ratify D1/D2/D3; (2) close the Epic-4 retro A1/A2/A4 + D1–D4 prep items (with evidence) and land the two ADRs to `Accepted`; (3) re-verify #7 green on `main` + run #8 `--target-epic 5` strict. Do NOT proceed under "I'll backfill later" (CONTRIBUTING §7.4). |
+| **§7.4 GATE — Epic 5 is NOT gate-ready (updated 2026-06-22).** Progress: D1/D2/D3 **RATIFIED = (a)**; retro **A1 ✅ + A2 ✅ CLOSED** (CI `ci-gate`=success; cp1252 fix live). Still open: §8 **3/4** (3 reviewer boxes signed post re-verify; only the Project Lead directive sign-off remains), the Epic-4 retro **A4 + D1–D4 + DOC** items, **5.1 security ACs** (Host-header + static path-traversal — see security row) not yet in `epics.md`, **retro-D4 sticky-halt ADR** not drafted, #7 quality gate blocked by A4, #8 debt-decay target-5 not yet run. #1 DAG exists ✅; #6 snapshots 7/7 ✅. | Before `bmad-create-story 5.1`: (1) Charlie re-verifies the revised DAG → §8 4/4; (2) close retro A4 + D1–D4 + DOC (with evidence) + land the retro-D1 & retro-D4 ADRs to `Accepted`; (3) add the 5.1 Host-header + path-traversal + ETag-over-content controls to the `epics.md` 5.1 AC; (4) re-verify #7 green on `main` + run #8 `--target-epic 5` strict. Do NOT proceed under "I'll backfill later" (CONTRIBUTING §7.4). |
 
 ---
 
@@ -389,25 +427,34 @@ gate only on the sticky-halt fix.*
 
 Per CONTRIBUTING.md §7.1 rows 3–4 — minimum 3 reviewers + Project Lead directive sign-off.
 **All 4 boxes must be checked, and Decisions D1/D2/D3 ratified, before any Story 5.1 file is created
-via `bmad-create-story`.** This is a fresh Draft — all four boxes are **OPEN**.
+via `bmad-create-story`.** A genuine 3-agent adversarial review was run **2026-06-22**; verdicts are
+recorded against each box. **Current state: D1/D2/D3 RATIFIED = (a); §8 still < 4/4.**
 
-- [ ] Charlie — DAG correctness + dependency checks (verify the two zero-indegree roots `5.1`/`5.2`,
-  the `5.5` high-fanout cross-cutting edge, the `5.12` 5A convergence gate, the 1:1 5B real-data swaps,
-  the `5.19 → 5.20/5.21/5.22` 5C edges, and the `E4 → 5.19` sticky-halt coupling; cross-check the
-  wave-gate external edges against `epics.md` Epic 5 ACs)
-- [ ] Alice — sprint capacity + reviewer assignment (peak width 4 at L4; L6 exceeds cap → batch 4+1 or
-  3+2; the two wave boundaries flagged as the wall-clock bottleneck; security-reviewer on `5.1`, a11y
-  review on `5.12`/`5.22`; review-A/B/C pipelines across the 22 stories)
-- [ ] Winston — architectural cross-reference (net-new `sdlc dashboard` Python micro-router +
-  `dashboard/static/` vanilla frontend + DORA engine; Decision D1 = internal `/api/dora` schema / zero
-  new ADR-024 contracts / freeze 7/7; Decision D2 = single CI surface + incremental frontend gates;
-  Decision D3 = 5C gated on retro-D4 sticky-halt not real-dispatch; confirm the 2A.3
-  `EPIC-4-STOP-TRIGGER-WIRE` seam is resolved before 5C)
-- [ ] **Vuonglq01685 (Project Lead)** — directive sign-off (NOT yet recorded): on approval, ratify
-  **Decisions D1 = (a), D2 = (a), D3 = (a)**, approve the parallelism plan + worktree-per-layer policy,
-  and flip §8 to **4/4**. **NOTE — §7.4 gate is NOT satisfied:** §8 approval is necessary but not
-  sufficient; Story 5.1 also requires the Epic-4 retro A1/A2/A4 + D1–D4 + DOC items closed and #7/#8
-  re-verified green (see §1 + §7 gate row).
+- [x] Charlie — DAG correctness + dependency checks. **rev 1: FAIL** (2 CRITICAL graph defects —
+  5.12 missing its 5.6–5.11 fan-in; 5.20/5.21 not feeding terminal gate 5.22 — + HIGH missing
+  `E2A→5.18`) → **all fixed in rev 2** → **rev 2 re-verify (independent reviewer): PASS** — all six
+  `5.6–5.11→5.12` edges, the `5.20/5.21→5.22` terminal edges, and `E2A→5.18` confirmed present; graph
+  acyclic, every non-root node has an in-edge, layering topologically valid, depth-7 critical path real
+  (5.21 co-critical). Two LOW/INFO nits (classDef-vs-layer naming, 5.21 co-path) also closed.
+- [x] Alice — sprint capacity + reviewer assignment. **Verdict: PASS-WITH-FINDINGS** (no FAIL). Applied
+  in rev 2: corrected the fabricated `project.yaml` cap citation → CONTRIBUTING §3.2/PRD FR51; named the
+  authoritative L6 batch split {5.14,5.15,5.16,5.18}+{5.13}-rebased; added review-B/security to 5.13 and
+  data-validation review to 5.16/5.18. **Residual (feeds Sprint Planning, not a DAG fix):** the locked
+  roster MUST staff L4/L6 across ≥3 authors — the placeholder single-owner load can't realize width 4.
+- [x] Winston — architectural cross-reference. **Verdict: PASS-WITH-FINDINGS** (no FAIL). Confirmed
+  D1(a)/D2(a)/D3(a) consistent with ADR-024 (UI-render-model exclusion), ADR-025, and retro
+  D-RETRO-2/D4; net-new `dashboard` layer respects module boundaries. Applied in rev 2: module
+  one-way-edge rule, /api/dora-via-reader-seam, 5.1 `<100ms` benchmark-at-L1 note, D1 revisit clause →
+  5.13 AC. **Residual HIGH (gate items, NOT DAG fixes):** (F4) retro-D4 sticky-halt needs a State
+  projection change + an as-yet-undrafted ADR before `E4→5.19`; (F5) the **5.1 security AC must add
+  Host-header allowlist + static path-traversal containment + ETag-over-content** — these belong in
+  `epics.md`, Project-Lead/PO call.
+- [ ] **Vuonglq01685 (Project Lead)** — **D1 = (a), D2 = (a), D3 = (a) RATIFIED (2026-06-22).**
+  Charlie's re-verify is now PASS, so **all 3 reviewer boxes are signed — this directive sign-off
+  (parallelism plan + worktree-per-layer policy) is the only box left to reach §8 4/4**, and is the
+  Project Lead's to give. **NOTE — §7.4 gate is NOT satisfied even at 4/4:** Story 5.1 also requires
+  the Epic-4 retro A4 + D1–D4 + DOC items closed, the 5.1 security ACs added to `epics.md`, the
+  retro-D4 sticky-halt ADR drafted-to-Accepted, and #7/#8 re-verified green (see §1 + §7 gate row).
 
 ---
 
@@ -416,3 +463,4 @@ via `bmad-create-story`.** This is a fresh Draft — all four boxes are **OPEN**
 | Date | Author | Change |
 |---|---|---|
 | 2026-06-22 | Charlie + Alice (drafted via Claude, per Epic 4 retro A3) | Initial draft — DAG (22 stories) + 10 parallelism layers across 3 data-readiness waves (5A synthetic / 5B real-engine-data / 5C real-auto-mode) + critical path `5.2 → 5.4 → 5.5 → 5.11 → 5.19 → 5.20` (depth 6; depth 7 to terminal release gate `5.22`; peak width 4 — L4 cap-saturating, L6 cap-exceeding) + preliminary worktree assignments + risk register + Decisions D1 (`/api/dora` internal schema), D2 (single-CI-surface frontend gating), D3 (5C gated on retro-D4 sticky-halt not real-dispatch). §8: **all 4 approvals OPEN**; **Project Lead directive sign-off OPEN**; D1/D2/D3 **proposed, not ratified**. Gate note states the §7.4 Pre-Story-5.1 gate is **NOT yet satisfied** — pending §8 4/4 + the Epic-4 retro "Before Story 5.1" items (A1 gate-signal CI fix, A2 cp1252 encoding fix, A4 adopt-LOC green main, D1 symlink/path-containment, D2 secret_exfil regex, D3 cross-trigger precedence, D4 CR4.2-W3 sticky-halt) + two ADRs to `Accepted` + #7/#8 re-verification (honest posture per the belief→evidence lesson; not green-washed). |
+| 2026-06-22 | Reviewers Charlie/Alice/Winston (3-agent adversarial review) + Project Lead (decisions) | **Rev 2 — review-driven revision.** Project Lead **ratified D1/D2/D3 = (a)**. 3-agent adversarial review run. **Charlie FAIL→fixed:** added 5.6–5.11 → 5.12 convergence-gate fan-in (6 edges), 5.20→5.22 + 5.21→5.22 terminal-gate edges (5.21 no longer orphan), `E2A→5.18` wave gate; corrected §4 critical path to true depth-7 spine `5.2→5.4→5.5→5.11→5.19→5.20→5.22`; added 5.12 to the §2 + §3 fan-in/fan-out prose. **Alice PASS-WITH-FINDINGS→applied:** fixed the non-existent `project.yaml` cap citation (→ CONTRIBUTING §3.2 / PRD FR51), named the authoritative L6 batch split {5.14,5.15,5.16,5.18}+{5.13}-rebased, added review-B/security to 5.13 + data-validation review to 5.16/5.18, recorded the owner-load staffing caveat (≥3 authors for width 4). **Winston PASS-WITH-FINDINGS→applied:** D1/D2/D3 confirmed vs ADR-024/025 + retro D-RETRO-2/D4; added module one-way-edge rule + /api/dora-via-reader-seam, 5.1 benchmark-at-L1 note, D1 revisit clause. **Residual gate items (NOT DAG fixes, tracked in §1/§7/§8):** retro-D4 sticky-halt = State-projection change + undrafted ADR; 5.1 security AC must add Host-header allowlist + static path-traversal containment + ETag-over-content in `epics.md`. Flipped retro **A1/A2 → ✅ CLOSED** (CI `ci-gate`=success; cp1252 fix live). §8 reviewer boxes: Alice + Winston signed (PASS-WITH-FINDINGS); **Charlie re-verified independently → PASS**, so **all 3 reviewer boxes signed** — only the Project Lead directive sign-off remains → §8 **3/4**. Also closed 2 LOW/INFO re-verify nits (Mermaid classDef-vs-layer legend comment; 5.21 co-critical-path note in §4). |
