@@ -248,7 +248,7 @@ jobs:
             mode=strict
             echo "::notice::Story N.1 gate active — target epic=$target, mode=strict"
           else
-            target=2b   # current next-epic prep target; update per epic
+            target=5   # current next-epic prep target (Epic 5); update per epic
             mode=warn
             echo "::notice::Advisory debt audit — target epic=$target, mode=warn"
           fi
