@@ -1,6 +1,6 @@
 # Story 4.10: Auto-Brainstorm Panel Dispatch on Ambiguity
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 3 (`docs/sprints/epic-4-dag.md` §3 — the **sole** Layer-3 story; the fan-out→converge graph narrows here from Layer-2's 8-wide STOP/watchdog batch to a single convergence-feeder). Max parallel worktrees for this layer = **1**.
