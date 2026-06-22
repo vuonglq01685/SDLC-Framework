@@ -16,6 +16,7 @@ import typer.rich_utils
 from sdlc.cli._adopt_rollback_register import register_adopt_rollback_command
 from sdlc.cli._auto_register import register_auto_commands
 from sdlc.cli._migrate_register import register_migrate_commands
+from sdlc.cli._unsign_register import register_unsign_command
 from sdlc.cli.version import get_version
 
 __all__ = ("app",)
@@ -387,3 +388,4 @@ def hook_check_command(ctx: typer.Context) -> None:
 register_adopt_rollback_command(app)
 register_migrate_commands(app)
 register_auto_commands(app)
+register_unsign_command(app)
