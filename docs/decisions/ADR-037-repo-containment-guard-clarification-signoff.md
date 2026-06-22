@@ -1,6 +1,11 @@
 # ADR-037: Repo-Containment Guard on Clarification/Signoff Writes & Unlinks (CR4.12-W1)
 
-**Status:** Proposed
+**Status:** Accepted
+
+> Implemented (Epic-4 retro D1): `sdlc.concurrency.path_guard.assert_repo_contained` guards the
+> auto_mad forward (resolution write + open unlink) and the `sdlc unsign` reverse
+> (signoff/clarification removals) callsites; `find_mad_resolution_dirs` refuses symlinked dirs.
+> Forward + reverse symlink-escape regression tests green on the CI POSIX legs.
 
 ## Context
 

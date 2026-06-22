@@ -46,8 +46,8 @@ alternatives, consequences, and a revisit-by date).
 | [034](ADR-034-debt-d7-split-signoff-flock.md) | EPIC-2A-D7 split — SIGNOFF-FLOCK / WIN32-RUNS-LOCK defer | Epic 2B prep | Accepted |
 | [035](ADR-035-debt-decay-gate-c-severity-scoped.md) | Debt-decay Gate C — severity-scoped N-2 | Epic 2B prep | Accepted |
 | [036](ADR-036-adopt-mutation-testing-harness.md) | Adopt-module mutation-testing harness | 3.7 | Accepted |
-| [037](ADR-037-repo-containment-guard-clarification-signoff.md) | Repo-containment guard (clarification/signoff) — CR4.12-W1 | Epic 5 prep (retro D1) | Proposed |
-| [038](ADR-038-sticky-halt-projection.md) | Sticky-halt projection (`halted` survives clean stop) — CR4.2-W3 | Epic 5 prep (retro D4) | Proposed |
+| [037](ADR-037-repo-containment-guard-clarification-signoff.md) | Repo-containment guard (clarification/signoff) — CR4.12-W1 | Epic 5 prep (retro D1) | Accepted |
+| [038](ADR-038-sticky-halt-projection.md) | Sticky-halt projection (`halted` survives clean stop) — CR4.2-W3 | Epic 5 prep (retro D4) | Accepted |
 
 Note: ADR-024 closes the Decision F3 wire-format-lock loop; future per-contract version bumps cite it.
 
@@ -56,9 +56,9 @@ Note: ADRs 025–027 were Epic-2A preparation-sprint outputs from the Epic 1 ret
 when that prep sprint closed. ADRs 028–036 are Epic-2B prep + Epic-3/4 outputs.
 
 Note: ADRs **037–038** are Epic-5 preparation outputs from the Epic 4 retrospective
-(`_bmad-output/implementation-artifacts/epic-4-retro-2026-06-22.md`, actions D1/D4). They are
-**Proposed**; per CONTRIBUTING §7.4 they must reach **Accepted** before Story 5.1 enters
-implementation.
+(`_bmad-output/implementation-artifacts/epic-4-retro-2026-06-22.md`, actions D1/D4). Both reached
+**Accepted** when their implementations landed and verified green on CI (retro D1/D4), per
+CONTRIBUTING §7.4 (ADRs must be Accepted before Story 5.1 enters implementation).
 
 ## Authoring a new ADR
 

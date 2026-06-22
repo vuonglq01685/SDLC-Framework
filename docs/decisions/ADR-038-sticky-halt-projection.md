@@ -1,6 +1,10 @@
 # ADR-038: Sticky-Halt Projection — `halted` Survives a Clean `stopped` Iteration (CR4.2-W3)
 
-**Status:** Proposed
+**Status:** Accepted
+
+> Implemented (Epic-4 retro D4): `_fold_auto_loop_status` preserves `(halted, stop_reason)` when a
+> clean `stopped` iteration folds over an already-`halted` status; a genuine `dispatch`/`continued`
+> still clears it. Cross-platform RED→GREEN tests in `tests/unit/state/test_state_projection.py`.
 
 ## Context
 
