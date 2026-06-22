@@ -1,6 +1,6 @@
 # Story 4.11: `/sdlc-auto-mad` (YOLO Mad-Mode Auto-Resolution)
 
-**Status:** review
+**Status:** done
 
 **Epic:** 4 — Auto-Mode & Autonomous Execution (`/sdlc-auto`)
 **Layer:** 4 (`docs/sprints/epic-4-dag.md` §3:131 — the **convergence point**; the fan-out→converge graph collapses here. Max parallel worktrees = **1**). 4.11 is a hard synchronization barrier: it cannot branch until **every** STOP trigger (4.2–4.8), the watchdog (4.9), and auto-brainstorm (4.10) have merged (DAG §2:116-120).
