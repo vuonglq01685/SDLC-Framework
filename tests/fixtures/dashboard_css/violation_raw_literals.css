@@ -1,0 +1,7 @@
+/* RED fixture: raw literals — must fail stylelint strict-value gate */
+.bad-component {
+  color: #ffffff;
+  font-size: 12px;
+  font-family: Inter, sans-serif;
+  padding: 8px;
+}

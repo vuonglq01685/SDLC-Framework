@@ -1,0 +1,4 @@
+/* RED fixture: DD-09 violation — must fail check_dashboard_no_data_theme */
+[data-theme="dark"] {
+  --bg: #0e0f13;
+}
