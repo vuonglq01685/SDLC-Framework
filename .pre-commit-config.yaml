@@ -101,6 +101,17 @@ repos:
         files: ^src/sdlc/.*\.py$
         pass_filenames: true
 
+  # ----- dashboard DD-09 gate (Story 5.2 / AC3) -----
+  - repo: local
+    hooks:
+      - id: dashboard-dd09-gate
+        name: dashboard no data-theme gate (Story 5.2 AC3 / DD-09)
+        entry: uv run python scripts/check_dashboard_no_data_theme.py
+        language: system
+        pass_filenames: false
+        files: ^src/sdlc/dashboard/static/.*\.(css|js|mjs|html)$
+        always_run: false
+
   # ----- migration registry lint (Story 1.19 / AC1.7 / ADR-022) -----
   - repo: local
     hooks:

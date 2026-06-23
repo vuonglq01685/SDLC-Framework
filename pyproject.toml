@@ -79,7 +79,10 @@ exclude = [
 "src/sdlc/workflows_yaml" = "sdlc/workflows_yaml"
 "src/sdlc/skills" = "sdlc/skills"
 "src/sdlc/memory" = "sdlc/memory"
-"src/sdlc/dashboard/static" = "sdlc/dashboard/static"
+# Story 5.2: ship runtime CSS only; .stylelintrc.json is CI-only (D1).
+"src/sdlc/dashboard/static/.gitkeep" = "sdlc/dashboard/static/.gitkeep"
+"src/sdlc/dashboard/static/index.html" = "sdlc/dashboard/static/index.html"
+"src/sdlc/dashboard/static/styles/tokens.css" = "sdlc/dashboard/static/styles/tokens.css"
 
 [tool.hatch.build.targets.sdist]
 # PRD §499 + §216 mandate wheel-only distribution for v1.
