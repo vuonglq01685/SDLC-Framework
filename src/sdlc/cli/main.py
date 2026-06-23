@@ -212,6 +212,14 @@ def status_command(ctx: typer.Context) -> None:
     run_status(ctx=ctx)
 
 
+@app.command(name="dashboard")
+def dashboard_command(ctx: typer.Context, port: int = typer.Option(8765)) -> None:
+    """Launch the local read-only dashboard (FR41)."""
+    from sdlc.cli.dashboard import run_dashboard  # deferred
+
+    run_dashboard(ctx=ctx, port=port)
+
+
 @app.command(name="replay")
 def replay_command(
     ctx: typer.Context,
