@@ -1,0 +1,56 @@
+{
+  "ignoreFiles": [
+    "tokens.css"
+  ],
+  "rules": {
+    "declaration-property-value-disallowed-list": {
+      "/color$/": [
+        "/^#[0-9a-fA-F]{3,8}$/",
+        "/^rgb\\(/",
+        "/^rgba\\(/",
+        "/^hsl\\(/",
+        "/^hsla\\(/",
+        "/^oklch\\(/"
+      ],
+      "/^background-color$/": [
+        "/^#[0-9a-fA-F]{3,8}$/",
+        "/^rgb\\(/",
+        "/^rgba\\(/",
+        "/^hsl\\(/",
+        "/^hsla\\(/",
+        "/^oklch\\(/"
+      ],
+      "font-size": [
+        "/^\\d+(\\.\\d+)?px$/"
+      ],
+      "font-family": [
+        "/^Inter\\b/",
+        "/^Fraunces\\b/",
+        "/^JetBrains Mono\\b/",
+        "/^'Inter'/",
+        "/^\"Inter\"/"
+      ],
+      "/^padding/": [
+        "/^\\d+(\\.\\d+)?px$/"
+      ],
+      "/^margin/": [
+        "/^\\d+(\\.\\d+)?px$/"
+      ],
+      "gap": [
+        "/^\\d+(\\.\\d+)?px$/"
+      ],
+      "letter-spacing": [
+        "/^-?\\d/"
+      ],
+      "line-height": [
+        "/^\\d+(\\.\\d+)?$/"
+      ],
+      "border-radius": [
+        "/^\\d+(\\.\\d+)?px$/"
+      ],
+      "border-width": [
+        "/^\\d+(\\.\\d+)?px$/"
+      ]
+    }
+  }
+}

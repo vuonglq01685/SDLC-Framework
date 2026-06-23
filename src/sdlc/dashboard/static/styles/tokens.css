@@ -1,0 +1,180 @@
+/**
+ * SDLC Dashboard design tokens (Story 5.2).
+ *
+ * Canonical single-theme `:root` block per DD-01 / DD-09. No `[data-theme]`.
+ * `@font-face` rules and self-hosted font files land in Story 5.3 — family
+ * tokens below carry UX §3.2 fallbacks only.
+ *
+ * Type convention (FROZEN): per-property tokens `--type-{role}-{property}`
+ * where property is `size`, `line-height`, `weight`, `letter-spacing`.
+ * Family role per UX pairing rules: display-* → serif, body/label → sans/mono.
+ */
+:root {
+  /* ── COLOR: surface ── */
+  --bg: #0e0f13;
+  --paper: #161922;
+
+  /* ── COLOR: ink (text) ── */
+  --ink: #eceef3;
+  --ink-soft: #c2c7d2;
+  --ink-mute: #8b92a2;
+  --ink-dim: #5c6273;
+
+  /* ── COLOR: rule (borders/dividers) ── */
+  --rule: rgba(255, 255, 255, 0.08);
+  --rule-strong: rgba(255, 255, 255, 0.18);
+
+  /* ── COLOR: accent (brand) ── DD-02: oklch equivalent of #E27858 */
+  --accent: oklch(68.62% 0.140 37.57); /* #E27858 */
+  --accent-soft: rgba(226, 120, 88, 0.12);
+
+  /* ── COLOR: semantic states (solid + 12% soft) ── */
+  --green: #4ade80;
+  --green-soft: rgba(74, 222, 128, 0.12);
+  --amber: #fbbf24;
+  --amber-soft: rgba(251, 191, 36, 0.12);
+  --red: #f87171;
+  --red-soft: rgba(248, 113, 113, 0.12);
+  --blue: #60a5fa;
+  --blue-soft: rgba(96, 165, 250, 0.12);
+  --purple: #a78bfa;
+  --purple-soft: rgba(167, 139, 250, 0.12);
+
+  /* ── TYPOGRAPHY: families (self-hosted @font-face in Story 5.3) ── */
+  --font-serif: "Fraunces", Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Menlo", monospace;
+
+  /* ── TYPE SCALE (per-property; UX §3.2) ── */
+  --type-display-hero-size: 44px;
+  --type-display-hero-line-height: 1.05;
+  --type-display-hero-weight: 500;
+  --type-display-hero-letter-spacing: -0.02em;
+
+  --type-display-1-size: 32px;
+  --type-display-1-line-height: 1;
+  --type-display-1-weight: 600;
+  --type-display-1-letter-spacing: -0.015em;
+
+  --type-display-2-size: 30px;
+  --type-display-2-line-height: 1.15;
+  --type-display-2-weight: 500;
+  --type-display-2-letter-spacing: -0.015em;
+
+  --type-display-3-size: 22px;
+  --type-display-3-line-height: 1.2;
+  --type-display-3-weight: 500;
+  --type-display-3-letter-spacing: -0.01em;
+
+  --type-display-4-size: 20px;
+  --type-display-4-line-height: 1.25;
+  --type-display-4-weight: 500;
+  --type-display-4-letter-spacing: -0.01em;
+
+  --type-display-5-size: 18px;
+  --type-display-5-line-height: 1.2;
+  --type-display-5-weight: 500;
+  --type-display-5-letter-spacing: 0;
+
+  --type-display-6-size: 17px;
+  --type-display-6-line-height: 1.25;
+  --type-display-6-weight: 500;
+  --type-display-6-letter-spacing: -0.01em;
+
+  --type-body-size: 14px;
+  --type-body-line-height: 1.55;
+  --type-body-weight: 400;
+  --type-body-letter-spacing: 0;
+
+  --type-body-strong-size: 13px;
+  --type-body-strong-line-height: 1.4;
+  --type-body-strong-weight: 600;
+  --type-body-strong-letter-spacing: 0;
+
+  --type-body-small-size: 12px;
+  --type-body-small-line-height: 1.45;
+  --type-body-small-weight: 400;
+  --type-body-small-letter-spacing: 0;
+
+  --type-label-mono-size: 11px;
+  --type-label-mono-line-height: 1;
+  --type-label-mono-weight: 500;
+  --type-label-mono-letter-spacing: 0.12em;
+
+  --type-label-mono-sm-size: 10px;
+  --type-label-mono-sm-line-height: 1;
+  --type-label-mono-sm-weight: 500;
+  --type-label-mono-sm-letter-spacing: 0.14em;
+
+  --type-mono-md-size: 12px;
+  --type-mono-md-line-height: 1;
+  --type-mono-md-weight: 400;
+  --type-mono-md-letter-spacing: 0;
+
+  --type-mono-data-size: 11px;
+  --type-mono-data-line-height: 1;
+  --type-mono-data-weight: 500;
+  --type-mono-data-letter-spacing: 0;
+
+  --type-mono-pill-size: 10px;
+  --type-mono-pill-line-height: 1;
+  --type-mono-pill-weight: 500;
+  --type-mono-pill-letter-spacing: 0.12em;
+
+  --type-mono-tag-size: 9px;
+  --type-mono-tag-line-height: 1;
+  --type-mono-tag-weight: 700;
+  --type-mono-tag-letter-spacing: 0.12em;
+
+  /* ── SPACING (2px base; UX §3.3) ── */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 18px;
+  --space-9: 20px;
+  --space-10: 22px;
+  --space-11: 24px;
+  --space-12: 28px;
+  --space-14: 32px;
+  --space-16: 36px;
+  --space-18: 40px;
+  --space-shell-top: 28px;
+  --space-shell-bottom: 80px;
+
+  /* ── LAYOUT (UX §3.3) ── */
+  --layout-shell-max-width: 1360px;
+  --layout-shell-padding-x: 40px;
+  --layout-min-viewport: 1280px;
+  --layout-grid-gap: 32px;
+
+  /* ── BORDERS (UX §3.4) ── */
+  --border-hairline: 1px solid var(--rule);
+  --border-strong: 1px solid var(--ink);
+  --border-dashed: 1px dashed var(--rule);
+  --border-accent: 2px solid var(--accent);
+
+  /* ── RADIUS (UX §3.4) ── */
+  --radius-none: 0;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-pill: 999px;
+
+  /* ── MOTION (UX §3.5) ── */
+  --motion-pulse-live: 2.4s ease-in-out infinite;
+  --motion-pulse-stop: 2.4s ease-in-out infinite;
+  --motion-copy-feedback: 1s;
+  --motion-ease-default: ease-in-out;
+  --motion-ease-linear: linear;
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
