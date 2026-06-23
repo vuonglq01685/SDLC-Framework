@@ -1,0 +1,9 @@
+<!-- RED fixture: DD-09 violation in HTML — must fail check_dashboard_no_data_theme (Story 5.2 AC3 / P5) -->
+<html data-theme="dark">
+  <head>
+    <style>[data-theme] { --bg: #0e0f13; }</style>
+  </head>
+  <body>
+    <script>document.documentElement.dataset.theme = "dark";</script>
+  </body>
+</html>

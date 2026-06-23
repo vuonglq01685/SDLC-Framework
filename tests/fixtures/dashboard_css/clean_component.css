@@ -1,0 +1,7 @@
+/* GREEN fixture: token references only */
+.good-component {
+  color: var(--ink);
+  font-size: var(--type-body-size);
+  font-family: var(--font-sans);
+  padding: var(--space-3);
+}
