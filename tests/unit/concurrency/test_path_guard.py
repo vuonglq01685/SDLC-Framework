@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from sdlc.concurrency.path_guard import assert_repo_contained
+from sdlc.concurrency.path_guard import assert_contained, assert_repo_contained
 from sdlc.errors import SecurityError
 
 pytestmark = pytest.mark.unit
@@ -77,3 +77,20 @@ class TestErrorShape:
         with pytest.raises(SecurityError) as exc:
             assert_repo_contained(Path("../escape.md"), tmp_path)
         assert exc.value.code == "ERR_SECURITY"
+
+
+class TestAssertContainedStaticRoot:
+    def test_path_under_static_root_accepted(self, tmp_path: Path) -> None:
+        static_root = tmp_path / "static"
+        static_root.mkdir()
+        asset = static_root / "app.js"
+        asset.write_text("x", encoding="utf-8")
+        assert assert_contained(asset, static_root) == asset.resolve()
+
+    def test_path_outside_static_root_rejected(self, tmp_path: Path) -> None:
+        static_root = tmp_path / "static"
+        static_root.mkdir()
+        outside = tmp_path / "cli.py"
+        outside.write_text("x", encoding="utf-8")
+        with pytest.raises(SecurityError):
+            assert_contained(outside, static_root)
