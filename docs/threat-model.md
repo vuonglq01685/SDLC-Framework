@@ -394,6 +394,41 @@ before each dispatch — analogous to the hook-tamper detection in SDLC-THREAT-0
 
 ---
 
+## SDLC-THREAT-006: Local Dashboard Read Exfiltration (DNS-Rebinding)
+
+### Description
+
+The local dashboard (`sdlc dashboard`) exposes read-only project state — story ids, phase
+progress, agent activity — to the operator's browser. A malicious web page loaded in the same
+browser could attempt DNS-rebinding to reach the localhost-bound server and exfiltrate that
+data, even though the server binds `127.0.0.1` only.
+
+### Attack Surface
+
+- `GET /state.json`, `GET /api/dora`, and static assets served by `src/sdlc/dashboard/server.py`.
+- Cross-origin reads from a rebound hostname (not covered by `405` on write methods).
+
+### Mitigation
+
+- **Localhost bind only** — `validate_bind_host` rejects `0.0.0.0` at startup (AC1).
+- **Host-header allowlist** — `validate_host_header` returns `403` when `Host` is not
+  `localhost`, `127.0.0.1`, or `[::1]` (± bound port) on every request (AC5).
+- **Static-path containment** — `assert_contained` from `src/sdlc/concurrency/path_guard.py`
+  (ADR-037 amendment, Story 5.1 D2) rejects `..`, absolute, and symlink escapes outside the
+  static root (AC6).
+- **No write endpoints** — `POST`/`PUT`/`DELETE`/`PATCH` → `405` (AC4).
+
+### Residual Risk
+
+No authentication is required by design (NFR-SEC-6): the threat model assumes the **local user
+is trusted**. Remote access is unsupported in v1. A compromised local process with network
+access can still read the dashboard without DNS-rebinding.
+
+Verifying tests: `tests/unit/dashboard/test_dashboard_security.py`,
+`tests/unit/dashboard/test_dashboard_routes.py`.
+
+---
+
 ## SDLC-THREAT Index
 
 The `SDLC-THREAT-NNN` scheme is established here. `SDLC-THREAT-001` was first referenced in
@@ -407,3 +442,4 @@ the numbering below is consistent with that prior usage.
 | SDLC-THREAT-003 | Boundary-line stripping | `user_text/boundary_marker_smuggle_01.txt` through `boundary_marker_smuggle_04_extra_whitespace.txt` (4 files) | `scripts/check_boundary_line_presence.py`; `src/sdlc/dispatcher/prompts.py:30` | `tests/security/test_boundary_line_presence.py`; `tests/security/test_prompt_injection_corpus.py` |
 | SDLC-THREAT-004 | Hook tampering | _(no dedicated corpus; covered by hook-trust integration tests)_ | `src/sdlc/hooks/tampering.py`; `src/sdlc/hooks/_hash_store.py`; `src/sdlc/claude_hooks/pre_tool_use.py`; `src/sdlc/cli/trust_hooks.py`; `src/sdlc/cli/hook_check.py` | `tests/integration/test_trust_hooks_cmd.py`; `tests/integration/test_init_baselines_hooks.py`; `tests/integration/test_hook_check_subprocess.py`; `tests/unit/cli/test_hook_check.py`; `tests/unit/cli/test_init_hook_baseline.py` |
 | SDLC-THREAT-005 | Supply-chain / specialist-file integrity | `workflow_yaml/static_phantom_agent_write_globs.yaml`; `workflow_yaml/sec7_name_field_markdown_injection.yaml`; `workflow_yaml/sec7_parallel_agent_xml_tag.yaml`; `workflow_yaml/sec7_postcondition_instruction_override.yaml` (4 of 8 workflow_yaml files) | _(corpus + tool-safety classifier only — **no dedicated integrity module**)_ | `tests/security/test_prompt_injection_corpus.py` |
+| SDLC-THREAT-006 | Local dashboard read exfiltration (DNS-rebinding) | _(no dedicated corpus)_ | `src/sdlc/dashboard/server.py` (`validate_bind_host`, `validate_host_header`); `src/sdlc/concurrency/path_guard.py` (`assert_contained`) | `tests/unit/dashboard/test_dashboard_security.py`; `tests/unit/dashboard/test_dashboard_routes.py` |
