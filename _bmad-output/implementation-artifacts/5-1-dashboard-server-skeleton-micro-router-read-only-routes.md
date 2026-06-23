@@ -1,6 +1,6 @@
 # Story 5.1: Dashboard Server Skeleton + Micro-Router + Read-Only Routes + ETag/304 + Localhost-Bind
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L1 (zero-indegree root, mutually independent of 5.2). Worktree: epic-5/5-1-dashboard-server-skeleton. SECURITY-SENSITIVE → review-B + security-reviewer. Freeze the server/route contract before 5.13. -->
