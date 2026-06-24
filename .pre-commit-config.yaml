@@ -120,6 +120,22 @@ repos:
         files: ^src/sdlc/dashboard/static/.*\.(css|html)$
         always_run: false
 
+      - id: dashboard-dd14-gate
+        name: dashboard motion budget gate (Story 5.4 AC2 / DD-14)
+        entry: uv run python scripts/check_dashboard_motion.py
+        language: system
+        pass_filenames: false
+        files: ^src/sdlc/dashboard/static/.*\.css$
+        always_run: false
+
+      - id: dashboard-dd08-gate
+        name: dashboard no UI framework gate (Story 5.4 AC4 / DD-08)
+        entry: uv run python scripts/check_dashboard_no_framework.py
+        language: system
+        pass_filenames: false
+        files: ^src/sdlc/dashboard/static/.*
+        always_run: false
+
   # ----- migration registry lint (Story 1.19 / AC1.7 / ADR-022) -----
   - repo: local
     hooks:

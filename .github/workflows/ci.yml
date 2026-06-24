@@ -60,6 +60,27 @@ jobs:
       - name: Dashboard DD-10 gate (Story 5.3 AC1)
         run: uv run python scripts/check_dashboard_no_external_fonts.py
 
+      - name: Dashboard DD-14 gate (Story 5.4 AC2)
+        run: uv run python scripts/check_dashboard_motion.py
+
+      - name: Dashboard DD-08 gate (Story 5.4 AC4)
+        run: uv run python scripts/check_dashboard_no_framework.py
+
+      - name: Cache Playwright browsers (Story 5.4 AC3)
+        # Avoids re-downloading Chromium (~150MB) on every matrix cell each run.
+        # A miss is safe — the install step below just downloads normally.
+        uses: actions/cache@v4  # pin: 0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/uv.lock') }}
+
+      - name: Install Playwright Chromium (Story 5.4 AC3)
+        # --with-deps installs the OS libraries Chromium needs to launch on Linux
+        # runners (no-op on macOS); on a cache hit the browser binary is reused.
+        run: uv run playwright install --with-deps chromium
+
       - name: wireformat-immutability check (Story 1.21 / Decision F3)
         # Run in every matrix cell — pydantic JSON-Schema bytes can drift across
         # Python micro-versions or OS, and a per-cell failure with no script output

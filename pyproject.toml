@@ -34,6 +34,7 @@ dev = [
     "types-PyYAML",             # mypy stubs for pyyaml (dev-only; not shipped at runtime)
     "mkdocs-mermaid2-plugin>=1.2.3",
     "mutmut>=3.0.0,<4",
+    "playwright>=1.49,<2",
 ]
 
 [build-system]
@@ -83,6 +84,8 @@ exclude = [
 "src/sdlc/dashboard/static/.gitkeep" = "sdlc/dashboard/static/.gitkeep"
 "src/sdlc/dashboard/static/index.html" = "sdlc/dashboard/static/index.html"
 "src/sdlc/dashboard/static/styles/tokens.css" = "sdlc/dashboard/static/styles/tokens.css"
+"src/sdlc/dashboard/static/styles/focus-motion.css" = "sdlc/dashboard/static/styles/focus-motion.css"
+"src/sdlc/dashboard/static/fixtures/reduced-motion-pulse.html" = "sdlc/dashboard/static/fixtures/reduced-motion-pulse.html"
 "src/sdlc/dashboard/static/icons/sprite.svg" = "sdlc/dashboard/static/icons/sprite.svg"
 "src/sdlc/dashboard/static/fonts/OFL.txt" = "sdlc/dashboard/static/fonts/OFL.txt"
 "src/sdlc/dashboard/static/fonts/fraunces-400.woff2" = "sdlc/dashboard/static/fonts/fraunces-400.woff2"
