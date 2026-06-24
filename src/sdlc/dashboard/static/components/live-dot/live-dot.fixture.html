@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Live dot + freshness footer review fixture (Story 5.5)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+
+      section {
+        margin-bottom: var(--space-11);
+      }
+
+      .variant-row {
+        display: flex;
+        gap: var(--space-11);
+        align-items: center;
+        margin-bottom: var(--space-5);
+      }
+
+      .footer-block {
+        max-width: 360px;
+        padding: var(--space-5);
+        border: var(--border-hairline);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.5 — Live dot family + freshness footer</h1>
+
+    <section aria-label="Live dot variants">
+      <h2>Variants</h2>
+      <div class="variant-row" id="variant-mount"></div>
+    </section>
+
+    <section aria-label="Freshness footer patterns">
+      <h2>Freshness footer</h2>
+      <div class="footer-block" id="footer-fresh-mount"></div>
+      <div class="footer-block" id="footer-stale-mount"></div>
+    </section>
+
+    <script type="module">
+      import "/static/components/live-dot/live-dot.js";
+      import {
+        STALE_MS,
+        renderFreshnessFooter,
+      } from "/static/components/freshness-footer/freshness-footer.js";
+
+      const variants = ["default", "warn", "disconnected"];
+      const variantMount = document.getElementById("variant-mount");
+      for (const variant of variants) {
+        const dot = document.createElement("live-dot");
+        dot.setAttribute("variant", variant);
+        if (variant === "default") {
+          dot.id = "live-dot-reduced-motion-target";
+        }
+        variantMount.appendChild(dot);
+      }
+
+      const now = Date.now();
+      const freshFooter = document.createElement("freshness-footer");
+      freshFooter.setAttribute("last-poll", String(now - 5_000));
+      freshFooter.setAttribute("now", String(now));
+      freshFooter.setAttribute("variant", "default");
+      document.getElementById("footer-fresh-mount").appendChild(freshFooter);
+
+      const staleFooter = document.createElement("freshness-footer");
+      staleFooter.setAttribute("last-poll", String(now - STALE_MS - 1_000));
+      staleFooter.setAttribute("now", String(now));
+      staleFooter.setAttribute("variant", "warn");
+      staleFooter.id = "freshness-footer-stale";
+      document.getElementById("footer-stale-mount").appendChild(staleFooter);
+    </script>
+  </body>
+</html>

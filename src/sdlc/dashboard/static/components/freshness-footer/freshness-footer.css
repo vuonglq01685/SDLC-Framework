@@ -1,0 +1,29 @@
+/**
+ * Freshness footer pattern (Story 5.5 / UX §7.5).
+ */
+
+freshness-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink-mute);
+}
+
+.freshness-footer__timestamp {
+  color: inherit;
+}
+
+.freshness-footer__timestamp--fresh {
+  color: var(--ink);
+}
+
+.freshness-footer__status {
+  display: inline-flex;
+  align-items: center;
+}

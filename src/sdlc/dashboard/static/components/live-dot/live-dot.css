@@ -1,0 +1,46 @@
+/**
+ * Live dot family (Story 5.5 / UX §7.4).
+ *
+ * Native custom element rendering dot + mandatory adjacent text label.
+ * D1: resting 25% alpha glow as static box-shadow; animated pulse via frozen classes.
+ */
+
+live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  vertical-align: middle;
+}
+
+.live-dot__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 4px color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.live-dot__label {
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-size);
+  line-height: var(--type-label-mono-line-height);
+  font-weight: var(--type-label-mono-weight);
+  letter-spacing: var(--type-label-mono-letter-spacing);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+live-dot[variant="default"] .live-dot__dot {
+  background-color: var(--green);
+  color: var(--green);
+}
+
+live-dot[variant="warn"] .live-dot__dot {
+  background-color: var(--amber);
+  color: var(--amber);
+}
+
+live-dot[variant="disconnected"] .live-dot__dot {
+  background-color: var(--red);
+  color: var(--red);
+}
