@@ -83,6 +83,19 @@ exclude = [
 "src/sdlc/dashboard/static/.gitkeep" = "sdlc/dashboard/static/.gitkeep"
 "src/sdlc/dashboard/static/index.html" = "sdlc/dashboard/static/index.html"
 "src/sdlc/dashboard/static/styles/tokens.css" = "sdlc/dashboard/static/styles/tokens.css"
+"src/sdlc/dashboard/static/icons/sprite.svg" = "sdlc/dashboard/static/icons/sprite.svg"
+"src/sdlc/dashboard/static/fonts/OFL.txt" = "sdlc/dashboard/static/fonts/OFL.txt"
+"src/sdlc/dashboard/static/fonts/fraunces-400.woff2" = "sdlc/dashboard/static/fonts/fraunces-400.woff2"
+"src/sdlc/dashboard/static/fonts/fraunces-500.woff2" = "sdlc/dashboard/static/fonts/fraunces-500.woff2"
+"src/sdlc/dashboard/static/fonts/fraunces-600.woff2" = "sdlc/dashboard/static/fonts/fraunces-600.woff2"
+"src/sdlc/dashboard/static/fonts/inter-300.woff2" = "sdlc/dashboard/static/fonts/inter-300.woff2"
+"src/sdlc/dashboard/static/fonts/inter-400.woff2" = "sdlc/dashboard/static/fonts/inter-400.woff2"
+"src/sdlc/dashboard/static/fonts/inter-500.woff2" = "sdlc/dashboard/static/fonts/inter-500.woff2"
+"src/sdlc/dashboard/static/fonts/inter-600.woff2" = "sdlc/dashboard/static/fonts/inter-600.woff2"
+"src/sdlc/dashboard/static/fonts/inter-700.woff2" = "sdlc/dashboard/static/fonts/inter-700.woff2"
+"src/sdlc/dashboard/static/fonts/jetbrains-mono-400.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-400.woff2"
+"src/sdlc/dashboard/static/fonts/jetbrains-mono-500.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-500.woff2"
+"src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
 
 [tool.hatch.build.targets.sdist]
 # PRD §499 + §216 mandate wheel-only distribution for v1.

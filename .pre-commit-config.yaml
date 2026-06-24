@@ -112,6 +112,14 @@ repos:
         files: ^src/sdlc/dashboard/static/.*\.(css|js|mjs|html)$
         always_run: false
 
+      - id: dashboard-dd10-gate
+        name: dashboard no external fonts gate (Story 5.3 AC1 / DD-10)
+        entry: uv run python scripts/check_dashboard_no_external_fonts.py
+        language: system
+        pass_filenames: false
+        files: ^src/sdlc/dashboard/static/.*\.(css|html)$
+        always_run: false
+
   # ----- migration registry lint (Story 1.19 / AC1.7 / ADR-022) -----
   - repo: local
     hooks:

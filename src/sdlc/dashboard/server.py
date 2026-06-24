@@ -24,6 +24,16 @@ _ALLOWED_HOSTS: Final[frozenset[str]] = frozenset({"localhost", "127.0.0.1", "::
 _ALLOWED_BIND_HOSTS: Final[frozenset[str]] = frozenset({"127.0.0.1", "::1", "localhost"})
 _READ_METHODS: Final[frozenset[str]] = frozenset({"GET", "HEAD"})
 _IMMUTABLE_CACHE: Final[str] = "public, max-age=31536000, immutable"
+_STATIC_URL_PREFIX: Final[str] = "static/"
+
+
+def _register_font_mime_types() -> None:
+    """Register font MIME types absent from stdlib mimetypes on Python 3.10-3.13."""
+    mimetypes.add_type("font/woff2", ".woff2")
+    mimetypes.add_type("font/woff", ".woff")
+
+
+_register_font_mime_types()
 
 
 def static_root() -> Path:
@@ -91,6 +101,9 @@ def resolve_static_file(request_path: str, *, static_dir: Path) -> Path | None:
         # otherwise slip past the containment guard and 404 only by file-non-existence.
         return None
     rel = request_path.lstrip("/")
+    # Decision D1 (Story 5.3): ``/static/…`` maps to the package static root.
+    if rel.startswith(_STATIC_URL_PREFIX):
+        rel = rel[len(_STATIC_URL_PREFIX) :]
     if rel == "" or rel.endswith("/"):
         rel = "index.html"
     candidate = static_dir / rel

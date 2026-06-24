@@ -57,6 +57,9 @@ jobs:
       - name: Dashboard DD-09 gate (Story 5.2 AC3)
         run: uv run python scripts/check_dashboard_no_data_theme.py
 
+      - name: Dashboard DD-10 gate (Story 5.3 AC1)
+        run: uv run python scripts/check_dashboard_no_external_fonts.py
+
       - name: wireformat-immutability check (Story 1.21 / Decision F3)
         # Run in every matrix cell — pydantic JSON-Schema bytes can drift across
         # Python micro-versions or OS, and a per-cell failure with no script output
