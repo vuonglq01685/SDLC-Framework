@@ -1,6 +1,6 @@
 # Story 5.9: Phase Tracker + Signoff 4-State Cell + Item Row + Progress Bar
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L3 (5A). L3 = {5.5, 5.9, 5.10}, max 3 parallel worktrees. Depends on 5.2 (frozen tokens) + 5.3 (sprite: check/slash-circle/circle/circle-filled glyphs) + 5.4 (motion budget) — ALL done+merged. Mutually independent of L3 siblings 5.5 / 5.10 (no edge between them; 5.9 is NOT on the critical path). Edges: 5.2→5.9, 5.3→5.9; downstream 5.9→5.14 (real signoff swap) and 5.9→5.12 (a11y convergence gate). Worktree: epic-5/5-9-phase-tracker-signoff-cell. Branch from main, linear merge, rebase between L3 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). SYNTHETIC fixtures only — real 4-state from state.json is 5.14; the 4-state vocabulary mirrors 2A.7. -->
