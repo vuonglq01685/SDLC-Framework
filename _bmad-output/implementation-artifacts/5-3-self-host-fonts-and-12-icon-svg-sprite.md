@@ -1,6 +1,6 @@
 # Story 5.3: Self-Host Fonts (`@font-face`) + 12-Icon SVG Sprite
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L2 (5A). Depends ONLY on 5.2 (frozen tokens), mutually independent of its L2 sibling 5.4. Worktree: epic-5/5-3-self-host-fonts-and-12-icon-svg-sprite. Branch from main, linear merge, rebase between L2 merges (CONTRIBUTING §3). FREEZE the icon-reference URL convention this story — 5.8/5.9/5.10/5.11 consume the sprite. -->
