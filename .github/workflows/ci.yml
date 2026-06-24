@@ -66,6 +66,9 @@ jobs:
       - name: Dashboard DD-08 gate (Story 5.4 AC4)
         run: uv run python scripts/check_dashboard_no_framework.py
 
+      - name: Dashboard color-only gate (Story 5.5 AC2)
+        run: uv run python scripts/check_dashboard_color_only.py
+
       - name: Cache Playwright browsers (Story 5.4 AC3)
         # Avoids re-downloading Chromium (~150MB) on every matrix cell each run.
         # A miss is safe — the install step below just downloads normally.
@@ -120,7 +123,7 @@ jobs:
 
       - name: stylelint — component CSS must use design tokens
         run: |
-          npx --yes stylelint@16.18.0 "src/sdlc/dashboard/static/styles/**/*.css" \
+          npx --yes stylelint@16.18.0 "src/sdlc/dashboard/static/**/*.css" \
             --config src/sdlc/dashboard/static/styles/.stylelintrc.json \
             --allow-empty-input
 

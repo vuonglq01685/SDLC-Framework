@@ -136,6 +136,14 @@ repos:
         files: ^src/sdlc/dashboard/static/.*
         always_run: false
 
+      - id: dashboard-color-only-gate
+        name: dashboard color-only signaling gate (Story 5.5 AC2 / UX §7.4)
+        entry: uv run python scripts/check_dashboard_color_only.py
+        language: system
+        pass_filenames: false
+        files: ^src/sdlc/dashboard/static/.*\.html$
+        always_run: false
+
   # ----- migration registry lint (Story 1.19 / AC1.7 / ADR-022) -----
   - repo: local
     hooks:
