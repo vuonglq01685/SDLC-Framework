@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Signoff 4-state + phase tracker fixture (Story 5.9)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/signoff-cell/signoff-cell.css" />
+    <link rel="stylesheet" href="/static/components/phase-cell/phase-cell.css" />
+    <link rel="stylesheet" href="/static/components/phase-item-row/phase-item-row.css" />
+    <link rel="stylesheet" href="/static/components/phase-tracker/phase-tracker.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-3-size);
+        line-height: var(--type-display-3-line-height);
+        font-weight: var(--type-display-3-weight);
+        margin-bottom: var(--space-7);
+      }
+
+      h2 {
+        font-size: var(--type-display-5-size);
+        line-height: var(--type-display-5-line-height);
+        font-weight: var(--type-display-5-weight);
+        margin: var(--space-11) 0 var(--space-5);
+      }
+
+      .signoff-states-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--layout-grid-gap);
+      }
+
+      .signoff-state-block {
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.9 — Signoff 4-state cell + phase tracker</h1>
+
+    <!--
+      The glyph/label per state is rendered by the components at runtime
+      (signoff-cell.js / phase-item-row.js). Do NOT hand-place hidden
+      glyph/label markup here as a static "contract" — the contract is
+      verified against the component source-of-truth in
+      tests/unit/dashboard/test_signoff_states_fixture.py (review PAT-3).
+    -->
+    <section aria-label="Signoff four-state contract">
+      <h2>Signoff 4-State Cell (§7.2)</h2>
+      <div class="signoff-states-grid">
+        <div class="signoff-state-block" data-signoff-state="awaiting-signoff">
+          <signoff-cell
+            state="awaiting-signoff"
+            title-text="SIGNOFF GATE"
+            current-item="Pending"
+            aria-label="Signoff gate, awaiting approval"
+          ></signoff-cell>
+        </div>
+
+        <div class="signoff-state-block" data-signoff-state="drafted-not-approved">
+          <signoff-cell
+            state="drafted-not-approved"
+            title-text="SIGNOFF GATE"
+            current-item="Draft review"
+            aria-label="Signoff gate, drafted not approved"
+          ></signoff-cell>
+          <phase-item-row
+            state="drafted-not-approved"
+            label="Draft artifact review"
+          ></phase-item-row>
+        </div>
+
+        <div class="signoff-state-block" data-signoff-state="approved">
+          <signoff-cell
+            state="approved"
+            title-text="SIGNOFF GATE"
+            current-item="Complete"
+            aria-label="Signoff gate, approved, 100% complete"
+          ></signoff-cell>
+        </div>
+
+        <div class="signoff-state-block" data-signoff-state="invalidated-by-replan">
+          <signoff-cell
+            state="invalidated-by-replan"
+            title-text="SIGNOFF GATE"
+            current-item="Replan"
+            aria-label="Signoff gate, invalidated by replan"
+          ></signoff-cell>
+        </div>
+      </div>
+    </section>
+
+    <section aria-label="Phase tracker strip">
+      <h2>Phase Tracker (§6.5)</h2>
+      <phase-tracker id="phase-tracker-demo" role="region" aria-label="Phase tracker">
+        <div class="phase-tracker__grid">
+          <phase-cell
+            phase-number="PHASE 01"
+            phase-name="Requirement"
+            tag-line="stories • epics • signoffs"
+            current-item="S04-T01"
+            progress="45"
+            cell-state="active"
+            aria-label="Phase 1 Requirement, 45% complete"
+          ></phase-cell>
+          <signoff-cell
+            state="drafted-not-approved"
+            title-text="SIGNOFF 1"
+            current-item="Gate 1"
+            aria-label="Signoff 1, drafted, not approved"
+          ></signoff-cell>
+          <phase-cell
+            phase-number="PHASE 02"
+            phase-name="Architecture"
+            tag-line="tracks • ADRs • signoffs"
+            current-item="A02-T03"
+            progress="20"
+            cell-state="future"
+            aria-label="Phase 2 Architecture, 20% complete"
+          ></phase-cell>
+          <signoff-cell
+            state="awaiting-signoff"
+            title-text="SIGNOFF 2"
+            current-item="Gate 2"
+            aria-label="Signoff 2, awaiting approval"
+          ></signoff-cell>
+          <phase-cell
+            phase-number="PHASE 03"
+            phase-name="Implementation"
+            tag-line="tasks • tests • delivery"
+            current-item="—"
+            progress="0"
+            cell-state="future"
+            aria-label="Phase 3 Implementation, 0% complete"
+          ></phase-cell>
+        </div>
+        <div class="phase-tracker__detail">
+          <div class="phase-tracker__detail-heading">Phase detail</div>
+          <div class="phase-tracker__detail-rows">
+            <phase-item-row
+              state="approved"
+              label="Product brief signed off"
+              badge="DONE"
+            ></phase-item-row>
+            <phase-item-row
+              state="drafted-not-approved"
+              label="Architecture review draft"
+              badge="DRAFT"
+            ></phase-item-row>
+            <phase-item-row
+              state="awaiting-signoff"
+              label="Implementation gate pending"
+            ></phase-item-row>
+          </div>
+        </div>
+      </phase-tracker>
+    </section>
+
+    <script type="module">
+      import "/static/components/signoff-cell/signoff-cell.js";
+      import "/static/components/phase-cell/phase-cell.js";
+      import "/static/components/phase-item-row/phase-item-row.js";
+      import "/static/components/phase-tracker/phase-tracker.js";
+    </script>
+  </body>
+</html>
