@@ -1,0 +1,37 @@
+/**
+ * Phase tracker strip (Story 5.9 / UX §6.5).
+ */
+
+phase-tracker {
+  display: block;
+}
+
+.phase-tracker__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--layout-grid-gap);
+}
+
+.phase-tracker__detail {
+  margin-top: var(--space-11);
+  padding: var(--space-5);
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background-color: var(--paper);
+}
+
+.phase-tracker__detail-heading {
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-size);
+  line-height: var(--type-label-mono-line-height);
+  font-weight: var(--type-label-mono-weight);
+  letter-spacing: var(--type-label-mono-letter-spacing);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: var(--space-5);
+}
+
+.phase-tracker__detail-rows {
+  display: flex;
+  flex-direction: column;
+}

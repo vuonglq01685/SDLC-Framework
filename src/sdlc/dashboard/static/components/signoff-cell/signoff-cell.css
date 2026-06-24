@@ -1,0 +1,141 @@
+/**
+ * Signoff 4-State Cell (Story 5.9 / UX §7.2).
+ *
+ * Reusable visual contract for awaiting / drafted / approved / invalidated.
+ * D2: approved in-strip cell uses flat --paper + green left edge (not green-soft blend).
+ */
+
+signoff-cell {
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  background-color: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  min-height: 120px;
+  padding: var(--space-5);
+}
+
+signoff-cell[role="status"] {
+  /* attribute set in JS */
+}
+
+signoff-cell[data-state="drafted-not-approved"] {
+  border-left: 3px solid var(--amber);
+}
+
+signoff-cell[data-state="approved"] {
+  border-left: 3px solid var(--green);
+}
+
+signoff-cell[data-state="invalidated-by-replan"] {
+  border-left: 3px solid var(--red);
+}
+
+.signoff-cell__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.signoff-cell__title {
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-sm-size);
+  line-height: var(--type-label-mono-sm-line-height);
+  font-weight: var(--type-label-mono-sm-weight);
+  letter-spacing: var(--type-label-mono-sm-letter-spacing);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.signoff-cell__state-label {
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-size);
+  line-height: var(--type-label-mono-line-height);
+  font-weight: var(--type-label-mono-weight);
+  letter-spacing: var(--type-label-mono-letter-spacing);
+  text-transform: uppercase;
+}
+
+.signoff-cell__state-label--mute {
+  color: var(--ink-mute);
+}
+
+signoff-cell[data-state="drafted-not-approved"] .signoff-cell__state-label {
+  color: var(--amber);
+}
+
+signoff-cell[data-state="approved"] .signoff-cell__state-label {
+  color: var(--green);
+}
+
+signoff-cell[data-state="invalidated-by-replan"] .signoff-cell__state-label {
+  color: var(--red);
+}
+
+.signoff-cell__glyph {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-5);
+  width: 16px;
+  height: 16px;
+  color: var(--green);
+}
+
+signoff-cell[data-state="invalidated-by-replan"] .signoff-cell__glyph {
+  color: var(--red);
+}
+
+.signoff-cell__glyph svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.signoff-cell__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-7);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink-soft);
+}
+
+.signoff-cell__progress {
+  margin-top: var(--space-3);
+  height: 3px;
+  background-color: var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.signoff-cell__progress-fill {
+  height: 100%;
+  width: 0%;
+  background-color: var(--ink-soft);
+}
+
+signoff-cell[data-state="drafted-not-approved"] .signoff-cell__progress-fill {
+  width: 60%;
+  background-color: var(--amber);
+}
+
+signoff-cell[data-state="approved"] .signoff-cell__progress-fill {
+  width: 100%;
+  background-color: var(--green);
+}
+
+signoff-cell[data-state="invalidated-by-replan"] .signoff-cell__progress-fill {
+  width: 40%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--red) 0,
+    var(--red) 6px,
+    transparent 6px,
+    transparent 10px
+  );
+}

@@ -1,0 +1,58 @@
+/**
+ * Phase detail item rows (Story 5.9 / UX §6.5, §7.2 glyph mapping).
+ */
+
+phase-item-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  font-weight: var(--type-body-weight);
+  letter-spacing: var(--type-body-letter-spacing);
+  color: var(--ink);
+}
+
+.phase-item-row__glyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-mute);
+}
+
+phase-item-row[data-state="drafted-not-approved"] .phase-item-row__glyph {
+  color: var(--amber);
+}
+
+phase-item-row[data-state="approved"] .phase-item-row__glyph {
+  color: var(--green);
+}
+
+phase-item-row[data-state="invalidated-by-replan"] .phase-item-row__glyph {
+  color: var(--red);
+}
+
+.phase-item-row__glyph svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.phase-item-row__label {
+  flex: 1;
+}
+
+.phase-item-row__badge {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-pill-size);
+  line-height: var(--type-mono-pill-line-height);
+  font-weight: var(--type-mono-pill-weight);
+  letter-spacing: var(--type-mono-pill-letter-spacing);
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  color: var(--accent);
+}
