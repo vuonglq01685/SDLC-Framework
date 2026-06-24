@@ -1,0 +1,8 @@
+/* GREEN fixture: permitted live-dot pulse (DD-14) */
+.live-dot-pulse {
+  animation: pulse var(--motion-pulse-live);
+}
+
+.live-dot-pulse--stop {
+  animation: pulse var(--motion-pulse-stop);
+}
