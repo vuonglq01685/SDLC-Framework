@@ -1,0 +1,5 @@
+/* RED fixture: forbidden prototype transition (DD-14) */
+.tab {
+  transition: color 0.15s ease;
+  color: var(--ink);
+}

@@ -34,6 +34,8 @@ _EXPECTED_DASHBOARD_STATIC = frozenset(
         "sdlc/dashboard/static/fonts/jetbrains-mono-400.woff2",
         "sdlc/dashboard/static/fonts/jetbrains-mono-500.woff2",
         "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2",
+        "sdlc/dashboard/static/styles/focus-motion.css",
+        "sdlc/dashboard/static/fixtures/reduced-motion-pulse.html",
     }
 )
 
