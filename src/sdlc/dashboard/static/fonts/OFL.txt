@@ -1,0 +1,9 @@
+SIL Open Font License 1.1
+
+The font files in this directory are vendored subsets of:
+  - Fraunces (Copyright The Fraunces Project Authors)
+  - Inter (Copyright The Inter Project Authors)
+  - JetBrains Mono (Copyright The JetBrains Mono Project Authors)
+
+Each family is licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://scripts.sil.org/OFL

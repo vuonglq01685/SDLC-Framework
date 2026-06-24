@@ -2,13 +2,96 @@
  * SDLC Dashboard design tokens (Story 5.2).
  *
  * Canonical single-theme `:root` block per DD-01 / DD-09. No `[data-theme]`.
- * `@font-face` rules and self-hosted font files land in Story 5.3 — family
- * tokens below carry UX §3.2 fallbacks only.
+ * Self-hosted `@font-face` rules (Story 5.3 / DD-10) precede the token block.
  *
  * Type convention (FROZEN): per-property tokens `--type-{role}-{property}`
  * where property is `size`, `line-height`, `weight`, `letter-spacing`.
  * Family role per UX pairing rules: display-* → serif, body/label → sans/mono.
  */
+/* ── SELF-HOSTED FONTS (DD-10) — weights referenced by frozen family tokens ── */
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/fraunces-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/fraunces-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/fraunces-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("../fonts/inter-300.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/inter-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/inter-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/inter-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/inter-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/jetbrains-mono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/jetbrains-mono-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/jetbrains-mono-600.woff2") format("woff2");
+}
+
+html,
+body {
+  font-feature-settings: "ss01", "cv11";
+}
+
 :root {
   /* ── COLOR: surface ── */
   --bg: #0e0f13;
