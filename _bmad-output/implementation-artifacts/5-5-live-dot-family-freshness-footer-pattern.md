@@ -1,6 +1,6 @@
 # Story 5.5: Live Dot Family + Freshness Footer Pattern (Cross-Cutting)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L3 (5A) AND the next node on the critical-path spine (5.2 → 5.4 → **5.5** → 5.11 → 5.19 → 5.20 → 5.22). L3 = {5.5, 5.9, 5.10}, max 3 parallel worktrees, depends on 5.2 (frozen tokens) + 5.3 (sprite) + 5.4 (focus/motion foundation) — ALL done+merged. Mutually independent of L3 siblings 5.9 / 5.10 (no edge between them). Worktree: epic-5/5-5-live-dot-freshness-footer. Branch from main, linear merge, rebase between L3 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). This is the SINGLE most load-bearing component node (fans out to 5.6/5.7/5.8/5.11/5.12/5.19/5.20) and OWNS the color-only-signaling contract + the frontend file-layout convention (DAG §5). -->
