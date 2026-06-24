@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Reduced-motion pulse fixture (Story 5.4)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <style>
+      .fixture-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: var(--radius-pill);
+        background: var(--green);
+        color: var(--green);
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body>
+    <span
+      id="pulse-fixture"
+      class="fixture-dot live-dot-pulse"
+      aria-hidden="true"
+    ></span>
+  </body>
+</html>

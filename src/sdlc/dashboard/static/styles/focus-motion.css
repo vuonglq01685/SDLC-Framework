@@ -1,0 +1,55 @@
+/**
+ * Focus ring + reduced-motion foundation (Story 5.4 / DD-15, DD-14, DD-16).
+ *
+ * DD-15: 2px var(--rule-strong) box-shadow on :focus-visible only.
+ * Active/current state (3px var(--accent-soft)) is a separate treatment — not focus.
+ * Live-dot pulse classes are consumed by Story 5.5; pulses only here + tokens.css.
+ */
+
+/* ── ACTIVE / CURRENT STATE (3px accent-soft) — NOT a focus indicator ── */
+.phase-cell.active,
+.story-card.current {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ── KEYBOARD FOCUS RING (DD-15) — applies when L3+ components land ── */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="link"]:focus-visible,
+.tree-expander:focus-visible,
+.tab:focus-visible,
+.copy-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--rule-strong);
+  outline: none;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+[role="tab"]:focus:not(:focus-visible),
+[role="link"]:focus:not(:focus-visible),
+.tree-expander:focus:not(:focus-visible),
+.tab:focus:not(:focus-visible),
+.copy-btn:focus:not(:focus-visible) {
+  box-shadow: none;
+  outline: none;
+}
+
+/* ── LIVE-DOT PULSE (animation budget — only pulse keyframe) ── */
+.live-dot-pulse {
+  animation: pulse var(--motion-pulse-live);
+}
+
+.live-dot-pulse--stop {
+  animation: pulse var(--motion-pulse-stop);
+}
+
+/* ── REDUCED MOTION (DD-16 / WCAG 2.3.3) ── */
+@media (prefers-reduced-motion: reduce) {
+  .live-dot-pulse,
+  .live-dot-pulse--stop {
+    animation: none;
+  }
+}
