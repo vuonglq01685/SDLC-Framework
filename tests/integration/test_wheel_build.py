@@ -164,6 +164,8 @@ _ALLOWED_CONTENT_FILES = frozenset(
         Path("sdlc/agents/support/clarification-triager.md").as_posix(),
         Path("sdlc/agents/support/agent-failure-recovery.md").as_posix(),
         Path("sdlc/agents/support/orchestrator-helper.md").as_posix(),
+        # Story 5.3 — OFL license notice for self-hosted fonts.
+        Path("sdlc/dashboard/static/fonts/OFL.txt").as_posix(),
     }
 )
 
