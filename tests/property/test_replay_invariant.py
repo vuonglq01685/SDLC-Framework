@@ -12,6 +12,12 @@ production uses an iterative mutable accumulator — the structural divergence i
 of the differential pattern (Architecture §220). Do NOT refactor the oracle to call
 _project_entries; the two-implementation independence is the contract.
 
+The oracle mirrors the FULL v1 projection contract, hand-transcribed (never imported):
+  - epic state_mutation -> state.epics, minus the ADR-029 audit-only "mock" key;
+  - the ADR-038 auto-loop fold -> auto_loop_status / stop_reason from auto_loop_iteration +
+    stop_triggered / stop_trigger_raised, with a sticky halt (retro D4 / Story 5.19).
+Keep both sides in lock-step with the contract; a drift on either side is what the test catches.
+
 Strategy helpers duplicated from tests/property/test_journal_append_only.py (not imported).
 Rationale: property tests are contract assertions; keeping strategies local makes the contract
 self-contained; cross-test imports are fragile under pytest's discovery ordering.
@@ -25,6 +31,7 @@ from contextlib import suppress
 from datetime import timezone
 from functools import reduce
 from pathlib import Path
+from typing import Any
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -51,6 +58,56 @@ from sdlc.state.projection import _KNOWN_KINDS, _project_entries
 # and Unicode digits. Two different anchoring approaches → independent verification of the contract.
 _ORACLE_EPIC_PATTERN = re.compile(r"epic-[0-9]+")
 
+# Audit-trail-only payload keys that never project into state.epics (ADR-029 §1). Mirrored as an
+# independent literal (NOT imported from production's _AUDIT_ONLY_KEYS) so the differential test
+# still detects drift if production's strip-set ever changes. Story 2B.3 froze this at {"mock"}.
+_ORACLE_AUDIT_ONLY_KEYS = frozenset({"mock"})
+
+
+def _oracle_halt_reason(kind: str, payload: dict[str, Any]) -> str | None:
+    """Independent re-derivation of the stop-trigger halt reason (ADR-038 / retro D4).
+
+    stop_triggered reads `trigger`; stop_trigger_raised reads `trigger`/`trigger_kind`, then
+    falls back to `reason`. Hand-transcribed from the contract, not imported.
+    """
+    if kind == "stop_triggered":
+        trigger = payload.get("trigger")
+        return trigger if isinstance(trigger, str) else None
+    trigger = payload.get("trigger") or payload.get("trigger_kind")
+    if isinstance(trigger, str):
+        return trigger
+    reason = payload.get("reason")
+    return reason if isinstance(reason, str) else None
+
+
+def _oracle_auto_loop(
+    kind: str, payload: dict[str, Any], status: str, reason: str | None
+) -> tuple[str, str | None]:
+    """Independent re-derivation of the auto-loop status fold (ADR-038).
+
+    Contract (hand-transcribed, not imported):
+      - auto_loop_iteration action=stopped -> idle, carrying a string reason; but a prior
+        halt is STICKY against a clean stop (retro D4 / Story 5.19), so halted stays halted.
+      - auto_loop_iteration action=dispatch|continued -> running, reason cleared.
+      - stop_triggered / stop_trigger_raised with a string trigger -> halted + that reason.
+      - anything else leaves (status, reason) untouched.
+    """
+    if kind == "auto_loop_iteration":
+        action = payload.get("action")
+        if action == "stopped":
+            if status == "halted":
+                return status, reason
+            clean = payload.get("reason")
+            return "idle", clean if isinstance(clean, str) else None
+        if action in {"dispatch", "continued"}:
+            return "running", None
+        return status, reason
+    if kind in {"stop_triggered", "stop_trigger_raised"}:
+        halt_reason = _oracle_halt_reason(kind, payload)
+        if halt_reason is not None:
+            return "halted", halt_reason
+    return status, reason
+
 
 def _oracle_step(state: State, entry: JournalEntry) -> State:
     """One reducer step — returns a NEW State (no mutation)."""
@@ -68,10 +125,19 @@ def _oracle_step(state: State, entry: JournalEntry) -> State:
         )
     new_seq = max(state.next_monotonic_seq, entry.monotonic_seq + 1)
     if entry.kind == "state_mutation" and _ORACLE_EPIC_PATTERN.fullmatch(entry.target_id):
-        new_epics = {**state.epics, entry.target_id: dict(entry.payload)}
+        projected = {k: v for k, v in entry.payload.items() if k not in _ORACLE_AUDIT_ONLY_KEYS}
+        new_epics = {**state.epics, entry.target_id: projected}
     else:
         new_epics = state.epics
-    return State(next_monotonic_seq=new_seq, epics=new_epics)
+    status, stop_reason = _oracle_auto_loop(
+        entry.kind, dict(entry.payload), state.auto_loop_status, state.stop_reason
+    )
+    return State(
+        next_monotonic_seq=new_seq,
+        epics=new_epics,
+        auto_loop_status=status,
+        stop_reason=stop_reason,
+    )
 
 
 def _oracle_reduce(entries: list[JournalEntry]) -> State:
@@ -236,6 +302,70 @@ def test_replay_invariant_smoke(entries: list[JournalEntry]) -> None:
         actual = _project_entries(entries[:k])
         expected = _oracle_reduce(entries[:k])
         assert actual.model_dump(mode="json") == expected.model_dump(mode="json")
+
+
+# ---------------------------------------------------------------------------
+# Deterministic regressions — pin the contract elements that made the smoke variant flaky.
+# Hypothesis only hit these intermittently (the payload strategy rarely emits the exact keys
+# "action"/"trigger"/"mock"); these cases assert them every run, so the oracle can never drift
+# silently away from production again.
+# ---------------------------------------------------------------------------
+
+
+def _entry(seq: int, kind: str, payload: dict[str, str], target_id: str = "loop") -> JournalEntry:
+    """Build a minimal valid JournalEntry for the deterministic projection cases."""
+    return JournalEntry(
+        schema_version=1,
+        monotonic_seq=seq,
+        ts="2026-06-24T00:00:00.000Z",
+        actor="tester",
+        kind=kind,
+        target_id=target_id,
+        before_hash=None,
+        after_hash="sha256:" + "0" * 64,
+        payload=payload,
+    )
+
+
+@pytest.mark.unit
+def test_replay_invariant_folds_auto_loop_status() -> None:
+    """Oracle must mirror production's auto-loop status fold (ADR-038 / retro D4).
+
+    A journal that dispatches, halts on a stop trigger, then records a clean ``stopped`` must
+    replay to a STICKY ``halted`` (the halt outlives a later clean stop — Story 5.19 STOP banner
+    reads this), carrying the original trigger as ``stop_reason``. The stale epics-only oracle
+    projected ``idle``/``None`` here, which is exactly what made the smoke variant flaky.
+    """
+    entries = [
+        _entry(1, "auto_loop_iteration", {"action": "dispatch"}),
+        _entry(2, "stop_triggered", {"trigger": "max_iterations"}),
+        _entry(3, "auto_loop_iteration", {"action": "stopped", "reason": "clean"}),
+    ]
+    for k in range(0, len(entries) + 1):
+        actual = _project_entries(entries[:k])
+        expected = _oracle_reduce(entries[:k])
+        assert actual.model_dump(mode="json") == expected.model_dump(mode="json"), (
+            f"oracle/production divergence at k={k}: "
+            f"actual={actual.model_dump()} expected={expected.model_dump()}"
+        )
+    final = _project_entries(entries)
+    assert final.auto_loop_status == "halted"
+    assert final.stop_reason == "max_iterations"
+
+
+@pytest.mark.unit
+def test_replay_invariant_strips_audit_only_keys() -> None:
+    """Oracle must strip audit-trail-only payload keys from epics, like production (ADR-029 §1).
+
+    ``mock`` records AgentResult provenance for the journal/telemetry and MUST NOT project into
+    state.epics. The stale oracle kept it via a bare ``dict(payload)`` — a second latent
+    divergence realigned here so the differential test stays deterministic.
+    """
+    entries = [_entry(1, "state_mutation", {"mock": "true", "owner": "alice"}, target_id="epic-1")]
+    actual = _project_entries(entries)
+    expected = _oracle_reduce(entries)
+    assert actual.model_dump(mode="json") == expected.model_dump(mode="json")
+    assert "mock" not in actual.epics["epic-1"]
 
 
 # ---------------------------------------------------------------------------
