@@ -1,6 +1,6 @@
 # Story 5.4: Custom Focus Ring + `prefers-reduced-motion` + Transition Stripping + No-Third-Party Guard
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L2 (5A) AND on the critical-path spine (5.2 → 5.4 → 5.5 → 5.11 → 5.19 → 5.20 → 5.22). Depends ONLY on 5.2 (frozen tokens), mutually independent of its L2 sibling 5.3. Worktree: epic-5/5-4-custom-focus-ring-prefers-reduced-motion. Branch from main, linear merge, rebase between L2 merges (CONTRIBUTING §3). Establishes the focus + reduced-motion CSS foundation 5.5's live-dot consumes — do NOT build the live-dot here. -->
