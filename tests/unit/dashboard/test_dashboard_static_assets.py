@@ -24,6 +24,15 @@ class TestStaticUrlConvention:
         resolved = resolve_static_file("/static/icons/sprite.svg", static_dir=_STATIC)
         assert resolved == _SPRITE
 
+    def test_static_prefix_resolves_signoff_fixture(self) -> None:
+        fixture = _STATIC / "test-fixtures" / "signoff-states.html"
+        if not fixture.is_file():
+            pytest.skip("signoff-states.html not yet shipped")
+        resolved = resolve_static_file(
+            "/static/test-fixtures/signoff-states.html", static_dir=_STATIC
+        )
+        assert resolved == fixture
+
     def test_root_relative_sprite_still_resolves(self) -> None:
         if not _SPRITE.is_file():
             pytest.skip("sprite.svg not yet shipped")
