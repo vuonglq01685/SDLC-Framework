@@ -1,6 +1,6 @@
 # Story 5.10: Backlog Tree + Pill Family + Inline Code
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L3 (5A). L3 = {5.5, 5.9, 5.10}, max 3 parallel worktrees. Depends on 5.2 (frozen tokens) + 5.3 (sprite: chevron-right/chevron-down) + 5.4 (focus ring — focus-motion.css already names `.tree-expander:focus-visible`) — ALL done+merged. Mutually independent of L3 siblings 5.5 / 5.10 (no edge; 5.10 is NOT on the critical path). Edges: 5.2→5.10, 5.4→5.10; downstream 5.10→5.15 (real hierarchy swap) and 5.10→5.12 (a11y convergence gate). Worktree: epic-5/5-10-backlog-tree-pills. Branch from main, linear merge, rebase between L3 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). FIRST keyboard-interactive component (full WAI-ARIA tree) → CLOSES the 5.4 DEF-6 focus-ring behavioral-test carryover. SYNTHETIC fixtures only — real Epic→Story→Task hierarchy is 5.15. -->
