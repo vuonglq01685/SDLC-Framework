@@ -1,0 +1,190 @@
+/**
+ * Backlog Tree (Story 5.10 / UX §6.6).
+ *
+ * Three-level Epic → Story → Task; collapse via glyph swap (DD-14).
+ * Hover = instant --bg swap (no transition).
+ */
+
+backlog-tree {
+  display: block;
+}
+
+.backlog-tree {
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/* ── Tree-epic ── */
+.tree-epic {
+  background-color: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-3);
+}
+
+.tree-epic-head {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-9);
+  cursor: pointer;
+}
+
+.tree-epic-head:hover {
+  background-color: var(--bg);
+}
+
+.tree-epic-body {
+  padding-left: var(--space-18);
+  border-top: var(--border-dashed);
+}
+
+.tree-epic-body.is-collapsed {
+  display: none;
+}
+
+/* ── Tree-story ── */
+.tree-story {
+  background-color: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  margin: var(--space-3) 0;
+}
+
+.tree-story-head {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-7);
+  cursor: pointer;
+}
+
+.tree-story-head:hover {
+  background-color: var(--bg);
+}
+
+.tree-story-body {
+  padding-left: var(--space-11);
+  border-top: var(--border-dashed);
+}
+
+.tree-story-body.is-collapsed {
+  display: none;
+}
+
+.tree-story.is-current-ancestor {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ── Tree-task ── */
+.tree-task {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-7);
+  font-size: var(--type-body-small-size);
+  line-height: var(--type-body-small-line-height);
+  font-weight: var(--type-body-small-weight);
+  letter-spacing: var(--type-body-small-letter-spacing);
+  border-bottom: var(--border-dashed);
+}
+
+.tree-task:last-child {
+  border-bottom: none;
+}
+
+.tree-task[aria-current="true"] .tree-task__name {
+  color: var(--accent);
+}
+
+.tree-task__name {
+  font-family: var(--font-sans);
+}
+
+.tree-task__meta {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink-mute);
+}
+
+/* ── Shared head parts ── */
+.tree-epic-head .name,
+.tree-story-head .name {
+  font-family: var(--font-serif);
+  font-size: var(--type-display-6-size);
+  line-height: var(--type-display-6-line-height);
+  font-weight: var(--type-display-6-weight);
+  letter-spacing: var(--type-display-6-letter-spacing);
+}
+
+.tree-story-head .name {
+  font-size: var(--type-display-5-size);
+  line-height: var(--type-display-5-line-height);
+  font-weight: var(--type-display-5-weight);
+  letter-spacing: var(--type-display-5-letter-spacing);
+}
+
+.tree-epic-head .meta-line,
+.tree-story-head .meta-line {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink-mute);
+}
+
+.tree-epic-head .pct,
+.tree-story-head .pct {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-md-size);
+  line-height: var(--type-mono-md-line-height);
+  font-weight: 600;
+  letter-spacing: var(--type-mono-md-letter-spacing);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ── Expander (DD-14 glyph swap, DD-15 focus ring via focus-motion.css) ── */
+.tree-expander {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-7);
+  height: var(--space-7);
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+
+.tree-expander svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+/* Leaf rows carry no chevron, but the button stays keyboard-focusable
+   (DEC-1): hide only the glyph, never the button — `visibility: hidden`
+   on the button itself would make it non-focusable and drop ArrowDown
+   focus to <body>. */
+.tree-expander--leaf {
+  pointer-events: none;
+}
+
+.tree-expander--leaf svg {
+  visibility: hidden;
+}
+
+.tree-task .tree-expander {
+  width: var(--space-7);
+}
