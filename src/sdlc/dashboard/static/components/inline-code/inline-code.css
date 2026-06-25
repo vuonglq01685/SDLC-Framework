@@ -1,0 +1,18 @@
+/**
+ * Inline code pattern (Story 5.10 / UX §6.8, UX-DR12).
+ *
+ * Distinct from §7.7 inverted command surface — for ids and CLI snippets in metadata.
+ */
+
+.inline-code {
+  display: inline;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink);
+  background-color: var(--bg);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}

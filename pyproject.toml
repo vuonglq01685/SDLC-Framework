@@ -112,6 +112,13 @@ exclude = [
 "src/sdlc/dashboard/static/fonts/inter-700.woff2" = "sdlc/dashboard/static/fonts/inter-700.woff2"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-400.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-400.woff2"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-500.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-500.woff2"
+"src/sdlc/dashboard/static/components/pills/pills.css" = "sdlc/dashboard/static/components/pills/pills.css"
+"src/sdlc/dashboard/static/components/pills/pills.js" = "sdlc/dashboard/static/components/pills/pills.js"
+"src/sdlc/dashboard/static/components/pills/pills.registry.html" = "sdlc/dashboard/static/components/pills/pills.registry.html"
+"src/sdlc/dashboard/static/components/inline-code/inline-code.css" = "sdlc/dashboard/static/components/inline-code/inline-code.css"
+"src/sdlc/dashboard/static/components/backlog-tree/backlog-tree.css" = "sdlc/dashboard/static/components/backlog-tree/backlog-tree.css"
+"src/sdlc/dashboard/static/components/backlog-tree/backlog-tree.js" = "sdlc/dashboard/static/components/backlog-tree/backlog-tree.js"
+"src/sdlc/dashboard/static/components/backlog-tree/backlog-tree.fixture.html" = "sdlc/dashboard/static/components/backlog-tree/backlog-tree.fixture.html"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
 
 [tool.hatch.build.targets.sdist]

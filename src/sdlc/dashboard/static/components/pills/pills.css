@@ -1,0 +1,119 @@
+/**
+ * Pill family (Story 5.10 / UX §7.3, §7.9).
+ *
+ * D1 composition: --type-mono-pill-size, font-weight 700 (kind only),
+ * --type-label-mono-sm-letter-spacing for 0.14em on kind badges.
+ */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-pill-size);
+  line-height: var(--type-mono-pill-line-height);
+  font-weight: var(--type-mono-pill-weight);
+  letter-spacing: var(--type-mono-pill-letter-spacing);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+/* Kind badges (§7.3) — uppercase, 700 weight, 0.14em letter-spacing */
+.pill--kind-epic,
+.pill--kind-story,
+.pill--kind-task {
+  font-weight: 700;
+  letter-spacing: var(--type-label-mono-sm-letter-spacing);
+  text-transform: uppercase;
+  color: white;
+}
+
+.pill--kind-epic {
+  background-color: var(--purple);
+}
+
+.pill--kind-story {
+  background-color: var(--blue);
+}
+
+.pill--kind-task {
+  background-color: var(--ink-soft);
+}
+
+/* Status pills */
+.pill--status-done {
+  background-color: var(--green-soft);
+  color: var(--green);
+  text-transform: lowercase;
+}
+
+.pill--status-in-progress {
+  background-color: var(--amber-soft);
+  color: var(--amber);
+  text-transform: lowercase;
+}
+
+.pill--status-pending {
+  background-color: var(--rule);
+  color: var(--ink-mute);
+  text-transform: lowercase;
+}
+
+/* Stage pills */
+.pill--stage {
+  border: var(--border-hairline);
+  border-radius: var(--radius-pill);
+  background-color: var(--purple-soft);
+  color: var(--purple);
+  text-transform: lowercase;
+}
+
+.pill--stage-current {
+  background-color: var(--amber-soft);
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 35%, transparent);
+}
+
+/* Flow pills (joined edges) */
+.fp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.fp .pill--flow {
+  background-color: var(--blue-soft);
+  color: var(--blue);
+  text-transform: lowercase;
+  border-radius: var(--radius-none);
+}
+
+.fp .pill--flow:first-child {
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.fp .pill--flow:last-child {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+/* Priority pills */
+.pill--priority-high {
+  background-color: var(--red-soft);
+  color: var(--red);
+  text-transform: lowercase;
+}
+
+.pill--priority-medium {
+  background-color: var(--amber-soft);
+  color: var(--amber);
+  text-transform: lowercase;
+}
+
+.pill--priority-low {
+  background-color: var(--blue-soft);
+  color: var(--blue);
+  text-transform: lowercase;
+}

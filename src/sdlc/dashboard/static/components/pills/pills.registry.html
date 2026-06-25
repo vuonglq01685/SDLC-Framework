@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pill family registry (Story 5.10)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/components/pills/pills.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-9);
+      }
+
+      section {
+        margin-bottom: var(--space-11);
+      }
+
+      .variant-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-5);
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.10 — Pill family registry</h1>
+
+    <section aria-label="Kind badges">
+      <h2>kind</h2>
+      <div class="variant-row" id="pill-kind-mount"></div>
+    </section>
+
+    <section aria-label="Status pills">
+      <h2>status</h2>
+      <div class="variant-row" id="pill-status-mount"></div>
+    </section>
+
+    <section aria-label="Stage pills">
+      <h2>stage</h2>
+      <div class="variant-row" id="pill-stage-mount"></div>
+    </section>
+
+    <section aria-label="Flow pipeline">
+      <h2>flow</h2>
+      <div class="variant-row" id="pill-flow-mount"></div>
+    </section>
+
+    <section aria-label="Priority pills">
+      <h2>priority</h2>
+      <div class="variant-row" id="pill-priority-mount"></div>
+    </section>
+
+    <script type="module">
+      import {
+        PILL_REGISTRY_GROUPS,
+        PILL_FLOW_VARIANTS,
+        createFlowPillGroup,
+        createPillElement,
+      } from "/static/components/pills/pills.js";
+
+      function mountGroup(mountId, group) {
+        const mount = document.getElementById(mountId);
+        for (const variant of Object.values(group)) {
+          mount.appendChild(createPillElement(variant));
+        }
+      }
+
+      mountGroup("pill-kind-mount", PILL_REGISTRY_GROUPS.kind);
+      mountGroup("pill-status-mount", PILL_REGISTRY_GROUPS.status);
+      mountGroup("pill-stage-mount", PILL_REGISTRY_GROUPS.stage);
+      mountGroup("pill-priority-mount", PILL_REGISTRY_GROUPS.priority);
+
+      const flowMount = document.getElementById("pill-flow-mount");
+      flowMount.appendChild(createFlowPillGroup(Object.keys(PILL_FLOW_VARIANTS)));
+    </script>
+  </body>
+</html>
