@@ -1,0 +1,89 @@
+/**
+ * Resume Card (Story 5.8 / UX §6.4, DD-11).
+ */
+
+resume-card {
+  display: block;
+  width: 100%;
+}
+
+.resume-card {
+  background: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius-xl);
+  padding: var(--space-12) var(--space-14);
+  box-shadow: none;
+}
+
+.resume-card__greeting {
+  margin: 0 0 var(--space-6);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  font-weight: 500;
+  letter-spacing: var(--type-body-letter-spacing);
+  color: var(--ink-soft);
+}
+
+.resume-card__eyebrow {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-sm-size);
+  line-height: var(--type-label-mono-sm-line-height);
+  font-weight: var(--type-label-mono-sm-weight);
+  letter-spacing: var(--type-label-mono-sm-letter-spacing);
+  text-transform: uppercase;
+}
+
+.resume-card__eyebrow--accent {
+  color: var(--accent);
+}
+
+.resume-card__eyebrow--mute {
+  color: var(--ink-mute);
+}
+
+.resume-card__breadcrumb {
+  margin: 0 0 var(--space-6);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  font-weight: var(--type-body-weight);
+  letter-spacing: var(--type-body-letter-spacing);
+  color: var(--ink);
+}
+
+.resume-card__command-row {
+  margin: 0 0 var(--space-6);
+}
+
+.resume-card__command-group {
+  display: block;
+}
+
+.copy-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: var(--space-3);
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.resume-card__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

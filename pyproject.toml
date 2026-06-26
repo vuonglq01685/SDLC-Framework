@@ -125,6 +125,10 @@ exclude = [
 "src/sdlc/dashboard/static/components/kpi-strip/kpi-strip.css" = "sdlc/dashboard/static/components/kpi-strip/kpi-strip.css"
 "src/sdlc/dashboard/static/components/kpi-strip/kpi-strip.js" = "sdlc/dashboard/static/components/kpi-strip/kpi-strip.js"
 "src/sdlc/dashboard/static/components/kpi-strip/kpi-strip.fixture.html" = "sdlc/dashboard/static/components/kpi-strip/kpi-strip.fixture.html"
+"src/sdlc/dashboard/static/components/inverted-command/inverted-command.css" = "sdlc/dashboard/static/components/inverted-command/inverted-command.css"
+"src/sdlc/dashboard/static/components/resume-card/resume-card.css" = "sdlc/dashboard/static/components/resume-card/resume-card.css"
+"src/sdlc/dashboard/static/components/resume-card/resume-card.js" = "sdlc/dashboard/static/components/resume-card/resume-card.js"
+"src/sdlc/dashboard/static/components/resume-card/resume-card.fixture.html" = "sdlc/dashboard/static/components/resume-card/resume-card.fixture.html"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
 
 [tool.hatch.build.targets.sdist]

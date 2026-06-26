@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Resume card fixture (Story 5.8)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/inverted-command/inverted-command.css" />
+    <link rel="stylesheet" href="/static/components/resume-card/resume-card.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+        max-width: 1280px;
+      }
+
+      h1 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+
+      section {
+        margin-bottom: var(--space-11);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.8 — Resume card + copy button + inverted command</h1>
+
+    <section aria-label="Copy interaction target">
+      <h2>Copy target</h2>
+      <resume-card
+        id="resume-card-copy-target"
+        user="diep"
+        breadcrumb='["Epic 5","Story 5.8","Resume Card"]'
+        command="sdlc status --suggested-next"
+        last-poll="2026-06-25T14:32:05.000Z"
+        show-greeting="false"
+      ></resume-card>
+    </section>
+
+    <section aria-label="Greeting first-session target">
+      <h2>First session greeting</h2>
+      <resume-card id="resume-card-greeting-target"></resume-card>
+    </section>
+
+    <section aria-label="Subsequent session without greeting">
+      <h2>Subsequent session</h2>
+      <resume-card id="resume-card-subsequent-target"></resume-card>
+    </section>
+
+    <script type="module">
+      import "/static/components/resume-card/resume-card.js";
+    </script>
+  </body>
+</html>

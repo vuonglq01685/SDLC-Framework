@@ -1,0 +1,28 @@
+/**
+ * Inverted Command Surface (Story 5.8 / UX §7.7).
+ *
+ * Shared runnable-command treatment for resume-card, activity feed, STOP banner.
+ */
+
+.inverted-command {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-6);
+}
+
+.inverted-command__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-md-size);
+  line-height: var(--type-mono-md-line-height);
+  font-weight: var(--type-mono-md-weight);
+  letter-spacing: var(--type-mono-md-letter-spacing);
+  color: inherit;
+  background: transparent;
+}
