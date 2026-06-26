@@ -1,6 +1,6 @@
 # Story 5.6: Masthead + Browser Tab Title Automation
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L4 (5A). L4 = {5.6, 5.7, 5.8, 5.11}, max 4 parallel worktrees (cap-saturating — `max_parallel_agents=4`, CONTRIBUTING §3.2 / PRD FR51). Depends on 5.5 (live-dot + freshness-footer FROZEN) (+ 5.2 frozen tokens) — ALL done+merged. Edges: 5.2→5.6, 5.5→5.6; downstream 5.6→5.12 (a11y convergence gate), 5.6→5.20 (honest-disconnection REUSES the 60s aria-live rate-limit this story OWNS). Worktree: epic-5/5-6-masthead-tab-title. Branch from main, linear merge, rebase between L4 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). SYNTHETIC fixtures only — real disconnection detection (≥3 consecutive poll fails) + real state.json identity wiring is 5.20/5.18; this story renders the disconnected VISUAL state from a fixture and OWNS the rate-limit MECHANISM 5.20 drives. -->
