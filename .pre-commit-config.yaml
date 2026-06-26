@@ -144,6 +144,14 @@ repos:
         files: ^src/sdlc/dashboard/static/.*\.html$
         always_run: false
 
+      - id: dashboard-forbidden-patterns-gate
+        name: dashboard forbidden-patterns gate (Story 5.12 AC1 / UX §7.12)
+        entry: uv run python scripts/check_dashboard_forbidden_patterns.py
+        language: system
+        pass_filenames: false
+        files: ^src/sdlc/dashboard/static/.*\.(css|js|mjs|html)$
+        always_run: false
+
   # ----- migration registry lint (Story 1.19 / AC1.7 / ADR-022) -----
   - repo: local
     hooks:
@@ -229,5 +237,6 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=500]   # 500KB cap; revisit if golden-corpus fixtures push past
+        exclude: ^tests/dashboard/vendor/   # vendored axe-core 4.12.1 (~559KB, MPL-2.0) — Story 5.12 D1 test asset
       - id: mixed-line-ending
         args: [--fix=lf]

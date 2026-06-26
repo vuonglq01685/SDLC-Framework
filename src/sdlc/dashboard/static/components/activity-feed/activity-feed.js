@@ -104,6 +104,7 @@ export function renderActivityFeed(host, fixture = SYNTHETIC_ACTIVITY_FEED_FIXTU
   if (!list) {
     list = document.createElement("div");
     list.className = "activity-feed__list";
+    list.setAttribute("tabindex", "0");
     if (!host.firstChild) {
       host.appendChild(list);
     } else {
@@ -144,6 +145,12 @@ export function prependActivityFeedEntry(host, entry, fixture = SYNTHETIC_ACTIVI
 
 class ActivityFeed extends HTMLElement {
   connectedCallback() {
+    if (!this.hasAttribute("role")) {
+      this.setAttribute("role", "log");
+    }
+    if (!this.hasAttribute("aria-live")) {
+      this.setAttribute("aria-live", "polite");
+    }
     renderActivityFeed(this, this._fixtureRef || SYNTHETIC_ACTIVITY_FEED_FIXTURE);
   }
 }
