@@ -1,0 +1,42 @@
+/**
+ * Section-Block Heading (Story 5.11 / UX §7.8).
+ */
+
+.section-block-heading,
+section-block-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-6);
+  width: 100%;
+}
+
+.section-block-heading__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  color: var(--ink);
+}
+
+.section-block-heading__title--display-3 {
+  font-size: var(--type-display-3-size);
+  line-height: var(--type-display-3-line-height);
+  font-weight: var(--type-display-3-weight);
+  letter-spacing: var(--type-display-3-letter-spacing);
+}
+
+.section-block-heading__title--display-4 {
+  font-size: var(--type-display-4-size);
+  line-height: var(--type-display-4-line-height);
+  font-weight: var(--type-display-4-weight);
+  letter-spacing: var(--type-display-4-letter-spacing);
+}
+
+.section-block-heading__count {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink-mute);
+  white-space: nowrap;
+}

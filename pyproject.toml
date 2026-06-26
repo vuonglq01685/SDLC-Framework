@@ -129,6 +129,19 @@ exclude = [
 "src/sdlc/dashboard/static/components/resume-card/resume-card.css" = "sdlc/dashboard/static/components/resume-card/resume-card.css"
 "src/sdlc/dashboard/static/components/resume-card/resume-card.js" = "sdlc/dashboard/static/components/resume-card/resume-card.js"
 "src/sdlc/dashboard/static/components/resume-card/resume-card.fixture.html" = "sdlc/dashboard/static/components/resume-card/resume-card.fixture.html"
+# Story 5.11: tabs, activity feed, empty state, section heading + rhythm fixture.
+"src/sdlc/dashboard/static/components/tabs/tabs.css" = "sdlc/dashboard/static/components/tabs/tabs.css"
+"src/sdlc/dashboard/static/components/tabs/tabs.js" = "sdlc/dashboard/static/components/tabs/tabs.js"
+"src/sdlc/dashboard/static/components/tabs/tabs.fixture.html" = "sdlc/dashboard/static/components/tabs/tabs.fixture.html"
+"src/sdlc/dashboard/static/components/activity-feed/activity-feed.css" = "sdlc/dashboard/static/components/activity-feed/activity-feed.css"
+"src/sdlc/dashboard/static/components/activity-feed/activity-feed.js" = "sdlc/dashboard/static/components/activity-feed/activity-feed.js"
+"src/sdlc/dashboard/static/components/activity-feed/activity-feed.fixture.html" = "sdlc/dashboard/static/components/activity-feed/activity-feed.fixture.html"
+"src/sdlc/dashboard/static/components/empty-state/empty-state.css" = "sdlc/dashboard/static/components/empty-state/empty-state.css"
+"src/sdlc/dashboard/static/components/empty-state/empty-state.js" = "sdlc/dashboard/static/components/empty-state/empty-state.js"
+"src/sdlc/dashboard/static/components/empty-state/empty-state.fixture.html" = "sdlc/dashboard/static/components/empty-state/empty-state.fixture.html"
+"src/sdlc/dashboard/static/components/section-heading/section-heading.css" = "sdlc/dashboard/static/components/section-heading/section-heading.css"
+"src/sdlc/dashboard/static/components/section-heading/section-heading.js" = "sdlc/dashboard/static/components/section-heading/section-heading.js"
+"src/sdlc/dashboard/static/test-fixtures/editorial-scanning-rhythm.html" = "sdlc/dashboard/static/test-fixtures/editorial-scanning-rhythm.html"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
 
 [tool.hatch.build.targets.sdist]
