@@ -1,6 +1,6 @@
 # Story 5.8: Resume Card + Copy Button + Inverted Command + Editorial Eyebrow
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L4 (5A). L4 = {5.6, 5.7, 5.8, 5.11}, max 4 parallel worktrees (cap-saturating). Depends on 5.5 (live-dot + freshness-footer FROZEN) + 5.3 (sprite: copy/check icons) + 5.2 (frozen tokens) — ALL done+merged. Edges: 5.2→5.8, 5.3→5.8, 5.5→5.8; downstream 5.8→5.18 (real "you are here"/"suggested next" rendering — reuses 5.8's card shell), 5.8→5.20 (honest-disconnection adds the Disconnected state), 5.8→5.12 (a11y convergence gate). Worktree: epic-5/5-8-resume-card-copy-button. Branch from main, linear merge, rebase between L4 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). SYNTHETIC fixtures only — real ResumeToken/suggested-next compute is 5.18; the Disconnected + Phase-complete states are 5.20/5.18. Establishes the cross-cutting Inverted Command Surface (§7.7) reused by 5.11/5.19. -->
@@ -203,5 +203,6 @@ Composer (Cursor)
 
 ## Change Log
 
+- 2026-06-26: Story 5.8 closed out — bmad-code-review (Blind/Edge/Acceptance @ Opus-4.8 + orchestrator source-verification): 1 decision-needed → deferred to 5.18 (greeting-burn/multi-render, latent in synthetic 5.8), 2 patch applied (clipboard no-op comment; dead trailing-newline replace removed), 8 defer (deferred-work.md DEF-1…DEF-8), 8 dismissed. AC1–AC4 satisfied; D1–D5 (a); no XSS. PR #24 rebase-merged to main (8747b1a test → a93a983 feat → 20faa1d docs); CI 16-check green (no macOS flake); full suite 4015 pass / cov 88.39%. Status review → done.
 - 2026-06-26: Story 5.8 implemented — resume-card shell + inverted-command surface + DD-07 greeting + DD-12/DD-13 copy behavior; decisions D1–D5 resolved (a); tests + dashboard gates green; status → review.
 - 2026-06-25: Story 5.8 created (create-story, "tạo US cho layer tiếp theo" → L4 batch with 5.6/5.7/5.11) — Resume Card (defining surface, DD-11) + once-per-session greeting (DD-07) + editorial eyebrows + Inverted Command Surface (§7.7, reusable for 5.11/5.19) + Copy button (Clipboard API + 1 s `copy`→`check` icon swap content-delta + `aria-live="polite"`). Decisions D1 (command mono 13px→`--type-mono-md` 12px) / D2 (copy aria-label) / D3 (aria-live polite + "copied to clipboard") / D4 (defer Phase-complete to 5.18) / D5 (copy button sole tab stop) raised. L4 (5A), synthetic only; depends on 5.5 + 5.3 + 5.2; feeds 5.18 (real you-are-here/suggested-next) + 5.20 (disconnected) + 5.12 a11y gate. Confirmed sprite has `copy`+`check` (no `alert-triangle`); focus ring pre-wires `.copy-btn`.
