@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Masthead review fixture (Story 5.6)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/masthead/masthead.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h2 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+
+      section {
+        margin-bottom: var(--space-11);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.6 — Masthead + tab title automation</h1>
+
+    <section aria-label="Polling masthead with tab title automation">
+      <h2>Polling target</h2>
+      <sdlc-masthead id="masthead-tab-title-target" poll="true"></sdlc-masthead>
+    </section>
+
+    <section aria-label="Disconnected masthead state">
+      <h2>Disconnected state</h2>
+      <sdlc-masthead
+        id="masthead-disconnected-target"
+        project-name="SDLC-Framework"
+        owner="diep"
+        phase="2"
+        progress="45"
+        port="3847"
+        variant="disconnected"
+        last-poll="2026-06-25T09:42:15.000Z"
+      ></sdlc-masthead>
+    </section>
+
+    <script type="module">
+      import "/static/components/masthead/masthead.js";
+    </script>
+  </body>
+</html>

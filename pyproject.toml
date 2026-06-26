@@ -119,6 +119,12 @@ exclude = [
 "src/sdlc/dashboard/static/components/backlog-tree/backlog-tree.css" = "sdlc/dashboard/static/components/backlog-tree/backlog-tree.css"
 "src/sdlc/dashboard/static/components/backlog-tree/backlog-tree.js" = "sdlc/dashboard/static/components/backlog-tree/backlog-tree.js"
 "src/sdlc/dashboard/static/components/backlog-tree/backlog-tree.fixture.html" = "sdlc/dashboard/static/components/backlog-tree/backlog-tree.fixture.html"
+"src/sdlc/dashboard/static/components/masthead/masthead.css" = "sdlc/dashboard/static/components/masthead/masthead.css"
+"src/sdlc/dashboard/static/components/masthead/masthead.js" = "sdlc/dashboard/static/components/masthead/masthead.js"
+"src/sdlc/dashboard/static/components/masthead/masthead.fixture.html" = "sdlc/dashboard/static/components/masthead/masthead.fixture.html"
+"src/sdlc/dashboard/static/components/kpi-strip/kpi-strip.css" = "sdlc/dashboard/static/components/kpi-strip/kpi-strip.css"
+"src/sdlc/dashboard/static/components/kpi-strip/kpi-strip.js" = "sdlc/dashboard/static/components/kpi-strip/kpi-strip.js"
+"src/sdlc/dashboard/static/components/kpi-strip/kpi-strip.fixture.html" = "sdlc/dashboard/static/components/kpi-strip/kpi-strip.fixture.html"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
 
 [tool.hatch.build.targets.sdist]

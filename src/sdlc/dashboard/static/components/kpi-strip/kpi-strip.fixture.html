@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>KPI strip fixture (Story 5.7)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/kpi-strip/kpi-strip.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.7 — KPI strip (synthetic)</h1>
+    <kpi-strip id="kpi-strip-fixture-target"></kpi-strip>
+    <script type="module">
+      import "/static/components/kpi-strip/kpi-strip.js";
+    </script>
+  </body>
+</html>

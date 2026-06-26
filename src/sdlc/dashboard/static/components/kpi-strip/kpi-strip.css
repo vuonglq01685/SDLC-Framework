@@ -1,0 +1,110 @@
+/**
+ * KPI Strip + Value Cell (Story 5.7 / UX §6.3).
+ */
+
+kpi-strip {
+  display: block;
+  width: 100%;
+}
+
+.kpi-strip {
+  display: flex;
+  width: 100%;
+}
+
+.kpi-strip__cell {
+  flex: 1 1 0;
+  box-sizing: border-box;
+  padding: var(--space-10) var(--space-12);
+}
+
+.kpi-strip__cell:not(:last-child) {
+  border-right: var(--border-hairline);
+}
+
+.kpi-strip__cell-dl {
+  margin: 0;
+}
+
+.kpi-strip__label {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-sm-size);
+  line-height: var(--type-label-mono-sm-line-height);
+  font-weight: var(--type-label-mono-sm-weight);
+  letter-spacing: var(--type-label-mono-sm-letter-spacing);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.kpi-strip__value {
+  margin: 0 0 var(--space-3);
+  color: var(--ink);
+}
+
+.kpi-strip__value--no-data {
+  color: var(--ink-dim);
+}
+
+.kpi-strip__value--stale {
+  color: var(--ink-mute);
+}
+
+.kpi-strip__hero {
+  font-family: var(--font-serif);
+  font-size: var(--type-display-hero-size);
+  line-height: var(--type-display-hero-line-height);
+  font-weight: var(--type-display-hero-weight);
+  letter-spacing: var(--type-display-hero-letter-spacing);
+  color: var(--ink);
+}
+
+/* Stale modifier must follow the base `.kpi-strip__hero` rule: equal specificity,
+   later wins — otherwise the base `color: var(--ink)` overrides the muted value. */
+.kpi-strip__hero--stale {
+  color: var(--ink-mute);
+}
+
+.kpi-strip__unit {
+  margin-left: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  font-weight: var(--type-body-weight);
+  letter-spacing: var(--type-body-letter-spacing);
+  color: var(--ink-mute);
+}
+
+.kpi-strip__delta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+}
+
+.kpi-strip__delta--up {
+  color: var(--green);
+}
+
+.kpi-strip__delta--down {
+  color: var(--red);
+}
+
+.kpi-strip__delta--neutral,
+.kpi-strip__delta--stale {
+  color: var(--ink-mute);
+}
+
+.kpi-strip__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
