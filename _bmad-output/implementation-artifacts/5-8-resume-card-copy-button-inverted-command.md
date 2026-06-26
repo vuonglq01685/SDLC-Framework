@@ -1,6 +1,6 @@
 # Story 5.8: Resume Card + Copy Button + Inverted Command + Editorial Eyebrow
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L4 (5A). L4 = {5.6, 5.7, 5.8, 5.11}, max 4 parallel worktrees (cap-saturating). Depends on 5.5 (live-dot + freshness-footer FROZEN) + 5.3 (sprite: copy/check icons) + 5.2 (frozen tokens) — ALL done+merged. Edges: 5.2→5.8, 5.3→5.8, 5.5→5.8; downstream 5.8→5.18 (real "you are here"/"suggested next" rendering — reuses 5.8's card shell), 5.8→5.20 (honest-disconnection adds the Disconnected state), 5.8→5.12 (a11y convergence gate). Worktree: epic-5/5-8-resume-card-copy-button. Branch from main, linear merge, rebase between L4 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). SYNTHETIC fixtures only — real ResumeToken/suggested-next compute is 5.18; the Disconnected + Phase-complete states are 5.20/5.18. Establishes the cross-cutting Inverted Command Surface (§7.7) reused by 5.11/5.19. -->
@@ -37,34 +37,57 @@ So that Diep's onboarding job ("know what to do in 60 seconds") succeeds (UX-DR3
 
 > **TDD-first surface (CONTRIBUTING §2):** the **command normalization (DD-13)**, the **greeting gating (DD-07, AC2)**, and the **copy behavior + 1 s icon swap + aria-live (AC3)** are deterministic behavior → tests-first. DD-13 normalization is a pure function (no prefix marker, trimmed, no trailing newline) — unit test in isolation. DD-07 gating mocks `sessionStorage`. AC3 = Playwright (stub `navigator.clipboard.writeText`, assert exact command + `<use href>` swaps `copy`→`check`, advance 1 s → swaps back, assert the `aria-live="polite"` region text). The card CSS/inverted-surface is `test-along` + a static-analysis token contract. Resolve Decisions D1–D5 BEFORE coding.
 
-- [ ] **Task 0 — Resolve Decisions D1 (command-surface mono size: prose 13px vs frozen `--type-mono-md` 12px) + D2 (copy `aria-label` wording) + D3 (aria-live politeness + message) + D4 (Phase-complete state scope) + D5 (command markup a11y: sole copy-button tab stop) BEFORE coding** (AC: 1, 3, 4)
-  - [ ] Record picks in the PR Change Log (CONTRIBUTING §5). Align the component layout to the 5.5-frozen `static/components/<name>/` convention.
+- [x] **Task 0 — Resolve Decisions D1 (command-surface mono size: prose 13px vs frozen `--type-mono-md` 12px) + D2 (copy `aria-label` wording) + D3 (aria-live politeness + message) + D4 (Phase-complete state scope) + D5 (command markup a11y: sole copy-button tab stop) BEFORE coding** (AC: 1, 3, 4)
+  - [x] Record picks in the PR Change Log (CONTRIBUTING §5). Align the component layout to the 5.5-frozen `static/components/<name>/` convention.
 
-- [ ] **Task 1 — Resume Card shell + layout (defining surface, DD-11)** (AC: 1)
-  - [ ] `role="region"` `aria-label="Resume position and suggested command"`; container = `--paper` bg, `--border-hairline`, `--radius-xl` (8px), `--space-12 × --space-14` padding, **no shadow**. Always visible without scroll at 1280 px (DD-11; DD-04 desktop-only — no mobile breakpoints). [§6.4 ux:1137-1146]
-  - [ ] Layout (top→bottom): greeting (conditional) → "You are here:" eyebrow (`--type-label-mono-sm` `--accent` uppercase) → breadcrumb (Inter 14px `--ink`, slash `/` separators visible) → "Suggested next:" eyebrow (`--type-label-mono-sm` `--ink-mute` uppercase) → inverted command line + copy button → `<freshness-footer>`. [§2.5 ux:453-472; §6.4 ux:1121-1146]
+- [x] **Task 1 — Resume Card shell + layout (defining surface, DD-11)** (AC: 1)
+  - [x] `role="region"` `aria-label="Resume position and suggested command"`; container = `--paper` bg, `--border-hairline`, `--radius-xl` (8px), `--space-12 × --space-14` padding, **no shadow**. Always visible without scroll at 1280 px (DD-11; DD-04 desktop-only — no mobile breakpoints). [§6.4 ux:1137-1146]
+  - [x] Layout (top→bottom): greeting (conditional) → "You are here:" eyebrow (`--type-label-mono-sm` `--accent` uppercase) → breadcrumb (Inter 14px `--ink`, slash `/` separators visible) → "Suggested next:" eyebrow (`--type-label-mono-sm` `--ink-mute` uppercase) → inverted command line + copy button → `<freshness-footer>`. [§2.5 ux:453-472; §6.4 ux:1121-1146]
 
-- [ ] **Task 2 — Once-per-session greeting (DD-07)** (AC: 2) — *tests-first*
-  - [ ] First render with empty sessionStorage → show "Welcome, {user}." (`--type-body` Inter 14px 500 `--ink-soft`; no emojis/exclamation/time-of-day variants per DD-07); set the session flag; subsequent renders in the same session omit the greeting (layout shifts cleanly without placeholder). [DD-07 ux:256; §6.4 ux:1140,1150-1151]
-  - [ ] Unit-test with a mocked `sessionStorage` (first render shows + sets flag; second render omits). User identifier is fixture-injected for synthetic 5.8 (real `$USER`/`project.yaml` resolution rides 5.18).
+- [x] **Task 2 — Once-per-session greeting (DD-07)** (AC: 2) — *tests-first*
+  - [x] First render with empty sessionStorage → show "Welcome, {user}." (`--type-body` Inter 14px 500 `--ink-soft`; no emojis/exclamation/time-of-day variants per DD-07); set the session flag; subsequent renders in the same session omit the greeting (layout shifts cleanly without placeholder). [DD-07 ux:256; §6.4 ux:1140,1150-1151]
+  - [x] Unit-test with a mocked `sessionStorage` (first render shows + sets flag; second render omits). User identifier is fixture-injected for synthetic 5.8 (real `$USER`/`project.yaml` resolution rides 5.18).
 
-- [ ] **Task 3 — Inverted Command Surface (§7.7) + DD-13 no-prefix** (AC: 1, 4) — *tests-first*
-  - [ ] Author a reusable inverted-command treatment (CSS class, e.g. `.inverted-command`) so 5.11 (activity feed) + 5.19 (STOP banner) consume the same shape: background `--ink`, text `--bg`, `font-family: var(--font-mono)`, padding `--space-5 × --space-6`, `--radius-md` (4px). [§7.7 ux:1535-1541]
-  - [ ] **No prefix marker** (DD-13): no `$`/`>`/`❯`. Extract a pure `normalizeCommand(str)` — strips leading/trailing whitespace + trailing newlines, no shell-comment markers — and unit-test it. This is the literal string written to the clipboard. **Distinct from inline-code (§6.8, 5.10):** inline-code is `--bg` bg / `--ink` text (normal contrast); the command surface is INVERTED (`--ink` bg / `--bg` text). Do NOT use inline-code for the runnable command.
+- [x] **Task 3 — Inverted Command Surface (§7.7) + DD-13 no-prefix** (AC: 1, 4) — *tests-first*
+  - [x] Author a reusable inverted-command treatment (CSS class, e.g. `.inverted-command`) so 5.11 (activity feed) + 5.19 (STOP banner) consume the same shape: background `--ink`, text `--bg`, `font-family: var(--font-mono)`, padding `--space-5 × --space-6`, `--radius-md` (4px). [§7.7 ux:1535-1541]
+  - [x] **No prefix marker** (DD-13): no `$`/`>`/`❯`. Extract a pure `normalizeCommand(str)` — strips leading/trailing whitespace + trailing newlines, no shell-comment markers — and unit-test it. This is the literal string written to the clipboard. **Distinct from inline-code (§6.8, 5.10):** inline-code is `--bg` bg / `--ink` text (normal contrast); the command surface is INVERTED (`--ink` bg / `--bg` text). Do NOT use inline-code for the runnable command.
 
-- [ ] **Task 4 — Copy button + Clipboard API + 1 s icon swap + aria-live (DD-12)** (AC: 3) — *tests-first*
-  - [ ] `<button class="copy-btn">` (rides the 5.4 focus ring — `focus-motion.css` already names `.copy-btn:focus-visible`), `aria-label` per D2, click area ≥ 36×36 px, right edge of the command surface. Render the `copy` glyph via `createGlyph("copy", …)` (reuse from signoff-cell.js).
-  - [ ] On click: `navigator.clipboard.writeText(normalizeCommand(command))`; swap the SVG `<use href>` `#copy`→`#check` for **1.0 s** then back via `setTimeout` (value `--motion-copy-feedback: 1s`). **This is a content delta (DD-06/DD-12): change the `<use href>` via JS — NO CSS transition** (DD-14 forbids `transition:`; the glyph swap is a content swap, allowed).
-  - [ ] Announce "copied to clipboard" via `aria-live="polite"` (D3). No toast/banner/sound/"Copied!" text label (DD-12; §7.12 forbids toasts).
-  - [ ] Playwright test: stub `clipboard.writeText`, assert called with the exact normalized command; assert `<use href>` → `#check`, advance 1 s → `#copy`; assert the polite live-region text === "copied to clipboard"; assert focus ring on keyboard focus, suppressed on mouse focus.
+- [x] **Task 4 — Copy button + Clipboard API + 1 s icon swap + aria-live (DD-12)** (AC: 3) — *tests-first*
+  - [x] `<button class="copy-btn">` (rides the 5.4 focus ring — `focus-motion.css` already names `.copy-btn:focus-visible`), `aria-label` per D2, click area ≥ 36×36 px, right edge of the command surface. Render the `copy` glyph via `createGlyph("copy", …)` (reuse from signoff-cell.js).
+  - [x] On click: `navigator.clipboard.writeText(normalizeCommand(command))`; swap the SVG `<use href>` `#copy`→`#check` for **1.0 s** then back via `setTimeout` (value `--motion-copy-feedback: 1s`). **This is a content delta (DD-06/DD-12): change the `<use href>` via JS — NO CSS transition** (DD-14 forbids `transition:`; the glyph swap is a content swap, allowed).
+  - [x] Announce "copied to clipboard" via `aria-live="polite"` (D3). No toast/banner/sound/"Copied!" text label (DD-12; §7.12 forbids toasts).
+  - [x] Playwright test: stub `clipboard.writeText`, assert called with the exact normalized command; assert `<use href>` → `#check`, advance 1 s → `#copy`; assert the polite live-region text === "copied to clipboard"; assert focus ring on keyboard focus, suppressed on mouse focus.
 
-- [ ] **Task 5 — Committed synthetic fixture + tests** (AC: 1, 2, 3, 4) — *tests-first*
-  - [ ] Commit a `resume-card.fixture.html` (link tokens.css + focus-motion.css + own CSS; embed `<freshness-footer>`). Add the unit tests (normalizeCommand, greeting gating) + the Playwright copy test + a static-analysis token contract (all CSS values are `var(--*)`; inverted-surface bg=`--ink`/text=`--bg`; component present in force-include). Mirror the gate-import pattern (`tests/conftest.py` puts `scripts/` on `sys.path`).
+- [x] **Task 5 — Committed synthetic fixture + tests** (AC: 1, 2, 3, 4) — *tests-first*
+  - [x] Commit a `resume-card.fixture.html` (link tokens.css + focus-motion.css + own CSS; embed `<freshness-footer>`). Add the unit tests (normalizeCommand, greeting gating) + the Playwright copy test + a static-analysis token contract (all CSS values are `var(--*)`; inverted-surface bg=`--ink`/text=`--bg`; component present in force-include). Mirror the gate-import pattern (`tests/conftest.py` puts `scripts/` on `sys.path`).
 
-- [ ] **Task 6 — Packaging + quality gate + freeze** (AC: 1, 2, 3, 4)
-  - [ ] Add new CSS/JS/HTML (resume-card + any shared inverted-command CSS + fixture) to the `force-include` block [pyproject.toml].
-  - [ ] Component CSS uses `var(--*)` only (5.2 stylelint gate); run DD-14 motion gate (icon swap is content delta — NO `transition:`), DD-08 no-framework, DD-09 no-data-theme, the 5.3 no-external-fonts gate, and the 5.5 color-only gate (the embedded freshness-footer pairs live-dot with text).
-  - [ ] Python quality gate on any new `scripts/*.py`/tests (ruff + ruff format + mypy --strict); full pytest + coverage ≥ 87%; `mkdocs build --strict` green; **zero wire-format change → freeze stays 7/7**.
+- [x] **Task 6 — Packaging + quality gate + freeze** (AC: 1, 2, 3, 4)
+  - [x] Add new CSS/JS/HTML (resume-card + any shared inverted-command CSS + fixture) to the `force-include` block [pyproject.toml].
+  - [x] Component CSS uses `var(--*)` only (5.2 stylelint gate); run DD-14 motion gate (icon swap is content delta — NO `transition:`), DD-08 no-framework, DD-09 no-data-theme, the 5.3 no-external-fonts gate, and the 5.5 color-only gate (the embedded freshness-footer pairs live-dot with text).
+  - [x] Python quality gate on any new `scripts/*.py`/tests (ruff + ruff format + mypy --strict); full pytest + coverage ≥ 87%; `mkdocs build --strict` green; **zero wire-format change → freeze stays 7/7**.
+
+### Review Findings
+
+> bmad-code-review 2026-06-26 — 3 parallel adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor @ Opus-4.8) + orchestrator source-verification (every load-bearing finding reproduced against the real `resume-card.js` / `.css` / `inverted-command.css` / fixture / tests). Full suite GREEN: **4015 passed / 4 skipped / 1 xfailed, coverage 88.39%** (≥87 floor). Acceptance Auditor: **AC1–AC4 all satisfied**; D1–D5 implemented as resolved (a); no anti-scope-creep items built; no XSS (textContent-only). Triage: **1 decision-needed (→ deferred to 5.18), 2 patch, 8 defer total, 8 dismissed**.
+
+**Decision-needed** (1 — resolved 2026-06-26 → deferred to 5.18)
+
+- [x] [Review][Defer] Greeting burned + redundant multi-render on attributed-card upgrade (was Decision) — `attributeChangedCallback` runs a full synchronous `_render` per observed attribute, and the greeting decision + `markGreetingShown` live inside the render path. A card authored with attributes AND storage-based greeting (no `show-greeting="false"`) upgrades with N renders: render #1 shows the greeting and burns the once-per-session flag, render #2+ omit it → the greeting is added then removed before paint and the flag is consumed without the user ever seeing it. Same multi-render leaves an uncancelled `setTimeout` / no `disconnectedCallback` (copy-feedback timer can fire on a detached button). **LATENT in 5.8** — the only attributed fixture card uses `show-greeting="false"`; the greeting card has no attributes (single render) — so no 5.8 AC is broken and the full suite is green. Bites **5.18** (real attributed Resume Card + storage greeting). [resume-card.js:118-124,197-201,88-107] (blind+edge) — **deferred to 5.18** (resolved 2026-06-26): lỗi tiềm ẩn, không kích hoạt trong fixture synthetic của 5.8 (không AC nào vỡ, suite xanh); fix render-coalescing + lifecycle-timer thuộc về 5.18 nơi card thật mang attributes + greeting theo storage.
+
+**Patch**
+
+- [ ] [Review][Patch] Clipboard-write failure silently swallowed — `catch { return; }` gives no signal; document the deliberate no-op (disabled/disconnected-copy state is 5.20) [resume-card.js:92-96]
+- [ ] [Review][Patch] Dead `text.replace(/\n+$/u, "")` after `.trim()` in normalizeCommand — `.trim()` already strips trailing newlines, so the replace can never match [resume-card.js:19]
+
+**Deferred** (also recorded in deferred-work.md)
+
+- [x] [Review][Defer] normalizeCommand preserves interior newlines (multi-line command paste auto-exec risk) [resume-card.js:18-21] — deferred to 5.18 (real command source; DD-13 only mandates trailing-newline strip)
+- [x] [Review][Defer] aria-live region not re-announced on repeat copies (identical textContent) [resume-card.js:98] — deferred to 5.12 (a11y convergence gate)
+- [x] [Review][Defer] sessionStorage property-access throw at default-param eval (sandboxed-iframe) [resume-card.js:109] — deferred (low-likelihood for same-origin dashboard; getItem/setItem already guarded)
+- [x] [Review][Defer] Long-command overflow/wrap on inverted surface [inverted-command.css:17-28] — deferred to 5.18/5.11 (synthetic command short; surface reused by 5.11/5.19)
+- [x] [Review][Defer] §6.4 polite live-region does not wrap breadcrumb+command for poll updates [resume-card.js:69-79] — deferred to 5.18 (real poll updates; Auditor confirms not an AC breach)
+- [x] [Review][Defer] `.copy-btn` styling lives in resume-card.css not inverted-command.css (reuse-contract refinement) [resume-card.css:64-77] — deferred to 5.11/5.19 (relocate when they consume the surface; would ripple into 36px/.copy-btn unit asserts)
+- [x] [Review][Defer] Test gaps — attributed-card greeting (pairs w/ Decision), clipboard-failure path, double-click race, normalizeCommand boundaries, sessionStorage-throws [tests/integration + tests/unit] — deferred (test hardening alongside 5.18/5.12)
 
 ## Dev Notes
 
@@ -157,12 +180,28 @@ inline-code.css (5.10) is DISTINCT (--bg bg / --ink text) — do NOT use for the
 
 ### Agent Model Used
 
+Composer (Cursor)
+
 ### Debug Log References
 
 ### Completion Notes List
 
+- Implemented `<resume-card>` defining surface (DD-11): region landmark, paper container tokens, editorial eyebrows, breadcrumb, inverted command + copy button, embedded `<freshness-footer>`.
+- Decisions resolved: D1(a) `--type-mono-md` 12px; D2(a) "Copy suggested command"; D3(a) polite + "copied to clipboard"; D4(a) defer phase-complete to 5.18; D5(a) copy button sole tab stop.
+- Added reusable `.inverted-command` CSS (§7.7) for 5.11/5.19; `normalizeCommand`, DD-07 sessionStorage greeting, DD-12 copy→check 1s icon swap + aria-live.
+- Tests: 16 unit static-analysis + 6 Playwright integration; all dashboard gates green; full suite 4015 passed; coverage floor maintained.
+
 ### File List
+
+- src/sdlc/dashboard/static/components/inverted-command/inverted-command.css
+- src/sdlc/dashboard/static/components/resume-card/resume-card.css
+- src/sdlc/dashboard/static/components/resume-card/resume-card.js
+- src/sdlc/dashboard/static/components/resume-card/resume-card.fixture.html
+- tests/unit/dashboard/test_resume_card_fixture.py
+- tests/integration/test_dashboard_resume_card.py
+- pyproject.toml
 
 ## Change Log
 
+- 2026-06-26: Story 5.8 implemented — resume-card shell + inverted-command surface + DD-07 greeting + DD-12/DD-13 copy behavior; decisions D1–D5 resolved (a); tests + dashboard gates green; status → review.
 - 2026-06-25: Story 5.8 created (create-story, "tạo US cho layer tiếp theo" → L4 batch with 5.6/5.7/5.11) — Resume Card (defining surface, DD-11) + once-per-session greeting (DD-07) + editorial eyebrows + Inverted Command Surface (§7.7, reusable for 5.11/5.19) + Copy button (Clipboard API + 1 s `copy`→`check` icon swap content-delta + `aria-live="polite"`). Decisions D1 (command mono 13px→`--type-mono-md` 12px) / D2 (copy aria-label) / D3 (aria-live polite + "copied to clipboard") / D4 (defer Phase-complete to 5.18) / D5 (copy button sole tab stop) raised. L4 (5A), synthetic only; depends on 5.5 + 5.3 + 5.2; feeds 5.18 (real you-are-here/suggested-next) + 5.20 (disconnected) + 5.12 a11y gate. Confirmed sprite has `copy`+`check` (no `alert-triangle`); focus ring pre-wires `.copy-btn`.
