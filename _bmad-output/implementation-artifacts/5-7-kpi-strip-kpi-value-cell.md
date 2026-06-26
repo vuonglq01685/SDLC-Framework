@@ -1,6 +1,6 @@
 # Story 5.7: KPI Strip + KPI Value Cell
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L4 (5A). L4 = {5.6, 5.7, 5.8, 5.11}, max 4 parallel worktrees (cap-saturating). Depends on 5.5 (freshness-footer/live-dot FROZEN) (+ 5.2 frozen tokens) — ALL done+merged. Edges: 5.2→5.7, 5.5→5.7; downstream 5.7→5.13 (real /api/dora backend), 5.7→5.17 (real DORA 7d/30d rendering, L7 — reuses 5.7's n/a no-data treatment), 5.7→5.12 (a11y convergence gate). Worktree: epic-5/5-7-kpi-strip-value-cell. Branch from main, linear merge, rebase between L4 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). SYNTHETIC fixtures only — the 30s DORA cache + /api/dora compute is 5.13; real DORA data wiring is 5.17. This story renders the STALE state from a fixture flag; it does NOT compute the cache. -->
