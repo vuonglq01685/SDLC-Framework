@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Activity feed fixture (Story 5.11)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/activity-feed/activity-feed.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.11 — Activity feed (50 synthetic runs)</h1>
+    <activity-feed id="activity-feed-target"></activity-feed>
+    <script type="module">
+      import {
+        SYNTHETIC_ACTIVITY_FEED_FIXTURE,
+        renderActivityFeed,
+      } from "/static/components/activity-feed/activity-feed.js";
+
+      const host = document.getElementById("activity-feed-target");
+      renderActivityFeed(host, SYNTHETIC_ACTIVITY_FEED_FIXTURE);
+    </script>
+  </body>
+</html>

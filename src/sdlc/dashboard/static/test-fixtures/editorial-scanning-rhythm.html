@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Editorial scanning rhythm fixture (Story 5.11)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/masthead/masthead.css" />
+    <link rel="stylesheet" href="/static/components/kpi-strip/kpi-strip.css" />
+    <link rel="stylesheet" href="/static/components/tabs/tabs.css" />
+    <link rel="stylesheet" href="/static/components/phase-tracker/phase-tracker.css" />
+    <link rel="stylesheet" href="/static/components/section-heading/section-heading.css" />
+    <link rel="stylesheet" href="/static/components/resume-card/resume-card.css" />
+    <link rel="stylesheet" href="/static/components/empty-state/empty-state.css" />
+    <link rel="stylesheet" href="/static/components/activity-feed/activity-feed.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-shell-top) var(--layout-shell-padding-x) var(--space-shell-bottom);
+        max-width: var(--layout-shell-max-width);
+        margin: 0 auto;
+      }
+
+      .rhythm-stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-11);
+      }
+
+      .rhythm-main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: var(--layout-grid-gap);
+      }
+
+      .rhythm-side-col {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-9);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="rhythm-stack">
+      <header data-rhythm-section="masthead">
+        <sdlc-masthead project-name="SDLC-Framework" owner="team" phase="5" progress="42"></sdlc-masthead>
+      </header>
+
+      <section data-rhythm-section="kpi-strip" aria-label="KPI strip">
+        <kpi-strip></kpi-strip>
+      </section>
+
+      <nav data-rhythm-section="tabs" aria-label="Section tabs">
+        <dashboard-tabs></dashboard-tabs>
+      </nav>
+
+      <section data-rhythm-section="phase-tracker">
+        <section-block-heading class="section-block-heading" title="Phase tracker" count="4 phases"></section-block-heading>
+        <phase-tracker></phase-tracker>
+      </section>
+
+      <div class="rhythm-main-grid" data-rhythm-section="main-content">
+        <main class="rhythm-main-col">
+          <section-block-heading class="section-block-heading" title="Backlog" count="12 stories"></section-block-heading>
+          <backlog-tree></backlog-tree>
+        </main>
+
+        <aside class="rhythm-side-col">
+          <div data-rhythm-section="resume-card">
+            <resume-card></resume-card>
+          </div>
+
+          <section data-rhythm-section="alerts-column">
+            <section-block-heading class="section-block-heading" title="Alerts" count="0 active"></section-block-heading>
+            <empty-state message="No STOPs in flight"></empty-state>
+          </section>
+
+          <section data-rhythm-section="activity-feed">
+            <section-block-heading class="section-block-heading" title="Activity" count="50 runs"></section-block-heading>
+            <activity-feed></activity-feed>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <script type="module">
+      import "/static/components/masthead/masthead.js";
+      import "/static/components/kpi-strip/kpi-strip.js";
+      import "/static/components/tabs/tabs.js";
+      import "/static/components/phase-tracker/phase-tracker.js";
+      import "/static/components/section-heading/section-heading.js";
+      import "/static/components/backlog-tree/backlog-tree.js";
+      import "/static/components/pills/pills.js";
+      import "/static/components/resume-card/resume-card.js";
+      import "/static/components/empty-state/empty-state.js";
+      import "/static/components/activity-feed/activity-feed.js";
+    </script>
+  </body>
+</html>

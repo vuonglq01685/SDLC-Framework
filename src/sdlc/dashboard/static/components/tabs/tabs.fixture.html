@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tabs keyboard fixture (Story 5.11)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/tabs/tabs.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.11 — Tabs (synthetic)</h1>
+    <dashboard-tabs id="tabs-keyboard-target"></dashboard-tabs>
+    <script type="module">
+      import "/static/components/tabs/tabs.js";
+    </script>
+  </body>
+</html>

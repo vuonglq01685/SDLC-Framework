@@ -1,0 +1,71 @@
+/**
+ * Tabs component (Story 5.11 / UX §6.8).
+ */
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+[role="tablist"].tabs {
+  flex-direction: row;
+  gap: var(--space-7);
+  border-bottom: var(--border-hairline);
+}
+
+.tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-2);
+  margin: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-size);
+  line-height: var(--type-label-mono-line-height);
+  font-weight: var(--type-label-mono-weight);
+  letter-spacing: var(--type-label-mono-letter-spacing);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.tabs__tab--active {
+  color: var(--ink);
+  border-bottom: var(--border-accent);
+}
+
+.tabs__counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-7);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-pill-size);
+  line-height: var(--type-mono-pill-line-height);
+  font-weight: var(--type-mono-pill-weight);
+  letter-spacing: var(--type-mono-pill-letter-spacing);
+  color: var(--ink-mute);
+}
+
+.tabs__counter--active {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+.tabs__panels {
+  padding-top: var(--space-5);
+}
+
+.tabs__panel-body {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  color: var(--ink-soft);
+}

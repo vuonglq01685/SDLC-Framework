@@ -1,0 +1,60 @@
+/**
+ * Activity Feed (Story 5.11 / UX §6.8).
+ */
+
+activity-feed {
+  display: block;
+  width: 100%;
+}
+
+.activity-feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+.activity-feed__entry {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 1fr) minmax(60px, 0.8fr) minmax(90px, 1fr) minmax(60px, 0.7fr);
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-hairline);
+}
+
+.activity-feed__timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+  line-height: var(--type-mono-data-line-height);
+  font-weight: var(--type-mono-data-weight);
+  letter-spacing: var(--type-mono-data-letter-spacing);
+  color: var(--ink-mute);
+}
+
+.activity-feed__agent,
+.activity-feed__target,
+.activity-feed__duration {
+  font-size: var(--type-body-small-size);
+  line-height: var(--type-body-small-line-height);
+  color: var(--ink-soft);
+}
+
+.activity-feed__outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.activity-feed__outcome-icon {
+  flex: none;
+  color: var(--ink-soft);
+}
+
+.activity-feed__outcome-label {
+  font-size: var(--type-body-small-size);
+  line-height: var(--type-body-small-line-height);
+  color: var(--ink-soft);
+}

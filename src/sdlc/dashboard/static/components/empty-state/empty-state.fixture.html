@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Empty state fixture (Story 5.11)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/empty-state/empty-state.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.11 — Empty state (no STOP banners)</h1>
+    <empty-state id="empty-state-target" last-poll="" variant="default"></empty-state>
+    <script type="module">
+      import "/static/components/empty-state/empty-state.js";
+      const now = Date.now();
+      const el = document.getElementById("empty-state-target");
+      el.setAttribute("last-poll", String(now - 5_000));
+      el.setAttribute("now", String(now));
+    </script>
+  </body>
+</html>

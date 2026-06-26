@@ -1,0 +1,29 @@
+/**
+ * Empty State (Story 5.11 / UX §6.8).
+ */
+
+empty-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-7);
+  padding: var(--space-11);
+  background: var(--paper);
+  border: var(--border-dashed);
+  text-align: center;
+  width: 100%;
+}
+
+.empty-state__message {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  color: var(--ink-dim);
+}
+
+.empty-state freshness-footer {
+  width: 100%;
+  max-width: 360px;
+}
