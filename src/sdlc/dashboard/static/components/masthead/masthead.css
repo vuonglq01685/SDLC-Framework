@@ -1,0 +1,83 @@
+/**
+ * Masthead broadsheet header (Story 5.6 / UX §6.2).
+ *
+ * Serif H1 + mono sub-line + mono right rail; bottom broadsheet rule.
+ */
+
+sdlc-masthead {
+  display: block;
+}
+
+sdlc-masthead > header {
+  border-bottom: var(--border-strong);
+  border-radius: var(--radius-none);
+}
+
+.masthead__inner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-7);
+  padding-block: var(--space-7);
+}
+
+.masthead__main {
+  min-width: 0;
+}
+
+.masthead__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--type-display-1-size);
+  line-height: var(--type-display-1-line-height);
+  font-weight: var(--type-display-1-weight);
+  letter-spacing: var(--type-display-1-letter-spacing);
+  color: var(--ink);
+}
+
+.masthead__arrow {
+  margin-inline: var(--space-3);
+  color: var(--accent);
+}
+
+.masthead__sub,
+.masthead__port {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-size);
+  line-height: var(--type-label-mono-line-height);
+  font-weight: var(--type-label-mono-weight);
+  letter-spacing: var(--type-label-mono-letter-spacing);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.masthead__sub {
+  margin-top: var(--space-3);
+}
+
+.masthead__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex: none;
+}
+
+.masthead__live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.masthead__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
