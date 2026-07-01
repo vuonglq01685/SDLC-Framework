@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import time
+import urllib.request
 from collections.abc import Generator
 from pathlib import Path
 
@@ -17,7 +18,43 @@ if str(_UNIT_DASHBOARD) not in sys.path:
 
 from _http import http_get  # noqa: E402
 
+# Story 5.12 review (2026-07-01) P1: the a11y composite-fixture URL fixture MUST live
+# in this conftest — not in the non-conftest helper `_playwright_a11y.py` — so pytest
+# can resolve it for the integration test modules (which import only functions from
+# that helper, never the fixture name; a fixture in an imported module is invisible to
+# pytest unless the name is imported or the module is a conftest/plugin). This fixture
+# is Playwright-free (pure HTTP server), so it does not couple the unit tests to a
+# Playwright install.
+_COMPOSITE_FIXTURE = "/static/test-fixtures/editorial-scanning-rhythm.html"
+
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture()
+def dashboard_composite_url(tmp_path: Path) -> Generator[str, None, None]:
+    state_dir = tmp_path / ".claude" / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "state.json").write_text('{"phase":1}', encoding="utf-8")
+    port = find_free_port()
+    server, thread = serve_dashboard_in_thread(repo_root=tmp_path, port=port)
+    base_url = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(
+                f"{base_url}{_COMPOSITE_FIXTURE}",
+                timeout=1,
+            ) as resp:
+                if resp.status == 200:
+                    break
+        except OSError:
+            time.sleep(0.05)
+    else:
+        pytest.fail("dashboard server did not become ready")
+    yield f"{base_url}{_COMPOSITE_FIXTURE}"
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=5)
 
 
 @pytest.fixture()

@@ -5,6 +5,23 @@ Scans dashboard static HTML/CSS/JS for deliberately-absent UX patterns:
 modals/dialogs, in-app forms, toasts, client-side routing (``history.pushState``),
 and skeleton-loader class hints.
 
+The scan is document-level and quote/comment-aware (Story 5.12 review 2026-07-01,
+D1→(a)/P4), mirroring the sibling ``check_dashboard_color_only.py`` idiom:
+
+* JS is scanned after blanking ``//`` / ``/* */`` comments AND ``'..'``/``".."``
+  string literals, so a forbidden token merely *mentioned* in a string or a
+  trailing comment (exactly what §7.12 invites contributors to write) does not
+  false-trip the release-blocking gate. Template/regex literals are intentionally
+  left as code so a real ``history.pushState(`` inside a ``${...}`` interpolation
+  is still caught (a HARD gate prefers a false positive over a missed router call).
+  ``history . pushState`` / ``history\n.pushState`` (whitespace/newline around the
+  dot) are caught too.
+* HTML element/attribute tokens are matched only inside ``<...>`` tags (text between
+  tags is blanked), so ``<td>data-toast</td>`` visible copy is not flagged.
+* Inline ``<script>`` / ``<style>`` blocks inside ``.html`` are extracted and run
+  through the JS / CSS rules, so a literal ``history.pushState(`` in an inline
+  script or a ``.skeleton`` selector in an inline style cannot sneak through.
+
 Usage: ``uv run python scripts/check_dashboard_forbidden_patterns.py [path ...]``
 No args: scans ``src/sdlc/dashboard/static`` recursively.
 Exit 0 = clean; exit 1 = violations (``file:line:col``); exit 2 = explicit path not found.
@@ -39,8 +56,10 @@ _HTML_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # `<form-row>`) are NOT false-flagged as the forbidden element.
     (re.compile(r"<\s*dialog(?![\w-])", re.IGNORECASE), "<dialog>"),
     (re.compile(r"<\s*modal(?![\w-])", re.IGNORECASE), "<modal>"),
-    # Bare/boolean `data-toast` (no `=` required) also forbidden.
-    (re.compile(r"\bdata-toast\b", re.IGNORECASE), "data-toast attribute"),
+    # `data-toast` attribute (boolean form has no `=`). `(?<![\w-])…(?![\w-])`
+    # bounds it to a whole attribute token, so `data-toast-card` / `x-data-toast`
+    # class names or hyphenated attrs are NOT false-flagged (P3).
+    (re.compile(r"(?<![\w-])data-toast(?![\w-])", re.IGNORECASE), "data-toast attribute"),
     (re.compile(r"<\s*form(?![\w-])", re.IGNORECASE), "<form> (in-app)"),
 )
 
@@ -53,16 +72,11 @@ _CSS_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
 )
 
-# JS comments are blanked (mirrors HTML/CSS) so a §7.12 doc comment (e.g.
-# "// we never call history.pushState") does not false-trip the gate. Only block
-# comments and whole-line `//` comments are stripped — never inline trailing
-# comments, to avoid blanking past a real call on the same line.
-_JS_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-_JS_LINE_COMMENT = re.compile(r"(?m)^[ \t]*//[^\n]*")
-
 _JS_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"history\.pushState\s*\("), "history.pushState (client router)"),
-    (re.compile(r"history\.replaceState\s*\("), "history.replaceState (client router)"),
+    # Whitespace/newline tolerant around the dot so `history .pushState(` and a
+    # method-chain-split `history\n.pushState(` are caught on the blanked document.
+    (re.compile(r"history\s*\.\s*pushState\s*\("), "history.pushState (client router)"),
+    (re.compile(r"history\s*\.\s*replaceState\s*\("), "history.replaceState (client router)"),
 )
 
 _HTML_CLASS_ATTR = re.compile(
@@ -70,9 +84,27 @@ _HTML_CLASS_ATTR = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+# Inline `<script>…</script>` / `<style>…</style>` blocks inside an HTML document.
+_INLINE_SCRIPT = re.compile(r"<script\b[^>]*>(.*?)</script\s*>", re.DOTALL | re.IGNORECASE)
+_INLINE_STYLE = re.compile(r"<style\b[^>]*>(.*?)</style\s*>", re.DOTALL | re.IGNORECASE)
+_INLINE_BLOCK = re.compile(r"<(script|style)\b.*?</\1\s*>", re.DOTALL | re.IGNORECASE)
+
+# JS comments + `'..'`/`".."` string literals — blanked before matching so a token
+# merely mentioned in a string or trailing comment does not false-trip the gate.
+# Template and regex literals are deliberately NOT matched (see `_blank_js_noncode`).
+_JS_NONCODE = re.compile(
+    r"""//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'""",
+    re.DOTALL,
+)
+
 
 def _blank_comment(match: re.Match[str]) -> str:
     return re.sub(r"[^\n]", " ", match.group(0))
+
+
+def _blank_run(text: str) -> str:
+    """Blank every non-newline char in ``text`` (preserving line structure)."""
+    return re.sub(r"[^\n]", " ", text)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,25 +144,76 @@ def _line_col(text: str, idx: int) -> tuple[int, int]:
     return line, col
 
 
-def _scan_line_patterns(
+def _blank_js_noncode(text: str) -> str:
+    """Blank JS ``//``/``/* */`` comments and ``'..'``/``".."`` string literals.
+
+    Length and newlines are preserved (``_blank_comment`` blanks only non-newlines)
+    so ``_line_col`` stays accurate. The alternation is scanned left-to-right, so a
+    ``//`` inside a string (``"http://x"``) is consumed by the string branch, not
+    read as a comment. Template and regex literals are deliberately left as code so a
+    real ``history.pushState(`` inside a ``${...}`` interpolation is still flagged —
+    a HARD gate prefers a false positive over a missed router call.
+    """
+    return _JS_NONCODE.sub(_blank_comment, text)
+
+
+def _mask_to_span(text: str, start: int, end: int) -> str:
+    """Return ``text`` with everything outside ``[start, end)`` blanked to spaces.
+
+    Positions inside the window are preserved, so ``_line_col`` on a match within
+    the window still yields the correct line/column in the original document.
+    """
+    return _blank_run(text[:start]) + text[start:end] + _blank_run(text[end:])
+
+
+def _blank_inline_blocks(text: str) -> str:
+    """Blank whole ``<script>``/``<style>`` blocks (their JS/CSS is scanned apart)."""
+    return _INLINE_BLOCK.sub(_blank_comment, text)
+
+
+def _advance_html_scan(ch: str, in_tag: bool, quote: str | None) -> tuple[bool, str | None, bool]:
+    """One-char transition for the tag-only scan: ``(in_tag, quote, keep_char)``."""
+    if quote is not None:
+        return in_tag, (None if ch == quote else quote), True
+    if in_tag:
+        if ch in ("'", '"'):
+            return True, ch, True
+        if ch == ">":
+            return False, None, True
+        return True, None, True
+    if ch == "<":
+        return True, None, True
+    return False, None, False
+
+
+def _tags_only_view(text: str) -> str:
+    """Blank HTML text nodes and whole ``<script>``/``<style>`` blocks.
+
+    What remains are the ``<...>`` tag interiors, so element/attribute patterns
+    match only real markup — a forbidden token in visible text (``<td>data-toast``)
+    or inside inline JS/CSS (scanned separately) does not false-trip the gate.
+    """
+    stripped = _blank_inline_blocks(text)
+    result = list(stripped)
+    in_tag = False
+    quote: str | None = None
+    for i, ch in enumerate(stripped):
+        in_tag, quote, keep = _advance_html_scan(ch, in_tag, quote)
+        if not keep and ch != "\n":
+            result[i] = " "
+    return "".join(result)
+
+
+def _match_patterns(
     path: Path,
     text: str,
     patterns: tuple[tuple[re.Pattern[str], str], ...],
 ) -> list[ForbiddenViolation]:
     violations: list[ForbiddenViolation] = []
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        for pattern, label in patterns:
-            match = pattern.search(line)
-            if match is not None:
-                violations.append(
-                    ForbiddenViolation(
-                        path=path,
-                        line=lineno,
-                        pattern=label,
-                        col=match.start() + 1,
-                    )
-                )
-                break
+    for pattern, label in patterns:
+        for match in pattern.finditer(text):
+            line, col = _line_col(text, match.start())
+            violations.append(ForbiddenViolation(path=path, line=line, pattern=label, col=col))
     return violations
 
 
@@ -140,7 +223,10 @@ def _scan_html_class_skeleton(path: Path, text: str) -> list[ForbiddenViolation]
         classes = match.group("classes")
         skeleton = _SKELETON_CLASS_RE.search(classes)
         if skeleton is not None:
-            line, col = _line_col(text, match.start() + skeleton.start())
+            # Anchor on the class VALUE start (`match.start("classes")`), not the
+            # start of the whole `class="…"` match, so the column names the actual
+            # skeleton token (P2 — previously undercounted by len('class="')).
+            line, col = _line_col(text, match.start("classes") + skeleton.start())
             violations.append(
                 ForbiddenViolation(
                     path=path,
@@ -152,22 +238,31 @@ def _scan_html_class_skeleton(path: Path, text: str) -> list[ForbiddenViolation]
     return violations
 
 
-def _scan_html(path: Path, text: str) -> list[ForbiddenViolation]:
-    stripped = _HTML_COMMENT.sub(_blank_comment, text)
-    violations = _scan_line_patterns(path, stripped, _HTML_PATTERNS)
-    violations.extend(_scan_html_class_skeleton(path, stripped))
-    return violations
+def _scan_js_text(path: Path, text: str) -> list[ForbiddenViolation]:
+    return _match_patterns(path, _blank_js_noncode(text), _JS_PATTERNS)
 
 
-def _scan_css(path: Path, text: str) -> list[ForbiddenViolation]:
+def _scan_css_text(path: Path, text: str) -> list[ForbiddenViolation]:
     stripped = _CSS_COMMENT.sub(_blank_comment, text)
-    return _scan_line_patterns(path, stripped, _CSS_PATTERNS)
+    return _match_patterns(path, stripped, _CSS_PATTERNS)
 
 
-def _scan_js(path: Path, text: str) -> list[ForbiddenViolation]:
-    stripped = _JS_BLOCK_COMMENT.sub(_blank_comment, text)
-    stripped = _JS_LINE_COMMENT.sub(_blank_comment, stripped)
-    return _scan_line_patterns(path, stripped, _JS_PATTERNS)
+def _scan_html(path: Path, text: str) -> list[ForbiddenViolation]:
+    no_comments = _HTML_COMMENT.sub(_blank_comment, text)
+    violations: list[ForbiddenViolation] = []
+    # Inline <script>/<style> blocks -> JS/CSS rules (positions kept via masking).
+    for match in _INLINE_SCRIPT.finditer(no_comments):
+        start, end = match.span(1)
+        violations.extend(_scan_js_text(path, _mask_to_span(no_comments, start, end)))
+    for match in _INLINE_STYLE.finditer(no_comments):
+        start, end = match.span(1)
+        violations.extend(_scan_css_text(path, _mask_to_span(no_comments, start, end)))
+    # Element / attribute tokens + skeleton class on the tag-only view.
+    tags_only = _tags_only_view(no_comments)
+    violations.extend(_match_patterns(path, tags_only, _HTML_PATTERNS))
+    violations.extend(_scan_html_class_skeleton(path, tags_only))
+    violations.sort(key=lambda v: (v.line, v.col))
+    return violations
 
 
 def scan_paths(paths: list[Path]) -> list[ForbiddenViolation]:
@@ -180,9 +275,9 @@ def scan_paths(paths: list[Path]) -> list[ForbiddenViolation]:
         if suffix == ".html":
             violations.extend(_scan_html(path, text))
         elif suffix == ".css":
-            violations.extend(_scan_css(path, text))
+            violations.extend(_scan_css_text(path, text))
         elif suffix in _JS_SUFFIXES:
-            violations.extend(_scan_js(path, text))
+            violations.extend(_scan_js_text(path, text))
     return violations
 
 
