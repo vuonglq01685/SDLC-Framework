@@ -1,22 +1,23 @@
-"""Shared Playwright helpers for dashboard a11y tests (Story 5.12)."""
+"""Shared Playwright helpers for dashboard a11y tests (Story 5.12).
+
+The ``dashboard_composite_url`` fixture lives in ``tests/dashboard/conftest.py``
+(not here) so pytest can resolve it for the integration modules that import only
+these functions — a fixture defined in an imported non-conftest module is invisible
+to pytest. See Story 5.12 review (2026-07-01) P1.
+"""
 
 from __future__ import annotations
 
-import time
-import urllib.request
-from collections.abc import Generator, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 
-from sdlc.dashboard.server import find_free_port, serve_dashboard_in_thread
-
 pytest.importorskip("playwright")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _AXE_VENDOR = _REPO_ROOT / "tests" / "dashboard" / "vendor" / "axe.min.js"
-_COMPOSITE_FIXTURE = "/static/test-fixtures/editorial-scanning-rhythm.html"
 
 # D2: Level A tags only — there is NO wcag22a tag in axe-core.
 AXE_BLOCK_TAGS = frozenset({"wcag2a", "wcag21a"})
@@ -31,33 +32,6 @@ AXE_OPTIONS = {
     "runOnly": {"type": "tag", "values": AXE_RUN_TAGS},
     "resultTypes": ["violations"],
 }
-
-
-@pytest.fixture()
-def dashboard_composite_url(tmp_path: Path) -> Generator[str, None, None]:
-    state_dir = tmp_path / ".claude" / "state"
-    state_dir.mkdir(parents=True)
-    (state_dir / "state.json").write_text('{"phase":1}', encoding="utf-8")
-    port = find_free_port()
-    server, thread = serve_dashboard_in_thread(repo_root=tmp_path, port=port)
-    base_url = f"http://127.0.0.1:{port}"
-    deadline = time.monotonic() + 5.0
-    while time.monotonic() < deadline:
-        try:
-            with urllib.request.urlopen(
-                f"{base_url}{_COMPOSITE_FIXTURE}",
-                timeout=1,
-            ) as resp:
-                if resp.status == 200:
-                    break
-        except OSError:
-            time.sleep(0.05)
-    else:
-        pytest.fail("dashboard server did not become ready")
-    yield f"{base_url}{_COMPOSITE_FIXTURE}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
 
 
 @contextmanager
