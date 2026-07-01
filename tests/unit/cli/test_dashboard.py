@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -32,5 +32,7 @@ class TestDashboardCli:
             serve_mock.side_effect = KeyboardInterrupt
             result = runner.invoke(app, ["dashboard", "--port", "9999"])
         assert result.exit_code == 0
-        serve_mock.assert_called_once_with(repo_root=tmp_path, port=9999)
+        # Story 5.13 D1: run_dashboard now injects a git-log provider (git_dora_log bound
+        # to repo_root) so the dashboard server stays subprocess-free / cli-free.
+        serve_mock.assert_called_once_with(repo_root=tmp_path, port=9999, git_log_provider=ANY)
         assert "serving on http://127.0.0.1:9999" in result.stdout

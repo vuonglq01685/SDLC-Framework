@@ -48,6 +48,10 @@ _SUBPROCESS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # Story 3.2 D2: adopt Pass 1 recency signal — git log read in the cli layer
         # (adopt/ has no git grant), injected into detect_existing(root, git_signal=...).
         ("src/sdlc/cli/_git_recency.py", "git"),
+        # Story 5.13 D1: DORA git-log read in the cli layer (dashboard/telemetry have no
+        # git grant), injected into the dashboard server via git_log_provider — mirrors
+        # the _git_recency.py precedent exactly (arg-list, 5s timeout, check=False).
+        ("src/sdlc/cli/_git_dora.py", "git"),
         ("src/sdlc/hooks/runner.py", _DYNAMIC_BIN),
         ("src/sdlc/hooks/runner.py", "git"),
         ("src/sdlc/claude_hooks/pre_tool_use.py", "sdlc"),
