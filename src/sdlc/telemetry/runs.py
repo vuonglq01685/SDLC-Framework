@@ -19,10 +19,14 @@ P23: shared serialization helper (eliminate POSIX/Win32 duplication).
 from __future__ import annotations
 
 import json
+import logging
 import sys
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
+
+_logger = logging.getLogger(__name__)
 
 _VALID_OUTCOMES: frozenset[str] = frozenset({"success", "failed"})
 _VALID_TARGET_KINDS: frozenset[str] = frozenset({"primary", "parallel", "synthesizer"})
@@ -246,4 +250,51 @@ else:
             fh.write(line)
 
 
-__all__: tuple[str, ...] = ("record_agent_run",)
+def iter_agent_run_records(path: Path) -> Iterator[dict[str, Any]]:
+    """Yield agent_run records from ``path`` (telemetry-owned reader seam, Story 5.13 D2).
+
+    Mirrors ``cli/_agent_runs.py::iter_agent_runs`` (missing file → empty iterator;
+    malformed JSON line → WARNING + skip; non-object line → WARNING + skip) with one
+    hardening: the file is opened ``errors="replace"`` so a single undecodable byte
+    becomes U+FFFD instead of raising ``UnicodeDecodeError`` — a ``ValueError`` (not
+    an ``OSError``) that would otherwise escape ``compute_dora_window``'s
+    ``except OSError`` guard and drop the ``/api/dora`` connection (code-review P1,
+    2026-07-01). Kept telemetry-local — ``telemetry/`` may not import ``cli/`` — so
+    ``telemetry/dora.py`` can consume agent_runs.jsonl without crossing the
+    module boundary (D2 recommendation (a)).
+    """
+    # Open eagerly so a vanished file (TOCTOU between exists/open) is treated
+    # the same as "missing → empty" instead of bubbling FileNotFoundError.
+    try:
+        fh = path.open("r", encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise OSError(f"agent_runs read failed at {path}: {exc}") from exc
+    with fh:
+        for lineno, line in enumerate(fh, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                raw: object = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                _logger.warning(
+                    "malformed agent_runs line at %s:%d: %s — skipping",
+                    path,
+                    lineno,
+                    exc,
+                )
+                continue
+            if not isinstance(raw, dict):
+                _logger.warning(
+                    "non-object agent_runs line at %s:%d (got %s) — skipping",
+                    path,
+                    lineno,
+                    type(raw).__name__,
+                )
+                continue
+            yield raw
+
+
+__all__: tuple[str, ...] = ("iter_agent_run_records", "record_agent_run")
