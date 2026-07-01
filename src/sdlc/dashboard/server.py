@@ -5,6 +5,7 @@ from __future__ import annotations
 import mimetypes
 import socket
 import threading
+from collections.abc import Callable, Sequence
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,6 +16,7 @@ from sdlc.dashboard.router import RequestContext, Response, Router
 from sdlc.dashboard.routes.dora import register_dora_route
 from sdlc.dashboard.routes.state import register_state_route
 from sdlc.errors import SecurityError
+from sdlc.telemetry.dora import GitCommitTuple
 
 _BIND_FORBIDDEN_MESSAGE: Final[str] = (
     "dashboard must bind localhost only; remote access not supported in v1"
@@ -86,10 +88,14 @@ def validate_host_header(host_header: str | None, *, port: int) -> bool:
     return True
 
 
-def build_router(*, repo_root: Path) -> Router:
+def build_router(
+    *,
+    repo_root: Path,
+    git_log_provider: Callable[[], Sequence[GitCommitTuple]] | None = None,
+) -> Router:
     router = Router()
     register_state_route(router, repo_root=repo_root)
-    register_dora_route(router)
+    register_dora_route(router, repo_root=repo_root, git_log_provider=git_log_provider)
     return router
 
 
@@ -224,9 +230,10 @@ def create_server(
     repo_root: Path,
     host: str = _LOCALHOST_BIND,
     port: int = 8765,
+    git_log_provider: Callable[[], Sequence[GitCommitTuple]] | None = None,
 ) -> DashboardHTTPServer:
     validate_bind_host(host)
-    router = build_router(repo_root=repo_root)
+    router = build_router(repo_root=repo_root, git_log_provider=git_log_provider)
     static_dir = static_root()
 
     handler_cls = cast(
@@ -250,9 +257,17 @@ def create_server(
     return server
 
 
-def serve_dashboard(*, repo_root: Path, host: str = _LOCALHOST_BIND, port: int = 8765) -> None:
+def serve_dashboard(
+    *,
+    repo_root: Path,
+    host: str = _LOCALHOST_BIND,
+    port: int = 8765,
+    git_log_provider: Callable[[], Sequence[GitCommitTuple]] | None = None,
+) -> None:
     """Block serving the dashboard until interrupted."""
-    server = create_server(repo_root=repo_root, host=host, port=port)
+    server = create_server(
+        repo_root=repo_root, host=host, port=port, git_log_provider=git_log_provider
+    )
     try:
         server.serve_forever()
     finally:
@@ -271,9 +286,12 @@ def serve_dashboard_in_thread(
     repo_root: Path,
     port: int,
     host: str = _LOCALHOST_BIND,
+    git_log_provider: Callable[[], Sequence[GitCommitTuple]] | None = None,
 ) -> tuple[DashboardHTTPServer, threading.Thread]:
     """Start the dashboard in a daemon thread (tests)."""
-    server = create_server(repo_root=repo_root, host=host, port=port)
+    server = create_server(
+        repo_root=repo_root, host=host, port=port, git_log_provider=git_log_provider
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, thread
