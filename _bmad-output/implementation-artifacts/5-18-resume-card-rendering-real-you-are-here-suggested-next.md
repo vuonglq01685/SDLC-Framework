@@ -1,0 +1,189 @@
+# Story 5.18: Resume Card Rendering Real "You Are Here" + Suggested-Next
+
+Status: ready-for-dev
+
+<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+<!-- Layer: Epic-5 DAG L6 (5B). L6 = {5.13, 5.14, 5.15, 5.16, 5.18}; cap 4 → 2 batches. **batch 1 = {5.14, 5.15, 5.16, 5.18}** (the four independent 1:1 real-data swaps, parallel, cap-saturating); batch 2 = {5.13} rebased on batch 1 (epic-5-dag.md §3:225-228, §5:329). Worktree: epic-5/5-18-resume-card-real-you-are-here. Owner Sally. Depends on the 5A twin **5.8** (resume-card shell + inverted-command + copy button + DD-07 greeting FROZEN, done+merged) via edge 5.8→5.18 (dag §2:242), AND the external wave gate **E2A → 5.18** which bundles Epic 1 **1.7 ResumeToken** (wire contract) + **1.17 `sdlc status`** suggested-next logic (dag §2:174,194-196; §6:296). Downstream: **5.18 → 5.22** (terminal a11y release gate — 5.18 is the full-real-data baseline 5.22 builds on; dag §3:219, §2:243). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). Review focus: **data-validation** — reads untrusted `state.json` content (`resume_token.cursor` is an arbitrary `Mapping[str, object]`) (dag §6:296, §9:441-442). WAVE-BOUNDARY VERIFY (before branching): the 1.7 ResumeToken shape + the 1.17 `sdlc status` suggested-next logic exist and are done+merged — see Decisions D1/D2 for the seam gaps found during verification. Zero ResumeToken contract-shape edit → freeze stays 7/7 (ResumeToken read-only). This swaps the 5.8 DATA SOURCE only — do NOT build real feed (5.16) / STOP banner (5.19) / disconnection (5.20). -->
+
+## Story
+
+As Diep onboarding mid-stream,
+I want the Resume Card (Story 5.8) reading real "you are here" breadcrumb from `state.json`'s resume token + suggested-next from the engine's next-action recommendation (`sdlc status`'s logic),
+So that the dashboard variant of `sdlc status` (FR44) works in the browser.
+
+## Acceptance Criteria
+
+> Copied verbatim from `_bmad-output/planning-artifacts/epics.md` (Epic 5, Story 5.18, lines 2802–2812).
+
+**Given** state.json's `resume_token` (`ResumeToken` contract from Story 1.7)
+**When** the Resume Card renders
+**Then** the breadcrumb matches the resume_token: `Phase {N} / {EPIC-id} / {STORY-id} / {stage}`
+**And** the suggested-next command is the same one `sdlc status` would print (Story 1.17)
+
+**Given** state changes (e.g., a task transitions stage)
+**When** the dashboard polls
+**Then** the Resume Card updates within one poll cycle
+**And** the copy button (Story 5.8) copies the new suggested-next correctly
+
+## Tasks / Subtasks
+
+> **TDD-first surface (CONTRIBUTING §2):** every AC clause is a testable contract → tests-first. **(AC clause 1) breadcrumb == `Phase {N} / {EPIC-id} / {STORY-id} / {stage}` derived from `resume_token`** — a pure transform over a validated token → unit test the assembly + a static/DOM contract that the rendered breadcrumb equals the token projection. **(AC clause 2) suggested-next == `sdlc status`** — assert the SAME function feeds both `sdlc status` output and the dashboard's `resume_token.suggested_next_command` (single-source; a parity test, not two re-derivations). **(AC clause 3) update within one poll cycle** — Playwright: mutate the served `state.json`, advance one poll, assert the breadcrumb + command change without a full page reload. **(AC clause 4) copy copies the NEW command** — Playwright: after a poll swaps the command, stub `clipboard.writeText`, click copy, assert it receives the *new* normalized command. The card CSS/overflow is `test-along`. Resolve Decisions D1–D5 BEFORE coding.
+
+- [ ] **Task 0 — Resolve Decisions D1 (resume_token source seam: extend state projection vs `dashboard/routes/resume.py` vs client re-derive) + D2 (suggested-next single-source: lift `sdlc status`'s `_compute_suggested_next` to a boundary-legal shared module) + D3 (breadcrumb assembly from untrusted `cursor` — server-side validated ordered list) + D4 (poll wiring: reuse the shared `/state.json` poll loop) + D5 (interior-newline command safety) BEFORE coding** (AC: all)
+  - [ ] Record picks in the PR Change Log (CONTRIBUTING §5). These 5 decisions are load-bearing because verification found the AC premise is NOT yet realized in the codebase (see Dev Notes → "Wave-boundary verification"): `state.json` does not currently project a `resume_token`, and the `sdlc status` suggested-next logic lives in `cli/` which the `dashboard/` module is forbidden to import. Raise D1/D2 as D-labels for PO/architect ratification before branching.
+
+- [ ] **Task 1 — Server-side `resume_token` producer + suggested-next single-source (D1, D2, D3)** (AC: 1) — *tests-first*
+  - [ ] **D2 single-source:** lift the exact `sdlc status` suggested-next computation (`cli/status.py::_compute_suggested_next`, the v1.17 stub returning `/sdlc-start "<idea>"` for a fresh phase-1/no-epics project else `sdlc scan`) into a boundary-legal shared helper importable by BOTH `cli/status.py` and the resume-token producer; re-point `sdlc status` to delegate to it so "same command" is guaranteed **by construction**, not by parallel re-derivation. Do **NOT** substitute the richer `engine.next_selector.resolve_next_action` (Story 4.1 `/sdlc-next` engine) — the AC binds to `sdlc status`'s logic (1.17), which is the stub. [status.py:108-116,162,187; next_selector.py:140-171]
+  - [ ] **D1 seam:** emit a `resume_token` object (`ResumeToken` shape: `phase`, `cursor`, `suggested_next_command`, `state_hash`) that reaches the dashboard through the existing **reader seam** — either projected into `state.json` (read via `GET /state.json`, dashboard/routes/state.py) or served by a new `dashboard/routes/resume.py` (architecture:1170 names this route). Client MUST NOT re-parse raw state to re-derive the token (one-way module edge `dashboard → state`/`journal`, never re-compute engine logic client-side). [resume_token.py:14-38; routes/state.py:15-40; architecture:1170]
+  - [ ] **D3 breadcrumb assembly:** build the breadcrumb parts from the token defensively — `Phase {phase}` from `resume_token.phase`, then `{EPIC-id}`, `{STORY-id}`, `{stage}` from `resume_token.cursor` keys (`epic_id`/`story_id`/`stage` per architecture:611). `cursor` is an **untrusted** `Mapping[str, object]` with OPTIONAL keys and arbitrary values — coerce each present part to a trimmed string, skip/placeholder missing parts, never `undefined`/`[object Object]`. Assemble as a validated ordered list at the boundary. [resume_token.py:19,30-33; architecture:611]
+  - [ ] **Freeze:** the `ResumeToken` contract shape is NOT edited (read-only). Regenerate NOTHING in `tests/contract_snapshots/v1/`; assert `resume_token.json` snapshot is byte-identical → **freeze stays 7/7**. (Extending the `State` projection model to carry `resume_token`, if D1(a), is a `State`-model change within `schema_version=1` — NOT one of the 7 frozen wire-contract snapshots — so it does not touch the freeze.) [tests/contract_snapshots/v1/resume_token.json; state/model.py:10-36]
+
+- [ ] **Task 2 — Resume Card reads the REAL `resume_token` breadcrumb (swap the 5.8 synthetic source)** (AC: 1) — *tests-first*
+  - [ ] Replace the `SYNTHETIC_RESUME_FIXTURE` data source (resume-card.js:183-189) with the real `resume_token` delivered via the D1 seam. Keep the 5.8 render pipeline (`renderResumeCard` / `parseBreadcrumb` / `formatBreadcrumb`) — feed it the validated breadcrumb array from D3 so the rendered `.resume-card__breadcrumb` reads exactly `Phase {N} / {EPIC-id} / {STORY-id} / {stage}`. `parseBreadcrumb` already accepts an array (resume-card.js:44-46) and `formatBreadcrumb` joins with " / " (resume-card.js:64-66). [resume-card.js:43-66,135-138,183-224]
+  - [ ] **Data-validation (untrusted content):** render with `textContent` only (no `innerHTML`) — the 5.8 card is already textContent-only; preserve that (no XSS from a hostile `cursor` value). Missing/empty breadcrumb parts render a placeholder or collapse cleanly, never the literal `"undefined"`. Test: a token with a partial `cursor` (missing `story_id`) renders a valid breadcrumb; a hostile `cursor` value (e.g. `<img onerror>`) renders inert text.
+
+- [ ] **Task 3 — Suggested-next command == `sdlc status` + interior-newline safety (D5, DEF-1)** (AC: 1) — *tests-first*
+  - [ ] Render `resume_token.suggested_next_command` into the inverted-command surface (the 5.8 `.inverted-command` line). **Parity test:** assert the rendered command === the string `sdlc status` prints for the same state (drive the D2 shared helper from both and compare) — NOT two independent derivations. [status.py:108-116; resume-card.js:156-158]
+  - [ ] **D5 / DEF-1 interior-newline safety (now load-bearing):** the real command is untrusted state content. Harden `normalizeCommand` (resume-card.js:14-21) — it currently strips only leading/trailing whitespace + a shell prefix and **preserves interior newlines**, so a multi-line value pastes-and-auto-executes up to the first `\n`. Collapse interior newlines to a single space (`replace(/\s*\n\s*/gu, " ")`) — or reject multi-line — so the copyable string is always single-line. Unit-test: `"a\nb"` → `"a b"` (no embedded newline). [resume-card.js:14-21; deferred-work.md:907 (5.8 DEF-1)]
+
+- [ ] **Task 4 — Poll-cycle update + re-entrancy guard + AbortController (D4, masthead DEF-1/DEF-3)** (AC: 2) — *tests-first*
+  - [ ] Wire the Resume Card to update within **one poll cycle** on state change. **D4:** reuse the SAME shared `/state.json` poll loop the masthead already drives (`pollStateJson` + `startMastheadPoller`, masthead.js:80-88,158+) — one fetch feeds masthead + resume card (no second poll, no double ETag). [masthead.js:80-88]
+  - [ ] **masthead DEF-1 (now load-bearing — real polling):** add an **in-flight re-entrancy guard** (skip a tick while one is pending) + an **`AbortController`** aborted on `disconnectedCallback`, so a `/state.json` response slower than the interval cannot overlap/reorder renders and a late resolve cannot mutate a detached card. [masthead.js:138-149; deferred-work.md:897 (5.6 DEF-1)]
+  - [ ] **masthead DEF-3 (real polling):** render a neutral initial/loading state on connect BEFORE the first successful poll (don't leave the card blank if the first response is a 304). [masthead.js:138-146; deferred-work.md:899 (5.6 DEF-3)]
+  - [ ] Playwright: serve `state.json` v1, mount, assert breadcrumb+command #1; swap to `state.json` v2 (a task transitions stage), advance ONE poll, assert breadcrumb+command update in place (no reload, existing DOM identity preserved where unchanged).
+
+- [ ] **Task 5 — Copy button copies the NEW suggested-next + long-command overflow (DEF-4)** (AC: 2) — *tests-first*
+  - [ ] The 5.8 copy button (Clipboard API + `copy`→`check` 1s icon-swap + `aria-live="polite"`) must copy the **current** command after a poll swaps it — verify `bindCopyButton` reads the live command, not a stale closure captured at first bind (resume-card.js:87-110,171). Playwright: after Task 4's poll swap, stub `clipboard.writeText`, click copy, assert it receives the NEW normalized command (and the `copy`→`check` swap + polite announcement still fire). [resume-card.js:87-110,171]
+  - [ ] **DEF-4 long-command overflow:** real commands can be long. Add a defined overflow policy to `.inverted-command__text` (`overflow-x: auto` or ellipsis + explicit `white-space`) so a long command does not overflow/awkwardly-wrap the dark pill. Component CSS uses `var(--*)` only (5.2 stylelint gate). [inverted-command.css:17-28; deferred-work.md:910 (5.8 DEF-4)]
+
+- [ ] **Task 6 — Render coalescing + lifecycle timer + aria-live poll wrap (DEF-8, DEF-5) + phase range-validate (DEF-2)** (AC: 1, 2) — *tests-first*
+  - [ ] **DEF-8 (HIGH-in-code, latent-in-5.8 — now live with the real attributed card):** the real Resume Card carries attributes AND a storage-based DD-07 greeting, so `attributeChangedCallback` running a full synchronous `_render` per observed attribute (resume-card.js:200-204) burns the once-per-session greeting flag across N renders and leaves an uncancelled copy-feedback `setTimeout`. Fix: **coalesce renders** (microtask-debounced `_render` with a pending guard so a multi-attribute upgrade renders once), **lift the copy-feedback timer to the instance**, and add a **`disconnectedCallback`** that clears it. Test: an attributed first-session card renders once and shows the greeting exactly once. [resume-card.js:118-124,197-204,88-107; deferred-work.md:914 (5.8 DEF-8)]
+  - [ ] **DEF-5 poll-update announcement:** the 5.8 `ensureLiveRegion` (resume-card.js:68-78) is used only for the "copied to clipboard" message; the breadcrumb+command are not in any live region, so §6.4's "announce updates after polling" is unrealized. Wrap breadcrumb+command in an `aria-live="polite"` region for real poll-driven updates. [resume-card.js:68-79; deferred-work.md:911 (5.8 DEF-5)]
+  - [ ] **masthead DEF-2 range-validate:** `resume_token.phase` (and any progress value reused from state) feeds the breadcrumb `Phase {N}` — range-validate it (`phase` is `int, ge=0` on the contract, but the projected/served JSON is untrusted at the client edge). Clamp/floor a nonsensical `phase` rather than rendering `Phase -1`. [masthead.js:61-62; deferred-work.md:898 (5.6 DEF-2); resume_token.py:18]
+
+- [ ] **Task 7 — Committed fixtures + tests (fold DEF-7 boundary gaps) + packaging + quality gate + freeze** (AC: 1, 2) — *tests-first*
+  - [ ] Commit real-shaped `resume_token` fixtures (valid; partial `cursor`; hostile-value `cursor`; multi-line command; long command) driving the unit + Playwright tests above. Mirror the 5.8 test surface (`tests/unit/dashboard/test_resume_card_fixture.py`, `tests/integration/test_dashboard_resume_card.py`) + the gate-import pattern (`tests/conftest.py` puts `scripts/` on `sys.path`). **DEF-7:** cover the previously-gapped boundary paths — greeting on an attributed first-session card, clipboard-failure path, rapid double-click race, `normalizeCommand` boundaries (interior newline / `null` / prefixes / empty), sessionStorage-throws. [deferred-work.md:913 (5.8 DEF-7)]
+  - [ ] Add any new static files (fixtures) to the `force-include` block [pyproject.toml]. Component CSS uses `var(--*)` only (5.2 stylelint); run DD-14 motion gate (icon swap is a content delta — NO `transition:`), DD-08 no-framework, DD-09 no-data-theme, 5.5 color-only gate.
+  - [ ] Python quality gate on any new `scripts/*.py`/`src`/tests (ruff + ruff format + mypy --strict); run `check_module_boundaries.py` (the `dashboard → state`/`journal` one-way edge + the D2 shared-helper placement MUST pass; `dashboard → cli` is forbidden); full pytest + coverage ≥ 87%; `mkdocs build --strict` green; **zero wire-format change → freeze stays 7/7** (ResumeToken read-only; `resume_token.json` snapshot unchanged). [scripts/module_boundary_table.py:142-172; check_module_boundaries.py:122-160]
+
+## Dev Notes
+
+### Wave-boundary verification (E2A → 5.18) — READ FIRST
+
+The `E2A → 5.18` gate requires verifying the Epic 1 shapes exist before branching (dag §2:174,194-196). Verification against the live codebase found the AC premise is **partially unrealized** — this is the central risk and drives D1/D2:
+
+- **1.7 `ResumeToken` EXISTS as a frozen wire contract** [src/sdlc/contracts/resume_token.py:14-38] but is **never constructed in production code** (no `ResumeToken(...)` builder anywhere in `src/sdlc/`; the only sites are the contract definition + its unit test). The `State` projection model has **no `resume_token` field** and `extra="forbid"` [state/model.py:10-36], and `project_from_journal` emits only `next_monotonic_seq`/`epics`/`auto_loop_status`/`stop_reason` [state/projection.py:113-167]. **⇒ `state.json` does NOT currently carry a `resume_token`.** The AC's "Given state.json's `resume_token`" needs a producer (D1).
+- **1.17 `sdlc status` suggested-next EXISTS** as `_compute_suggested_next` [cli/status.py:108-116] (a "minimal v1.17 stub": `/sdlc-start "<idea>"` for a fresh phase-1/no-epics project, else `sdlc scan`; printed at :187, JSON at :176). A **different, richer** engine `resolve_next_action` [engine/next_selector.py:140-171] backs `/sdlc-next` (Story 4.1) — do NOT use it; the AC binds to `sdlc status`'s logic.
+- **Module-boundary blocker:** `dashboard` `depends_on = {errors, state, journal, telemetry, signoff, config, concurrency}` — `cli` is NOT in the set, and `cli` `depends_on` includes `dashboard` [module_boundary_table.py:142-147,148-172]. **⇒ the dashboard cannot import `cli/status.py`** — the suggested-next logic must be surfaced through a boundary-legal seam (D2). Recommended resolution (D1a/D2a): lift the compute into a shared lower module (`state`/`engine`) that both `cli status` and the `resume_token` producer call, and produce the token server-side into the reader seam; the dashboard then only READS it — no client re-derivation, no `cli` import. **This keeps freeze at 7/7** (ResumeToken shape untouched; producing a token is not a contract-shape edit).
+
+### Locked design decisions (verbatim — these govern the story)
+
+- **`ResumeToken` contract (Story 1.7).** Exact fields [src/sdlc/contracts/resume_token.py:17-21]: `schema_version: Literal[1] = 1`; `phase: int = Field(ge=0)`; `cursor: Mapping[str, object]` (frozen to `MappingProxyType`, `strict=False`); `suggested_next_command: str`; `state_hash: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]`. Architecture documents the cursor keys: *"`cursor: dict  # {epic_id?, story_id?, task_id?, stage?}`"* and *"`state_hash: str  # current state.json hash for staleness detection"*. [Source: contracts/resume_token.py:14-38; architecture.md §608-613; §173 "encodes 'you are here' state across sessions; consumed by dashboard, `sdlc status`, auto-loop resumption"]
+- **FR44.** *"A user can read the current resume state via `sdlc status`, which prints a 'you are here' card with the suggested next-action command."* Mapped to `cli/status.py + dashboard/routes/resume.py`. [Source: prd.md:799; architecture.md:1170]
+- **§6.4 Resume Card (breadcrumb + poll updates).** Breadcrumb = Inter 14px `--ink`, slash `/` separators visible; the card *"announces updates after polling"*; the §6.4 Disconnected (ux:1152) + Phase-complete (ux:1153) states depend on real progress and are OUT of scope here (5.20 / deferred). [Source: ux-design-specification.md §6.4:1113-1164; §2.5:439-493] — inherited verbatim by the 5.8 twin.
+- **DD-13 (no-prefix + normalized command).** *"Suggested command is rendered with no prefix marker … The copyable string is the literal command exactly as it should be pasted … Whitespace is normalized; trailing newlines are stripped."* — 5.18 extends normalization to interior newlines for the untrusted real command (D5). [Source: ux-design-specification.md DD-13:501]
+- **DD-11 / DD-12 / DD-07 (inherited from 5.8, unchanged).** Resume card is the defining surface, always visible without scroll at 1280px; copy feedback is a `copy`→`check` 1s icon-swap (content delta, no transition); greeting once per browser session via sessionStorage. 5.18 must NOT regress these. [Source: ux-design-specification.md DD-11:499, DD-12:500, DD-07:256]
+
+### Frozen foundation to consume (do NOT redefine — 5.8 + upstream froze these)
+
+```text
+5.8 resume-card seam (REUSE, swap data source only):
+  resume-card.js:
+    - normalizeCommand(raw)            :14-21  — HARDEN for interior newlines (D5/DEF-1)
+    - parseBreadcrumb(raw)             :43-62  — already accepts an array + "/"-split string
+    - formatBreadcrumb(parts)          :64-66  — joins parts with " / "
+    - ensureLiveRegion(root)           :68-78  — copy-only region; WRAP breadcrumb+command (DEF-5)
+    - bindCopyButton(...)              :87-110 — lift timer to instance, add disconnectedCallback (DEF-8)
+    - renderResumeCard(root,data,...)  :112-181 — textContent-only (no XSS); keep
+    - SYNTHETIC_RESUME_FIXTURE         :183-189 — THE SWAP TARGET → real resume_token
+    - class ResumeCard (attrChanged)   :191-230 — coalesce renders (DEF-8)
+  inverted-command.css:17-28           — add overflow policy for long real commands (DEF-4)
+  createGlyph / <freshness-footer> / .copy-btn:focus-visible — inherited via 5.8, unchanged.
+
+Real upstream (READ-ONLY through the reader seam):
+  ResumeToken wire contract            contracts/resume_token.py:14-38   (freeze 7/7; do NOT edit)
+  sdlc status suggested-next           cli/status.py:108-116             (single-source via D2 shared helper)
+  DO-NOT-USE richer engine             engine/next_selector.py:140-171   (that is /sdlc-next, Story 4.1)
+  Dashboard reader seam                dashboard/routes/state.py:15-40   (GET /state.json + ETag/304)
+  State projection (add resume_token?) state/projection.py:113-167 + state/model.py:10-36  (D1)
+  Shared poll loop                     masthead.js:80-88,158+            (reuse; D4)
+```
+[Source: resume-card.js; inverted-command.css:17-28; contracts/resume_token.py:14-38; cli/status.py:108-116; engine/next_selector.py:140-171; dashboard/routes/state.py:15-40; state/projection.py:113-167; state/model.py:10-36; masthead.js:80-88]
+
+### Decisions (resolve per CONTRIBUTING §5 — record the pick in the PR Change Log)
+
+**D1 — `resume_token` source seam (HIGH / data-validation + architecture).** `state.json` has no `resume_token` today (see Wave-boundary verification). Options: *(a)* extend the state projection to emit a `resume_token` object; the dashboard reads `state.resume_token` from `GET /state.json` via the existing reader seam — no client re-derivation, no `cli` import, boundary-clean; *(b)* add `dashboard/routes/resume.py` (architecture:1170 named it) serving a computed `ResumeToken`; dashboard fetches `/api/resume` — a new poll surface; *(c)* client-side re-derive breadcrumb/command from raw `state.json` — **REJECTED** (re-parses state, breaks the one-way reader seam, cannot guarantee "same command `sdlc status` prints"). *Recommendation (a)* — one JSON body, one poll (pairs with D4), server-side compute. Raise as a D-label; architect/PO ratify the seam before branching.
+
+**D2 — suggested-next single-source (HIGH).** The AC binds "same one `sdlc status` would print (1.17)" = `_compute_suggested_next` [status.py:108-116], NOT the richer `resolve_next_action` engine [next_selector.py:140-171]. But `dashboard` is forbidden to import `cli`. *Recommendation (a):* lift `_compute_suggested_next` into a boundary-legal shared module both `cli/status.py` and the D1 producer import, and re-point `sdlc status` to delegate — so "same command" holds **by construction** (one function), proven by a parity test. *(b)* have the producer call into cli — **REJECTED** (boundary violation).
+
+**D3 — breadcrumb assembly from an untrusted `cursor` (MED / data-validation).** `cursor` is `Mapping[str, object]` with OPTIONAL keys (`epic_id?/story_id?/stage?`, architecture:611) and arbitrary values. *Recommendation (a):* assemble the breadcrumb SERVER-side into a validated ordered list (coerce present parts to trimmed strings, skip/placeholder missing parts) so the client renders a pre-validated array via `parseBreadcrumb`; the client stays `textContent`-only (no XSS). *(b)* ship raw `cursor` and assemble in JS — more untrusted-shape handling client-side. Prefer (a); validate at the boundary.
+
+**D4 — poll wiring for the Resume Card (MED).** The card is not polled today (only `masthead.js` polls `/state.json` at 3s). *Recommendation (a):* reuse the SAME shared poll loop (`pollStateJson`/`startMastheadPoller`, masthead.js:80-88,158+) — one fetch feeds masthead + resume card; add the DEF-1 in-flight guard + AbortController so overlapping/slow polls cannot race. *(b)* a second dedicated poll — **REJECTED** (duplicate fetch/ETag). Satisfies "updates within one poll cycle".
+
+**D5 — interior-newline command safety (MED → load-bearing / data-validation).** `normalizeCommand` (resume-card.js:14-21) preserves interior newlines (DEF-1); the real `suggested_next_command` is untrusted, so a multi-line value pastes-and-auto-executes to the first `\n`. *Recommendation (a):* collapse interior newlines to a single space (`replace(/\s*\n\s*/gu, " ")`) — always single-line, copyable. *(b)* reject/blank multi-line — safer but loses the command. Prefer (a).
+
+### What this story OWNS vs must NOT build (anti-scope-creep)
+
+- **Owns:** the **1:1 real-data swap** of the 5.8 Resume Card's DATA SOURCE — real `resume_token` breadcrumb (`Phase {N} / {EPIC-id} / {STORY-id} / {stage}`) + real `sdlc status` suggested-next (single-source) + poll-cycle update + copy-copies-new-command; the boundary-legal `resume_token` producer seam (D1/D2); the folded deferred fixes now load-bearing with real data — **interior-newline safety** (5.8 DEF-1), **render coalescing + lifecycle timer** (5.8 DEF-8), **aria-live poll wrap** (5.8 DEF-5), **long-command overflow** (5.8 DEF-4), **poll re-entrancy/AbortController** (5.6 DEF-1), **initial/loading render** (5.6 DEF-3), **phase range-validation** (5.6 DEF-2), **copy/greeting boundary tests** (5.8 DEF-7).
+- **Must NOT build:** the real Activity Feed (`agent_runs.jsonl`) — that is **5.16**; the real STOP banner / 7 triggers — that is **5.19**; the **Disconnected** state (§6.4 ux:1152, copy disabled + amber outline) + honest-disconnection poll-fail detection — that is **5.20** (edge 5.8→5.20); the **Phase-complete** terminal state (§6.4 ux:1153 — deferred from 5.8 D4). No new `ResumeToken` contract fields (read-only, freeze 7/7); no modals/toasts/forms/skeleton loaders beyond a neutral initial render; no CSS `transition:`/transforms (DD-14). [Source: docs/sprints/epic-5-dag.md §2 (5.18↔5.8:242, 5.18→5.22:243), §3 (L6:215, batch split:225-228), §6 (5.16:294, 5.18:296, 5.19:—, 5.20:298)]
+
+### Project Structure Notes
+
+- **Swap the 5.8 data source only** — reuse `static/components/resume-card/` + `inverted-command/` (5.5-frozen convention). New: real-shaped `resume_token` fixtures + tests; possibly `dashboard/routes/resume.py` (D1b) OR a `resume_token` field on the `State` projection (D1a) + the D2 shared suggested-next helper. All new static files → `force-include` [pyproject.toml].
+- **Module boundary is the guardrail:** `dashboard → state`/`journal` is the only legal data edge (one-way); `dashboard → cli` is FORBIDDEN. The D2 shared helper must live where both `cli` and the producer may import it (`state`/`engine`, per `module_boundary_table.py`). `check_module_boundaries.py` enforces this. [module_boundary_table.py:142-172; check_module_boundaries.py:122-160]
+- **Data-validation review focus:** `resume_token.cursor` is arbitrary untrusted `Mapping[str, object]`; the served JSON is untrusted at the client edge. Defensive extraction (D3), `textContent`-only render, interior-newline safety (D5), and phase range-validation (DEF-2) are the review's load-bearing checks.
+- **L6/5B, batch 1 = {5.14,5.15,5.16,5.18}** — mutually independent leaves once upstream sources are confirmed; parallel, cap-saturating. Branch from `main`, linear merge, rebase between batch-1 merges (CONTRIBUTING §3). **5.18 is the full-real-data baseline** the terminal a11y gate **5.22** builds on (dag §3:219, §2:243) — it must merge cleanly.
+- Zero wire-format contract shape change (CSS/JS/HTML are not wire contracts; ResumeToken read-only) → **freeze stays 7/7**.
+
+### Reuse map (do NOT reinvent)
+
+| Need | Reuse | Source |
+|---|---|---|
+| Resume Card shell / render / copy button / DD-07 greeting | Swap data source only; keep the 5.8 pipeline | src/sdlc/dashboard/static/components/resume-card/resume-card.js:112-230 |
+| `normalizeCommand` (harden for interior newlines) | Extend the existing pure fn (D5/DEF-1) | src/sdlc/dashboard/static/components/resume-card/resume-card.js:14-21 |
+| Breadcrumb parse/format (array-aware) | `parseBreadcrumb` / `formatBreadcrumb` | src/sdlc/dashboard/static/components/resume-card/resume-card.js:43-66 |
+| Inverted command surface (add overflow) | `.inverted-command__text` (DEF-4) | src/sdlc/dashboard/static/components/inverted-command/inverted-command.css:17-28 |
+| ResumeToken shape (READ-ONLY) | `ResumeToken` fields (freeze 7/7) | src/sdlc/contracts/resume_token.py:14-38 |
+| Suggested-next logic (single-source) | `_compute_suggested_next` via D2 shared helper | src/sdlc/cli/status.py:108-116 |
+| Reader seam (GET /state.json + ETag/304) | `register_state_route` | src/sdlc/dashboard/routes/state.py:15-40 |
+| Shared poll loop (+ re-entrancy guard/AbortController) | `pollStateJson` / `startMastheadPoller` | src/sdlc/dashboard/static/components/masthead/masthead.js:80-88,158+ |
+| State projection (add resume_token, D1a) | `_project_entries` / `project_from_journal` | src/sdlc/state/projection.py:113-167 |
+| Module-boundary + LOC gate | `check_module_boundaries.py` + table | scripts/check_module_boundaries.py; scripts/module_boundary_table.py:142-172 |
+| Motion / no-framework / color-only gates | Run on the swapped card | scripts/check_dashboard_motion.py / _no_framework.py / _color_only.py |
+| Contract-snapshot freeze (assert unchanged) | `resume_token.json` (1 of 7) | tests/contract_snapshots/v1/resume_token.json |
+| Test surfaces (mirror 5.8) | unit + Playwright | tests/unit/dashboard/test_resume_card_fixture.py; tests/integration/test_dashboard_resume_card.py |
+| Wheel force-include | Add new fixtures/static | pyproject.toml |
+
+### References
+
+- [Source: _bmad-output/planning-artifacts/epics.md:2796-2812] — Story 5.18 statement (2798-2800) + ACs (2802-2812, verbatim above)
+- [Source: src/sdlc/contracts/resume_token.py:14-38] — `ResumeToken` fields (17-21): `schema_version`/`phase`/`cursor`/`suggested_next_command`/`state_hash` (READ-ONLY; freeze 7/7)
+- [Source: _bmad-output/planning-artifacts/architecture.md §608-613] — ResumeToken shape + `cursor: {epic_id?, story_id?, task_id?, stage?}` + `state_hash`; §173 (consumed by dashboard/`sdlc status`/auto-loop); §1170 (FR44 → `cli/status.py + dashboard/routes/resume.py`)
+- [Source: _bmad-output/planning-artifacts/prd.md:799] — FR44 (`sdlc status` you-are-here card + suggested next-action)
+- [Source: src/sdlc/cli/status.py:108-116,162,176,187] — `_compute_suggested_next` (the v1.17 `sdlc status` logic to single-source, D2)
+- [Source: src/sdlc/engine/next_selector.py:140-171] — richer `resolve_next_action` (`/sdlc-next`, Story 4.1) — **do NOT use** for this AC
+- [Source: src/sdlc/state/model.py:10-36; src/sdlc/state/projection.py:113-167] — `State` has no `resume_token` (extra="forbid"); projection emits none (D1 gap)
+- [Source: src/sdlc/dashboard/routes/state.py:15-40] — the reader seam (`GET /state.json` + ETag/304)
+- [Source: scripts/module_boundary_table.py:142-172; scripts/check_module_boundaries.py:122-160] — `dashboard → state`/`journal` one-way edge; `dashboard → cli` forbidden (D2 placement)
+- [Source: src/sdlc/dashboard/static/components/resume-card/resume-card.js:14-21,43-78,87-110,112-230] — 5.8 seam to swap/harden
+- [Source: src/sdlc/dashboard/static/components/inverted-command/inverted-command.css:17-28] — long-command overflow (DEF-4)
+- [Source: src/sdlc/dashboard/static/components/masthead/masthead.js:61-62,80-88,138-149,158+] — shared poll loop + DEF-1/2/3 (re-entrancy/AbortController, range-validate, initial render)
+- [Source: _bmad-output/implementation-artifacts/deferred-work.md:897-899 (5.6 DEF-1/2/3), :907 (5.8 DEF-1), :910 (5.8 DEF-4), :911 (5.8 DEF-5), :913 (5.8 DEF-7), :914 (5.8 DEF-8)] — folded deferred items owned by 5.18
+- [Source: _bmad-output/planning-artifacts/ux-design-specification.md §6.4:1113-1164, §2.5:439-493, DD-07:256, DD-11:499, DD-12:500, DD-13:501] — Resume Card + greeting/copy/no-prefix decisions
+- [Source: tests/contract_snapshots/v1/resume_token.json (+ 6 sibling snapshots)] — the 7 frozen wire-contract snapshots; assert `resume_token.json` unchanged → freeze 7/7
+- [Source: docs/sprints/epic-5-dag.md §2 (E2A→S18:174,194-196; 5.18↔5.8:242; 5.18→5.22:243), §3 (L6:215; batch split:225-228), §5 (§6:329), §6 (5.18 row:296), §9 (data-validation review:441-442)] — layer, batch, edges, review focus
+- [Source: _bmad-output/implementation-artifacts/5-8-resume-card-copy-button-inverted-command.md] — the 5A twin (shell/copy/inverted-command/greeting FROZEN); its Review Findings deferred DEF-1…DEF-8 to 5.18/5.12/5.20
+
+## Dev Agent Record
+
+### Agent Model Used
+
+### Debug Log References
+
+### Completion Notes List
+
+### File List
+
+## Change Log
+
+- 2026-07-01: Story 5.18 created (create-story, "flip done 5.12 + tạo all US cho layer tiếp theo" → L6/5B batch-1 with 5.14/5.15/5.16). 1:1 real-data swap onto the 5.8 twin: real `resume_token` breadcrumb (`Phase {N} / {EPIC-id} / {STORY-id} / {stage}`) + real `sdlc status` suggested-next (single-source) + poll-cycle update + copy-copies-new-command. Decisions D1 (resume_token source seam — state-projection vs `dashboard/routes/resume.py`) / D2 (single-source `sdlc status` `_compute_suggested_next` via a boundary-legal shared helper; NOT the `/sdlc-next` engine) / D3 (breadcrumb assembly from untrusted `cursor`) / D4 (reuse the shared `/state.json` poll loop) / D5 (interior-newline command safety) raised. Folded 5.8 DEF-1/4/5/7/8 + 5.6 DEF-1/2/3 (now load-bearing with real polling + real command). **Wave-boundary risk surfaced:** `state.json` does not yet project a `resume_token` and the suggested-next logic lives in `cli/` (dashboard-import-forbidden) — D1/D2 must be ratified before branching. ResumeToken read-only → freeze stays 7/7. Data-validation review focus (reads untrusted state content). L6 (5B) baseline that terminal gate 5.22 builds on; do-not-build real feed (5.16) / STOP banner (5.19) / disconnection (5.20) noted.
