@@ -1,6 +1,6 @@
 # Story 5.13: DORA Metrics Computation Backend + 30s Cache + `/api/dora`
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L6 (5B, real-data wave). L6 batch split: batch 1 = {5.14, 5.15, 5.16, 5.18}; **batch 2 = {5.13} ALONE, rebased on batch 1's merges** (CONTRIBUTING §3.3) — the DORA engine is the heaviest, most security/perf-sensitive 5B story and the upstream of 5.17 (L7), so it must merge cleanly. cap max_parallel_agents=4. Edges: 5.1→5.13 (server/route contract + 30s cache seam FROZEN), 5.7→5.13 (KPI n/a no-data cell that renders `insufficient_data`); downstream 5.13→5.17 (real DORA 7d/30d KPI rendering). External wave gate E2B→5.13 (agent_runs.jsonl, Story 2B.10). Worktree: epic-5/5-13-dora-backend-cache. Owner Amelia. Branch from main, rebase on batch-1 merges, linear merge (CONTRIBUTING §3). Review model (DAG D2 + §5 5.13 row): add review-B (edge-case/perf/malformed-input) + a security-reviewer touch (/api/dora rides the 5.1 HTTP boundary). `<30s` perf benchmark is a CI gate on a 200-story/1000-task/90-day fixture. NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). Zero wire-format change → freeze stays 7/7 (DAG Decision D1 = internal/documentary schema; NO StrictModel, NO snapshot ceremony). WAVE-BOUNDARY: verify the real `agent_runs.jsonl` shape (2B.10) before branching — see Data-readiness RISK in Dev Notes. -->
