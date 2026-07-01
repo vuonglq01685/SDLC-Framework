@@ -57,14 +57,25 @@ class TestStateJsonRoute:
 
 
 class TestDoraRoute:
-    def test_returns_synthetic_json(self, running_dashboard: tuple[str, int, object]) -> None:
+    """Route-shape tests (Story 5.13). Real-compute wiring + schema conformance
+    live in ``test_dora_backend.py``; here we cover the generic route/cache
+    contract that 5.1 froze."""
+
+    def test_returns_real_envelope_with_schema_version_and_windows(
+        self, running_dashboard: tuple[str, int, object]
+    ) -> None:
         base_url, port, _ = running_dashboard
         status, headers, body = http_get(base_url, "/api/dora", port=port)
         assert status == 200
         assert headers.get("content-type", "").startswith("application/json")
         payload = json.loads(body.decode("utf-8"))
-        assert payload["synthetic"] is True
         assert payload["schema_version"] == 1
+        assert set(payload["windows"]) == {"7d", "30d"}
+        # running_dashboard has no agent_runs.jsonl / git history -> globally insufficient.
+        for window in payload["windows"].values():
+            for metric in ("deployment_frequency", "lead_time", "change_failure_rate", "mttr"):
+                assert window[metric]["data_status"] == "insufficient_data"
+                assert window[metric]["value"] is None
 
     def test_cache_serves_same_payload_on_rapid_requests(
         self, running_dashboard: tuple[str, int, object]
@@ -74,31 +85,34 @@ class TestDoraRoute:
         status2, _, body2 = http_get(base_url, "/api/dora", port=port)
         assert status1 == status2 == 200
         assert body1 == body2
-        assert json.loads(body1.decode("utf-8"))["synthetic"] is True
 
-    def test_dora_cache_holds_within_ttl_and_refreshes_after_expiry(
+    def test_dora_cache_computes_once_per_ttl_and_recomputes_after_expiry(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Inject a controllable clock so the refresh branch is observable — a constant
-        # payload makes value-equality tautological (CR5.1 review R7); assert on the
-        # TTL expiry boundary instead.
+        # Inject a controllable clock AND a call-counting compute callback so the
+        # refresh branch is observable via invocation count — a constant-body
+        # equality check is tautological (CR5.1 review R7 tautology trap).
         from sdlc.dashboard.routes import dora as dora_mod
 
         clock = {"now": 1000.0}
         monkeypatch.setattr(dora_mod.time, "monotonic", lambda: clock["now"])
         monkeypatch.setattr(dora_mod, "_CACHE_TTL_SECONDS", 30.0)
         cache = dora_mod._DoraCache()
+        calls: list[int] = []
 
-        cache.get()
-        first_expiry = cache._expires_at
-        assert first_expiry == 1030.0
+        def _compute() -> bytes:
+            calls.append(1)
+            return f"body-{len(calls)}".encode()
 
-        # within TTL → served from cache, expiry unchanged
+        assert cache.get(_compute) == b"body-1"
+        assert len(calls) == 1
+
+        # within TTL → served from cache, compute NOT called again
         clock["now"] = 1020.0
-        cache.get()
-        assert cache._expires_at == first_expiry
+        assert cache.get(_compute) == b"body-1"
+        assert len(calls) == 1
 
-        # past TTL → refreshed, expiry advances (would fail if the refresh branch broke)
+        # past TTL → recomputed (would fail if the refresh branch broke)
         clock["now"] = 1031.0
-        cache.get()
-        assert cache._expires_at == 1061.0
+        assert cache.get(_compute) == b"body-2"
+        assert len(calls) == 2
