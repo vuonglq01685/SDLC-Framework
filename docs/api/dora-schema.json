@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "title": "GET /api/dora response envelope",
+  "status": "INTERNAL / DOCUMENTARY — NOT a frozen ADR-024 wire contract",
+  "note": "DAG Decision D1 (docs/sprints/epic-5-dag.md, ratified = option (a)): this schema documents the /api/dora shape for maintainers and the conformance test (tests/unit/dashboard/test_dora_backend.py); it is NOT a src/sdlc/contracts/ StrictModel and has NO tests/contract_snapshots/v1/ snapshot. Freeze stays 7/7.",
+  "revisit_clause": "Promote to the 8th ADR-024 wire contract (StrictModel + snapshot ceremony, freeze 7/7 -> 8/8) ONLY if a real external /api/dora consumer appears (CI tooling / an external DORA aggregator). See docs/sprints/epic-5-dag.md Decision D1.",
+  "source": "Story 5.13 (docs/sprints/epic-5-dag.md L6/5B, epics.md:2702-2729)",
+  "description": "Per-project DORA metrics (deployment_frequency, lead_time, change_failure_rate, mttr) for two rolling windows (7d, 30d), computed on demand from agent_runs.jsonl + git log and served behind a 30 s server-side cache (Story 5.1 _DoraCache). All window filters are bounded window_start <= ts <= now, so future-dated commits/runs (clock skew, or a crafted GIT_COMMITTER_DATE) are excluded from every metric.",
+  "metric_definitions": {
+    "deployment_frequency": "Count of merge commits per window (first-parent-merge-to-main model). If the repository has ZERO merge commits anywhere in its history (solo-dev workflow, no merge model), falls back to counting ALL commits per window. unit=deploys_per_window; also carries a per_day rate.",
+    "lead_time": "median(commit_ts - author_ts) in hours, over commits (merge or not) that land in the window and whose commit_ts >= author_ts — the per-commit author-to-land latency (author->land, NOT idea->production DORA lead time; near-zero outside rebase workflows — Story 5.17 should label accordingly). Commits with commit_ts < author_ts (clock skew / rebase / --date override) are excluded so a negative latency never skews the median. unit=hours.",
+    "change_failure_rate": "failed agent_runs divided by total agent_runs in the window. unit=ratio (0..1); also carries failed_count/total_count.",
+    "mttr": "mean(next success.ts - failed.ts) in hours, paired per target_path, over agent_runs in the window (an unmatched failure with no later success for the same target_path is not counted). unit=hours; also carries recovery_count."
+  },
+  "insufficient_data_rule": "A window is insufficient_data iff span(earliest_event .. now) < window_days, where earliest_event = min(all agent_run.ts, all git commit_ts). Additionally, if agent_runs.jsonl is entirely empty OR git log has zero parseable commits, ALL 4 metrics in ALL windows are insufficient_data (nothing to compute from). Otherwise, within an otherwise-sufficient window, a metric is insufficient_data individually when its own numerator/denominator subset is empty for that window (e.g. zero commits in the window for deployment_frequency/lead_time, zero agent_runs in the window for change_failure_rate, or zero failed->success pairs for mttr). When data_status is insufficient_data, value and all metric-specific detail fields are null — the dashboard renders the Story 5.7 'n/a' no-data cell (Story 5.17 consumes this field; 5.13 only emits it).",
+  "type": "object",
+  "required": ["schema_version", "windows"],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "windows": {
+      "type": "object",
+      "required": ["7d", "30d"],
+      "properties": {
+        "7d": { "type": "object", "required": ["deployment_frequency", "lead_time", "change_failure_rate", "mttr"], "properties": {
+          "deployment_frequency": { "type": "object", "required": ["data_status", "value", "unit", "per_day"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["integer", "null"] },
+            "unit": { "type": "string", "enum": ["deploys_per_window"] },
+            "per_day": { "type": ["number", "null"] }
+          }},
+          "lead_time": { "type": "object", "required": ["data_status", "value", "unit"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": "string", "enum": ["hours"] }
+          }},
+          "change_failure_rate": { "type": "object", "required": ["data_status", "value", "unit", "failed_count", "total_count"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": "string", "enum": ["ratio"] },
+            "failed_count": { "type": ["integer", "null"] },
+            "total_count": { "type": ["integer", "null"] }
+          }},
+          "mttr": { "type": "object", "required": ["data_status", "value", "unit", "recovery_count"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": "string", "enum": ["hours"] },
+            "recovery_count": { "type": ["integer", "null"] }
+          }}
+        }},
+        "30d": { "type": "object", "required": ["deployment_frequency", "lead_time", "change_failure_rate", "mttr"], "properties": {
+          "deployment_frequency": { "type": "object", "required": ["data_status", "value", "unit", "per_day"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["integer", "null"] },
+            "unit": { "type": "string", "enum": ["deploys_per_window"] },
+            "per_day": { "type": ["number", "null"] }
+          }},
+          "lead_time": { "type": "object", "required": ["data_status", "value", "unit"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": "string", "enum": ["hours"] }
+          }},
+          "change_failure_rate": { "type": "object", "required": ["data_status", "value", "unit", "failed_count", "total_count"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": "string", "enum": ["ratio"] },
+            "failed_count": { "type": ["integer", "null"] },
+            "total_count": { "type": ["integer", "null"] }
+          }},
+          "mttr": { "type": "object", "required": ["data_status", "value", "unit", "recovery_count"], "properties": {
+            "data_status": { "type": "string", "enum": ["ok", "insufficient_data"] },
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": "string", "enum": ["hours"] },
+            "recovery_count": { "type": ["integer", "null"] }
+          }}
+        }}
+      }
+    }
+  }
+}
