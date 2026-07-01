@@ -134,3 +134,86 @@ def test_cli_module_invocation() -> None:
     )
     assert proc.returncode == 1
     assert "violation_dialog.html" in proc.stderr
+
+
+# --- Story 5.12 review (2026-07-01) regression witnesses: P2 / P3 / P4 ---------
+
+
+def test_scan_flags_pushstate_in_inline_html_script(tmp_path: Path) -> None:
+    # P4: a client-router call in an inline <script> inside .html must be caught
+    # (the JS rules previously dispatched on the .js suffix only).
+    target = tmp_path / "inline_script.html"
+    target.write_text(
+        '<!DOCTYPE html>\n<html lang="en"><body>\n'
+        '  <script type="module">history.pushState({}, "", "/x");</script>\n'
+        "</body></html>\n",
+        encoding="utf-8",
+    )
+    violations = forbidden_script.scan_paths([target])
+    assert violations
+    assert "pushState" in violations[0].pattern
+
+
+def test_scan_flags_skeleton_in_inline_html_style(tmp_path: Path) -> None:
+    # P4: a skeleton selector in an inline <style> inside .html must be caught.
+    target = tmp_path / "inline_style.html"
+    target.write_text(
+        '<!DOCTYPE html>\n<html lang="en"><head>\n'
+        "  <style>.card-skeleton { opacity: 0.5; }</style>\n"
+        "</head><body></body></html>\n",
+        encoding="utf-8",
+    )
+    violations = forbidden_script.scan_paths([target])
+    assert violations
+    assert "skeleton-loader" in violations[0].pattern
+
+
+def test_scan_flags_pushstate_split_across_lines(tmp_path: Path) -> None:
+    # P4: a method-chain-split router call must be caught (document-level scan).
+    target = tmp_path / "chained.js"
+    target.write_text('history\n  .pushState({}, "", "/x");\n', encoding="utf-8")
+    violations = forbidden_script.scan_paths([target])
+    assert violations
+    assert "pushState" in violations[0].pattern
+
+
+def test_scan_ignores_pushstate_in_js_string(tmp_path: Path) -> None:
+    # P4: a forbidden token merely mentioned in a string literal must NOT false-trip.
+    target = tmp_path / "mention_string.js"
+    target.write_text("const example = \"history.pushState('/x')\";\n", encoding="utf-8")
+    assert forbidden_script.scan_paths([target]) == []
+
+
+def test_scan_ignores_pushstate_in_trailing_comment(tmp_path: Path) -> None:
+    # P4: a trailing `//` comment mentioning the token must NOT false-trip (the prior
+    # patch only blanked whole-line comments).
+    target = tmp_path / "trailing_comment.js"
+    target.write_text("doPoll();  // never call history.pushState() here\n", encoding="utf-8")
+    assert forbidden_script.scan_paths([target]) == []
+
+
+def test_scan_ignores_data_toast_in_html_text(tmp_path: Path) -> None:
+    # P4: `data-toast` as visible HTML text (not an attribute) must NOT false-trip.
+    target = tmp_path / "text_mention.html"
+    target.write_text("<table><tr><td>data-toast</td></tr></table>\n", encoding="utf-8")
+    assert forbidden_script.scan_paths([target]) == []
+
+
+def test_scan_ignores_data_toast_prefixed_class(tmp_path: Path) -> None:
+    # P3: `data-toast-card` (a hyphen-suffixed class) must NOT be flagged as the
+    # `data-toast` attribute (the boolean attribute is still caught — see above).
+    target = tmp_path / "prefixed.html"
+    target.write_text('<div class="data-toast-card">hi</div>\n', encoding="utf-8")
+    assert forbidden_script.scan_paths([target]) == []
+
+
+def test_skeleton_html_class_reports_column_at_token(tmp_path: Path) -> None:
+    # P2: the reported column must land on the skeleton token, not len('class="')
+    # characters to its left.
+    target = tmp_path / "sk_col.html"
+    target.write_text('<div class="resume-card__skeleton">x</div>\n', encoding="utf-8")
+    violations = forbidden_script.scan_paths([target])
+    assert violations
+    victim = violations[0]
+    line = target.read_text(encoding="utf-8").splitlines()[victim.line - 1]
+    assert line[victim.col - 1 :].startswith("skeleton")
