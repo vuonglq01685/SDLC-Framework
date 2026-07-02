@@ -41,6 +41,17 @@ function resolveState(raw) {
   return STATE_KEYS.includes(key) ? key : "awaiting-signoff";
 }
 
+function setAttributeIfChanged(el, name, value) {
+  // Guard against a custom-elements gotcha: setAttribute() always re-fires
+  // attributeChangedCallback for an OBSERVED attribute even when the new
+  // value equals the current one (the platform does not dedupe by value).
+  // Calling setAttribute unconditionally from inside a render triggered by
+  // that same attribute's own change is unbounded synchronous recursion.
+  if (el.getAttribute(name) === value) return false;
+  el.setAttribute(name, value);
+  return true;
+}
+
 function createGlyph(iconId, className) {
   const wrap = document.createElement("span");
   wrap.className = className;
@@ -66,10 +77,7 @@ function renderSignoffCell(root, stateKey, config) {
   root.setAttribute("data-state", stateKey);
   root.setAttribute("data-signoff-state", stateKey);
   root.setAttribute("role", "status");
-  root.setAttribute(
-    "aria-label",
-    customAria || `${title}, ${config.aria}`,
-  );
+  setAttributeIfChanged(root, "aria-label", customAria || `${title}, ${config.aria}`);
 
   const header = document.createElement("div");
   header.className = "signoff-cell__header";
@@ -129,7 +137,11 @@ class SignoffCell extends HTMLElement {
 
   _render() {
     const stateKey = resolveState(this.getAttribute("state"));
-    this.setAttribute("state", stateKey);
+    // If normalization changes the attribute, setAttributeIfChanged's own
+    // setAttribute() call re-enters attributeChangedCallback -> _render()
+    // synchronously and that inner call renders with the now-normalized
+    // value; returning here avoids a redundant duplicate render.
+    if (setAttributeIfChanged(this, "state", stateKey)) return;
     renderSignoffCell(this, stateKey, SIGNOFF_STATES[stateKey]);
   }
 }
@@ -138,4 +150,4 @@ if (!customElements.get("signoff-cell")) {
   customElements.define("signoff-cell", SignoffCell);
 }
 
-export { SIGNOFF_STATES, createGlyph, renderSignoffCell, resolveState };
+export { SIGNOFF_STATES, createGlyph, renderSignoffCell, resolveState, setAttributeIfChanged };

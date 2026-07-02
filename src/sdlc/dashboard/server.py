@@ -14,6 +14,7 @@ from typing import ClassVar, Final, cast
 from sdlc.concurrency.path_guard import assert_contained
 from sdlc.dashboard.router import RequestContext, Response, Router
 from sdlc.dashboard.routes.dora import register_dora_route
+from sdlc.dashboard.routes.signoff import register_signoff_route
 from sdlc.dashboard.routes.state import register_state_route
 from sdlc.errors import SecurityError
 from sdlc.telemetry.dora import GitCommitTuple
@@ -96,6 +97,7 @@ def build_router(
     router = Router()
     register_state_route(router, repo_root=repo_root)
     register_dora_route(router, repo_root=repo_root, git_log_provider=git_log_provider)
+    register_signoff_route(router, repo_root=repo_root)
     return router
 
 

@@ -99,6 +99,10 @@ exclude = [
 "src/sdlc/dashboard/static/components/phase-item-row/phase-item-row.js" = "sdlc/dashboard/static/components/phase-item-row/phase-item-row.js"
 "src/sdlc/dashboard/static/components/phase-tracker/phase-tracker.css" = "sdlc/dashboard/static/components/phase-tracker/phase-tracker.css"
 "src/sdlc/dashboard/static/components/phase-tracker/phase-tracker.js" = "sdlc/dashboard/static/components/phase-tracker/phase-tracker.js"
+# Story 5.14: real-signoff poller (data swap onto the frozen 5.9 components above).
+"src/sdlc/dashboard/static/components/phase-tracker/phase-tracker-live.js" = "sdlc/dashboard/static/components/phase-tracker/phase-tracker-live.js"
+"src/sdlc/dashboard/static/components/phase-tracker/phase-tracker-live.css" = "sdlc/dashboard/static/components/phase-tracker/phase-tracker-live.css"
+"src/sdlc/dashboard/static/components/phase-tracker/phase-tracker-live.fixture.html" = "sdlc/dashboard/static/components/phase-tracker/phase-tracker-live.fixture.html"
 "src/sdlc/dashboard/static/test-fixtures/signoff-states.html" = "sdlc/dashboard/static/test-fixtures/signoff-states.html"
 "src/sdlc/dashboard/static/icons/sprite.svg" = "sdlc/dashboard/static/icons/sprite.svg"
 "src/sdlc/dashboard/static/fonts/OFL.txt" = "sdlc/dashboard/static/fonts/OFL.txt"

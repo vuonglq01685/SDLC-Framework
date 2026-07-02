@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Phase Tracker — real signoff 4-state (Story 5.14)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/signoff-cell/signoff-cell.css" />
+    <link rel="stylesheet" href="/static/components/phase-cell/phase-cell.css" />
+    <link rel="stylesheet" href="/static/components/phase-item-row/phase-item-row.css" />
+    <link rel="stylesheet" href="/static/components/phase-tracker/phase-tracker.css" />
+    <link rel="stylesheet" href="/static/components/phase-tracker/phase-tracker-live.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-3-size);
+        line-height: var(--type-display-3-line-height);
+        font-weight: var(--type-display-3-weight);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.14 — Phase Tracker rendering real signoff 4-state</h1>
+
+    <!--
+      REAL-DATA fixture: this page polls the real GET /api/signoff route
+      (Task 1) on a 3 s cadence (Task 3/D4) and drives attribute swaps on the
+      frozen 5.9 <signoff-cell>/<phase-item-row> elements below — do NOT
+      hand-place a synthetic "contract" here (mirrors PAT-3 from
+      test_signoff_states_fixture.py). Initial `state="…"` attributes are a
+      pre-first-poll placeholder only; the poller overwrites them immediately.
+    -->
+    <section aria-label="Phase tracker strip">
+      <phase-tracker id="phase-tracker-live" role="region" aria-label="Phase tracker">
+        <div class="phase-tracker__grid">
+          <phase-cell
+            phase-number="PHASE 01"
+            phase-name="Requirement"
+            tag-line="stories • epics • signoffs"
+            current-item="—"
+            progress="0"
+            cell-state="active"
+            aria-label="Phase 1 Requirement"
+          ></phase-cell>
+          <signoff-cell
+            data-phase="1"
+            state="awaiting-signoff"
+            title-text="SIGNOFF 1"
+            current-item="Gate 1"
+          ></signoff-cell>
+          <phase-cell
+            phase-number="PHASE 02"
+            phase-name="Architecture"
+            tag-line="tracks • ADRs • signoffs"
+            current-item="—"
+            progress="0"
+            cell-state="future"
+            aria-label="Phase 2 Architecture"
+          ></phase-cell>
+          <signoff-cell
+            data-phase="2"
+            state="awaiting-signoff"
+            title-text="SIGNOFF 2"
+            current-item="Gate 2"
+          ></signoff-cell>
+          <phase-cell
+            phase-number="PHASE 03"
+            phase-name="Implementation"
+            tag-line="tasks • tests • delivery"
+            current-item="—"
+            progress="0"
+            cell-state="future"
+            aria-label="Phase 3 Implementation"
+          ></phase-cell>
+        </div>
+
+        <div
+          class="phase-tracker__replan-detail"
+          data-role="replan-detail"
+          data-phase="1"
+          hidden
+        ></div>
+        <div
+          class="phase-tracker__replan-detail"
+          data-role="replan-detail"
+          data-phase="2"
+          hidden
+        ></div>
+
+        <div class="phase-tracker__detail">
+          <div class="phase-tracker__detail-heading">Phase detail</div>
+          <div class="phase-tracker__detail-rows">
+            <phase-item-row data-phase="1" state="awaiting-signoff" label="Phase 1 signoff gate"></phase-item-row>
+            <phase-item-row data-phase="2" state="awaiting-signoff" label="Phase 2 signoff gate"></phase-item-row>
+            <phase-item-row data-phase="3" state="awaiting-signoff" label="Phase 3 signoff gate"></phase-item-row>
+          </div>
+        </div>
+      </phase-tracker>
+    </section>
+
+    <script type="module">
+      import "/static/components/signoff-cell/signoff-cell.js";
+      import "/static/components/phase-cell/phase-cell.js";
+      import "/static/components/phase-item-row/phase-item-row.js";
+      import "/static/components/phase-tracker/phase-tracker.js";
+      import { startPhaseTrackerPoller } from "/static/components/phase-tracker/phase-tracker-live.js";
+
+      startPhaseTrackerPoller(document.getElementById("phase-tracker-live"));
+    </script>
+  </body>
+</html>

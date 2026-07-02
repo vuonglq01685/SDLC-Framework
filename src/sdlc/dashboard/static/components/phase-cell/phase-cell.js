@@ -2,7 +2,10 @@
  * <phase-cell> custom element (Story 5.9 / UX §6.5).
  */
 
-import { createGlyph } from "/static/components/signoff-cell/signoff-cell.js";
+import {
+  createGlyph,
+  setAttributeIfChanged,
+} from "/static/components/signoff-cell/signoff-cell.js";
 
 const CELL_STATES = ["future", "active", "complete"];
 
@@ -45,10 +48,11 @@ function renderPhaseCell(root) {
   }
 
   root.setAttribute("role", "status");
-  root.setAttribute(
-    "aria-label",
-    customAria || `${phaseName}, ${progress}% complete`,
-  );
+  // Guarded: "aria-label" is an observed attribute, and setAttribute() always
+  // re-fires attributeChangedCallback even when the value is unchanged —
+  // an unguarded write here recurses (attributeChangedCallback -> _render ->
+  // renderPhaseCell -> setAttribute -> attributeChangedCallback -> ...).
+  setAttributeIfChanged(root, "aria-label", customAria || `${phaseName}, ${progress}% complete`);
 
   const numberEl = document.createElement("div");
   numberEl.className = "phase-cell__phase-number";
