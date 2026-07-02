@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Backlog tree — real Epic/Story/Task hierarchy (Story 5.15)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/pills/pills.css" />
+    <link rel="stylesheet" href="/static/components/inline-code/inline-code.css" />
+    <link rel="stylesheet" href="/static/components/backlog-tree/backlog-tree.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.15 — Backlog tree (real hierarchy)</h1>
+    <!--
+      REAL-DATA fixture: this page polls the real GET /api/backlog route
+      (Task 1/2) on a 3 s cadence and feeds the derived nest into the frozen
+      5.10 renderBacklogTree swap point (mirrors phase-tracker-live.fixture.html
+      PAT-3 — do NOT hand-place a synthetic fixture here).
+    -->
+    <backlog-tree id="backlog-tree-live-target"></backlog-tree>
+    <script type="module">
+      import "/static/components/backlog-tree/backlog-tree.js";
+      import "/static/components/pills/pills.js";
+      import { startBacklogTreeLivePoller } from "/static/components/backlog-tree/backlog-tree-live.js";
+
+      startBacklogTreeLivePoller(document.getElementById("backlog-tree-live-target"));
+    </script>
+  </body>
+</html>

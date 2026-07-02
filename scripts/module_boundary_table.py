@@ -140,8 +140,13 @@ MODULE_DEPS: dict[str, ModuleSpec] = {
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "cli"}),
     ),
     "dashboard": ModuleSpec(
+        # Story 5.15 (corrective amendment, mirrors the Story 3.1 "adopt" precedent):
+        # "ids" added so the real-hierarchy nesting adapter can import the SHARED
+        # parse_epic_id/parse_story_id/parse_task_id + EPIC/STORY/TASK_ID_REGEX
+        # (Story 1.6) rather than a re-declared copy (Task 3 AC). "ids" depends
+        # only on "errors" and is forbidden from nothing -- zero cyclic-risk leaf.
         depends_on=frozenset(
-            {"errors", "state", "journal", "telemetry", "signoff", "config", "concurrency"}
+            {"errors", "ids", "state", "journal", "telemetry", "signoff", "config", "concurrency"}
         ),
         forbidden_from=frozenset({"engine", "dispatcher", "runtime", "hooks", "adopt"}),
     ),

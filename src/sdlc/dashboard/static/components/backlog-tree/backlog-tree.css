@@ -188,3 +188,15 @@ backlog-tree {
 .tree-task .tree-expander {
   width: var(--space-7);
 }
+
+/* ── Empty state (Story 5.15 D4/DEF-3) ── */
+.backlog-tree__empty {
+  padding: var(--space-9);
+  border: var(--border-dashed);
+  border-radius: var(--radius-lg);
+  color: var(--ink-dim);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  text-align: center;
+}
