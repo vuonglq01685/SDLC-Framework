@@ -1,0 +1,30 @@
+/**
+ * Replan-scope click-through disclosure (Story 5.14 D2).
+ *
+ * Plain inline detail region — NOT a <dialog>/modal/toast (§7.12 forbidden).
+ * No `transition`/`animation` (DD-06/DD-14): the disclosure snaps open/closed
+ * on the `hidden` attribute, matching the signoff-cell content-delta contract.
+ */
+
+.phase-tracker__replan-detail {
+  margin-top: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-hairline);
+  border-left: 3px solid var(--red);
+  border-radius: var(--radius-lg);
+  background-color: var(--paper);
+}
+
+.phase-tracker__replan-reason {
+  font-family: var(--font-sans);
+  color: var(--ink);
+  margin: 0 0 var(--space-3);
+}
+
+.phase-tracker__replan-downstream {
+  font-family: var(--font-mono);
+  font-size: var(--type-label-mono-size);
+  color: var(--ink-mute);
+  margin: 0;
+  padding-left: var(--space-7);
+}

@@ -14,7 +14,9 @@ function renderSectionBlockHeading(host, { title, count, size = "display-3" } = 
 
   const countEl = document.createElement("span");
   countEl.className = "section-block-heading__count";
-  countEl.textContent = count || "";
+  // Nullish check (not `count || ""`): a numeric 0 is a legitimate count and
+  // must render "0" — the prior falsy-coercion blanked it (DEF-6, 5.11 review).
+  countEl.textContent = count == null ? "" : String(count);
 
   host.append(heading, countEl);
 }
