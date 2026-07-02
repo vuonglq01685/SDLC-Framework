@@ -492,12 +492,37 @@ function bindTreeKeyboard(host) {
 }
 
 
+/**
+ * D4 (Story 5.15, DEF-3): real data can be empty (a fresh project — zero
+ * epics). An empty `role="tree"` with no children has NO `tabindex=0` entry
+ * point — unreachable by Tab, no empty-state (backlog-tree.js:514-522 prior
+ * to this fix). Render a measured, anti-cynicism, keyboard-reachable row
+ * instead (the 5.11 `<empty-state>` element is coupled to the STOP-banner
+ * freshness-footer poll semantics and does not fit a non-polling tree — this
+ * reuses its COPY PATTERN: short, non-exclamatory, no "All clear!" form).
+ */
+const EMPTY_BACKLOG_MESSAGE = "No epics yet";
+
+function renderEmptyBacklogRow() {
+  const row = document.createElement("div");
+  row.className = "backlog-tree__empty";
+  row.setAttribute("tabindex", "0");
+  row.textContent = EMPTY_BACKLOG_MESSAGE;
+  return row;
+}
+
 export function renderBacklogTree(host, fixture = SYNTHETIC_TREE_FIXTURE, options = {}) {
   const data = fixture || SYNTHETIC_TREE_FIXTURE;
   const currentTaskId = data.currentTaskId || "";
   const epics = data.epics || [];
 
   host.replaceChildren();
+
+  if (epics.length === 0) {
+    host.appendChild(renderEmptyBacklogRow());
+    host._fixtureRef = data;
+    return;
+  }
 
   const tree = document.createElement("div");
   tree.className = "backlog-tree";

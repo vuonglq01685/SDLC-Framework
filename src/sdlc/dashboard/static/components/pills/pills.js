@@ -57,16 +57,33 @@ export function createPillElement(variant) {
   return span;
 }
 
+/**
+ * D5 (Story 5.15, DEF-5): real epic `flow` data may carry stages beyond the
+ * frozen `research/epics/stories` vocabulary. Silently DROPPING an unknown
+ * step (the 5.10 behavior) would render fewer pills than the source record,
+ * breaking the "renders exactly what the record contains" contract. Emit a
+ * neutral fallback pill (reuses the `.pill--flow` token, unrecognized label
+ * verbatim) instead of expanding the frozen `PILL_FLOW_VARIANTS` vocabulary.
+ */
+function fallbackFlowVariant(step) {
+  return { className: "pill pill--flow pill--flow-unknown", label: String(step).toLowerCase() };
+}
+
 export function createFlowPillGroup(steps) {
   const wrap = document.createElement("span");
   wrap.className = "fp";
   wrap.setAttribute("role", "presentation");
-  for (const step of steps) {
+  // Review P-3: guard a non-array `flow` (a string would iterate per-char, a
+  // number/object would throw) and look up with `Object.hasOwn` so a step
+  // named after an `Object.prototype` member (`constructor`/`toString`/...)
+  // does not resolve to an inherited value and skip the D5 fallback.
+  const list = Array.isArray(steps) ? steps : [];
+  for (const step of list) {
     const key = String(step).toLowerCase();
-    const variant = PILL_FLOW_VARIANTS[key];
-    if (variant) {
-      wrap.appendChild(createPillElement(variant));
-    }
+    const variant = Object.hasOwn(PILL_FLOW_VARIANTS, key)
+      ? PILL_FLOW_VARIANTS[key]
+      : fallbackFlowVariant(key);
+    wrap.appendChild(createPillElement(variant));
   }
   return wrap;
 }
