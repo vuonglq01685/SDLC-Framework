@@ -1,6 +1,6 @@
 # Story 5.14: Phase Tracker Rendering Real Signoff 4-State
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG L6 (5B). L6 = {5.13, 5.14, 5.15, 5.16, 5.18}, cap-bound 4 → 2 batches; **batch 1 = {5.14, 5.15, 5.16, 5.18}** (four independent 1:1 real-data swaps, run in parallel; cap 4), batch 2 = {5.13} rebased on batch-1 merges. Depends on **5.9 (twin — phase-tracker/signoff-cell FROZEN)** + external wave gate **E2A → 5.14** (Epic 2A: **2A.7 signoff 4-state machine** + **2A.19 invalidate-by-replan**) — 2A epics done+merged. Edges: 5.9→5.14 (twin data swap), E2A→5.14 (real shapes). Worktree: **epic-5/5-14-phase-tracker-real-signoff**. Owner Sally. Branch from main, linear merge, rebase between L6 batch-1 merges (CONTRIBUTING §3). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate **N/A** (epic-5 in-progress, cleared at 5.1). Wave-boundary: 5B needs the real 2A shapes — the signoff **vocabulary is VERIFIED present** (`signoff/states.py SignoffState`), but the **source is the `signoff` reader module, NOT `state.json`** (see D1 + RISK). REAL-data swap only — do NOT rebuild the 5.9 component; swap its data source. a11y coverage lands through the 5.9 twin → 5.12 (done) + the terminal 5.22 re-scan. Zero wire-format change → **freeze stays 7/7** (a new read route is internal/documentary per DAG Decision D1, mirroring `/api/dora`). Any new static/fixture → pyproject.toml force-include. -->
