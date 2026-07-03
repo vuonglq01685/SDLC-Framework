@@ -5,6 +5,10 @@ These execute the real components in a browser DOM (unlike the static-source gre
 AC2 ("entries bounded to last 50, older entries scroll out", incremental prepend) and
 AC3/UX-DR15 ("empty state must never be silently blank"). Added by code review of
 Story 5.11 as the RED->GREEN witness for the feed render-order/eviction defect.
+
+The real-``agent_runs.jsonl``-backed tests (Story 5.16) live in the sibling
+``test_dashboard_activity_feed_live.py`` module -- split out to stay under the
+400-LOC/file cap (Architecture §765 + NFR-MAINT-3).
 """
 
 from __future__ import annotations
@@ -53,8 +57,19 @@ def dashboard_base_url(tmp_path: Path) -> Generator[str, None, None]:
     thread.join(timeout=5)
 
 
-@contextmanager
-def _with_playwright_page(url: str, ready_selector: str) -> Iterator[object]:
+@pytest.fixture(scope="module")
+def _browser() -> Generator[object, None, None]:
+    """One Chromium instance for the whole module (Story 5.16 hardening).
+
+    A per-test ``sync_playwright()``/``chromium.launch()`` pair was the 5.11
+    pattern, but at 10+ Playwright tests in this module the driver
+    subprocess's own asyncio event loop is not always garbage-collected
+    before the NEXT test starts, and ``filterwarnings = ["error"]`` then
+    turns an unrelated later test's incidental GC pass into a spurious
+    failure (``PytestUnraisableExceptionWarning`` for an unclosed socket/loop
+    from a PREVIOUS test). Launching Chromium once per module removes nearly
+    all of that GC-timing surface.
+    """
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
@@ -64,25 +79,43 @@ def _with_playwright_page(url: str, ready_selector: str) -> Iterator[object]:
         except PlaywrightError as exc:
             pytest.skip(f"Playwright Chromium not installed: {exc}")
         try:
-            page = browser.new_page()
-            page.goto(url, wait_until="networkidle")
-            page.wait_for_selector(ready_selector)
-            yield page
+            yield browser
         finally:
             browser.close()
 
 
-def test_activity_feed_renders_exactly_fifty_entries(dashboard_base_url: str) -> None:
+@contextmanager
+def _with_playwright_page(
+    browser: object, url: str, ready_selector: str, *, wait_until: str = "networkidle"
+) -> Iterator[object]:
+    page = browser.new_page()  # type: ignore[attr-defined]
+    try:
+        # The live-fixture pages (Story 5.16) poll /api/activity every
+        # 150ms in these tests -- network is never idle, so "networkidle"
+        # would hang until Playwright's own timeout. Those callers pass
+        # wait_until="load" instead.
+        page.goto(url, wait_until=wait_until)
+        page.wait_for_selector(ready_selector)
+        yield page
+    finally:
+        page.close()
+
+
+def test_activity_feed_renders_exactly_fifty_entries(
+    _browser: object, dashboard_base_url: str
+) -> None:
     url = f"{dashboard_base_url}{_FEED_FIXTURE}"
-    with _with_playwright_page(url, _FEED_ROWS) as page:
+    with _with_playwright_page(_browser, url, _FEED_ROWS) as page:
         count = page.evaluate(f"() => document.querySelectorAll({_FEED_ROWS!r}).length")
         assert count == 50
 
 
-def test_activity_feed_renders_newest_entry_on_top(dashboard_base_url: str) -> None:
+def test_activity_feed_renders_newest_entry_on_top(
+    _browser: object, dashboard_base_url: str
+) -> None:
     """AC2 / §6.8: new entries prepend -> the newest run is at the TOP, oldest at the bottom."""
     url = f"{dashboard_base_url}{_FEED_FIXTURE}"
-    with _with_playwright_page(url, _FEED_ROWS) as page:
+    with _with_playwright_page(_browser, url, _FEED_ROWS) as page:
         data = page.evaluate(
             f"""() => {{
                 const rows = [...document.querySelectorAll({_FEED_ROWS!r})];
@@ -100,10 +133,12 @@ def test_activity_feed_renders_newest_entry_on_top(dashboard_base_url: str) -> N
         assert data["ids"][-1] == "run-001", "bottom row must be the oldest synthetic run"
 
 
-def test_activity_feed_poll_prepends_newest_and_evicts_oldest(dashboard_base_url: str) -> None:
+def test_activity_feed_poll_prepends_newest_and_evicts_oldest(
+    _browser: object, dashboard_base_url: str
+) -> None:
     """AC2: a poll prepends the newest entry, stays bounded to 50, and the OLDEST scrolls out."""
     url = f"{dashboard_base_url}{_FEED_FIXTURE}"
-    with _with_playwright_page(url, _FEED_ROWS) as page:
+    with _with_playwright_page(_browser, url, _FEED_ROWS) as page:
         # Tag every existing row so we can prove the render is incremental (no full re-render).
         page.evaluate(
             f"""() => document.querySelectorAll({_FEED_ROWS!r})
@@ -145,10 +180,78 @@ def test_activity_feed_poll_prepends_newest_and_evicts_oldest(dashboard_base_url
         )
 
 
-def test_empty_state_renders_non_blank_message_and_footer(dashboard_base_url: str) -> None:
+def test_activity_feed_missing_field_falls_back_to_em_dash_not_undefined(
+    _browser: object, dashboard_base_url: str
+) -> None:
+    """DEF-4: a hand-built entry missing an optional field must render '—', never
+    the literal string 'undefined'."""
+    url = f"{dashboard_base_url}{_FEED_FIXTURE}"
+    with _with_playwright_page(_browser, url, _FEED_ROWS) as page:
+        page.evaluate(
+            """async () => {
+                const mod = await import('/static/components/activity-feed/activity-feed.js');
+                const host = document.getElementById('activity-feed-target');
+                mod.prependActivityFeedEntry(host, {
+                    id: 'run-missing-fields',
+                    timestamp: '2026-06-26T11:30:00',
+                    agentName: 'dev-story',
+                    // targetId, stage, duration deliberately omitted
+                    outcome: 'success',
+                });
+            }"""
+        )
+        row_text = page.evaluate(
+            """() => {
+                const row = document.querySelector(
+                    '.activity-feed__entry[data-entry-id="run-missing-fields"]',
+                );
+                return row.textContent;
+            }"""
+        )
+        assert "undefined" not in row_text
+        assert "—" in row_text
+
+
+def test_activity_feed_per_host_state_does_not_leak_across_hosts(
+    _browser: object, dashboard_base_url: str
+) -> None:
+    """DEF-1: two independent hosts must not share/overwrite each other's state
+    via the shared synthetic singleton."""
+    url = f"{dashboard_base_url}{_FEED_FIXTURE}"
+    with _with_playwright_page(_browser, url, _FEED_ROWS) as page:
+        result = page.evaluate(
+            """async () => {
+                const mod = await import('/static/components/activity-feed/activity-feed.js');
+                const hostA = document.createElement('activity-feed');
+                const hostB = document.createElement('activity-feed');
+                document.body.append(hostA, hostB);
+                mod.renderActivityFeed(hostA, mod.SYNTHETIC_ACTIVITY_FEED_FIXTURE);
+                mod.renderActivityFeed(hostB, mod.SYNTHETIC_ACTIVITY_FEED_FIXTURE);
+                mod.prependActivityFeedEntry(hostA, {
+                    id: 'only-on-a',
+                    timestamp: '2026-06-26T12:00:00',
+                    agentName: 'dev-story',
+                    targetId: '5-16',
+                    stage: 'implementation',
+                    outcome: 'success',
+                    duration: '1m 0s',
+                });
+                return {
+                    aHasNew: !!hostA.querySelector('[data-entry-id="only-on-a"]'),
+                    bHasNew: !!hostB.querySelector('[data-entry-id="only-on-a"]'),
+                };
+            }"""
+        )
+        assert result["aHasNew"] is True
+        assert result["bHasNew"] is False, "hostB must not see hostA's prepended entry (DEF-1)"
+
+
+def test_empty_state_renders_non_blank_message_and_footer(
+    _browser: object, dashboard_base_url: str
+) -> None:
     """AC3 / UX-DR15: empty state renders a non-blank anti-cynicism message + footer."""
     url = f"{dashboard_base_url}{_EMPTY_FIXTURE}"
-    with _with_playwright_page(url, _EMPTY_MESSAGE) as page:
+    with _with_playwright_page(_browser, url, _EMPTY_MESSAGE) as page:
         data = page.evaluate(
             """() => {
                 const host = document.getElementById('empty-state-target');
