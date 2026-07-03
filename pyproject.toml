@@ -142,6 +142,8 @@ exclude = [
 "src/sdlc/dashboard/static/components/activity-feed/activity-feed.css" = "sdlc/dashboard/static/components/activity-feed/activity-feed.css"
 "src/sdlc/dashboard/static/components/activity-feed/activity-feed.js" = "sdlc/dashboard/static/components/activity-feed/activity-feed.js"
 "src/sdlc/dashboard/static/components/activity-feed/activity-feed.fixture.html" = "sdlc/dashboard/static/components/activity-feed/activity-feed.fixture.html"
+# Story 5.16: real-data /api/activity swap onto the 5.11 render seam.
+"src/sdlc/dashboard/static/components/activity-feed/activity-feed-live.fixture.html" = "sdlc/dashboard/static/components/activity-feed/activity-feed-live.fixture.html"
 "src/sdlc/dashboard/static/components/empty-state/empty-state.css" = "sdlc/dashboard/static/components/empty-state/empty-state.css"
 "src/sdlc/dashboard/static/components/empty-state/empty-state.js" = "sdlc/dashboard/static/components/empty-state/empty-state.js"
 "src/sdlc/dashboard/static/components/empty-state/empty-state.fixture.html" = "sdlc/dashboard/static/components/empty-state/empty-state.fixture.html"

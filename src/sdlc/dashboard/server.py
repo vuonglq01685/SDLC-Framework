@@ -13,6 +13,7 @@ from typing import ClassVar, Final, cast
 
 from sdlc.concurrency.path_guard import assert_contained
 from sdlc.dashboard.router import RequestContext, Response, Router
+from sdlc.dashboard.routes.activity import register_activity_route
 from sdlc.dashboard.routes.backlog import register_backlog_route
 from sdlc.dashboard.routes.dora import register_dora_route
 from sdlc.dashboard.routes.signoff import register_signoff_route
@@ -100,6 +101,7 @@ def build_router(
     register_dora_route(router, repo_root=repo_root, git_log_provider=git_log_provider)
     register_signoff_route(router, repo_root=repo_root)
     register_backlog_route(router, repo_root=repo_root)
+    register_activity_route(router, repo_root=repo_root)
     return router
 
 
