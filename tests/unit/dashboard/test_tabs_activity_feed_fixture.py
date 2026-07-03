@@ -70,9 +70,12 @@ def test_activity_feed_fixture_has_exactly_50_entries() -> None:
     assert "buildSyntheticEntries(50)" in js
 
 
-def test_activity_feed_entry_has_five_fields() -> None:
+def test_activity_feed_entry_has_six_fields() -> None:
+    """Story 5.16 D2: the AC's 6 fields, real field names (drop the 5.11 synthetic
+    ``timestamp``/``duration`` grep -- the real record uses ``ts``/``durationMs``,
+    reconciled client-side onto the unchanged renderer contract)."""
     js = _read(_FEED_JS)
-    for field in ("timestamp", "agentName", "targetId", "outcome", "duration"):
+    for field in ("agentName", "targetId", "stage", "outcome", "durationMs"):
         assert field in js, f"activity feed must render {field}"
 
 
@@ -89,6 +92,27 @@ def test_activity_feed_outcome_glyph_uses_frozen_sprite() -> None:
     js = _read(_FEED_JS)
     for glyph in ("check", "slash-circle", "error"):
         assert glyph in js
+
+
+def test_activity_feed_unknown_outcome_maps_to_neutral_glyph_not_error() -> None:
+    """D3/DEF-3: an unknown outcome must route to the neutral `warning` glyph,
+    never the red `error` glyph (real writer emits only {success, failed})."""
+    js = _read(_FEED_JS)
+    assert "warning" in js
+    assert "NEUTRAL_OUTCOME_GLYPH" in js
+
+
+def test_activity_feed_exports_live_poller_and_never_uses_innerhtml() -> None:
+    js = _read(_FEED_JS)
+    assert "export function startActivityFeedLivePoller" in js
+    assert "innerHTML" not in js, "renderer must stay textContent-only (Task 6 XSS-safety)"
+
+
+def test_activity_feed_live_source_skips_synthetic_default_render() -> None:
+    """A `data-source="live"` host must not flash synthetic rows before the
+    real poller's first fetch resolves."""
+    js = _read(_FEED_JS)
+    assert 'dataset.source === "live"' in js
 
 
 def test_empty_state_message_constant_is_non_blank_anti_cynicism_copy() -> None:
