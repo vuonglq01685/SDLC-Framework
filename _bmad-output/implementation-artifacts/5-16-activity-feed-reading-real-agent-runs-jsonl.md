@@ -1,6 +1,6 @@
 # Story 5.16: Activity Feed Reading Real `agent_runs.jsonl`
 
-Status: review
+Status: done
 
 <!-- Layer: Epic-5 DAG L6 (5B). L6 = {5.13, 5.14, 5.15, 5.16, 5.18}; **authoritative L6 split (§3): batch 1 = {5.14, 5.15, 5.16, 5.18}** (the four independent 1:1 real-data swaps, run in parallel, cap 4), batch 2 = {5.13} alone (rebases on batch 1). 5.16 is in **batch 1**. Worktree: `epic-5/5-16-activity-feed-real-runs`, Owner Sally. Depends on **5.11** (twin — the synthetic Activity Feed + incremental-prepend render SEAM, done+merged) + external wave gate **E2B → 5.16** (Story 2B.10 `agent_runs.jsonl` Phase-3 specialists — `2b-10-author-phase-3-specialists-tdd-pipeline: done`, sprint-status.yaml:200). This is a **thin 1:1 real-data swap onto its 5A twin** (DAG §3:241): swap the SYNTHETIC feed source for the real `agent_runs.jsonl` read seam; do NOT redesign the component. **NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A** (epic-5 in-progress, cleared at 5.1). a11y coverage lands via the 5.11 twin through 5.12 (done) + the terminal gate 5.22. **DISTINGUISHING REQUIREMENT (DAG §5:294, Alice review):** `agent_runs.jsonl` is UNTRUSTED file content → data-validation is a first-class concern (malformed/partial/truncated JSONL must not crash or XSS the feed). Zero wire-format change (`agent_runs.jsonl` is a private internal model, NOT an ADR-024 frozen contract — runs.py:1-17) → freeze stays 7/7. -->
 
