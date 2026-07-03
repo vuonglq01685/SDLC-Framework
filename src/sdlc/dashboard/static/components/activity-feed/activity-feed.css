@@ -1,5 +1,5 @@
 /**
- * Activity Feed (Story 5.11 / UX §6.8).
+ * Activity Feed (Story 5.11 / UX §6.8; 6th `stage` column added Story 5.16 D2).
  */
 
 activity-feed {
@@ -18,7 +18,7 @@ activity-feed {
 
 .activity-feed__entry {
   display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 1fr) minmax(60px, 0.8fr) minmax(90px, 1fr) minmax(60px, 0.7fr);
+  grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 1fr) minmax(60px, 0.8fr) minmax(70px, 0.8fr) minmax(90px, 1fr) minmax(60px, 0.7fr);
   gap: var(--space-4);
   align-items: center;
   padding: var(--space-3) var(--space-4);
@@ -36,6 +36,7 @@ activity-feed {
 
 .activity-feed__agent,
 .activity-feed__target,
+.activity-feed__stage,
 .activity-feed__duration {
   font-size: var(--type-body-small-size);
   line-height: var(--type-body-small-line-height);

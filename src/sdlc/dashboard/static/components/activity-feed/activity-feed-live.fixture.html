@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Activity feed real-data fixture (Story 5.16)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/activity-feed/activity-feed.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.16 — Activity feed (real /api/activity data)</h1>
+    <activity-feed id="activity-feed-target" data-source="live"></activity-feed>
+    <script type="module">
+      import { startActivityFeedLivePoller } from "/static/components/activity-feed/activity-feed.js";
+
+      const host = document.getElementById("activity-feed-target");
+      // Fast interval for deterministic behavioral tests (Task 7); production
+      // usage passes no override and gets the real 3 s cadence.
+      const params = new URLSearchParams(window.location.search);
+      const intervalMs = Number(params.get("intervalMs")) || 200;
+      window.__activityFeedDispose = startActivityFeedLivePoller(host, { intervalMs });
+    </script>
+  </body>
+</html>
