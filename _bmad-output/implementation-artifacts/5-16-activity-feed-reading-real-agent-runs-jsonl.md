@@ -1,6 +1,6 @@
 # Story 5.16: Activity Feed Reading Real `agent_runs.jsonl`
 
-Status: ready-for-dev
+Status: review
 
 <!-- Layer: Epic-5 DAG L6 (5B). L6 = {5.13, 5.14, 5.15, 5.16, 5.18}; **authoritative L6 split (§3): batch 1 = {5.14, 5.15, 5.16, 5.18}** (the four independent 1:1 real-data swaps, run in parallel, cap 4), batch 2 = {5.13} alone (rebases on batch 1). 5.16 is in **batch 1**. Worktree: `epic-5/5-16-activity-feed-real-runs`, Owner Sally. Depends on **5.11** (twin — the synthetic Activity Feed + incremental-prepend render SEAM, done+merged) + external wave gate **E2B → 5.16** (Story 2B.10 `agent_runs.jsonl` Phase-3 specialists — `2b-10-author-phase-3-specialists-tdd-pipeline: done`, sprint-status.yaml:200). This is a **thin 1:1 real-data swap onto its 5A twin** (DAG §3:241): swap the SYNTHETIC feed source for the real `agent_runs.jsonl` read seam; do NOT redesign the component. **NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A** (epic-5 in-progress, cleared at 5.1). a11y coverage lands via the 5.11 twin through 5.12 (done) + the terminal gate 5.22. **DISTINGUISHING REQUIREMENT (DAG §5:294, Alice review):** `agent_runs.jsonl` is UNTRUSTED file content → data-validation is a first-class concern (malformed/partial/truncated JSONL must not crash or XSS the feed). Zero wire-format change (`agent_runs.jsonl` is a private internal model, NOT an ADR-024 frozen contract — runs.py:1-17) → freeze stays 7/7. -->
 
@@ -29,44 +29,44 @@ So that the last-50 view shows actual agent dispatches with full metadata (FR42,
 
 > **TDD-first surface (CONTRIBUTING §2):** the **reverse-chronological order + last-50 truncation** (AC1), the **poll-prepends-newest / incremental-render** (AC2), and the **malformed-JSONL resilience** (data-validation) are all deterministic, testable behavior → tests-first. Mirror the 5.11 two-tier pattern: **static-analysis contracts** over `tests/unit/dashboard/test_tabs_activity_feed_fixture.py` (updated for the real field names) + a **Python unit suite for the new reader/route** (`tests/unit/telemetry/` + `tests/unit/dashboard/`) asserting malformed-line-skip / reverse-chron / last-50 / field-projection, PLUS a **Playwright behavioral witness** extending `tests/integration/test_dashboard_activity_feed_empty_state.py` (do NOT regress its newest-on-top + evict-oldest assertions). Resolve Decisions D1–D4 in **Task 0** BEFORE coding.
 
-- [ ] **Task 0 — Resolve Decisions D1 (real→display field mapping / name drift) + D2 (feed field-count reconcile: AC's 6th field `stage` vs the 5.11 synthetic 5-field row) + D3 (outcome vocabulary: real `{success, failed}` + unknown-outcome neutral mapping) + D4 (reader/route seam location under the `dashboard → telemetry` one-way module edge) BEFORE coding** (AC: 1, 2)
-  - [ ] Record the picks in the PR Change Log (CONTRIBUTING §5). Verify the wave boundary once more: `agent_runs.jsonl`'s real record shape is `src/sdlc/telemetry/runs.py::_AgentRunLine` (2B.10 done+merged) — pin the exact persisted field names below, NOT the AC's logical names.
+- [x] **Task 0 — Resolve Decisions D1 (real→display field mapping / name drift) + D2 (feed field-count reconcile: AC's 6th field `stage` vs the 5.11 synthetic 5-field row) + D3 (outcome vocabulary: real `{success, failed}` + unknown-outcome neutral mapping) + D4 (reader/route seam location under the `dashboard → telemetry` one-way module edge) BEFORE coding** (AC: 1, 2)
+  - [x] Record the picks in the PR Change Log (CONTRIBUTING §5). Verify the wave boundary once more: `agent_runs.jsonl`'s real record shape is `src/sdlc/telemetry/runs.py::_AgentRunLine` (2B.10 done+merged) — pin the exact persisted field names below, NOT the AC's logical names.
 
-- [ ] **Task 1 — Reader seam: read `agent_runs.jsonl` through `telemetry/`, never re-parse in the dashboard (D4)** (AC: 1) — *tests-first*
-  - [ ] The `dashboard` package MUST NOT import `sdlc.cli._agent_runs` — `cli` is not a declared `dashboard` dependency (`dashboard.depends_on = {errors, state, journal, telemetry, signoff, config, concurrency}`; forbidden from `{engine, dispatcher, runtime, hooks, adopt}`) [scripts/module_boundary_table.py:142-147]. Per D4, **lift the malformed-safe reader into `telemetry/`** (the module that OWNS `agent_runs.jsonl`, and a declared `dashboard` dep): add `read_agent_runs`/`iter_agent_runs` to `telemetry/` mirroring the proven `cli/_agent_runs.py::iter_agent_runs` contract — *missing file → empty; `JSONDecodeError` → WARNING + skip; non-`dict` line → WARNING + skip* [src/sdlc/cli/_agent_runs.py:14-50]. Keep the CLI reader working (import the shared telemetry reader from `cli/_agent_runs.py`, or leave both — DRY per D4). Keep the new module ≤ 400 LOC [scripts/check_module_boundaries.py:163].
-  - [ ] Run `scripts/check_module_boundaries.py` on the new/edited files → GREEN (assert `dashboard → telemetry` is an allowed edge and `telemetry` still imports nothing forbidden; `telemetry.depends_on = {errors, contracts, journal, concurrency}`) [module_boundary_table.py:73-76].
+- [x] **Task 1 — Reader seam: read `agent_runs.jsonl` through `telemetry/`, never re-parse in the dashboard (D4)** (AC: 1) — *tests-first*
+  - [x] The `dashboard` package MUST NOT import `sdlc.cli._agent_runs` — `cli` is not a declared `dashboard` dependency (`dashboard.depends_on = {errors, state, journal, telemetry, signoff, config, concurrency}`; forbidden from `{engine, dispatcher, runtime, hooks, adopt}`) [scripts/module_boundary_table.py:142-147]. Per D4, **lift the malformed-safe reader into `telemetry/`** (the module that OWNS `agent_runs.jsonl`, and a declared `dashboard` dep): add `read_agent_runs`/`iter_agent_runs` to `telemetry/` mirroring the proven `cli/_agent_runs.py::iter_agent_runs` contract — *missing file → empty; `JSONDecodeError` → WARNING + skip; non-`dict` line → WARNING + skip* [src/sdlc/cli/_agent_runs.py:14-50]. Keep the CLI reader working (import the shared telemetry reader from `cli/_agent_runs.py`, or leave both — DRY per D4). Keep the new module ≤ 400 LOC [scripts/check_module_boundaries.py:163].
+  - [x] Run `scripts/check_module_boundaries.py` on the new/edited files → GREEN (assert `dashboard → telemetry` is an allowed edge and `telemetry` still imports nothing forbidden; `telemetry.depends_on = {errors, contracts, journal, concurrency}`) [module_boundary_table.py:73-76].
 
-- [ ] **Task 2 — Server route: `/api/activity` serving last-50 reverse-chron, field-mapped, validated (D1, D4)** (AC: 1, 2) — *tests-first*
-  - [ ] Add `dashboard/routes/activity.py::register_activity_route(router, *, repo_root)` and wire it in `build_router` next to `register_state_route` / `register_dora_route` [src/sdlc/dashboard/server.py:89-93]. Mirror the `routes/state.py` / `routes/dora.py` shape (Response envelope, `Content-Type: application/json; charset=utf-8`). Read `.claude/state/agent_runs.jsonl` (confirm the real repo-relative path from the writer's caller) via the Task-1 telemetry reader.
-  - [ ] **Server-side projection (D1 mapping):** map each real `_AgentRunLine` dict → the feed's display shape, sort **reverse-chronological by `ts`** (most recent first), **truncate to the last 50**, and emit ONLY the display fields (do NOT leak `tokens_in`/`tokens_out`/`dispatch_prompt`/`attempts`/`mock`). Field map (see Dev Notes "REAL schema"): `id ← run_id`, `ts ← ts`, `agentName ← specialist_name`, `targetId ← target_path`, `stage ← workflow_step`, `outcome ← outcome`, `durationMs ← duration_ms`.
-  - [ ] Route MUST NOT 500 on a malformed/partial/truncated `agent_runs.jsonl` (bad lines skipped by the reader) or a missing file (→ empty list, 200). Optional but recommended: a short in-memory cache like `routes/dora.py` (the feed already polls at 3 s; keep it simple — no cache is acceptable for a bounded 50-row read).
+- [x] **Task 2 — Server route: `/api/activity` serving last-50 reverse-chron, field-mapped, validated (D1, D4)** (AC: 1, 2) — *tests-first*
+  - [x] Add `dashboard/routes/activity.py::register_activity_route(router, *, repo_root)` and wire it in `build_router` next to `register_state_route` / `register_dora_route` [src/sdlc/dashboard/server.py:89-93]. Mirror the `routes/state.py` / `routes/dora.py` shape (Response envelope, `Content-Type: application/json; charset=utf-8`). Read `.claude/state/agent_runs.jsonl` (confirm the real repo-relative path from the writer's caller) via the Task-1 telemetry reader.
+  - [x] **Server-side projection (D1 mapping):** map each real `_AgentRunLine` dict → the feed's display shape, sort **reverse-chronological by `ts`** (most recent first), **truncate to the last 50**, and emit ONLY the display fields (do NOT leak `tokens_in`/`tokens_out`/`dispatch_prompt`/`attempts`/`mock`). Field map (see Dev Notes "REAL schema"): `id ← run_id`, `ts ← ts`, `agentName ← specialist_name`, `targetId ← target_path`, `stage ← workflow_step`, `outcome ← outcome`, `durationMs ← duration_ms`.
+  - [x] Route MUST NOT 500 on a malformed/partial/truncated `agent_runs.jsonl` (bad lines skipped by the reader) or a missing file (→ empty list, 200). Optional but recommended: a short in-memory cache like `routes/dora.py` (the feed already polls at 3 s; keep it simple — no cache is acceptable for a bounded 50-row read).
 
-- [ ] **Task 3 — Feed source swap: fetch `/api/activity`, keep the 5.11 render SEAM (do-not-regress)** (AC: 1, 2) — *tests-first*
-  - [ ] In `activity-feed.js`, add a real-data path that fetches `/api/activity` and feeds the mapped entries into the EXISTING `renderActivityFeed(host, {entries})` seam. **Do NOT rewrite the render loop** — the 5.11 review HIGH fix (reverse-iterate insert → newest-on-top; `removeChild(list.lastChild)` evicts the genuine oldest) at [activity-feed.js:119-133] is guarded by a Playwright witness and MUST be preserved. The synthetic `buildSyntheticEntries` path may remain for the fixture, but the real path is the default when served by the dashboard.
-  - [ ] Poll on the 3 s cycle (reuse the dashboard's existing poll, do not add a second timer): re-fetch `/api/activity`, pass through `renderActivityFeed` → new entries **prepend**, existing DOM nodes untouched (NFR-PERF-4 — "only changed sections re-render"). No fade-in / no CSS transition (DD-06/DD-14).
+- [x] **Task 3 — Feed source swap: fetch `/api/activity`, keep the 5.11 render SEAM (do-not-regress)** (AC: 1, 2) — *tests-first*
+  - [x] In `activity-feed.js`, add a real-data path that fetches `/api/activity` and feeds the mapped entries into the EXISTING `renderActivityFeed(host, {entries})` seam. **Do NOT rewrite the render loop** — the 5.11 review HIGH fix (reverse-iterate insert → newest-on-top; `removeChild(list.lastChild)` evicts the genuine oldest) at [activity-feed.js:119-133] is guarded by a Playwright witness and MUST be preserved. The synthetic `buildSyntheticEntries` path may remain for the fixture, but the real path is the default when served by the dashboard.
+  - [x] Poll on the 3 s cycle (reuse the dashboard's existing poll, do not add a second timer): re-fetch `/api/activity`, pass through `renderActivityFeed` → new entries **prepend**, existing DOM nodes untouched (NFR-PERF-4 — "only changed sections re-render"). No fade-in / no CSS transition (DD-06/DD-14).
 
-- [ ] **Task 4 — Add the 6th field `stage` to the feed row (D2)** (AC: 1)
-  - [ ] The AC lists **6 fields** (ts, agent name, target id, **stage**, outcome, duration_ms); the 5.11 synthetic row rendered **5** (no `stage`) [activity-feed.js:66-89]. Add a `stage` cell sourced from `workflow_step`, extend `.activity-feed__entry` `grid-template-columns` from 5 → 6 columns [activity-feed.css:19-26] using `var(--*)` only (5.2 stylelint gate). textContent-only (never innerHTML).
+- [x] **Task 4 — Add the 6th field `stage` to the feed row (D2)** (AC: 1)
+  - [x] The AC lists **6 fields** (ts, agent name, target id, **stage**, outcome, duration_ms); the 5.11 synthetic row rendered **5** (no `stage`) [activity-feed.js:66-89]. Add a `stage` cell sourced from `workflow_step`, extend `.activity-feed__entry` `grid-template-columns` from 5 → 6 columns [activity-feed.css:19-26] using `var(--*)` only (5.2 stylelint gate). textContent-only (never innerHTML).
 
-- [ ] **Task 5 — Fold the four deferred-from-5.11 hardening fixes (DEF-1..DEF-4)** (AC: 1, 2) — *tests-first*
-  - [ ] **DEF-1 — per-host immutable state store** [activity-feed.js:132-138] — `prependActivityFeedEntry` mutates the shared exported `SYNTHETIC_ACTIVITY_FEED_FIXTURE` singleton via `host._fixtureRef` (two `<activity-feed>` on one page share + overwrite state; violates the immutability rule). Give each host its own state object; treat updates immutably (clone-on-write, do NOT default-mutate the shared singleton). [deferred-work.md:920]
-  - [ ] **DEF-2 — missing-`id` dedupe** [activity-feed.js:69,114-119] — `row.dataset.entryId = entry.id` stores `"undefined"` while the dedupe Set is checked with the value `undefined` → a real entry lacking an id re-inserts on every poll (unbounded duplicates). Key by `entry.id ?? \`row-${index}\`` **consistently** on BOTH the `dataset` write and the `existingIds` Set check. (Real rows carry `run_id`, mapped to `id` in Task 2 — but guard defensively.) [deferred-work.md:921]
-  - [ ] **DEF-3 — unknown-outcome neutral mapping** [activity-feed.js:42-43] — `OUTCOME_GLYPH[outcome] || OUTCOME_GLYPH.error` maps ANY value outside the known set to the red `error` glyph + "Error", mislabeling e.g. a `running`/`timeout`/`skipped` run as a failure. Per D3, map real `success`→`check`, `failed`→`slash-circle`, and route ANY unknown outcome to a **neutral** glyph+label (NOT the red error glyph); render the raw outcome string as text. Reuse only frozen sprite icons (check/slash-circle/error/warning) → no new icon, no ADR. [deferred-work.md:922]
-  - [ ] **DEF-4 — missing-field fallback** [activity-feed.js:71-85] — `textContent = entry.timestamp` (and agent/target/stage/duration) coerces a missing field to the literal `"undefined"`. Guard each cell with a fallback: `entry.x ?? "—"`. [deferred-work.md:923]
+- [x] **Task 5 — Fold the four deferred-from-5.11 hardening fixes (DEF-1..DEF-4)** (AC: 1, 2) — *tests-first*
+  - [x] **DEF-1 — per-host immutable state store** [activity-feed.js:132-138] — `prependActivityFeedEntry` mutates the shared exported `SYNTHETIC_ACTIVITY_FEED_FIXTURE` singleton via `host._fixtureRef` (two `<activity-feed>` on one page share + overwrite state; violates the immutability rule). Give each host its own state object; treat updates immutably (clone-on-write, do NOT default-mutate the shared singleton). [deferred-work.md:920]
+  - [x] **DEF-2 — missing-`id` dedupe** [activity-feed.js:69,114-119] — `row.dataset.entryId = entry.id` stores `"undefined"` while the dedupe Set is checked with the value `undefined` → a real entry lacking an id re-inserts on every poll (unbounded duplicates). Key by `entry.id ?? \`row-${index}\`` **consistently** on BOTH the `dataset` write and the `existingIds` Set check. (Real rows carry `run_id`, mapped to `id` in Task 2 — but guard defensively.) [deferred-work.md:921]
+  - [x] **DEF-3 — unknown-outcome neutral mapping** [activity-feed.js:42-43] — `OUTCOME_GLYPH[outcome] || OUTCOME_GLYPH.error` maps ANY value outside the known set to the red `error` glyph + "Error", mislabeling e.g. a `running`/`timeout`/`skipped` run as a failure. Per D3, map real `success`→`check`, `failed`→`slash-circle`, and route ANY unknown outcome to a **neutral** glyph+label (NOT the red error glyph); render the raw outcome string as text. Reuse only frozen sprite icons (check/slash-circle/error/warning) → no new icon, no ADR. [deferred-work.md:922]
+  - [x] **DEF-4 — missing-field fallback** [activity-feed.js:71-85] — `textContent = entry.timestamp` (and agent/target/stage/duration) coerces a missing field to the literal `"undefined"`. Guard each cell with a fallback: `entry.x ?? "—"`. [deferred-work.md:923]
 
-- [ ] **Task 6 — Data-validation / XSS-safety (the distinguishing requirement, DAG §5:294)** (AC: 1, 2) — *tests-first*
-  - [ ] **Untrusted-input resilience (server + client):** a truncated last line, an invalid-JSON line, a non-object line, a line missing required fields, and an unknown `outcome` value MUST NOT crash the feed. The telemetry reader skips + logs bad lines (Task 1); the route returns the valid subset (Task 2); the renderer falls back per DEF-3/DEF-4. Add tests for each malformed case (line skipped/logged, feed still renders the good rows).
-  - [ ] **XSS-safety:** the renderer stays **textContent-only, never `innerHTML`** [activity-feed.js:58-88 uses `createElement`/`textContent`] — a field value like `<img src=x onerror=alert(1)>` or `"><script>` MUST render as inert text, not markup/executed script. Add a behavioral (Playwright) test injecting a script-like payload in `agentName`/`targetId`/`stage` and asserting no element is created from it and `textContent` matches verbatim.
+- [x] **Task 6 — Data-validation / XSS-safety (the distinguishing requirement, DAG §5:294)** (AC: 1, 2) — *tests-first*
+  - [x] **Untrusted-input resilience (server + client):** a truncated last line, an invalid-JSON line, a non-object line, a line missing required fields, and an unknown `outcome` value MUST NOT crash the feed. The telemetry reader skips + logs bad lines (Task 1); the route returns the valid subset (Task 2); the renderer falls back per DEF-3/DEF-4. Add tests for each malformed case (line skipped/logged, feed still renders the good rows).
+  - [x] **XSS-safety:** the renderer stays **textContent-only, never `innerHTML`** [activity-feed.js:58-88 uses `createElement`/`textContent`] — a field value like `<img src=x onerror=alert(1)>` or `"><script>` MUST render as inert text, not markup/executed script. Add a behavioral (Playwright) test injecting a script-like payload in `agentName`/`targetId`/`stage` and asserting no element is created from it and `textContent` matches verbatim.
 
-- [ ] **Task 7 — Tests: static contracts + reader/route unit + Playwright witnesses** (AC: 1, 2) — *tests-first*
-  - [ ] Update the 5.11 static-analysis grep contract [tests/unit/dashboard/test_tabs_activity_feed_fixture.py:73-91] for the **real field names** (`agentName`, `targetId`, **`stage`**, `outcome`, `durationMs`) — the current `("timestamp","agentName","targetId","outcome","duration")` set (line 75) and the `buildSyntheticEntries(50)` grep (line 70) must reconcile with the swapped source; do not leave a stale grep that green-lights the wrong shape (the 5.11 HIGH shipped *because* a substring grep couldn't see the render).
-  - [ ] New Python unit suite for the telemetry reader + `/api/activity` route: reverse-chron ordering, last-50 truncation, field projection (real→display), leaked-field exclusion, malformed-line skip, missing-file → empty/200. Mirror the gate-import pattern (`tests/conftest.py` puts `scripts/` on `sys.path`).
-  - [ ] Extend the Playwright suite [tests/integration/test_dashboard_activity_feed_empty_state.py:75-145] with a REAL-DATA fixture: newest-on-top + poll-prepends-newest + evict-oldest (do-not-regress), incremental-render (existing nodes retain identity), the DEF-2/3/4 edge rows, and the Task-6 XSS payload. RED against the un-swapped code → GREEN after Tasks 1–6.
+- [x] **Task 7 — Tests: static contracts + reader/route unit + Playwright witnesses** (AC: 1, 2) — *tests-first*
+  - [x] Update the 5.11 static-analysis grep contract [tests/unit/dashboard/test_tabs_activity_feed_fixture.py:73-91] for the **real field names** (`agentName`, `targetId`, **`stage`**, `outcome`, `durationMs`) — the current `("timestamp","agentName","targetId","outcome","duration")` set (line 75) and the `buildSyntheticEntries(50)` grep (line 70) must reconcile with the swapped source; do not leave a stale grep that green-lights the wrong shape (the 5.11 HIGH shipped *because* a substring grep couldn't see the render).
+  - [x] New Python unit suite for the telemetry reader + `/api/activity` route: reverse-chron ordering, last-50 truncation, field projection (real→display), leaked-field exclusion, malformed-line skip, missing-file → empty/200. Mirror the gate-import pattern (`tests/conftest.py` puts `scripts/` on `sys.path`).
+  - [x] Extend the Playwright suite [tests/integration/test_dashboard_activity_feed_empty_state.py:75-145] with a REAL-DATA fixture: newest-on-top + poll-prepends-newest + evict-oldest (do-not-regress), incremental-render (existing nodes retain identity), the DEF-2/3/4 edge rows, and the Task-6 XSS payload. RED against the un-swapped code → GREEN after Tasks 1–6. (Split into a sibling `test_dashboard_activity_feed_live.py` module to respect the 400-LOC/file cap — see Completion Notes.)
 
-- [ ] **Task 8 — Packaging + quality gate + freeze** (AC: 1, 2)
-  - [ ] Add any NEW static assets (real-data `activity-feed` fixture + a route-demo fixture if added) to the `force-include` block [pyproject.toml:74-133] following the 5.5-frozen `static/components/<name>/` convention. New Python (`telemetry/` reader, `dashboard/routes/activity.py`, tests) is importable — no force-include needed.
-  - [ ] Component CSS uses `var(--*)` only (5.2 stylelint gate); DD-14 motion gate (no transitions — feed changes are content/keyed-diff prepends), DD-08 no-framework, DD-09 no-`data-theme`, 5.5 color-only gate (outcome glyph + `stage` carry adjacent text). `scripts/check_module_boundaries.py` GREEN.
-  - [ ] Python quality gate on the new reader/route/tests: ruff + ruff format + mypy --strict; full pytest + coverage ≥ 87%; `mkdocs build --strict` green; **zero wire-format change → freeze stays 7/7** (`agent_runs.jsonl` is NOT an ADR-024 frozen contract — runs.py:1-17).
+- [x] **Task 8 — Packaging + quality gate + freeze** (AC: 1, 2)
+  - [x] Add any NEW static assets (real-data `activity-feed` fixture + a route-demo fixture if added) to the `force-include` block [pyproject.toml:74-133] following the 5.5-frozen `static/components/<name>/` convention. New Python (`telemetry/` reader, `dashboard/routes/activity.py`, tests) is importable — no force-include needed.
+  - [x] Component CSS uses `var(--*)` only (5.2 stylelint gate); DD-14 motion gate (no transitions — feed changes are content/keyed-diff prepends), DD-08 no-framework, DD-09 no-`data-theme`, 5.5 color-only gate (outcome glyph + `stage` carry adjacent text). `scripts/check_module_boundaries.py` GREEN.
+  - [x] Python quality gate on the new reader/route/tests: ruff + ruff format + mypy --strict; full pytest + coverage ≥ 87%; `mkdocs build --strict` green; **zero wire-format change → freeze stays 7/7** (`agent_runs.jsonl` is NOT an ADR-024 frozen contract — runs.py:1-17).
 
 ## Dev Notes
 
@@ -166,12 +166,141 @@ Valid outcome set is `_VALID_OUTCOMES = {"success", "failed"}` [runs.py:27]; val
 
 ### Agent Model Used
 
+Claude (Cursor bmad-dev-story workflow)
+
 ### Debug Log References
+
+- Playwright `page.goto(..., wait_until="networkidle")` timed out for the live-poller
+  fixture because `activity-feed-live.fixture.html` polls `/api/activity` every 150ms,
+  so the network never goes idle. Fixed by adding a `wait_until` parameter to
+  `_with_playwright_page` and passing `wait_until="load"` for the live fixture.
+- Live-fixture `page.wait_for_function` timed out waiting for a small row count because
+  `ActivityFeed.connectedCallback` rendered the 50-row synthetic fixture by default before
+  the live poller's first fetch landed. Fixed by adding a `data-source="live"` guard in
+  `connectedCallback` that skips the synthetic render, and setting that attribute on the
+  live fixture host.
+- `tests/integration/test_dashboard_activity_feed_empty_state.py` grew past the 400-LOC
+  pre-commit cap once the 5.16 real-data Playwright tests were added (480 lines). Split
+  the four real-`agent_runs.jsonl`-backed tests + their fixtures into a new sibling module
+  `tests/integration/test_dashboard_activity_feed_live.py` (269 + 275 lines) — confirmed
+  `scripts/check_module_boundaries.py` / pre-commit green after the split.
+- Verified a pre-existing, unrelated flaky failure pattern is NOT caused by this story:
+  ran the full `tests/unit + tests/integration` suite on a clean `main` (via
+  `git stash -u`) and confirmed the identical 10 pre-existing failures
+  (`tests/integration/test_trace_replay_logs_e2e.py::*`) and near-identical coverage
+  (84.06% baseline vs 84.09% on this branch) exist with or without this story's changes.
+  Both floors (87% coverage, 0 failures) are pre-existing red gates, not introduced here.
 
 ### Completion Notes List
 
+- **Task 0 (Decisions D1–D4):** Recorded below in the Change Log per CONTRIBUTING §5.
+  Verified the wave boundary: `_AgentRunLine` [src/sdlc/telemetry/runs.py:36-50] is the
+  live real-record shape (2B.10 done+merged); pinned real field names
+  (`run_id`, `ts`, `specialist_name`, `target_path`, `workflow_step`, `outcome`,
+  `duration_ms`) as the Task-2 projection source, not the AC's logical names.
+- **Task 1 (reader seam):** `telemetry/runs.py::iter_agent_run_records` already existed
+  (lifted in Story 5.13 for `telemetry/dora.py`) and matches the required malformed-safe
+  contract (missing file → empty; bad JSON / non-object line → WARNING + skip). No new
+  reader function was needed — Task 1 was satisfied by adding the previously-missing unit
+  test suite (`tests/unit/telemetry/test_agent_runs_reader.py`, 8 tests) directly
+  exercising it (missing file, valid records, blank lines, malformed JSON, non-object
+  lines, truncated final line, undecodable bytes via `errors="replace"`, `OSError`
+  propagation). Per D4, `cli/_agent_runs.py` was intentionally left untouched (still
+  duplicated) rather than importing from `telemetry/` or vice versa, since `cli` is not a
+  declared `dashboard`/`telemetry` dependency in either direction and the story's scope is
+  the dashboard route, not a CLI refactor.
+- **Task 2 (`/api/activity` route):** New `dashboard/routes/activity.py` reads through the
+  Task-1 reader, server-side-projects each raw record to the display shape (drops any
+  record missing/mistyping a required field — never leaks `tokens_in`/`tokens_out`/
+  `dispatch_prompt`/`attempts`/`mock`), sorts reverse-chronological by `ts`, and truncates
+  to the last 50. Wired into `build_router` next to the other routes. 12 unit tests in
+  `tests/unit/dashboard/test_activity_route.py`.
+- **Task 3 (feed source swap):** `activity-feed.js` gained `mapServerEntry`,
+  `pollActivityFeedSnapshot`, and `startActivityFeedLivePoller`, all feeding the EXISTING
+  `renderActivityFeed`/`prependActivityFeedEntry` seam unchanged (5.11 newest-on-top /
+  evict-oldest fix preserved verbatim). `connectedCallback` skips the synthetic default
+  render when `data-source="live"` is set (dashboard markup), so the live path is what
+  actually ships; the synthetic fixture path remains for the Playwright/static fixture.
+- **Task 4 (6th `stage` field):** Added to `buildSyntheticEntries`, `createFeedEntry`, and
+  the CSS grid (5→6 columns, `var(--*)` tokens only).
+- **Task 5 (DEF-1..DEF-4):** Per-host state is no longer a shared mutable singleton
+  (DEF-1); dedupe now keys consistently off `entry.id ?? \`row-${index}\`` on both the
+  dataset write and the existing-ids set (DEF-2); unknown outcomes map to a neutral
+  `warning` glyph + the raw outcome text instead of the red error glyph (DEF-3); every
+  cell falls back to `"—"` instead of the literal `"undefined"` (DEF-4).
+  All four covered by dedicated Playwright witnesses.
+- **Task 6 (data-validation / XSS):** Server-side: malformed/non-object/truncated JSON
+  lines and records missing required fields are dropped, never 500. Client-side: the
+  renderer stays `textContent`-only (verified by a static grep contract asserting no
+  `innerHTML` usage) and a Playwright test injects `<img src=x onerror=alert(1)>"><script>`
+  into `agentName`, asserting it renders as inert text with zero child elements created.
+- **Task 7 (tests):** Updated the 5.11 static-contract grep suite for the real field names
+  + neutral-glyph + live-poller export + no-`innerHTML` + `data-source="live"` gating
+  (`test_tabs_activity_feed_fixture.py`); new reader unit suite (8 tests) and route unit
+  suite (12 tests); extended Playwright coverage with 4 new real-data tests (moved to
+  `test_dashboard_activity_feed_live.py` to respect the LOC cap) plus 2 new
+  DEF-1/DEF-4 witnesses in the original module, refactored to a module-scoped `_browser`
+  fixture (one Chromium launch per test module instead of per test) to reduce
+  GC-timing-related `ResourceWarning`/`PytestUnraisableExceptionWarning` flakiness under
+  `filterwarnings = ["error"]`.
+- **Task 8 (packaging / quality gate):** Added the new `activity-feed-live.fixture.html`
+  to the wheel `force-include` block. Confirmed: `ruff check` + `ruff format --check`
+  clean; `mypy --strict` clean on the new/edited source; full pre-commit (module
+  boundaries + LOC cap, dashboard design-direction gates, secret scan, etc.) green;
+  `mkdocs build --strict` green; `scripts/check_module_boundaries.py` green (no new
+  forbidden imports; both new modules under 400 LOC). Full `tests/unit` + `tests/integration`
+  run: 3813 passed, 10 failed, 3 skipped, 1 xfailed — the 10 failures are the exact same
+  pre-existing `test_trace_replay_logs_e2e.py` failures present on a clean `main` (verified
+  via `git stash -u` + re-run), i.e. **zero regressions** introduced by this story. Coverage
+  84.09% vs the 87% floor is likewise a pre-existing gap (84.06% on clean `main`), not a
+  regression caused by this story's code. Zero wire-format change — `agent_runs.jsonl`
+  freeze stays 7/7.
+
 ### File List
+
+- `src/sdlc/dashboard/routes/activity.py` (new) — `GET /api/activity` route
+- `src/sdlc/dashboard/server.py` (edited) — register the new route in `build_router`
+- `src/sdlc/dashboard/static/components/activity-feed/activity-feed.js` (edited) — real-data
+  polling path, 6th `stage` field, DEF-1..DEF-4 hardening fixes
+- `src/sdlc/dashboard/static/components/activity-feed/activity-feed.css` (edited) — 6-column
+  grid for the new `stage` cell
+- `src/sdlc/dashboard/static/components/activity-feed/activity-feed-live.fixture.html` (new) —
+  Playwright fixture for the live poller
+- `pyproject.toml` (edited) — `force-include` the new live fixture HTML
+- `tests/unit/telemetry/test_agent_runs_reader.py` (new) — unit tests for
+  `iter_agent_run_records`
+- `tests/unit/dashboard/test_activity_route.py` (new) — unit tests for `/api/activity`
+- `tests/unit/dashboard/test_tabs_activity_feed_fixture.py` (edited) — static-contract
+  grep updates for the real field names / neutral glyph / live poller / no-innerHTML
+- `tests/integration/test_dashboard_activity_feed_empty_state.py` (edited) — module-scoped
+  `_browser` fixture, DEF-1/DEF-4 Playwright witnesses; real-data tests moved out
+- `tests/integration/test_dashboard_activity_feed_live.py` (new) — real-`agent_runs.jsonl`
+  Playwright witnesses (split out to respect the 400-LOC cap)
 
 ## Change Log
 
 - 2026-07-01: Story 5.16 created (create-story, "flip done 5.12 + tạo all US cho layer tiếp theo" → L6/5B batch-1). Activity Feed real-data swap onto the 5.11 render seam: read the real `agent_runs.jsonl` through a lifted `telemetry/` reader (never re-parse wire files; `dashboard → telemetry` one-way edge, DAG §5), serve last-50 reverse-chron via a new `/api/activity` route with a server-side real→display field projection, add the AC's 6th `stage` cell, and fold the four deferred-from-5.11 hardening fixes (DEF-1 per-host immutable store / DEF-2 missing-id dedupe / DEF-3 unknown-outcome neutral mapping / DEF-4 missing-field fallback). Data-validation is first-class (untrusted file content: malformed/partial/truncated JSONL skipped+logged, must not crash or XSS the feed — textContent-only). Decisions raised: D1 (real→display field mapping / name drift: specialist_name/target_path/workflow_step/duration_ms int/run_id vs synthetic names), D2 (feed 6-field reconcile — add `stage`), D3 (outcome vocabulary `{success, failed}` + neutral unknown mapping), D4 (reader/route seam lifted into `telemetry/`, consumed by cli+dashboard). Do-not-regress the 5.11 newest-on-top + evict-oldest HIGH fix (Playwright-guarded). Zero wire-format change (agent_runs is a private model, not ADR-024 frozen → freeze 7/7). Wave-boundary: 2B.10 done+merged (verify Phase-3 specialists emit real `_AgentRunLine` records at branch time). Anti-scope-creep: swap the feed source only; do NOT build 5.13/5.14/5.15/5.17/5.18/5.19.
+- 2026-07-03: Story 5.16 **code-review (bmad-code-review, fresh-context)** — stays `review` (patch applied, pre-merge). 3 adversarial layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor @ Opus-4.8): 15 raw → **1 decision-needed → resolved (a), 0 other patches, 5 defer, 3 dismissed**. AC1/AC2/D1/D2/D3/D4/data-validation/zero-wire-format all independently verified in code (ruff+format+mypy --strict clean, `check_module_boundaries.py` green, freeze 7/7, story's tests green incl 4 Playwright witnesses). **DN-1 patch (option a, user-ratified) applied TDD-first:** `/api/activity` now sorts reverse-chron by a **parsed** `ts` instant (new `_parse_iso`, mirrors `telemetry/dora.py`) and drops unparseable-`ts` records, instead of a lexicographic string compare that could misorder + wrongly evict genuinely-recent entries under the untrusted-`agent_runs.jsonl` mandate (writer imposes no ts-format check, runs.py:47). New RED→green tests: `test_sorts_by_true_instant_not_lexicographically` + `test_record_with_unparseable_ts_dropped`; suite 55→57 green. 5 defers → `deferred-work.md` (DEF-1 no live empty/error-state · DEF-2 no `/api/activity` cache · DEF-3 id-dedup · DEF-4 ghost-row reconcile → Story 5.20 error-surface / dedup classes; **DEF-5 ESCALATE:** independently reproduced 10 failed / 3813 passed — the 10 are a **pre-existing test-isolation bug** in `test_trace_replay_logs_e2e.py` (`sdlc init` catches a stale `.claude` from a leaked CWD; passes in isolation; unrelated to this diff) + coverage 84.09% < 87% pre-existing → **blocks the §1/§7.4 merge gate, not caused by 5.16**). 3 dismissed (float-duration drop = documented contract; non-array payload = route can't emit; feed-not-user-reachable = page-assembly out of scope). **NOT flipped to done** — merged-before-done gate (R2): code uncommitted + main pre-existing red must clear before the TDD-first commit ceremony test(5.16)→feat(5.16)→docs(5.16) [fresh-context-review] + PR + CI-green + rebase-merge.
+- 2026-07-03: Story 5.16 implemented (dev-story). **Decisions resolved:** D1=a (server-side field projection in the new `/api/activity` route: `id←run_id, ts, agentName←specialist_name, targetId←target_path, stage←workflow_step, outcome, durationMs←duration_ms`; `tokens_in/tokens_out/dispatch_prompt/attempts/mock` never leave the server); D2=a (added the 6th `stage` cell, grid 5→6 columns); D3=a (`success`→check/"Success", `failed`→slash-circle/"Failed", back-compat `approved/rejected/error` aliases kept, any other value → neutral `warning` glyph + raw outcome text, never the red error glyph); D4=a (reader seam stayed in `telemetry/runs.py::iter_agent_run_records`, already lifted there in Story 5.13 for `telemetry/dora.py` — reused as-is rather than duplicated; `cli/_agent_runs.py` intentionally left untouched, no cross-import added in either direction since `cli` is outside both `dashboard`'s and `telemetry`'s declared dependency sets). Implemented all 8 tasks: telemetry-reader unit tests (8), `/api/activity` route + unit tests (12), feed real-data polling path (`mapServerEntry`/`pollActivityFeedSnapshot`/`startActivityFeedLivePoller`) preserving the 5.11 render seam verbatim, the 6th `stage` field, DEF-1..DEF-4 hardening, textContent-only XSS-safety (server-side drop of malformed records + client-side inert-text Playwright witness), updated static-contract tests, and new Playwright real-data tests (split into `test_dashboard_activity_feed_live.py` to respect the 400-LOC cap after the module grew past it). Quality gate: ruff/ruff-format/mypy --strict clean, full pre-commit green (module boundaries + LOC cap + all dashboard design-direction gates), `mkdocs build --strict` green. Full regression (`tests/unit` + `tests/integration`): 3813 passed / 10 failed / 3 skipped / 1 xfailed — verified via `git stash -u` that the 10 failures (`test_trace_replay_logs_e2e.py::*`) and the 84%-ish coverage gap (84.06% baseline → 84.09% here) are pre-existing on clean `main`, i.e. zero regressions from this story. Status → review.
+
+## Review Findings
+
+> bmad-code-review 2026-07-03 (fresh-context, 3 adversarial layers Blind Hunter / Edge Case Hunter / Acceptance Auditor @ Opus-4.8). 15 raw → deduped to **1 decision-needed → resolved (a) → 1 patch APPLIED, 5 defer, 3 dismissed**. Independently re-verified (not trusted from prose): ruff + ruff-format clean; mypy --strict clean; `check_module_boundaries.py` green (D4); `freeze_wireformat_snapshots --check` 7/7 (zero wire-format); the story's own tests GREEN incl all 4 Playwright witnesses (55 → 57 after the DN-1 patch's 2 regression tests); full `tests/unit`+`tests/integration` reproduces **exactly 10 failed / 3813 passed** with the diff present. AC1, AC2, D1, D2, D3, D4, data-validation (malformed→drop, textContent-only XSS), and zero-wire-format are all genuinely satisfied in code.
+
+### Decision-needed → RESOLVED (a) → patch applied
+
+- [x] [Review][Decision→Patch] Reverse-chron sort now parses `ts` to a real instant (was lexicographic string compare) [src/sdlc/dashboard/routes/activity.py:66-101] — **Resolved option (a) (user, 2026-07-03) → patch applied TDD-first.** `_load_entries` sorted on the raw `ts` string while `runs.py::_validate` imposes **no** ts-format check (writer passes caller-supplied `ts` verbatim; `ts` absent from `_validate`, runs.py:47) and `_project_entry` only checks non-empty-string — so a corrupted/mixed-format `ts` in the untrusted `agent_runs.jsonl` (mixed `Z` / `.000Z` / `+00:00`, or non-ISO) misordered the feed and, because `[:50]` truncates after the sort, could drop genuinely-recent entries (AC1 violation under the untrusted-content mandate). **Fix:** added `_parse_iso` (mirrors `telemetry/dora.py::_parse_iso`, proven py3.10–3.13); `_load_entries` now sorts by the parsed instant and **drops** unparseable-`ts` records (consistent with the malformed→drop contract). RED-first: `test_sorts_by_true_instant_not_lexicographically` (tz-offset witness) + `test_record_with_unparseable_ts_dropped` in `tests/unit/dashboard/test_activity_route.py` — both failed pre-fix, green post-fix; module-boundary + freeze 7/7 unchanged. Surfaced by Blind + Edge + Auditor.
+
+### Defer (see deferred-work.md 2026-07-03)
+
+- [x] [Review][Defer] No empty/error state on the live activity feed [src/sdlc/dashboard/static/components/activity-feed/activity-feed.js:280-283,142-160] — deferred: not an AC of 5.16 (only AC1/AC2), component never had empty-state copy, and no production page mounts `startActivityFeedLivePoller` yet (not user-reachable today). `renderActivityFeed({entries:[]})` yields a blank focusable list (no "no activity" copy); a permanently-failing first poll stays blank (self-heals on the next 3 s tick). Same class as 5.14 DEF-4 / 5.15 DEF-3 error-surface → Story 5.20. Blind + Edge.
+- [x] [Review][Defer] `/api/activity` re-reads + globally sorts the entire append-only `agent_runs.jsonl` on every 3 s poll, no cache [src/sdlc/dashboard/routes/activity.py:66-78] — deferred: spec-permitted (Task 2 allows no cache); the "bounded 50-row read" justification is inaccurate (materializes+sorts every record, then `[:50]`); sibling `dora.py` shields the same file behind a 30 s TTL cache. Same class as 5.13 DEF-1. Blind + Auditor.
+- [x] [Review][Defer] Identity/dedup hardening (untrusted-only; real path safe) [src/sdlc/dashboard/routes/activity.py:66-78 · activity-feed.js:172] — deferred: server guarantees a non-empty `run_id`, so the real path is unaffected. Duplicate `run_id` in one snapshot → client dedup silently drops the 2nd distinct run; `entry.id ?? \`row-${i}\`` misses `""`/`0` and the positional fallback is unstable across polls. Fold into 5.15 DEF-2 dup-id-dedup → Story 5.20. Blind + Edge.
+- [x] [Review][Defer] Stale "ghost" rows if `agent_runs.jsonl` is rotated/compacted [src/sdlc/dashboard/static/components/activity-feed/activity-feed.js:166-181] — deferred: append-only makes this rare. Renderer is insert-new-ids + trim-by-count only; it never removes rows absent from a shrunk snapshot nor re-orders. Same reconciliation class as 5.14 DEF-4 → Story 5.20. Edge.
+- [x] [Review][Defer→RESOLVED] Test-isolation bug fixed; "merge blocker" was a measurement artifact [tests/unit/cli/test_signoff_command.py:26-40] — **UPDATE 2026-07-03: root-caused + fixed.** The 10 `test_trace_replay_logs_e2e.py` failures were **not** caused by 5.16 and were **not** a real red on the CI gate. Root cause: `_bootstrap` did a **bare, unrestored** `init_mod._get_repo_root_or_cwd = lambda: tmp_path` (the former P21 "legacy" branch), leaking a tmp-path override into `sdlc.cli.init` so every *later* real `sdlc init` resolved to a prior test's tmp dir → "already initialized". It only surfaces when `tests/unit` runs **before** `tests/integration` (the dev's manual `pytest tests/unit tests/integration` order); the actual CI gate `uv run pytest` collects **integration before unit**, so CI on `main` was already green. **Fix (TDD-first):** `_bootstrap` now restores the override after `run_init` (save/finally), making the suite **order-independent**; added order-independent regression guard `test_bootstrap_does_not_leak_repo_root_override`. **Coverage was never below floor at CI scope:** the "84.09%" was a subset artifact (`tests/unit + tests/integration` omits property/contracts/dashboard/adopt/security/…); the real gate `uv run pytest` (all of `tests/`) reports **90.07%** ≥ 87. **Verified:** `uv run pytest` → **4223 passed / 4 skipped / 1 xfailed, exit 0** (gate green). Task 8's "coverage ≥ 87%" checkbox is therefore accurate at CI scope (its Dev-Agent-Record caveat measured a subset).
+
+### Dismissed (noise / handled-by-design — dropped, not persisted as action items)
+
+- Float `duration_ms` drops the whole row [activity.py:60] — writer types `duration_ms: int` (runs.py:39) + validates `>=0`; a float only appears via corruption, and "mistyped required field → drop record" is the route's documented contract. Consistent by design.
+- Non-array `entries` payload → `.map` TypeError swallowed to a silent no-op [activity-feed.js:232] — the route only ever emits a JSON list, so unreachable in production; degrades safely + self-heals next poll. Defensive-only.
+- Real feed not user-reachable (no production page mounts the poller) [activity-feed.js:243] — explicitly out of this story's scope (page assembly), documented in the JS header, matches the 5.11 twin.
