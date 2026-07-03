@@ -26,18 +26,28 @@ def _sha256(content: bytes) -> str:
 def _bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch | None = None) -> None:
     """Create minimal project state (init).
 
-    P21 (Story 2A.12 review): use ``monkeypatch.setattr`` (auto-restored) when a
-    monkeypatch fixture is provided. Falls back to bare attribute assignment for
-    legacy call sites that don't take the fixture yet; those should migrate.
+    The ``_get_repo_root_or_cwd`` override is only needed for the single
+    ``run_init`` call below, so it is ALWAYS restored afterwards. A bare,
+    unrestored assignment (the former P21 "legacy" fallback) leaked the tmp-path
+    lambda into ``sdlc.cli.init`` for the rest of the session and made every
+    later real ``sdlc init`` resolve to a prior test's tmp dir — turning the
+    trace/replay/logs E2E suite red in the full run (CI-recovery 2026-07-03).
+    Pass ``monkeypatch`` when available (auto-restored); otherwise this
+    save/restore keeps the no-fixture call sites leak-free too.
     """
     from sdlc.cli import init as init_mod
 
     if monkeypatch is not None:
         monkeypatch.setattr(init_mod, "_get_repo_root_or_cwd", lambda: tmp_path)
-    else:
-        # Legacy path — bare assignment persists across tests; flagged by P21.
-        init_mod._get_repo_root_or_cwd = lambda: tmp_path  # type: ignore[method-assign]
-    init_mod.run_init(ctx=None)
+        init_mod.run_init(ctx=None)
+        return
+
+    original = init_mod._get_repo_root_or_cwd
+    init_mod._get_repo_root_or_cwd = lambda: tmp_path  # type: ignore[method-assign]
+    try:
+        init_mod.run_init(ctx=None)
+    finally:
+        init_mod._get_repo_root_or_cwd = original  # type: ignore[method-assign]
 
 
 def _make_ctx(*, json_mode: bool = False) -> typer.Context:
@@ -301,3 +311,29 @@ def test_journal_append_oserror_emits_journal_append_failed(tmp_path: Path) -> N
 
     assert result.exit_code == 2  # ERR_JOURNAL_APPEND_FAILED → 2
     assert "ERR_JOURNAL_APPEND_FAILED" in result.output or "journal append failed" in result.output
+
+
+def test_bootstrap_does_not_leak_repo_root_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-isolation regression (CI-recovery 2026-07-03): ``_bootstrap`` must
+    restore ``sdlc.cli.init._get_repo_root_or_cwd`` after ``run_init`` — a leaked
+    tmp-path override poisoned that module global for the rest of the session and
+    made every later real ``sdlc init`` resolve to a prior test's tmp dir
+    ("already initialized at .../test_journal_append_oserror_em0"), turning the
+    whole ``tests/integration/test_trace_replay_logs_e2e.py`` suite red in the
+    full run while it passed in isolation.
+    """
+    from sdlc.cli import init as init_mod
+    from sdlc.cli._paths import get_repo_root_or_cwd
+
+    # Pin a known-clean baseline (auto-restored by monkeypatch) so this guard is
+    # order-independent — it must not depend on no earlier test having leaked.
+    monkeypatch.setattr(init_mod, "_get_repo_root_or_cwd", get_repo_root_or_cwd)
+
+    _bootstrap(tmp_path)
+
+    assert init_mod._get_repo_root_or_cwd is get_repo_root_or_cwd, (
+        "_bootstrap leaked its tmp-path repo-root override into "
+        "sdlc.cli.init._get_repo_root_or_cwd (poisons later tests' `sdlc init`)"
+    )
