@@ -163,3 +163,56 @@ def _fn_body(js: str, name: str) -> str:
     match = re.search(rf"function {name}\(.*?\)\s*\{{(.*?)\n\}}", js, re.DOTALL)
     assert match, f"{name} not found"
     return match.group(1)
+
+
+def test_normalize_command_collapses_interior_newlines_in_js() -> None:
+    """D5 (Story 5.18, folds 5.8 DEF-1): untrusted multi-line commands must
+    collapse to a single space-joined line before they are ever copyable."""
+    js = _read(_RESUME_JS)
+    assert "INTERIOR_NEWLINE_RE" in js
+    body = _fn_body(js, "normalizeCommand")
+    assert "INTERIOR_NEWLINE_RE" in body
+
+
+def test_bind_copy_button_stashes_reset_handle_on_timer_host() -> None:
+    """DEF-8 timer lift: the copy-feedback reset timer lives on a caller-
+    supplied persistent host, not a plain closure variable."""
+    js = _read(_RESUME_JS)
+    assert "timerHost" in js
+    assert "_copyResetHandle" in js
+
+
+def test_render_resume_card_announces_only_on_change() -> None:
+    """DEF-5: poll-driven re-renders announce via the persistent live region
+    only when the breadcrumb/command actually changed, never on first mount."""
+    js = _read(_RESUME_JS)
+    assert "_resumeCardAnnounced" in js
+    assert "Updated —" in js
+
+
+def test_resume_card_element_has_disconnected_callback_and_stop_poller_hook() -> None:
+    js = _read(_RESUME_JS)
+    assert "disconnectedCallback()" in js
+    assert "_stopPoller" in js
+
+
+def test_resume_card_element_coalesces_render_via_microtask() -> None:
+    """DEF-8: attributeChangedCallback fires once per observed attribute (all
+    before connectedCallback) -- must coalesce to a single _render() call."""
+    js = _read(_RESUME_JS)
+    assert "_scheduleRender()" in js
+    assert "queueMicrotask" in js
+    assert "_renderPending" in js
+
+
+def test_resume_card_element_skips_auto_render_for_live_source() -> None:
+    js = _read(_RESUME_JS)
+    assert 'this.dataset.source === "live"' in js
+
+
+def test_inverted_command_text_has_overflow_policy_in_css() -> None:
+    """DEF-4 (Story 5.8, folded by 5.18): a long/real command must not
+    overflow or awkwardly wrap inside the dark pill -- single-line, scrollable."""
+    css = _read(_INVERTED_CSS)
+    assert "overflow-x: auto" in css
+    assert "white-space: pre" in css
