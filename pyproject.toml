@@ -135,6 +135,9 @@ exclude = [
 "src/sdlc/dashboard/static/components/resume-card/resume-card.css" = "sdlc/dashboard/static/components/resume-card/resume-card.css"
 "src/sdlc/dashboard/static/components/resume-card/resume-card.js" = "sdlc/dashboard/static/components/resume-card/resume-card.js"
 "src/sdlc/dashboard/static/components/resume-card/resume-card.fixture.html" = "sdlc/dashboard/static/components/resume-card/resume-card.fixture.html"
+# Story 5.18: real-data /api/resume swap onto the 5.8 render seam.
+"src/sdlc/dashboard/static/components/resume-card/resume-card-live.js" = "sdlc/dashboard/static/components/resume-card/resume-card-live.js"
+"src/sdlc/dashboard/static/components/resume-card/resume-card-live.fixture.html" = "sdlc/dashboard/static/components/resume-card/resume-card-live.fixture.html"
 # Story 5.11: tabs, activity feed, empty state, section heading + rhythm fixture.
 "src/sdlc/dashboard/static/components/tabs/tabs.css" = "sdlc/dashboard/static/components/tabs/tabs.css"
 "src/sdlc/dashboard/static/components/tabs/tabs.js" = "sdlc/dashboard/static/components/tabs/tabs.js"

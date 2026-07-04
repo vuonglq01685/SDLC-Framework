@@ -7,6 +7,7 @@ from sdlc.state._read import read_state
 from sdlc.state.model import State
 from sdlc.state.projection import project_from_journal
 from sdlc.state.reader import CURRENT_SCHEMA_VERSION, read_state_or_refuse, read_state_raw
+from sdlc.state.suggested_next import compute_suggested_next
 
 # atomic.py is POSIX-only; only the WRITE protocol needs fcntl + parent-dir fsync
 # (Architecture §573). read_state is cross-platform and lives in state/_read.py.
@@ -68,4 +69,5 @@ __all__ = (  # noqa: RUF022
     "rebuild_state_from_journal",  # Story 1.20
     "state_to_canonical_bytes",
     "CURRENT_SCHEMA_VERSION",
+    "compute_suggested_next",  # Story 5.18 D2
 )

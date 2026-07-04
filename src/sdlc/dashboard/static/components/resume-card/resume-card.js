@@ -1,5 +1,5 @@
 /**
- * <resume-card> custom element (Story 5.8 / UX §6.4).
+ * <resume-card> custom element (Story 5.8 shell; real-data hardening Story 5.18).
  */
 
 import "../freshness-footer/freshness-footer.js";
@@ -10,6 +10,14 @@ const COPY_FEEDBACK_MS = 1_000;
 const COPY_ARIA_LABEL = "Copy suggested command";
 const COPY_LIVE_MESSAGE = "copied to clipboard";
 const SHELL_PREFIX_RE = /^[$>❯]\s*/u;
+// D5 (folds 5.8 DEF-1): the real suggested_next_command is untrusted state
+// content -- collapse ANY interior line separator plus its surrounding
+// whitespace to a single space so the copyable string is always single-line.
+// Covers \n, a lone \r (treated as Enter by most terminals), \r\n, vertical
+// tab, form feed, NEL, and the Unicode line/paragraph separators -- an
+// unhardened multi-line value would otherwise paste-and-auto-execute up to the
+// first line break.
+const INTERIOR_NEWLINE_RE = /\s*[\n\r\u000b\u000c\u0085\u2028\u2029]\s*/gu;
 
 function normalizeCommand(raw) {
   if (raw == null) {
@@ -17,6 +25,7 @@ function normalizeCommand(raw) {
   }
   let text = String(raw).trim();
   text = text.replace(SHELL_PREFIX_RE, "");
+  text = text.replace(INTERIOR_NEWLINE_RE, " ");
   return text.trim();
 }
 
@@ -84,10 +93,27 @@ function swapCopyGlyph(button, iconId) {
   }
 }
 
-function bindCopyButton(button, command, liveRegion, { clipboard = navigator.clipboard, feedbackMs = COPY_FEEDBACK_MS } = {}) {
-  let resetHandle = null;
+function bindCopyButton(
+  button,
+  command,
+  liveRegion,
+  { clipboard = navigator.clipboard, feedbackMs = COPY_FEEDBACK_MS, timerHost } = {},
+) {
+  // DEF-8: the reset timer is stashed on `timerHost` (a PERSISTENT node across
+  // renders -- normally the custom-element instance itself), not a plain
+  // closure variable, so a caller with access to the same host (a re-render,
+  // or disconnectedCallback) can find and cancel a still-pending timer left
+  // over from a previous bind. Falls back to the button itself when no host
+  // is supplied (kept working for direct renderResumeCard(root, data) callers
+  // that don't pass timerHost).
+  const host = timerHost || button;
   button.addEventListener("click", async () => {
     const normalized = normalizeCommand(command);
+    if (!normalized) {
+      // P5 (review): nothing to copy (e.g. the neutral loading state's empty
+      // command). Do not fire a false "copied" confirmation or icon swap.
+      return;
+    }
     try {
       await clipboard.writeText(normalized);
     } catch {
@@ -99,17 +125,21 @@ function bindCopyButton(button, command, liveRegion, { clipboard = navigator.cli
     }
     swapCopyGlyph(button, "check");
     liveRegion.textContent = COPY_LIVE_MESSAGE;
-    if (resetHandle != null) {
-      window.clearTimeout(resetHandle);
+    if (host._copyResetHandle != null) {
+      window.clearTimeout(host._copyResetHandle);
     }
-    resetHandle = window.setTimeout(() => {
+    host._copyResetHandle = window.setTimeout(() => {
       swapCopyGlyph(button, "copy");
-      resetHandle = null;
+      host._copyResetHandle = null;
     }, feedbackMs);
   });
 }
 
-function renderResumeCard(root, data, { storage = sessionStorage, forceGreeting } = {}) {
+function renderResumeCard(
+  root,
+  data,
+  { storage = sessionStorage, forceGreeting, timerHost, trackAnnounce = true } = {},
+) {
   const liveRegion = ensureLiveRegion(root);
   root.querySelectorAll(":scope > .resume-card").forEach((node) => node.remove());
 
@@ -118,11 +148,18 @@ function renderResumeCard(root, data, { storage = sessionStorage, forceGreeting 
   card.setAttribute("role", "region");
   card.setAttribute("aria-label", "Resume position and suggested command");
 
-  const showGreeting = forceGreeting ?? shouldShowGreeting(storage);
+  // P8 (resolves review DN-2): only greet when a real user name is present. The
+  // live /api/resume token carries no `user` field, so an unguarded greeting
+  // would paint the em-dash placeholder AND burn the once-per-session
+  // sessionStorage flag on it. Suppress it (and do NOT mark the flag) when there
+  // is no real user -- the attribute/synthetic path always has one, so it stays
+  // unaffected.
+  const hasUser = typeof data.user === "string" && data.user.trim() !== "";
+  const showGreeting = (forceGreeting ?? shouldShowGreeting(storage)) && hasUser;
   if (showGreeting) {
     const greeting = document.createElement("p");
     greeting.className = "resume-card__greeting";
-    greeting.textContent = `Welcome, ${data.user || "—"}.`;
+    greeting.textContent = `Welcome, ${data.user}.`;
     card.appendChild(greeting);
     markGreetingShown(storage);
   }
@@ -132,9 +169,14 @@ function renderResumeCard(root, data, { storage = sessionStorage, forceGreeting 
   hereEyebrow.textContent = "You are here:";
   card.appendChild(hereEyebrow);
 
+  // P6 (review): coerce breadcrumb parts on BOTH the attribute and live paths
+  // (parseBreadcrumb trims + drops empty/non-string parts) so a stray empty or
+  // non-string part never renders as " /  / " or "[object Object]". Idempotent
+  // on the already-clean attribute-path array.
+  const breadcrumbText = formatBreadcrumb(parseBreadcrumb(data.breadcrumb || []));
   const breadcrumb = document.createElement("p");
   breadcrumb.className = "resume-card__breadcrumb";
-  breadcrumb.textContent = formatBreadcrumb(data.breadcrumb || []);
+  breadcrumb.textContent = breadcrumbText;
   card.appendChild(breadcrumb);
 
   const nextEyebrow = document.createElement("p");
@@ -153,9 +195,10 @@ function renderResumeCard(root, data, { storage = sessionStorage, forceGreeting 
   const surface = document.createElement("div");
   surface.className = "inverted-command";
 
+  const normalizedCommand = normalizeCommand(data.command);
   const commandText = document.createElement("code");
   commandText.className = "inverted-command__text";
-  commandText.textContent = normalizeCommand(data.command);
+  commandText.textContent = normalizedCommand;
 
   const copyButton = document.createElement("button");
   copyButton.type = "button";
@@ -168,7 +211,7 @@ function renderResumeCard(root, data, { storage = sessionStorage, forceGreeting 
   commandRow.appendChild(commandGroup);
   card.appendChild(commandRow);
 
-  bindCopyButton(copyButton, data.command, liveRegion);
+  bindCopyButton(copyButton, data.command, liveRegion, { timerHost: timerHost || root });
 
   const footer = document.createElement("freshness-footer");
   if (data.lastPoll != null) {
@@ -178,6 +221,30 @@ function renderResumeCard(root, data, { storage = sessionStorage, forceGreeting 
   card.appendChild(footer);
 
   root.insertBefore(card, liveRegion);
+
+  // DEF-5: announce poll-driven breadcrumb/command CHANGES through the SAME
+  // persistent live region used for copy feedback. A poll re-render fully
+  // replaces the `.resume-card` subtree above (the frozen 5.8 render
+  // strategy), so a naive `aria-live` wrapper around the visible breadcrumb/
+  // command would itself be torn down and recreated every render and is not
+  // reliably announced by assistive tech; this reused, never-replaced region
+  // is. Only announces on an actual CHANGE (never the first mount) so a
+  // steady-state 3 s poll does not spam identical announcements.
+  //
+  // P4 (review): the neutral loading render passes `trackAnnounce: false` so it
+  // does NOT seed the baseline below -- otherwise the loading -> first-real-data
+  // transition reads as a "change" and spuriously announces "Updated —" on the
+  // very first content paint.
+  if (trackAnnounce) {
+    const previous = root._resumeCardAnnounced;
+    const changed =
+      previous != null &&
+      (previous.breadcrumb !== breadcrumbText || previous.command !== normalizedCommand);
+    if (changed) {
+      liveRegion.textContent = `Updated — ${breadcrumbText}. Suggested next: ${normalizedCommand}`;
+    }
+    root._resumeCardAnnounced = { breadcrumb: breadcrumbText, command: normalizedCommand };
+  }
 }
 
 export const SYNTHETIC_RESUME_FIXTURE = {
@@ -194,13 +261,57 @@ class ResumeCard extends HTMLElement {
   }
 
   connectedCallback() {
-    this._render();
+    // A host marked `data-source="live"` (set in markup BEFORE this element
+    // upgrades, e.g. resume-card-live.fixture.html) is driven exclusively by
+    // `startResumeCardLivePoller` (external wiring, mirrors activity-feed's
+    // convention) — auto-rendering the synthetic/attribute fixture here first
+    // would flash stale content before the real poll lands.
+    if (this.dataset.source === "live") {
+      return;
+    }
+    this._scheduleRender();
+  }
+
+  disconnectedCallback() {
+    if (this._copyResetHandle != null) {
+      window.clearTimeout(this._copyResetHandle);
+      this._copyResetHandle = null;
+    }
+    // Generic convention (mirrors host._fixtureRef elsewhere): whoever started
+    // a live poller against this host (resume-card-live.js) stashes its
+    // dispose callback here, so the poller's AbortController is aborted at
+    // the exact moment of disconnection — no import of the live-poller
+    // module needed from this file (one-directional dependency, matches the
+    // backlog-tree.js / backlog-tree-live.js split).
+    if (typeof this._stopPoller === "function") {
+      this._stopPoller();
+      this._stopPoller = null;
+    }
   }
 
   attributeChangedCallback() {
     if (this.isConnected) {
-      this._render();
+      this._scheduleRender();
     }
+  }
+
+  // DEF-8: coalesce a synchronous burst of attribute changes (custom-element
+  // upgrade delivers one attributeChangedCallback per observed attribute,
+  // all before connectedCallback) into a SINGLE microtask-scheduled _render()
+  // — otherwise render #1 shows the once-per-session greeting and burns the
+  // sessionStorage flag, then render #2 (moments later, same tick) rebuilds
+  // WITHOUT the greeting (flag now set) and the user never sees it painted.
+  _scheduleRender() {
+    if (this._renderPending) {
+      return;
+    }
+    this._renderPending = true;
+    queueMicrotask(() => {
+      this._renderPending = false;
+      if (this.isConnected) {
+        this._render();
+      }
+    });
   }
 
   _render() {
@@ -220,7 +331,7 @@ class ResumeCard extends HTMLElement {
         lastPoll: this.getAttribute("last-poll") || SYNTHETIC_RESUME_FIXTURE.lastPoll,
         variant: this.getAttribute("variant") || SYNTHETIC_RESUME_FIXTURE.variant,
       },
-      { forceGreeting },
+      { forceGreeting, timerHost: this },
     );
   }
 }

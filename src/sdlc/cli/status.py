@@ -17,6 +17,7 @@ import typer
 
 from sdlc.cli._paths import get_repo_root_or_cwd as _get_repo_root_or_cwd
 from sdlc.cli.output import echo, emit_error, emit_json
+from sdlc.state.suggested_next import compute_suggested_next
 
 _logger = logging.getLogger(__name__)
 
@@ -105,17 +106,6 @@ def _format_ts_local(ts: str) -> str:
         return ts
 
 
-def _compute_suggested_next(state) -> str:  # type: ignore[no-untyped-def]
-    """Minimal v1.17 stub. Story 4.x's auto_loop owns the rich engine.
-    Fresh-project case is the only AC-tested branch.
-    """
-    # v1.17 stub — Story 4.x's auto_loop owns the rich suggestion engine.
-    phase = getattr(state, "phase", 1)
-    if phase == 1 and not state.epics:
-        return '/sdlc-start "<idea>"'
-    return "sdlc scan"
-
-
 def run_status(*, ctx: typer.Context) -> None:
     """Print the resume card with suggested next-action (FR44). Read-only."""
     from sdlc.errors import StateError
@@ -159,7 +149,7 @@ def run_status(*, ctx: typer.Context) -> None:
         _logger.warning("status: unknown phase %d (no name in _PHASE_NAMES)", phase)
         phase_name = "unknown"
     last_ts_raw = _get_last_journal_ts(journal_path)
-    suggested_next = _compute_suggested_next(state)
+    suggested_next = compute_suggested_next(state)
 
     if ctx.obj is not None and ctx.obj.get("json", False):
         emit_json(
