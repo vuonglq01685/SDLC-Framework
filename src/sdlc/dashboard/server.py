@@ -16,6 +16,7 @@ from sdlc.dashboard.router import RequestContext, Response, Router
 from sdlc.dashboard.routes.activity import register_activity_route
 from sdlc.dashboard.routes.backlog import register_backlog_route
 from sdlc.dashboard.routes.dora import register_dora_route
+from sdlc.dashboard.routes.resume import register_resume_route
 from sdlc.dashboard.routes.signoff import register_signoff_route
 from sdlc.dashboard.routes.state import register_state_route
 from sdlc.errors import SecurityError
@@ -102,6 +103,7 @@ def build_router(
     register_signoff_route(router, repo_root=repo_root)
     register_backlog_route(router, repo_root=repo_root)
     register_activity_route(router, repo_root=repo_root)
+    register_resume_route(router, repo_root=repo_root)
     return router
 
 

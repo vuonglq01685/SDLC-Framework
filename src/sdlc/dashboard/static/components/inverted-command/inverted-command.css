@@ -25,4 +25,9 @@
   letter-spacing: var(--type-mono-md-letter-spacing);
   color: inherit;
   background: transparent;
+  /* DEF-4 (Story 5.8, folded by 5.18): real/long commands need a defined
+     overflow policy so an unbreakable long string cannot overflow or
+     awkwardly wrap inside the dark pill. Single-line, scrollable. */
+  overflow-x: auto;
+  white-space: pre;
 }

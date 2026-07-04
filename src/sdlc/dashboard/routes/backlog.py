@@ -301,6 +301,42 @@ def build_backlog_tree(repo_root: Path) -> dict[str, Any]:
     return {"currentTaskId": current_task_id, "epics": epics_out}
 
 
+def find_current_cursor(repo_root: Path) -> dict[str, str] | None:
+    """Return ``{epic_id, story_id, task_id, stage}`` for the first non-done task
+    in canonical epic/story/task order (Story 5.18 D1/D3), or ``None`` when no
+    epics/stories/tasks exist or every task is done.
+
+    Mirrors :func:`build_backlog_tree`'s first-pending-task precedence (same
+    read helpers, same ordering) but returns the task's RAW workflow ``stage``
+    (5-value: pending/write-tests/write-code/review/done) instead of the
+    3-value display pill ``build_backlog_tree`` derives for the tree UI.
+    """
+    epics_root = repo_root / _EPICS_DIR_REL
+    stories_root = repo_root / _STORIES_ROOT_REL
+    tasks_root = repo_root / _TASKS_ROOT_REL
+    tasks_by_story = _index_tasks_by_story(tasks_root)
+
+    for epic_data in _read_epics(epics_root):
+        epic_id = epic_data["id"]
+        try:
+            epic_slug = parse_epic_id(epic_id).epic_slug
+        except Exception:  # D5: safe skip on malformed epic id
+            continue
+        for story_data in _read_stories(stories_root, epic_id=epic_id, epic_slug=epic_slug):
+            story_id = story_data["id"]
+            for parsed_task, task_data in tasks_by_story.get(story_id, []):
+                stage = task_data.get("stage")
+                stage_str = stage if isinstance(stage, str) and stage else "pending"
+                if stage_str != "done":
+                    return {
+                        "epic_id": epic_id,
+                        "story_id": story_id,
+                        "task_id": parsed_task.raw,
+                        "stage": stage_str,
+                    }
+    return None
+
+
 def register_backlog_route(router: Router, *, repo_root: Path) -> None:
     @router.get("/api/backlog")
     def handle_backlog(_ctx: RequestContext) -> Response:

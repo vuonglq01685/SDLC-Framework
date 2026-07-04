@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Resume card real-data fixture (Story 5.18)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/inverted-command/inverted-command.css" />
+    <link rel="stylesheet" href="/static/components/resume-card/resume-card.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+        max-width: 1280px;
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.18 — Resume card (real /api/resume data)</h1>
+    <resume-card id="resume-card-live-target" data-source="live"></resume-card>
+    <script type="module">
+      import { startResumeCardLivePoller } from "/static/components/resume-card/resume-card-live.js";
+
+      const host = document.getElementById("resume-card-live-target");
+      // Fast interval for deterministic behavioral tests (Task 7); production
+      // usage passes no override and gets the real 3 s cadence.
+      const params = new URLSearchParams(window.location.search);
+      const intervalMs = Number(params.get("intervalMs")) || 200;
+      window.__resumeCardDispose = startResumeCardLivePoller(host, { intervalMs });
+    </script>
+  </body>
+</html>
