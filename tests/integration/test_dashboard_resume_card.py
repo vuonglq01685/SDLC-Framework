@@ -174,6 +174,22 @@ def test_copy_button_focus_ring_keyboard_vs_mouse(dashboard_base_url: str) -> No
         assert keyboard_shadow not in ("none", "")
 
 
+def test_command_code_is_not_a_keyboard_tab_stop(dashboard_base_url: str) -> None:
+    """Regression (5.18 fix): DEF-4 gave `.inverted-command__text` `overflow-x:
+    auto`, which in Chromium 130+ (keyboard-focusable scrollers) turns the
+    non-interactive command <code> into a Tab stop. That both pollutes the tab
+    order (a11y) and pushes the copy button past the 6-Tab window
+    `test_copy_button_focus_ring_keyboard_vs_mouse` relies on. The <code> must
+    carry tabindex="-1" so it stays out of sequential focus while keeping
+    pointer scroll. Guards against a refactor silently dropping the attribute.
+    """
+    url = f"{dashboard_base_url}{_FIXTURE_PATH}"
+    with _with_playwright_page(url) as page:
+        page.wait_for_selector(f"{_COPY_TARGET} .inverted-command__text", timeout=5_000)
+        tabindex = page.get_attribute(f"{_COPY_TARGET} .inverted-command__text", "tabindex")
+        assert tabindex == "-1"
+
+
 def test_resume_card_region_and_inverted_surface_tokens(dashboard_base_url: str) -> None:
     url = f"{dashboard_base_url}{_FIXTURE_PATH}"
     with _with_playwright_page(url) as page:
