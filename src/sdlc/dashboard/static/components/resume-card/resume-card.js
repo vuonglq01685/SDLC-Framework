@@ -199,6 +199,16 @@ function renderResumeCard(
   const commandText = document.createElement("code");
   commandText.className = "inverted-command__text";
   commandText.textContent = normalizedCommand;
+  // DEF-4 gave `.inverted-command__text` `overflow-x: auto`, which in Chromium
+  // 130+ (keyboard-focusable scrollers, on by default) silently turns this
+  // NON-interactive display <code> into a keyboard tab stop -- one extra stop
+  // per command pill. That both pollutes the dashboard tab order (a11y
+  // regression) AND pushes the copy button past the 6-Tab window the frozen
+  // 5.8 focus-ring acceptance test relies on (it never reaches the button ->
+  // keyboard :focus-visible never asserts). tabindex="-1" opts the scroller
+  // out of sequential focus while leaving pointer/trackpad scroll (and the
+  // full copyable text + screen-reader announcement) intact.
+  commandText.setAttribute("tabindex", "-1");
 
   const copyButton = document.createElement("button");
   copyButton.type = "button";
