@@ -1,6 +1,6 @@
 # Story 5.17: KPI Strip Rendering Real DORA 7d/30d
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG **L7 (5B)**. L7 = {5.17} alone, width 1 (epic-5-dag.md §3:216, §6:330). Worktree: **epic-5/5-17-kpi-strip-real-dora**, owner Sally (dag §5:295). Depends on TWO done+merged stories via edges 5.7→5.17 and 5.13→5.17 (dag §2:141-143): the 5A twin **5.7** (KPI strip + value cell renderer, FROZEN) and **5.13** (DORA backend + `/api/dora` + 30s cache, real compute). Wave gate: 5B data-readiness is satisfied — `/api/dora` reads `agent_runs.jsonl` (2B.10) + git log THROUGH 5.13, which is done+merged; 5.17 consumes only `/api/dora`. Downstream: 5.17 has NO direct successor edge, but its rendered real-data surface is re-scanned by the terminal a11y gate **5.22** (dag §2:200-202). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate N/A (epic-5 in-progress, cleared at 5.1). This is a **pure frontend real-data swap** — `/api/dora` ALREADY EXISTS (5.13); do NOT touch the backend, do NOT build STOP banner (5.19) / disconnection (5.20) / degradation banner (5.21). Zero `/api/dora` shape edit → freeze stays 7/7. -->
