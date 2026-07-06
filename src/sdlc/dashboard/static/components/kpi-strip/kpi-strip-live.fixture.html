@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>KPI strip real-data fixture (Story 5.17)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/kpi-strip/kpi-strip.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.17 — KPI strip (real /api/dora data)</h1>
+    <kpi-strip id="kpi-strip-live-target" data-source="live"></kpi-strip>
+    <script type="module">
+      import { startKpiStripLivePoller } from "/static/components/kpi-strip/kpi-strip-live.js";
+
+      const host = document.getElementById("kpi-strip-live-target");
+      const params = new URLSearchParams(window.location.search);
+      const intervalMs = Number(params.get("intervalMs")) || 200;
+      window.__kpiStripDispose = startKpiStripLivePoller(host, { intervalMs });
+    </script>
+  </body>
+</html>

@@ -182,6 +182,12 @@ export const SYNTHETIC_KPI_FIXTURE = [
 
 class KpiStrip extends HTMLElement {
   connectedCallback() {
+    // A host marked `data-source="live"` is driven exclusively by
+    // `startKpiStripLivePoller` — auto-rendering the synthetic fixture here
+    // first would flash stale content before the real poll lands.
+    if (this.dataset.source === "live") {
+      return;
+    }
     const raw = this.getAttribute("fixture");
     let cells = SYNTHETIC_KPI_FIXTURE;
     if (raw) {
@@ -192,6 +198,13 @@ class KpiStrip extends HTMLElement {
       }
     }
     renderKpiStrip(this, cells);
+  }
+
+  disconnectedCallback() {
+    if (typeof this._stopPoller === "function") {
+      this._stopPoller();
+      this._stopPoller = null;
+    }
   }
 }
 

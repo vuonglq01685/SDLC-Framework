@@ -6,13 +6,24 @@
     <title>SDLC Dashboard</title>
     <link rel="stylesheet" href="/static/styles/tokens.css" />
     <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/kpi-strip/kpi-strip.css" />
   </head>
   <body>
     <h1>SDLC Dashboard</h1>
     <p>Local dashboard skeleton (Story 5.1). UI components land in later stories.</p>
+    <kpi-strip id="dashboard-kpi-strip" data-source="live"></kpi-strip>
     <!-- Sprite reference convention (Story 5.3 / DD-03): decorative icon, frozen for L3+ -->
     <svg width="16" height="16" aria-hidden="true">
       <use href="/static/icons/sprite.svg#info" />
     </svg>
+    <script type="module">
+      import "/static/components/kpi-strip/kpi-strip.js";
+      import { startKpiStripLivePoller } from "/static/components/kpi-strip/kpi-strip-live.js";
+
+      const kpiHost = document.getElementById("dashboard-kpi-strip");
+      if (kpiHost) {
+        startKpiStripLivePoller(kpiHost);
+      }
+    </script>
   </body>
 </html>
