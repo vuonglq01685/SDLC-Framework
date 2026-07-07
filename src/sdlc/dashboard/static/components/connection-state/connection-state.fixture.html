@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Connection state fixture (Story 5.20)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/masthead/masthead.css" />
+    <link rel="stylesheet" href="/static/components/stop-banner/stop-banner.css" />
+    <link rel="stylesheet" href="/static/components/inverted-command/inverted-command.css" />
+    <link rel="stylesheet" href="/static/components/resume-card/resume-card.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h2 {
+        font-size: var(--type-display-sm-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+
+      section {
+        margin-bottom: var(--space-11);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.20 — Honest disconnection + disconnected state</h1>
+
+    <section aria-label="Broker-driven masthead poll simulation">
+      <h2>Poll simulation</h2>
+      <div id="connection-masthead-target"></div>
+      <div id="connection-banner-target"></div>
+    </section>
+
+    <script type="module">
+      import {
+        bindHonestDisconnectionBanner,
+        getState,
+        reportPollResult,
+        _resetForTests,
+      } from "/static/components/connection-state/connection-state.js";
+      import {
+        renderMasthead,
+        createAriaLiveRateLimiter,
+        mapStateFromJson,
+      } from "/static/components/masthead/masthead.js";
+
+      const mastheadHost = document.getElementById("connection-masthead-target");
+      const bannerHost = document.getElementById("connection-banner-target");
+      const rateLimiter = createAriaLiveRateLimiter();
+      let lastGoodState = mapStateFromJson(
+        {
+          project_name: "SDLC-Framework",
+          owner: "diep",
+          phase: 2,
+          progress: 45,
+        },
+        { port: "3847", lastPoll: new Date("2026-06-25T09:42:15.000Z") },
+      );
+      let lastSuccessfulPoll = lastGoodState.lastPoll;
+
+      function renderFromBroker() {
+        const disconnected = getState() === "disconnected";
+        renderMasthead(
+          mastheadHost,
+          {
+            ...lastGoodState,
+            connectionVariant: disconnected ? "disconnected" : lastGoodState.connectionVariant,
+            disconnected,
+            lastPoll: lastSuccessfulPoll,
+          },
+          { rateLimiter, updateTitle: false },
+        );
+      }
+
+      bindHonestDisconnectionBanner(bannerHost, {
+        getLastPoll: () => lastSuccessfulPoll,
+      });
+
+      window.__connectionFixture = {
+        reset() {
+          _resetForTests();
+          renderFromBroker();
+        },
+        reportPollResult,
+        getState,
+        simulateSuccess() {
+          reportPollResult({ ok: true });
+          lastSuccessfulPoll = new Date();
+          renderFromBroker();
+        },
+        simulateFailure() {
+          reportPollResult({ ok: false });
+          renderFromBroker();
+        },
+      };
+
+      renderFromBroker();
+    </script>
+  </body>
+</html>

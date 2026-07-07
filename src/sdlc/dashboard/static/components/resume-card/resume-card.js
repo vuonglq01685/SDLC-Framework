@@ -145,6 +145,11 @@ function renderResumeCard(
 
   const card = document.createElement("section");
   card.className = "resume-card";
+  const variantKey = String(data.variant || "default").toLowerCase();
+  const isDisconnected = variantKey === "disconnected";
+  if (isDisconnected) {
+    card.classList.add("resume-card--disconnected");
+  }
   card.setAttribute("role", "region");
   card.setAttribute("aria-label", "Resume position and suggested command");
 
@@ -221,13 +226,25 @@ function renderResumeCard(
   commandRow.appendChild(commandGroup);
   card.appendChild(commandRow);
 
+  if (isDisconnected) {
+    const staleWarning = document.createElement("p");
+    staleWarning.className = "resume-card__stale-warning";
+    staleWarning.textContent = "Suggested command may be stale.";
+    card.appendChild(staleWarning);
+  }
+
   bindCopyButton(copyButton, data.command, liveRegion, { timerHost: timerHost || root });
+  if (isDisconnected) {
+    copyButton.setAttribute("aria-disabled", "true");
+    copyButton.disabled = true;
+    copyButton.classList.add("resume-card__copy--disabled");
+  }
 
   const footer = document.createElement("freshness-footer");
   if (data.lastPoll != null) {
     footer.setAttribute("last-poll", String(data.lastPoll));
   }
-  footer.setAttribute("variant", data.variant || "default");
+  footer.setAttribute("variant", isDisconnected ? "disconnected" : (data.variant || "default"));
   card.appendChild(footer);
 
   root.insertBefore(card, liveRegion);
