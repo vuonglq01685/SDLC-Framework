@@ -1,6 +1,6 @@
 # Story 5.21: Below-1280 px Viewport Degradation Banner
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG **L9 (5C)**, cap **2** — parallel with **5.20** (epic-5-dag.md §3:218, §6:332). Worktree: `epic-5/5-21-below-1280-degradation-banner`. Owner **Sally** (dag §5:299). **Co-critical** path `5.2→5.4→5.5→5.11→5.19→5.21→5.22` (dag §4:258–260 — on the critical boundary, NOT a freely-parallelizable leaf). Depends on: **5.19→5.21** (reuses the STOP-banner `.alert` treatment with `--blue` info; dag §2:162, done). Downstream: **5.21→5.22** (terminal a11y release gate; §2:167). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate **N/A** (epic-5 in-progress, cleared at 5.1). Review focus: **a11y** (color+text never color-only; keyboard-reachable `×`) + **forbidden-patterns** (the `×` dismiss is a SANCTIONED §8.2 exception to the §7.12 button-hierarchy ban — the only such exception besides the copy button; no `transition:` DD-14; no layout-collapse/hamburger/card-stacking). No wire-format shape edit → **freeze stays 7/7**. This builds ONLY the viewport banner; it does NOT build backend-silence disconnection (**5.20**). Sibling L9 worktree 5.20 also reuses the STOP-banner treatment + may touch `index.html` — coordinate (CONTRIBUTING §3.3 rebase-between-merges). -->
