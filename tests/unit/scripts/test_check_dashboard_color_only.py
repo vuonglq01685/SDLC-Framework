@@ -72,6 +72,32 @@ def test_scan_passes_text_tag_sibling_without_class() -> None:
     assert color_only_script.scan_paths([path]) == []
 
 
+def test_scan_passes_stop_banner_with_text_severity_tag() -> None:
+    path = _FIXTURES / "clean_stop_banner_with_severity_tag.html"
+    assert color_only_script.scan_paths([path]) == []
+
+
+def test_scan_flags_stop_banner_without_text_severity_tag() -> None:
+    path = _FIXTURES / "violation_stop_banner_no_text_tag.html"
+    violations = color_only_script.scan_paths([path])
+    assert violations
+    # Assert membership, not violations[0]: _scan_html appends stop-banner
+    # violations after any live-dot ones, so index 0 is order-fragile (review
+    # 2026-07-07 P12).
+    assert any("stop-banner without text severity tag" in v.pattern for v in violations)
+
+
+def test_scan_flags_color_only_banner_masked_by_tagged_sibling() -> None:
+    # Review 2026-07-07 P2: a color-only banner must NOT pass just because a
+    # sibling banner within the old flat ±window carried a severity tag. The
+    # first banner here is tag-less; the second (within ~120 chars) has WARNING:.
+    path = _FIXTURES / "violation_stop_banner_masked_by_sibling.html"
+    violations = color_only_script.scan_paths([path])
+    assert any("stop-banner without text severity tag" in v.pattern for v in violations), (
+        "color-only banner masked by a tagged sibling escaped the gate"
+    )
+
+
 def test_main_returns_2_on_missing_explicit_path() -> None:
     assert color_only_script.main(["/nonexistent/path.html"]) == 2
 
