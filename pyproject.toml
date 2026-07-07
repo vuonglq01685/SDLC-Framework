@@ -154,6 +154,12 @@ exclude = [
 "src/sdlc/dashboard/static/components/empty-state/empty-state.fixture.html" = "sdlc/dashboard/static/components/empty-state/empty-state.fixture.html"
 "src/sdlc/dashboard/static/components/section-heading/section-heading.css" = "sdlc/dashboard/static/components/section-heading/section-heading.css"
 "src/sdlc/dashboard/static/components/section-heading/section-heading.js" = "sdlc/dashboard/static/components/section-heading/section-heading.js"
+# Story 5.19: STOP banner component + live poller (Epic-4 trigger rendering).
+"src/sdlc/dashboard/static/components/stop-banner/stop-banner.css" = "sdlc/dashboard/static/components/stop-banner/stop-banner.css"
+"src/sdlc/dashboard/static/components/stop-banner/stop-banner.js" = "sdlc/dashboard/static/components/stop-banner/stop-banner.js"
+"src/sdlc/dashboard/static/components/stop-banner/stop-banner.fixture.html" = "sdlc/dashboard/static/components/stop-banner/stop-banner.fixture.html"
+"src/sdlc/dashboard/static/components/stop-banner/stop-banner-live.js" = "sdlc/dashboard/static/components/stop-banner/stop-banner-live.js"
+"src/sdlc/dashboard/static/components/stop-banner/stop-banner-live.fixture.html" = "sdlc/dashboard/static/components/stop-banner/stop-banner-live.fixture.html"
 "src/sdlc/dashboard/static/test-fixtures/editorial-scanning-rhythm.html" = "sdlc/dashboard/static/test-fixtures/editorial-scanning-rhythm.html"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
 

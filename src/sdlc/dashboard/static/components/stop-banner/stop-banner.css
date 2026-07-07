@@ -1,0 +1,106 @@
+/**
+ * STOP Banner styles (Story 5.19 / UX §6.7).
+ *
+ * Severity via `.alert` left-edge + text tag — NOT `<live-dot>` (D2).
+ */
+
+.stop-banner-host__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.alerts-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+#alertsHost,
+.stop-banner-host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.stop-banner.alert {
+  position: relative;
+  padding: var(--space-6) var(--space-7);
+  background: var(--paper);
+  border: var(--border-hairline);
+  border-left-width: 3px;
+  border-left-color: var(--ink-mute);
+  border-radius: var(--radius-lg);
+}
+
+.stop-banner.alert.info {
+  border-left-color: var(--blue);
+}
+
+.stop-banner.alert.warn {
+  border-left-color: var(--amber);
+}
+
+.stop-banner.alert.crit {
+  border-left-color: var(--red);
+}
+
+.stop-banner__severity-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-bottom: var(--space-3);
+  background: var(--ink-mute);
+}
+
+.stop-banner.alert.info .stop-banner__severity-dot {
+  background: var(--blue);
+}
+
+.stop-banner.alert.warn .stop-banner__severity-dot {
+  background: var(--amber);
+}
+
+.stop-banner.alert.crit .stop-banner__severity-dot {
+  background: var(--red);
+}
+
+.stop-banner__title {
+  margin: 0;
+  font-size: var(--type-body-strong-size);
+  line-height: var(--type-body-strong-line-height);
+  font-weight: var(--type-body-strong-weight);
+  color: var(--ink);
+}
+
+.stop-banner__detail {
+  margin: var(--space-3) 0 0;
+  font-size: var(--type-body-small-size);
+  line-height: var(--type-body-small-line-height);
+  color: var(--ink-mute);
+}
+
+.stop-banner__action {
+  margin-top: var(--space-5);
+}
+
+.stop-banner .alert code,
+.stop-banner code {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-data-size);
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--space-11);
+}

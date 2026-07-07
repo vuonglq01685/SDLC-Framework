@@ -9,7 +9,16 @@ import "../freshness-footer/freshness-footer.js";
 /** D2: measured anti-cynicism copy — avoids banned exclamatory "All clear!" form. */
 export const EMPTY_STATE_MESSAGE = "No STOPs in flight";
 
-export function renderEmptyState(host, { message = EMPTY_STATE_MESSAGE, lastPoll, variant = "default", nowMs } = {}) {
+export function renderEmptyState(host, options = {}) {
+  const {
+    message: rawMessage,
+    lastPoll,
+    variant = "default",
+    nowMs,
+  } = options;
+  // DEF-5 (folded by 5.19): coerce any falsy message to the anti-cynicism default.
+  const message =
+    rawMessage == null || rawMessage === "" ? EMPTY_STATE_MESSAGE : rawMessage;
   host.replaceChildren();
   host.classList.add("empty-state");
 

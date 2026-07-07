@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>STOP banner live fixture (Story 5.19)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/section-heading/section-heading.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/empty-state/empty-state.css" />
+    <link rel="stylesheet" href="/static/components/inverted-command/inverted-command.css" />
+    <link rel="stylesheet" href="/static/components/stop-banner/stop-banner.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+        max-width: 480px;
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.19 — STOP banners (live /state.json)</h1>
+    <div id="stop-banner-live-root"></div>
+    <script type="module">
+      import { startStopBannerLivePoller } from "/static/components/stop-banner/stop-banner-live.js";
+
+      const host = document.getElementById("stop-banner-live-root");
+      const params = new URLSearchParams(window.location.search);
+      const intervalMs = Number(params.get("intervalMs")) || 200;
+      window.__stopBannerDispose = startStopBannerLivePoller(host, { intervalMs });
+    </script>
+  </body>
+</html>

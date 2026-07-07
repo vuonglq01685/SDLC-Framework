@@ -61,21 +61,6 @@ resume-card {
   display: block;
 }
 
-.copy-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  min-height: 36px;
-  padding: var(--space-3);
-  margin: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
 .resume-card__sr-only {
   position: absolute;
   width: 1px;

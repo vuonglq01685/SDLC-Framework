@@ -31,3 +31,20 @@
   overflow-x: auto;
   white-space: pre;
 }
+
+/* DEF-6 (Story 5.8, relocated by 5.19): shared copy-button chrome for
+   inverted-command surfaces (resume-card, stop-banner). */
+.copy-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: var(--space-3);
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
