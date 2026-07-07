@@ -121,7 +121,7 @@ def test_resume_card_eyebrow_tokens_in_css() -> None:
 
 
 def test_copy_btn_minimum_target_size_in_css() -> None:
-    css = _read(_RESUME_CSS)
+    css = _read(_INVERTED_CSS)
     assert "36px" in css
     assert ".copy-btn" in css
 

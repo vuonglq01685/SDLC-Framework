@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "auto_loop_status": "halted",
+  "stop_reason": "high_risk_path",
+  "project_name": "SDLC-Framework",
+  "owner": "lam",
+  "phase": 5,
+  "progress": 72
+}
