@@ -1,6 +1,6 @@
 # Story 5.20: Honest-Disconnection + Disconnected State on Backend Silence
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG **L9 (5C)**, cap **2** — parallel with **5.21** (epic-5-dag.md §3:218, §6:332). Worktree: `epic-5/5-20-honest-disconnection`. Owner **Sally** (dag §5:298). On the **critical-path spine** `5.2→5.4→5.5→5.11→5.19→5.20→5.22` (dag §4:254). Depends on: **5.19→5.20** (disconnection reuses the STOP-banner treatment; dag §2:161, done) + **5.5→5.20** (live-dot `disconnected` variant; §2:137, done) + **5.6→5.20** (masthead 60 s aria-live rate-limit; §2:159, done) + **5.8→5.20** (resume card; §2:160, done). Downstream: **5.20→5.22** (terminal a11y release gate; §2:166). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate **N/A** (epic-5 in-progress, cleared at 5.1). Review focus: **a11y** (aria-live enter+leave, page-wide simultaneity) + **resilience** (never false-disconnect on ONE transient failure; recover within one poll). No wire-format shape edit → **freeze stays 7/7**. This builds disconnection DETECTION + page-wide coordination; it does NOT build the below-1280 viewport banner (**5.21**) or real auto-loop dispatch. Sibling L9 worktree 5.21 also reuses the STOP-banner treatment + may touch `index.html` — coordinate (CONTRIBUTING §3.3 rebase-between-merges). -->
