@@ -98,6 +98,31 @@ def test_scan_flags_color_only_banner_masked_by_tagged_sibling() -> None:
     )
 
 
+def test_scan_passes_viewport_banner_with_text() -> None:
+    # Story 5.21: a viewport banner carrying its copy text is NOT color-only.
+    path = _FIXTURES / "clean_viewport_banner_with_text.html"
+    assert color_only_script.scan_paths([path]) == []
+
+
+def test_scan_flags_viewport_banner_color_only() -> None:
+    # Story 5.21: a --blue viewport banner with no text signal is color-only.
+    path = _FIXTURES / "violation_viewport_banner_color_only.html"
+    violations = color_only_script.scan_paths([path])
+    assert violations
+    assert any("viewport-banner without text" in v.pattern for v in violations)
+
+
+def test_scan_flags_color_only_viewport_banner_with_trailing_page_text() -> None:
+    # Review 2026-07-07 P2: a color-only viewport banner must NOT pass just
+    # because unrelated page text follows it. The text window is bounded to the
+    # banner's own closing tag, not the next banner / end of document.
+    path = _FIXTURES / "violation_viewport_banner_color_only_trailing_text.html"
+    violations = color_only_script.scan_paths([path])
+    assert any("viewport-banner without text" in v.pattern for v in violations), (
+        "color-only viewport banner masked by trailing page text escaped the gate"
+    )
+
+
 def test_main_returns_2_on_missing_explicit_path() -> None:
     assert color_only_script.main(["/nonexistent/path.html"]) == 2
 
