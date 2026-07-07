@@ -1,6 +1,6 @@
 # Story 5.19: STOP Banner Rendering All 7 Trigger Types
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG **L8 (5C)**, single-story layer, cap 1 (epic-5-dag.md §3:217, §6:331). Worktree: `epic-5/5-19-stop-banner-7-triggers`. Owner **Amelia** (engine/security-adjacent — NOT Sally; dag §5:297). Depends on: external wave gate **E4 → S19** = Epic-4 STOP state **being STICKY** (retro D4 / CR4.2-W3 sticky-halt), **NOT real-loop dispatch** (Decision D3; dag §2:177,196-197, §7:352) + 5A twins **5.5** (live-dot/freshness-footer family, done) via 5.5→5.19 (dag §2:136) + **5.11** (tabs/activity-feed/**empty-state**, done) via 5.11→5.19 (dag §2:158). Downstream: **5.19 → 5.20** (disconnection reuses this banner treatment; dag §2:161), **5.19 → 5.21** (below-1280 banner reuses treatment w/ `--blue`; dag §2:162), **5.19 → 5.22** (terminal a11y release gate; dag §2:165). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate **N/A** (epic-5 in-progress, cleared at 5.1). Review focus: **data-validation** (renders untrusted `stop_reason`/journal `reason` content — CR4.8-W3) + **a11y** (role=alert/status, color-only, reduced-motion). No wire-format contract shape edit → **freeze stays 7/7**. This renders STOP state; do NOT build disconnection (5.20) / below-1280 (5.21) / real dispatch (real-dispatch epic). -->
