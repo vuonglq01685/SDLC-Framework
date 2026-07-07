@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Viewport banner fixture (Story 5.21)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/viewport-banner/viewport-banner.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size, 1.25rem);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.21 — viewport degradation banner</h1>
+    <div id="viewport-banner-host"></div>
+    <script type="module">
+      import { startViewportBanner } from "/static/components/viewport-banner/viewport-banner.js";
+
+      // Deterministic driver: a fake matchMedia whose `matches` is computed from a
+      // `?w=<px>` query param (default 1000 -> below 1280, above 768). Never a real
+      // resize -- the boundaries are exercised via the injected mediaQueryFn (D2).
+      // `?w=500` -> the desktop-only (<768) copy; `?w=1400` -> no banner (>=1280).
+      const params = new URLSearchParams(window.location.search);
+      const width = Number(params.get("w")) || 1000;
+      const mediaQueryFn = (query) => {
+        const match = /max-width:\s*([\d.]+)px/.exec(query);
+        const max = match ? parseFloat(match[1]) : Infinity;
+        return {
+          media: query,
+          matches: width <= max,
+          addEventListener() {},
+          removeEventListener() {},
+          dispatchEvent() {
+            return true;
+          },
+        };
+      };
+
+      const host = document.getElementById("viewport-banner-host");
+      startViewportBanner(host, { mediaQueryFn });
+    </script>
+  </body>
+</html>

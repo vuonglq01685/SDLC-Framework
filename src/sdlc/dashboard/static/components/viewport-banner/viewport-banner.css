@@ -1,0 +1,50 @@
+/**
+ * Viewport degradation banner styles (Story 5.21 / UX §8.2).
+ *
+ * Reuses the `.alert`/`.info` (`--blue` left-edge) treatment established by
+ * stop-banner.css (Story 5.19), scoped to `.viewport-banner` — same design
+ * tokens, no new colour. No `transition:`/`@keyframes` (DD-14): the `×` dismiss
+ * is an instant DOM removal, never an animated collapse. Tokens only (5.2
+ * stylelint) — no raw hex.
+ */
+
+.viewport-banner.alert {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-7);
+  background: var(--paper);
+  border: var(--border-hairline);
+  border-left-width: 3px;
+  border-left-color: var(--ink-mute);
+  border-radius: var(--radius-lg);
+}
+
+.viewport-banner.alert.info {
+  border-left-color: var(--blue);
+}
+
+.viewport-banner__text {
+  margin: 0;
+  font-size: var(--type-body-small-size);
+  line-height: var(--type-body-small-line-height);
+  color: var(--ink);
+}
+
+.viewport-banner__dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-strong-size);
+  cursor: pointer;
+}

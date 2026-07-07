@@ -32,6 +32,10 @@ _LIVE_DOT_TAG = re.compile(r"<live-dot\b", re.IGNORECASE)
 _LIVE_DOT_CLOSE = "</live-dot>"
 _STOP_BANNER_TAG = re.compile(r"\bstop-banner\s+alert\b", re.IGNORECASE)
 _SEVERITY_TAG = re.compile(r"\b(?:CRITICAL|WARNING|INFO):")
+# Story 5.21: the viewport banner reuses the `--blue` `.alert.info` edge; its copy
+# sentence is the accompanying text signal (never `--blue`-edge-only).
+_VIEWPORT_BANNER_TAG = re.compile(r"\bviewport-banner\s+alert\b", re.IGNORECASE)
+_TAG_STRIP = re.compile(r"<[^>]*>")
 # How far past a <live-dot> tag to look for its adjacent label sibling/child.
 _LOOKAHEAD = 400
 _LABEL_CLASS = re.compile(
@@ -173,6 +177,58 @@ def _scan_stop_banners(path: Path, text: str) -> list[ColorOnlyViolation]:
     return violations
 
 
+def _scan_viewport_banners(path: Path, text: str) -> list[ColorOnlyViolation]:
+    """Viewport banners (Story 5.21) must carry visible text — never color-only.
+
+    A ``viewport-banner alert`` element with no text content between its opening
+    tag and the next banner (or end of document) is a ``--blue``-edge-only signal
+    (color-only), mirroring the STOP-banner text contract in ``_scan_stop_banners``.
+    """
+    violations: list[ColorOnlyViolation] = []
+    stripped = _HTML_COMMENT.sub(_blank_comment, text)
+    matches = list(_VIEWPORT_BANNER_TAG.finditer(stripped))
+    for i, match in enumerate(matches):
+        class_start = match.start()
+        line, col = _line_col(stripped, class_start)
+        open_lt = stripped.rfind("<", 0, class_start)
+        tag_end = _find_tag_end(stripped, open_lt if open_lt != -1 else class_start)
+        if tag_end == -1:
+            violations.append(
+                ColorOnlyViolation(
+                    path=path,
+                    line=line,
+                    pattern="viewport-banner opening tag not terminated",
+                    col=col,
+                )
+            )
+            continue
+        window_end = matches[i + 1].start() if i + 1 < len(matches) else len(stripped)
+        # Bound the text window to THIS banner's own closing tag so unrelated page
+        # text after the banner (a heading/footer) cannot mask a color-only banner
+        # (review 2026-07-07 P2). A bare "any text follows" check reads past the
+        # element's `</…>` otherwise, defeating the gate on any real page.
+        tag_name = _tag_name_after_lt(stripped[open_lt:]) if open_lt != -1 else None
+        if tag_name:
+            close = re.search(
+                rf"</\s*{re.escape(tag_name)}\s*>",
+                stripped[tag_end:window_end],
+                re.IGNORECASE,
+            )
+            if close:
+                window_end = tag_end + close.start()
+        content = _TAG_STRIP.sub(" ", stripped[tag_end:window_end])
+        if not content.strip():
+            violations.append(
+                ColorOnlyViolation(
+                    path=path,
+                    line=line,
+                    pattern="viewport-banner without text label (color-only --blue edge)",
+                    col=col,
+                )
+            )
+    return violations
+
+
 def _scan_html(path: Path, text: str) -> list[ColorOnlyViolation]:
     violations: list[ColorOnlyViolation] = []
     stripped = _HTML_COMMENT.sub(_blank_comment, text)
@@ -205,6 +261,7 @@ def _scan_html(path: Path, text: str) -> list[ColorOnlyViolation]:
             )
         )
     violations.extend(_scan_stop_banners(path, text))
+    violations.extend(_scan_viewport_banners(path, text))
     return violations
 
 
