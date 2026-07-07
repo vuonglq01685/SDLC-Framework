@@ -15,6 +15,28 @@ resume-card {
   box-shadow: none;
 }
 
+.resume-card--disconnected {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 var(--space-1) var(--amber-soft);
+}
+
+.resume-card__stale-warning {
+  margin: 0 0 var(--space-6);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  font-weight: var(--type-body-weight);
+  letter-spacing: var(--type-body-letter-spacing);
+  color: var(--ink-mute);
+}
+
+.resume-card__copy--disabled {
+  color: var(--ink-dim);
+  /* No `cursor: not-allowed`: `pointer-events: none` (and the button's real
+     `disabled`) mean a hover cursor never renders, so it would be dead. */
+  pointer-events: none;
+}
+
 .resume-card__greeting {
   margin: 0 0 var(--space-6);
   font-family: var(--font-sans);

@@ -39,7 +39,11 @@ function renderFreshnessFooter(root, { lastPoll, variant, nowMs }) {
 
   const timestamp = document.createElement("span");
   timestamp.className = "freshness-footer__timestamp";
-  if (lastPoll) {
+  const variantKey = String(variant || "default").toLowerCase();
+  if (variantKey === "disconnected") {
+    const pollTime = lastPoll ? formatLocalTime(lastPoll) : "--:--:--";
+    timestamp.textContent = `DISCONNECTED — last poll ${pollTime}`;
+  } else if (lastPoll) {
     timestamp.textContent = `as of ${formatLocalTime(lastPoll)}`;
     if (!isStale(lastPoll, nowMs)) {
       timestamp.classList.add("freshness-footer__timestamp--fresh");

@@ -53,6 +53,19 @@
       <resume-card id="resume-card-subsequent-target"></resume-card>
     </section>
 
+    <section aria-label="Disconnected resume card state">
+      <h2>Disconnected state</h2>
+      <resume-card
+        id="resume-card-disconnected-target"
+        user="diep"
+        breadcrumb='["Epic 5","Story 5.20","Disconnection"]'
+        command="sdlc status --suggested-next"
+        last-poll="2026-06-25T14:32:05.000Z"
+        variant="disconnected"
+        show-greeting="false"
+      ></resume-card>
+    </section>
+
     <script type="module">
       import "/static/components/resume-card/resume-card.js";
     </script>

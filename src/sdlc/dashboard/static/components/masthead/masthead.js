@@ -1,5 +1,6 @@
 import "../live-dot/live-dot.js";
 import { formatLocalTime } from "../freshness-footer/freshness-footer.js";
+import { getState as getConnectionState, reportPollResult, subscribe as subscribeConnectionState } from "../connection-state/connection-state.js";
 
 const POLL_INTERVAL_MS = 3_000;
 const ARIA_LIVE_INTERVAL_MS = 60_000;
@@ -155,28 +156,71 @@ function renderMasthead(root, state, { rateLimiter, updateTitle = false } = {}) 
   }
 }
 
+function applyDisconnectedOverlay(state) {
+  const disconnected = getConnectionState() === "disconnected";
+  if (!disconnected) {
+    return state;
+  }
+  return {
+    ...state,
+    connectionVariant: "disconnected",
+    disconnected: true,
+  };
+}
+
 function startMastheadPoller(root, opts = {}) {
   const { url = "/state.json", port, intervalMs = POLL_INTERVAL_MS, fetchFn = fetch, now = () => Date.now() } = opts;
   const etagRef = { value: null };
   const rateLimiter = createAriaLiveRateLimiter({ now });
+  let lastGoodState = null;
+  let disposed = false;
+
+  const renderFromState = (state, { updateTitle = true } = {}) => {
+    renderMasthead(root, applyDisconnectedOverlay(state), { rateLimiter, updateTitle });
+  };
+
+  const disposeBroker = subscribeConnectionState(() => {
+    if (lastGoodState) {
+      renderFromState(lastGoodState, { updateTitle: true });
+    }
+  });
+
   const tick = async () => {
+    if (disposed) {
+      return;
+    }
     try {
       const json = await pollStateJson({ url, etagRef, fetchFn });
-      if (json == null) return;
-      renderMasthead(root, mapStateFromJson(json, { port, lastPoll: new Date(now()) }), {
-        rateLimiter,
-        updateTitle: true,
-      });
+      // An in-flight poll can resolve after dispose(); do not report to (or
+      // render from) the shared singleton broker once torn down, or a zombie
+      // tick would flip page-wide connection state and write into a detached
+      // root (mirrors resume-card-live.js's disposed guards).
+      if (disposed) {
+        return;
+      }
+      reportPollResult({ ok: true });
+      if (json == null) {
+        return;
+      }
+      lastGoodState = mapStateFromJson(json, { port, lastPoll: new Date(now()) });
+      renderFromState(lastGoodState, { updateTitle: true });
     } catch {
-      // Keep the last-known-good render on a transient poll failure. Real
-      // disconnection detection (≥3 consecutive failures → page-wide disconnected)
-      // is Story 5.20's responsibility — 5.6 anti-scope. The disconnected visual is
-      // driven only by the synthetic fixture flag, never synthesized on error.
+      if (disposed) {
+        return;
+      }
+      reportPollResult({ ok: false });
+      if (lastGoodState) {
+        renderFromState(lastGoodState, { updateTitle: true });
+      }
     }
   };
   tick();
   const handle = window.setInterval(tick, intervalMs);
-  return () => window.clearInterval(handle);
+  return () => {
+    disposed = true;
+    window.clearInterval(handle);
+    disposeBroker();
+  };
 }
 
 function buildStaticState(el) {

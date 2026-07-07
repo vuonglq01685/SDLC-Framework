@@ -30,6 +30,7 @@
  */
 
 import { renderResumeCard } from "./resume-card.js";
+import { getState as getConnectionState, subscribe as subscribeConnectionState } from "../connection-state/connection-state.js";
 
 const POLL_INTERVAL_MS = 3_000;
 
@@ -96,6 +97,28 @@ export function startResumeCardLivePoller(host, opts = {}) {
   // an unchanged token does NOT tear down and rebuild the card (which drops
   // copy-button focus and clobbers the in-progress copy->check feedback).
   let lastSignature = null;
+  let lastRenderedData = null;
+
+  const renderCurrent = (force = false) => {
+    if (!lastRenderedData || disposed) {
+      return;
+    }
+    const disconnected = getConnectionState() === "disconnected";
+    const mapped = disconnected
+      ? { ...lastRenderedData, variant: "disconnected" }
+      : { ...lastRenderedData, variant: "default" };
+    const signature = JSON.stringify([mapped.breadcrumb, mapped.command, mapped.variant]);
+    if (!force && signature === lastSignature) {
+      refreshFreshnessTimestamp(host, mapped.lastPoll);
+      return;
+    }
+    lastSignature = signature;
+    renderResumeCard(host, mapped, { timerHost: host });
+  };
+
+  const disposeBroker = subscribeConnectionState(() => {
+    renderCurrent(true);
+  });
 
   renderResumeCard(host, LOADING_FIXTURE, {
     forceGreeting: false,
@@ -117,20 +140,35 @@ export function startResumeCardLivePoller(host, opts = {}) {
       });
       if (!disposed) {
         const mapped = mapResumeToken(token);
-        const signature = JSON.stringify([mapped.breadcrumb, mapped.command]);
+        lastRenderedData = mapped;
+        const disconnected = getConnectionState() === "disconnected";
+        const renderPayload = disconnected ? { ...mapped, variant: "disconnected" } : mapped;
+        const signature = JSON.stringify([
+          renderPayload.breadcrumb,
+          renderPayload.command,
+          renderPayload.variant,
+        ]);
         if (signature === lastSignature) {
           // Unchanged content: refresh only the freshness footer timestamp in
           // place, never rebuild the card (preserves focus + copy feedback).
-          refreshFreshnessTimestamp(host, mapped.lastPoll);
+          refreshFreshnessTimestamp(host, renderPayload.lastPoll);
         } else {
           lastSignature = signature;
-          renderResumeCard(host, mapped, { timerHost: host });
+          renderResumeCard(host, renderPayload, { timerHost: host });
         }
       }
     } catch {
       // Keep the last-known-good render on a transient poll failure OR an
       // aborted in-flight request (mirrors activity-feed.js / masthead.js's
       // tick catch) — an abort must never surface as a visible error state.
+      // force=false: an unchanged connected render stays a footer-only refresh,
+      // preserving copy-button focus + in-progress copy->check feedback (the P3
+      // invariant); a real broker variant change still rebuilds (its signature
+      // differs), and broker state changes are already re-rendered by the
+      // subscription above — so the catch must NOT force a full rebuild.
+      if (!disposed && lastRenderedData) {
+        renderCurrent();
+      }
     } finally {
       inFlight = false;
       controller = null;
@@ -145,6 +183,7 @@ export function startResumeCardLivePoller(host, opts = {}) {
     if (controller) {
       controller.abort();
     }
+    disposeBroker();
   };
   host._stopPoller = dispose;
   return dispose;
