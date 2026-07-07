@@ -30,6 +30,8 @@ _SCAN_GLOBS = ("*.html",)
 _HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _LIVE_DOT_TAG = re.compile(r"<live-dot\b", re.IGNORECASE)
 _LIVE_DOT_CLOSE = "</live-dot>"
+_STOP_BANNER_TAG = re.compile(r"\bstop-banner\s+alert\b", re.IGNORECASE)
+_SEVERITY_TAG = re.compile(r"\b(?:CRITICAL|WARNING|INFO):")
 # How far past a <live-dot> tag to look for its adjacent label sibling/child.
 _LOOKAHEAD = 400
 _LABEL_CLASS = re.compile(
@@ -142,6 +144,35 @@ def _label_present(after: str) -> bool:
     return _element_has_text(rest)
 
 
+def _scan_stop_banners(path: Path, text: str) -> list[ColorOnlyViolation]:
+    """STOP banners must carry a text severity tag — never color-only (Story 5.19).
+
+    The severity tag lives in the banner's own title (a child of the
+    ``.stop-banner.alert`` element), so the search is scoped FORWARD from each
+    banner's class match up to the NEXT banner (or end of document). A flat
+    ±character window would let a neighbouring banner's tag mask a genuinely
+    color-only one (review 2026-07-07 P2).
+    """
+    violations: list[ColorOnlyViolation] = []
+    stripped = _HTML_COMMENT.sub(_blank_comment, text)
+    matches = list(_STOP_BANNER_TAG.finditer(stripped))
+    for i, match in enumerate(matches):
+        start = match.start()
+        line, col = _line_col(stripped, start)
+        window_end = matches[i + 1].start() if i + 1 < len(matches) else len(stripped)
+        window = stripped[start:window_end]
+        if not _SEVERITY_TAG.search(window):
+            violations.append(
+                ColorOnlyViolation(
+                    path=path,
+                    line=line,
+                    pattern=".stop-banner without text severity tag (CRITICAL:/WARNING:/INFO:)",
+                    col=col,
+                )
+            )
+    return violations
+
+
 def _scan_html(path: Path, text: str) -> list[ColorOnlyViolation]:
     violations: list[ColorOnlyViolation] = []
     stripped = _HTML_COMMENT.sub(_blank_comment, text)
@@ -173,6 +204,7 @@ def _scan_html(path: Path, text: str) -> list[ColorOnlyViolation]:
                 col=col,
             )
         )
+    violations.extend(_scan_stop_banners(path, text))
     return violations
 
 

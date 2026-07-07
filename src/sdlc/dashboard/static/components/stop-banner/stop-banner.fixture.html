@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>STOP banner synthetic fixture (Story 5.19)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/empty-state/empty-state.css" />
+    <link rel="stylesheet" href="/static/components/inverted-command/inverted-command.css" />
+    <link rel="stylesheet" href="/static/components/stop-banner/stop-banner.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-11);
+        max-width: 480px;
+      }
+
+      h1 {
+        font-size: var(--type-display-4-size);
+        margin-bottom: var(--space-7);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Story 5.19 — STOP banners (all 7 trigger types)</h1>
+    <div id="alertsHost" class="stop-banner-host"></div>
+    <script type="module">
+      import {
+        buildSyntheticAll7Triggers,
+        renderStopBanners,
+      } from "/static/components/stop-banner/stop-banner.js";
+
+      const host = document.getElementById("alertsHost");
+      renderStopBanners(host, buildSyntheticAll7Triggers(), {
+        lastPoll: new Date().toISOString(),
+      });
+    </script>
+  </body>
+</html>
