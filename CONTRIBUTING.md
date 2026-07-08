@@ -27,6 +27,10 @@ Every PR — every story — must pass the full quality gate locally before push
 **Bypass policy:** No `--no-verify`, no `# type: ignore` without inline justification, no
 `# noqa` without a citation to the ADR or NFR that motivates the suppression.
 
+**Dashboard accessibility (Story 5.22 / DD-19):** the `pytest` step above already runs the
+axe-core Level-A gate + keyboard-only smoke on every PR; see `docs/a11y/README.md` (mkdocs
+"Reference → Accessibility") for the per-release minimum and the regression-blocking process.
+
 ---
 
 ## 2. TDD-First Discipline (per ADR-026)
@@ -408,7 +412,8 @@ This is how a future contributor (or auditor) reconstructs whether the gate fire
 
 
 - **Bugs in shipped substrate:** Open an issue with `kind:bug` label, cite the failing test or
-  reproducer, and specify which ADR's invariant is violated (if any).
+  reproducer, and specify which ADR's invariant is violated (if any). Dashboard accessibility
+  regressions follow this same path — see `docs/a11y/README.md` §3.
 - **Process / workflow concerns:** Surface at retrospective, OR raise immediately with the
   Project Lead if blocking.
 - **Security concerns:** Direct message the Project Lead — do NOT open a public issue first.
