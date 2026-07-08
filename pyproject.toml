@@ -168,6 +168,9 @@ exclude = [
 "src/sdlc/dashboard/static/components/connection-state/connection-state.fixture.html" = "sdlc/dashboard/static/components/connection-state/connection-state.fixture.html"
 "src/sdlc/dashboard/static/test-fixtures/editorial-scanning-rhythm.html" = "sdlc/dashboard/static/test-fixtures/editorial-scanning-rhythm.html"
 "src/sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2" = "sdlc/dashboard/static/fonts/jetbrains-mono-600.woff2"
+# Story 5.22: terminal release-gate a11y surface (closes the STOP-banner /
+# disconnection / viewport-banner composite-scan gap; D1).
+"src/sdlc/dashboard/static/test-fixtures/release-a11y-surface.html" = "sdlc/dashboard/static/test-fixtures/release-a11y-surface.html"
 
 [tool.hatch.build.targets.sdist]
 # PRD §499 + §216 mandate wheel-only distribution for v1.

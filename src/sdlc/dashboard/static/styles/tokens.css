@@ -194,6 +194,16 @@ body {
   --type-mono-md-weight: 400;
   --type-mono-md-letter-spacing: 0;
 
+  /* Story 5.22 D1: same size/weight/spacing as mono-md, but a taller
+     line-height for elements whose line box must fully contain the
+     JetBrains Mono glyph metrics (mono-md's line-height:1 clips top+bottom,
+     which trips axe's Level-A scrollable-region-focusable rule on any
+     overflow-x:auto consumer — e.g. inverted-command). */
+  --type-mono-command-size: 12px;
+  --type-mono-command-line-height: 1.4;
+  --type-mono-command-weight: 400;
+  --type-mono-command-letter-spacing: 0;
+
   --type-mono-data-size: 11px;
   --type-mono-data-line-height: 1;
   --type-mono-data-weight: 500;

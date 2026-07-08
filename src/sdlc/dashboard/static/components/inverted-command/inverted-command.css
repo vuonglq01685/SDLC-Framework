@@ -19,10 +19,17 @@
   min-width: 0;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--type-mono-md-size);
-  line-height: var(--type-mono-md-line-height);
-  font-weight: var(--type-mono-md-weight);
-  letter-spacing: var(--type-mono-md-letter-spacing);
+  /* Story 5.22 D1 terminal scan: mono-md's line-height (1) is tighter than
+     JetBrains Mono's glyph metrics, so the rendered line box exceeded this
+     element's box on top+bottom. Combined with overflow-x: auto +
+     tabindex="-1" below, that tripped axe's Level-A
+     scrollable-region-focusable rule. Use the mono-command scale (same
+     size/weight/spacing, taller line-height) instead of overriding a
+     single property against the FROZEN per-role token convention. */
+  font-size: var(--type-mono-command-size);
+  line-height: var(--type-mono-command-line-height);
+  font-weight: var(--type-mono-command-weight);
+  letter-spacing: var(--type-mono-command-letter-spacing);
   color: inherit;
   background: transparent;
   /* DEF-4 (Story 5.8, folded by 5.18): real/long commands need a defined

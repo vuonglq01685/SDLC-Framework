@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Release a11y surface fixture (Story 5.22)</title>
+    <link rel="stylesheet" href="/static/styles/tokens.css" />
+    <link rel="stylesheet" href="/static/styles/focus-motion.css" />
+    <link rel="stylesheet" href="/static/components/masthead/masthead.css" />
+    <link rel="stylesheet" href="/static/components/kpi-strip/kpi-strip.css" />
+    <link rel="stylesheet" href="/static/components/tabs/tabs.css" />
+    <link rel="stylesheet" href="/static/components/phase-tracker/phase-tracker.css" />
+    <link rel="stylesheet" href="/static/components/section-heading/section-heading.css" />
+    <link rel="stylesheet" href="/static/components/resume-card/resume-card.css" />
+    <link rel="stylesheet" href="/static/components/empty-state/empty-state.css" />
+    <link rel="stylesheet" href="/static/components/activity-feed/activity-feed.css" />
+    <link rel="stylesheet" href="/static/components/live-dot/live-dot.css" />
+    <link rel="stylesheet" href="/static/components/freshness-footer/freshness-footer.css" />
+    <link rel="stylesheet" href="/static/components/inverted-command/inverted-command.css" />
+    <link rel="stylesheet" href="/static/components/stop-banner/stop-banner.css" />
+    <link rel="stylesheet" href="/static/components/viewport-banner/viewport-banner.css" />
+    <style>
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans, Inter, sans-serif);
+        padding: var(--space-shell-top) var(--layout-shell-padding-x) var(--space-shell-bottom);
+        max-width: var(--layout-shell-max-width);
+        margin: 0 auto;
+      }
+
+      .rhythm-stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-11);
+      }
+
+      .rhythm-main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: var(--layout-grid-gap);
+      }
+
+      .rhythm-side-col {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-9);
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Story 5.22 D1: the terminal release-gate scan. Composes the Story 5.11
+      rhythm surface (masthead, KPI, resume, phase tracker, backlog tree,
+      activity feed, tabs) alongside the THREE surfaces the composite in
+      editorial-scanning-rhythm.html omits: STOP banners (all severities),
+      the honest-disconnection banner + a disconnected resume card, and the
+      viewport degradation banner. Reuses every component verbatim (compose,
+      do not rebuild) so cross-component landmark/heading issues surface in
+      ONE authoritative scan.
+    -->
+    <div class="rhythm-stack">
+      <header data-rhythm-section="masthead">
+        <sdlc-masthead project-name="SDLC-Framework" owner="team" phase="5" progress="42"></sdlc-masthead>
+      </header>
+
+      <section data-rhythm-section="kpi-strip" aria-label="KPI strip">
+        <kpi-strip></kpi-strip>
+      </section>
+
+      <nav data-rhythm-section="tabs" aria-label="Section tabs">
+        <dashboard-tabs></dashboard-tabs>
+      </nav>
+
+      <section data-rhythm-section="phase-tracker">
+        <section-block-heading class="section-block-heading" title="Phase tracker" count="4 phases"></section-block-heading>
+        <phase-tracker></phase-tracker>
+      </section>
+
+      <div class="rhythm-main-grid" data-rhythm-section="main-content">
+        <main class="rhythm-main-col">
+          <section-block-heading class="section-block-heading" title="Backlog" count="12 stories"></section-block-heading>
+          <backlog-tree></backlog-tree>
+        </main>
+
+        <aside class="rhythm-side-col">
+          <div data-rhythm-section="resume-card">
+            <resume-card></resume-card>
+          </div>
+
+          <section data-rhythm-section="activity-feed" aria-label="Activity">
+            <section-block-heading class="section-block-heading" title="Activity" count="50 runs"></section-block-heading>
+            <activity-feed></activity-feed>
+          </section>
+        </aside>
+      </div>
+
+      <!--
+        The 3 net-new 5C surfaces render full-width (not the narrow aside
+        sidebar above) -- this fixture is a scan harness, not a shipped page
+        assembly (index.html assembly is explicitly out of scope), and a
+        narrow column would artificially wrap/scroll the inverted-command
+        pill inside a STOP banner's action row.
+      -->
+      <section data-rhythm-section="alerts-column" aria-label="Alerts">
+        <section-block-heading class="section-block-heading" title="Alerts" count="7 active"></section-block-heading>
+        <div id="alertsHost"></div>
+      </section>
+
+      <section data-rhythm-section="disconnected-state" aria-label="Disconnected state (5C release-gate surface)">
+        <section-block-heading class="section-block-heading" title="Disconnected state" count="release gate"></section-block-heading>
+        <div id="disconnectionBannerHost"></div>
+        <resume-card
+          id="resume-card-disconnected"
+          user="diep"
+          breadcrumb='["Epic 5","Story 5.22","Release gate"]'
+          command="sdlc status --suggested-next"
+          last-poll="2026-06-25T14:32:05.000Z"
+          variant="disconnected"
+          show-greeting="false"
+        ></resume-card>
+      </section>
+
+      <section data-rhythm-section="viewport-banner" aria-label="Viewport degradation banner (5C release-gate surface)">
+        <div id="viewport-banner-host"></div>
+      </section>
+    </div>
+
+    <script type="module">
+      import "/static/components/masthead/masthead.js";
+      import "/static/components/kpi-strip/kpi-strip.js";
+      import "/static/components/tabs/tabs.js";
+      import "/static/components/phase-tracker/phase-tracker.js";
+      import "/static/components/section-heading/section-heading.js";
+      import "/static/components/backlog-tree/backlog-tree.js";
+      import "/static/components/pills/pills.js";
+      import "/static/components/resume-card/resume-card.js";
+      import "/static/components/empty-state/empty-state.js";
+      import "/static/components/activity-feed/activity-feed.js";
+      import {
+        buildSyntheticAll7Triggers,
+        renderStopBanners,
+      } from "/static/components/stop-banner/stop-banner.js";
+      import { renderHonestDisconnectionBanner } from "/static/components/connection-state/connection-state.js";
+      import { startViewportBanner } from "/static/components/viewport-banner/viewport-banner.js";
+
+      // Deterministic: a FIXED lastPoll (matching the disconnection banner below),
+      // never the wall clock -- this fixture is scanned to produce a report the
+      // template pastes "verbatim / byte-clean" (review P7).
+      renderStopBanners(document.getElementById("alertsHost"), buildSyntheticAll7Triggers(), {
+        lastPoll: "2026-06-25T14:32:05.000Z",
+      });
+
+      renderHonestDisconnectionBanner(document.getElementById("disconnectionBannerHost"), {
+        lastPoll: new Date("2026-06-25T14:32:05.000Z"),
+      });
+
+      // Deterministic: force the <1280 banner visible via an injected fake
+      // MediaQueryList (D2 web-testing-determinism rule) -- never a live resize.
+      function makeStaticMql(matches) {
+        return {
+          matches,
+          media: "",
+          addEventListener() {},
+          removeEventListener() {},
+        };
+      }
+      const mqlBelow1280 = makeStaticMql(true);
+      const mqlBelow768 = makeStaticMql(false);
+      startViewportBanner(document.getElementById("viewport-banner-host"), {
+        mediaQueryFn: (query) => (query.indexOf("767") !== -1 ? mqlBelow768 : mqlBelow1280),
+        storage: {
+          getItem: () => null,
+          setItem() {},
+          removeItem() {},
+        },
+      });
+    </script>
+  </body>
+</html>
