@@ -106,7 +106,10 @@ def test_inverted_command_surface_uses_ink_bg_and_bg_text() -> None:
     assert "var(--ink)" in css
     assert "var(--bg)" in css
     assert "var(--font-mono)" in css
-    assert "var(--type-mono-md-size)" in css
+    # Story 5.22 D1: uses the --type-mono-command-* scale (same size/weight/
+    # spacing as --type-mono-md-*, but a taller line-height) to fix a Level-A
+    # scrollable-region-focusable axe violation — see inverted-command.css.
+    assert "var(--type-mono-command-size)" in css
     assert "var(--radius-md)" in css
     assert "var(--space-5)" in css
     assert "var(--space-6)" in css

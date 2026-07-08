@@ -14,7 +14,14 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("playwright")
+# Story 5.22 review P4: do NOT `pytest.importorskip("playwright")` at module
+# scope. The pure helpers below (format_axe_violation, the tag constants,
+# RELEASE_SURFACE_FIXTURE_PATH, wait_for_release_surface_render,
+# assert_release_surface_complete) need no browser, so a module-level skip
+# needlessly couples browserless unit tests (which import this module transitively
+# via scripts/generate_a11y_report.py) to the Playwright package. The browser
+# dependency is guarded lazily inside with_playwright_page instead — every
+# browser-using test routes through it, so the skip semantics are preserved.
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _AXE_VENDOR = _REPO_ROOT / "tests" / "dashboard" / "vendor" / "axe.min.js"
@@ -36,8 +43,11 @@ AXE_OPTIONS = {
 
 @contextmanager
 def with_playwright_page(url: str) -> Iterator[object]:
-    from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import sync_playwright
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:  # pragma: no cover - env without the playwright pkg
+        pytest.skip(f"playwright package not installed: {exc}")
 
     with sync_playwright() as playwright:
         try:
@@ -66,6 +76,52 @@ def run_axe_scan(page: object) -> tuple[list[dict[str, object]], list[dict[str, 
         else:
             reported.append(violation)
     return blocking, reported
+
+
+# Story 5.22 D1: the terminal release-gate fixture, shared between the pytest
+# module (test_release_a11y_surface.py) and scripts/generate_a11y_report.py so
+# the "what surface did we actually scan" wait-logic can't drift between them.
+RELEASE_SURFACE_FIXTURE_PATH = "/static/test-fixtures/release-a11y-surface.html"
+
+
+def wait_for_release_surface_render(page: object) -> None:
+    """Block until every 5C surface in the release-a11y-surface fixture has mounted."""
+    page.wait_for_selector("dashboard-tabs [role='tab']")
+    page.wait_for_selector("kpi-strip dl")  # review P2/A3: gate the KPI rhythm surface too
+    page.wait_for_selector("backlog-tree .tree-expander")
+    page.wait_for_selector("resume-card .copy-btn")
+    page.wait_for_selector(".stop-banner")
+    page.wait_for_selector(".honest-disconnection-banner")
+    page.wait_for_selector(".viewport-banner")
+
+
+def assert_release_surface_complete(page: object) -> None:
+    """Guard that the release fixture actually rendered every 5C gap surface.
+
+    ``wait_for_release_surface_render`` only proves *presence* of ``.stop-banner``,
+    which the honest-disconnection banner alone satisfies (it reuses the
+    ``stop-banner alert crit`` treatment), so a page whose 7 real STOP triggers
+    silently failed to render would still scan and *vacuously* pass. This asserts
+    the full 5C gap surface so both the terminal test AND the release-report
+    script (``scripts/generate_a11y_report.py``) enforce ONE completeness
+    contract rather than the script gating on mere presence (Story 5.22 review P2).
+    """
+    stop_banners = page.locator("#alertsHost .stop-banner")
+    stop_count = stop_banners.count()
+    assert stop_count == 7, f"expected 7 STOP triggers in #alertsHost, found {stop_count}"
+    labels = page.locator("#alertsHost .stop-banner__title").all_inner_texts()
+    for severity in ("CRITICAL:", "WARNING:", "INFO:"):
+        assert any(severity in text for text in labels), f"missing STOP severity {severity}"
+    disconnection = page.locator(".honest-disconnection-banner")
+    assert disconnection.count() == 1, "missing the honest-disconnection banner"
+    assert disconnection.get_attribute("role") == "alert", "disconnection banner role != alert"
+    disconnected_copy = page.locator("resume-card#resume-card-disconnected .copy-btn")
+    assert disconnected_copy.get_attribute("aria-disabled") == "true", (
+        "disconnected resume-card copy button is not aria-disabled"
+    )
+    viewport = page.locator(".viewport-banner")
+    assert viewport.count() == 1, "missing the viewport degradation banner"
+    assert viewport.get_attribute("role") == "status", "viewport banner role != status"
 
 
 def format_axe_violation(violation: dict[str, object]) -> str:
