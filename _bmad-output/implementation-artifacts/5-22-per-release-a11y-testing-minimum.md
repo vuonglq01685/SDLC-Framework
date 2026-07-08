@@ -1,6 +1,6 @@
 # Story 5.22: Per-Release a11y Testing Minimum (axe-core CI + Screen-Reader + Keyboard)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Layer: Epic-5 DAG **L10 (5C)**, cap **1** — the **terminal release gate**, no parallel sibling (epic-5-dag.md §3:219, §6:333). Worktree: `epic-5/5-22-per-release-a11y-minimum`. Owner **Murat** (dag §5:300; a11y-focused review §7:396). **Terminal node of the critical path** `5.2→5.4→5.5→5.11→5.19→5.20→5.22` (depth-7, dag §4:254) with a co-critical `…→5.21→5.22` (dag §4:259). **Full 5C fan-in:** depends on **5.12 + 5.18 + 5.19 + 5.20 + 5.21** and conceptually re-scans the 5.14–5.19 real-data surface (dag §2:163-167, §2-note:199-202). NOT Story N.1 → CONTRIBUTING §7.4 per-epic gate **N/A** (epic-5 in-progress, cleared at 5.1). This is the **LAST story of Epic 5** — next is `epic-5-retrospective` (optional). Review focus: **a11y** (the gate itself must be correct) + **process/docs correctness** (release-blocking must actually block; no false-green). No wire-format shape edit (pure a11y-harness + CI + docs) → **freeze stays 7/7**. This story does NOT re-implement per-component a11y (5.12 + the per-component witnesses own that) and does NOT ship/assemble `index.html` as a live real-data page. Read Decisions D1–D4 BEFORE coding. -->
